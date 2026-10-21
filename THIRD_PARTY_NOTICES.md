@@ -379,8 +379,16 @@ the licence is in `python/stabilizer_qec/estimate/LICENSE-qdk`. The binomial qua
 mass function in it follow the `probability` crate 0.20 (Ivan Ukhov and contributors,
 https://github.com/stainless-steel/probability) and its incomplete beta function the `special`
 crate (https://github.com/stainless-steel/special), both Apache-2.0 OR MIT.
+`python/stabilizer_qec/estimate/azure_params.py` ports the QDK's parameter classes
+(`qdk/estimator/_estimator.py` of the qdk package 1.33.1), and
+`python/stabilizer_qec/estimate/azure_report.py` its report (the same file's HTML tables, diagram
+and plot) and the space and scatter charts of its notebook widgets (the qsharp_widgets package
+1.33.1, built from `source/npm/qsharp/ux` of microsoft/qdk), all Copyright (c) Microsoft
+Corporation under the same MIT License (`LICENSE-qdk`).
 `tests/estimate_port/qdk_estimates.json` records outputs of qdk 1.33.1 the tests compare
-against.
+against, and `qdk_reports.json.gz` and `qdk_params.json` there (recorded by
+`tools/qdk_report_fixtures.py`) its report's HTML and text, the widgets' charts and its
+parameter classes' dictionaries and messages.
 
 ## wgpu
 

@@ -1,0 +1,716 @@
+"""The QDK's report of an estimate as `stabilizer_qec.estimate.azure.EstimatorResult` draws it, against
+tests/estimate_port/qdk_reports.json.gz (recorded by tools/qdk_report_fixtures.py from qdk 1.33.1 and
+qsharp_widgets 1.33.1): for forty results (25 recorded estimates, a failed one, batches with failed, frontier
+and differing items) the HTML of ``_repr_html_()``, ``summary``, ``[:]`` and other slices and the diagrams, with
+what the QDK prints and the exceptions it raises, without markdown and with markdown and python-markdown-math;
+and the qsharp_widgets charts (the SpaceChart donut, the estimates overview's scatter chart, their colors, axis
+ticks and numbers as JavaScript writes them) against the widgets' own drawing, element by element."""
+
+from __future__ import annotations
+
+import copy
+import gzip
+import hashlib
+import json
+import math
+import pathlib
+import pickle
+import platform
+import re
+import struct
+import sys
+import warnings
+import xml.etree.ElementTree as ET
+
+import pytest
+
+from stabilizer_qec.estimate import azure as az
+from stabilizer_qec.estimate import azure_report as rep
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools"))
+import qdk_report_fixtures as fx  # noqa: E402
+
+DATA = json.loads(gzip.decompress((pathlib.Path(__file__).parent / "qdk_reports.json.gz").read_bytes()))
+RESULTS = {name: DATA[name] for name in ("qdk_estimates", "qdk_review2")}
+RENDERINGS = DATA["renderings"]
+CASES = {case["name"]: case for case in RENDERINGS["cases"]}
+PLAIN = fx.unpack(RENDERINGS["plain"], RENDERINGS["lines"])
+MARKDOWN = fx.unpack(RENDERINGS["markdown"], RENDERINGS["lines"])
+WIDGET = DATA["widget"]
+DRAWN = WIDGET["drawn"]
+
+try:
+    import qdk.estimator as qdk_estimator
+except ImportError:  # pragma: no cover
+    qdk_estimator = None
+
+needs_qdk = pytest.mark.skipif(qdk_estimator is None, reason="qdk is not installed")
+# matplotlib 3.9 (the last for Python 3.9) warns on import under pyparsing 3.3: not this package's warning.
+pytestmark = pytest.mark.filterwarnings("ignore:'enablePackrat' deprecated")
+
+
+def _markdown_as_recorded() -> bool:
+    if not rep.has_markdown:
+        return False
+    import importlib.metadata
+
+    import markdown
+
+    return {"markdown": markdown.__version__, "python-markdown-math": importlib.metadata.version("python-markdown-math")} == RENDERINGS["markdown_versions"]
+
+
+def test_report_fixture_is_the_tools_cases():
+    assert RENDERINGS["qdk"] == fx.QDK_VERSION and RENDERINGS["cases"] == json.loads(json.dumps(fx.REPORT_CASES)) and len(CASES) == 40
+    assert set(PLAIN) == set(MARKDOWN) == set(CASES) and sum(len(steps) for steps in PLAIN.values()) >= 160
+    assert WIDGET["space"] == json.loads(json.dumps(fx.widget_cases(RESULTS)["space"])) and WIDGET["scatter"] == fx.WIDGET_SCATTERS and WIDGET["numbers"] == fx.WIDGET_NUMBERS
+
+
+def _named_as_the_qdk(drawn: dict) -> dict:
+    """The port's steps with a failed result's `summary` error named as the QDK's class, AttributeError. The port
+    raises `_EstimateFailed`, an AttributeError that is also 2.1's EstimatorError (test_failed_summary_is_both_errors);
+    that step, and that class alone, is renamed, and every other step keeps its exception's own class name."""
+    assert issubclass(az._EstimateFailed, AttributeError) and issubclass(az._EstimateFailed, az.EstimatorError)
+    return {step: dict(rec, raised="AttributeError") if step == "summary" and rec.get("raised") == "_EstimateFailed" else rec for step, rec in drawn.items()}
+
+
+@pytest.mark.parametrize("name", sorted(CASES))
+def test_report_against_qdk_recorded(name, monkeypatch):
+    """Without markdown: every step's HTML (or exception, class and message) and what it printed is the QDK's."""
+    monkeypatch.setattr(rep, "has_markdown", False)
+    assert _named_as_the_qdk(fx.render_case(CASES[name], RESULTS, az.EstimatorResult, az.EstimatorError)) == PLAIN[name]
+
+
+@pytest.mark.skipif(not _markdown_as_recorded(), reason="markdown 3.11.2 and python-markdown-math 0.9 (the recorded versions) are not installed")
+@pytest.mark.parametrize("name", sorted(CASES))
+def test_report_with_markdown_against_qdk_recorded(name):
+    """With markdown and python-markdown-math: the explanations and assumptions converted, as the QDK's."""
+    assert _named_as_the_qdk(fx.render_case(CASES[name], RESULTS, az.EstimatorResult, az.EstimatorError, diagrams=False)) == MARKDOWN[name]
+
+
+def test_only_a_failed_summary_is_renamed():
+    """Which recorded steps `_named_as_the_qdk` renames: the failed result's `summary`, whose QDK error is an
+    AttributeError, and no other (the port raises `_EstimateFailed` nowhere else)."""
+    renamed = {(name, step) for name in CASES for step, rec in fx.render_case(CASES[name], RESULTS, az.EstimatorResult, az.EstimatorError, diagrams=False).items() if rec.get("raised") == "_EstimateFailed"}
+    assert renamed == {(name, "summary") for name in CASES if PLAIN[name].get("summary", {}).get("raised") == "AttributeError"} and renamed
+    assert all(PLAIN[name]["summary"]["str"] == "'EstimatorResult' object has no attribute 'summary'" for name, _ in renamed)
+
+
+def _counts():
+    return az.LogicalCounts(num_qubits=10, t_count=100, rotation_count=5, rotation_depth=3)
+
+
+def _qdk_batch_value(data: dict, path: str) -> str:
+    """The QDK's side-by-side value: the path's keys followed while each is there, else "N/A"."""
+    value = data
+    for key in path.split("/"):
+        if key not in value:
+            return "N/A"
+        value = value[key]
+    return str(value)
+
+
+def test_batch_frontier_item_is_na():
+    """The QDK's side-by-side table follows each entry's path in each item as it is: a frontier item has no
+    top-level counts, so its column is "N/A" there (in the text and in the HTML), where its own report reads its
+    first entry."""
+    batch = _counts().estimate([{"qubitParams": {"name": "qubit_gate_ns_e3"}}, {"estimateType": "frontier"}])
+    entries = [e for g in batch[0]["reportData"]["groups"] for e in g["entries"]]
+    expected = {e["label"]: [_qdk_batch_value(batch.data(i), e["path"]) for i in (0, 1)] for e in entries}
+    assert sum(v[1] == "N/A" for v in expected.values()) >= 10 and sum(v[1] != "N/A" for v in expected.values()) >= 5
+    for text in (str(batch[:]), str(batch.summary), str(batch[0:2])):
+        header, *lines = text.splitlines()
+        col0 = header.index("0", 6)
+        rows = {line[2:col0].rstrip(): line.rstrip() for line in lines if line.startswith("  ")}
+        assert set(expected) <= set(rows)
+        for label, (first, second) in expected.items():
+            assert rows[label][col0:].startswith(first) and rows[label].endswith("  " + second), label
+    html_rows = re.findall(r'<td style="font-weight: bold; vertical-align: top; white-space: nowrap">(.*?)</td>\s*<td style="vertical-align: top; white-space: nowrap">(.*?)</td>\s*<td style="vertical-align: top; white-space: nowrap">(.*?)</td>', batch[:]._repr_html_())
+    html = {label: [a, b] for label, a, b in html_rows}
+    assert {label: html.get(label) for label in expected} == expected
+    frontier = batch[1]
+    assert "N/A" not in str(frontier.summary) and "N/A" not in frontier.summary.content and frontier["physicalCountsFormatted"]["runtime"] in frontier._repr_html_()
+
+
+def test_summary_and_slices_are_text_and_html(monkeypatch):
+    monkeypatch.setattr(rep, "has_markdown", False)  # the assumptions are listed only with markdown
+    counts = _counts()
+    one = counts.estimate({"qubitParams": {"name": "qubit_gate_ns_e4"}})
+    assert isinstance(one.summary, str) and one.summary.splitlines()[0] == "Physical resource estimates"
+    assert one.summary._repr_html_() == one.summary.content and one.summary.content.startswith("\n            <style>\n                .aqre-tooltip {")
+    assert one._repr_html_().startswith("\n                <details open>") and one._repr_html_().endswith("<details><summary style=\"display:list-item\"><strong>Assumptions</strong></summary><ul></ul></details>")
+    assert one.summary is one.summary
+    batch = counts.estimate([{}] * 7)
+    assert batch.summary.startswith("(the first 5 of 7 items") and batch.summary._repr_html_() == batch._repr_html_()
+    assert batch._repr_html_().startswith("<p><b>Info:</b> <i>The overview table is cut off after 5 items. If you want to see all items, suffix the result variable with <code>[:]</code></i></p>")
+    assert "<thead><tr><th>Item</th>" + "".join(f"<th>{i}</th>" for i in range(7)) + "</tr></thead>" in batch[:].content and "<thead><tr><th>Item</th><th>2</th><th>3</th></tr></thead>" in batch[2:4]._repr_html_()
+    with pytest.raises(ValueError, match="^Cannot pass slice to '__getitem__' for non-batching job$"):
+        _ = one[:]
+
+
+def test_none_succeeded_prints_when_drawn(capsys):
+    """The QDK prints "None of the jobs succeeded" when it draws a batch's table with no succeeded item (at
+    construction, and for each slice) and draws nothing; here when the HTML is drawn, once per table."""
+    batch = _counts().estimate([{"constraints": {"maxDuration": "1 ns"}}] * 2)
+    assert batch.summary == "None of the jobs succeeded" and capsys.readouterr().out == ""
+    assert batch._repr_html_() == "" and batch._repr_html_() == "" and capsys.readouterr().out == "None of the jobs succeeded\n"
+    sliced = batch[0:1]
+    assert sliced.content == sliced.content == "" and capsys.readouterr().out == "None of the jobs succeeded\n"
+
+
+def test_attributes_only_where_the_qdk_has_them():
+    """As the QDK's: a succeeded result has `summary` and `diagram`, a failed one neither, a batch `plot` (and
+    the text summary of its overview here), a single result no `plot`. Each missing attribute's AttributeError is
+    the one Python raises for the QDK's (its attributes are the instance's, set when the result is made): its args
+    the message, and from Python 3.10 its `name` and `obj`. `diagram` and `plot`, which 2.1 did not have, raise
+    nothing else; a failed `summary` is also an EstimatorError (test_failed_summary_is_both_errors)."""
+    batch = _counts().estimate([{}, {"constraints": {"maxDuration": "1 ns"}}])
+    failed = batch[1]
+    for obj, name in ((failed, "summary"), (failed, "diagram"), (batch, "diagram"), (batch[0], "plot"), (failed, "plot")):
+        with pytest.raises(AttributeError, match=f"^'EstimatorResult' object has no attribute '{name}'$") as caught:
+            getattr(obj, name)
+        assert not hasattr(obj, name)
+        assert _attribute_error_face(caught.value) == _attribute_error_face(_python_attribute_error(name)) and getattr(caught.value, "obj", obj) is obj
+        assert name == "summary" or type(caught.value) is AttributeError
+        # The property sets `name` and `obj` itself: Python fills them in when getattr reads it, but not on every
+        # path (`result.summary` can run the property without), and not here, where the property is run directly.
+        with pytest.raises(AttributeError) as direct:
+            getattr(type(obj), name).fget(obj)
+        assert type(direct.value) is type(caught.value) and _attribute_error_face(direct.value) == _attribute_error_face(caught.value) and getattr(direct.value, "obj", obj) is obj
+    with pytest.raises(az.EstimatorError, match="MaxDurationTooSmall"):
+        failed._repr_html_()
+    assert callable(batch.plot) and hasattr(batch[0], "summary") and hasattr(batch[0], "diagram")
+
+
+def _python_attribute_error(name: str) -> AttributeError:
+    """The AttributeError Python raises when an `EstimatorResult` instance lacks `name`, as the QDK's does: the QDK
+    sets `summary`, `diagram` and `plot` on the instance, so a result without one fails Python's own lookup."""
+    stand_in = type("EstimatorResult", (), {})()
+    try:
+        getattr(stand_in, name)
+    except AttributeError as e:
+        return e
+    raise AssertionError(name)
+
+
+def _attribute_error_face(e: BaseException) -> tuple:
+    """What an AttributeError shows: its message, its args and, where Python has them (3.10 on), its `name` and
+    whether it holds an `obj`."""
+    return (BaseException.__str__(e), e.args, getattr(e, "name", "<no name>"), getattr(e, "obj", "<no obj>") is None if hasattr(e, "obj") else "<no obj>")
+
+
+def test_failed_summary_is_both_errors():
+    """A failed result's `summary` raises one error that is both the QDK's and 2.1's:
+    - the QDK's AttributeError, as `test_attributes_only_where_the_qdk_has_them` checks: `hasattr` is False,
+      `getattr` with a default returns it, `except AttributeError` catches it;
+    - 2.1's: the failed estimate's EstimatorError, which 2.1 raised from `summary`. `except EstimatorError` (and
+      `except ValueError`) catch it, and its `code`, `reason` and `message` are the estimate's. Its string is the
+      QDK's message.
+    It pickles and copies as Python's AttributeError does (its `obj` dropped, its `name` kept where that Python
+    keeps it: 3.12 on), keeping the estimate's code, reason and message. A batch item and a single result fail
+    alike."""
+    batch = _counts().estimate([{}, {"constraints": {"maxDuration": "1 ns"}}])
+    message = "'EstimatorResult' object has no attribute 'summary'"
+    for failed in (batch[1], az.EstimatorResult(batch.data(1))):
+        estimate_error = failed.error
+        assert type(estimate_error) is az.EstimatorError and estimate_error.code == "Qdk.Qsc.Estimates.MaxDurationTooSmall"
+        expected = (estimate_error.code, estimate_error.reason, estimate_error.message)
+        # The QDK's
+        assert not hasattr(failed, "summary") and getattr(failed, "summary", "absent") == "absent"
+        with pytest.raises(AttributeError) as caught:
+            failed.summary
+        as_qdk = caught.value
+        assert str(as_qdk) == message and as_qdk.args == (message,) and getattr(as_qdk, "obj", failed) is failed
+        # 2.1's
+        with pytest.raises(az.EstimatorError) as caught:
+            failed.summary
+        as_2_1 = caught.value
+        assert (as_2_1.code, as_2_1.reason, as_2_1.message) == expected and as_2_1.message.startswith("Error estimating resources (Qdk.Qsc.Estimates.MaxDurationTooSmall):\n")
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            failed.summary
+        assert isinstance(as_qdk, az.EstimatorError) and isinstance(as_2_1, AttributeError)
+        # Pickled and copied
+        python_own = _python_attribute_error("summary")
+        for again, python_again in ((pickle.loads(pickle.dumps(as_qdk)), pickle.loads(pickle.dumps(python_own))), (copy.copy(as_qdk), copy.copy(python_own)), (copy.deepcopy(as_qdk), copy.deepcopy(python_own))):
+            assert type(again) is type(as_qdk) and _attribute_error_face(again) == _attribute_error_face(python_again)
+            assert (again.code, again.reason, again.message) == expected and str(again) == message
+
+
+@needs_qdk
+def test_failed_summary_against_qdk_live():
+    """The QDK's own failed `summary`: the same message, args, `name` and `obj` (the result), and `hasattr` False."""
+    counts = {"numQubits": 10, "tCount": 100, "rotationCount": 5, "rotationDepth": 3}
+    params = [{}, {"constraints": {"maxDuration": "1 ns"}}]
+    faces = []
+    for failed in (qdk_estimator.LogicalCounts(counts).estimate(params)[1], az.LogicalCounts.fromdict(counts).estimate(params)[1]):
+        assert not hasattr(failed, "summary")
+        with pytest.raises(AttributeError) as caught:
+            failed.summary
+        assert caught.value.obj is failed
+        faces.append(_attribute_error_face(caught.value))
+    assert faces[0] == faces[1] and faces[0][0] == "'EstimatorResult' object has no attribute 'summary'"
+
+
+def test_results_and_drawings_pickle():
+    """A result pickles (and copies) after its tables are drawn, and draws them again as the original does; a
+    table pickles with its text and HTML, a chart with its SVG and HTML."""
+    counts = _counts()
+    one, batch = counts.estimate({"estimateType": "frontier"}), counts.estimate([{}, {"constraints": {"maxDuration": "1 ns"}}])
+    drawn = (one._repr_html_(), str(one.summary), one.summary.content, one.diagram.space.content, batch._repr_html_(), str(batch.summary), batch.summary.content)
+    for again, batch_again in ((pickle.loads(pickle.dumps(one)), pickle.loads(pickle.dumps(batch))), (copy.deepcopy(one), copy.deepcopy(batch)), (copy.copy(one), copy.copy(batch))):
+        assert again == one and batch_again == batch and batch_again[1].error.code == batch[1].error.code
+        assert (again._repr_html_(), str(again.summary), again.summary.content, again.diagram.space.content, batch_again._repr_html_(), str(batch_again.summary), batch_again.summary.content) == drawn
+    for table in (one.summary, batch.summary, batch[:]):
+        table_again = pickle.loads(pickle.dumps(table))
+        assert type(table_again) is rep.Report and table_again == table and table_again.content == table.content == table_again._repr_html_()
+    chart = one.space_chart()
+    chart_again = pickle.loads(pickle.dumps(chart))
+    assert type(chart_again) is rep.Chart and chart_again == chart and chart_again._repr_html_() == chart._repr_html_()
+
+
+def test_result_pickled_by_2_1_draws():
+    """A result pickled by 2.1, which had no drawn tables to keep (its state lacks them), draws when unpickled
+    (and copied), as one pickled here does: a single result, a frontier, and a batch with a failed item."""
+    counts = _counts()
+    results = [counts.estimate({}), counts.estimate({"estimateType": "frontier"}), counts.estimate([{}, {"constraints": {"maxDuration": "1 ns"}}])]
+    drawn = [(r._repr_html_(), str(r.summary), r.summary.content) for r in results]
+
+    def pickled_by_2_1(result) -> bytes:
+        """The result as 2.1 made it (no drawn tables, its items' neither) pickled as 2.1 pickles it: 2.1 has no
+        __getstate__, so its state is its __dict__."""
+        result = copy.deepcopy(result)
+        for r in [result] + ([] if result._is_simple else list(dict.values(result))):
+            del r.__dict__["_drawn"]
+        with pytest.MonkeyPatch.context() as mp:
+            mp.delattr(az.EstimatorResult, "__getstate__")
+            data = pickle.dumps(result)
+        assert b"_drawn" not in data and b"_is_simple" in data
+        return data
+
+    for result, (html, text, content) in zip(results, drawn):
+        again = pickle.loads(pickled_by_2_1(result))
+        assert again == result and (again._repr_html_(), str(again.summary), again.summary.content) == (html, text, content)
+        assert hasattr(again, "summary") and set(again.__dict__) == set(result.__dict__)
+        assert copy.copy(again).summary.content == copy.deepcopy(again).summary.content == content
+    assert pickle.loads(pickled_by_2_1(results[0])).diagram.space.content == results[0].diagram.space.content
+    batch = pickle.loads(pickled_by_2_1(results[2]))
+    assert batch[0]._drawn == batch[1]._drawn == {} and batch[1].error.code == "Qdk.Qsc.Estimates.MaxDurationTooSmall" and str(batch[0].summary) == str(results[2][0].summary)
+
+
+def test_diagram():
+    one = _counts().estimate({"estimateType": "frontier"})
+    diagram = one.diagram
+    data = dict(one.data())
+    data.pop("reportData")
+    assert diagram.data_json == json.dumps(data).replace(" ", "") and "reportData" in one.data()
+    assert diagram.vis_lib == "https://cdn-aquavisualization-prod.azureedge.net/resource-estimation/index.js"
+    assert diagram.space._repr_html_() == f"\n            <script src={diagram.vis_lib}></script>\n            <re-space-diagram data={diagram.data_json}></re-space-diagram>"
+    assert diagram.time.content == f"\n            <script src={diagram.vis_lib}></script>\n            <re-time-diagram data={diagram.data_json}></re-time-diagram>"
+
+
+@pytest.fixture
+def pyplot():
+    pytest.importorskip("matplotlib")
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    yield plt
+    plt.close("all")
+
+
+def _figure(plt) -> dict:
+    fig = plt.gcf()
+    ax = fig.axes[0]
+    return {
+        "size": list(fig.get_size_inches()),
+        "labels": (ax.get_xlabel(), ax.get_ylabel()),
+        "scales": (ax.get_xscale(), ax.get_yscale()),
+        "points": [c.get_offsets().tolist() for c in ax.collections],
+        "markers": [c.get_paths()[0].vertices.round(6).tolist() for c in ax.collections],
+        "legend": [t.get_text() for t in ax.get_legend().get_texts()],
+        "xticks": list(ax.get_xticks()),
+        "xticklabels": [(t.get_text(), t.get_rotation()) for t in ax.get_xticklabels()],
+    }
+
+
+def _plot(result, **kwargs) -> None:
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*non-interactive.*cannot be shown", category=UserWarning)
+        result.plot(**kwargs)
+
+
+def test_plot(pyplot):
+    batch = _counts().estimate([{"qubitParams": {"name": n}} for n in ("qubit_gate_ns_e3", "qubit_gate_us_e3", "qubit_maj_ns_e4", "qubit_maj_ns_e6", "qubit_gate_ns_e4")])
+    _plot(batch, labels=["a", "b"])
+    fig = _figure(pyplot)
+    assert fig["size"] == [15.0, 8.0] and fig["labels"] == ("Runtime", "Physical qubits") and fig["scales"] == ("log", "log")
+    assert fig["points"] == [[[batch.data(i)["physicalCounts"]["runtime"], batch.data(i)["physicalCounts"]["physicalQubits"]]] for i in range(5)]
+    assert fig["legend"] == ["a", "b", "2", "3", "4"] and fig["xticklabels"][:3] == [("1 ns", 90.0), ("1 µs", 90.0), ("1 ms", 90.0)]
+    assert len(set(map(str, fig["markers"][:4]))) == 4 and fig["markers"][4] == fig["markers"][0]
+
+
+def test_plot_needs_matplotlib(monkeypatch):
+    batch = _counts().estimate([{}, {}])
+    monkeypatch.setitem(sys.modules, "matplotlib.pyplot", None)
+    with pytest.raises(ImportError, match=r"^Missing optional 'matplotlib' dependency. To install run: pip install matplotlib$"):
+        batch.plot()
+
+
+@needs_qdk
+def test_plot_against_qdk_live(pyplot):
+    params = [{"qubitParams": {"name": "qubit_gate_ns_e3"}}, {"qubitParams": {"name": "qubit_maj_ns_e6"}, "qecScheme": {"name": "floquet_code"}}, {"errorBudget": 0.1}]
+    counts = {"numQubits": 10, "tCount": 100, "rotationCount": 5, "rotationDepth": 3}
+    figures = []
+    for result in (qdk_estimator.LogicalCounts(counts).estimate(params), az.LogicalCounts.fromdict(counts).estimate(params)):
+        _plot(result, labels=["first"])
+        figures.append(_figure(pyplot))
+        pyplot.close("all")
+    assert figures[0] == figures[1]
+
+
+# ---------------------------------------------------------------------------------------------
+# The charts, against the qsharp_widgets drawing
+# ---------------------------------------------------------------------------------------------
+
+_VAR = re.compile(r"^var\(--[\w-]+, (.+)\)$")
+_NUMBER = re.compile(r"^-?(\d+(\.\d*)?|\.\d+)(e[-+]?\d+)?$")
+
+
+def _material(key: str):
+    return fx.materialize(key, RESULTS)
+
+
+def _as_tree(element) -> dict:
+    """An ElementTree element as the widget harness writes a node: tag (no namespace), attributes, children
+    (its text first)."""
+    children = ([element.text] if element.text else []) + [_as_tree(c) for c in element]
+    return {"tag": element.tag.split("}")[-1], "attrs": {k.split("}")[-1]: v for k, v in element.attrib.items()}, "children": children}
+
+
+def _joined(children: list) -> list:
+    """Adjacent strings joined, as the DOM's text is."""
+    out: list = []
+    for c in children:
+        if isinstance(c, str) and out and isinstance(out[-1], str):
+            out[-1] += c
+        else:
+            out.append(c)
+    return out
+
+
+# How many units in the last place (ulps) a drawn number may differ from the widget's, and ulps of what. The port
+# draws with the widget's arithmetic, but its sin, cos and log are the C library's where the widget's are V8's
+# (fdlibm's), and an ulp between those moves a drawn number by many ulps of itself:
+# - a donut's y = 185 + 180·sin θ moves in steps of the ulp of 180·sin θ (2.8e-14), which near the donut's top
+#   (y ≈ 5.08, at θ ≈ 268.34°) are 32 ulps of y;
+# - a scatter chart's coordinate, extent·(log v − log lo)/(log hi − log lo), moves by extent/(log hi − log lo) times
+#   a change in a log term: by up to 79 ulps of itself, in these charts, for an ulp of log.
+# (test_chart_tolerance_holds_for_a_libm_off_by moves them so: here, by 32 and 79 ulps for an ulp of sin, cos and
+# log, and by 64 and 159 for two.) So the bound depends on the platform.
+# - macOS on arm64, where the widget's drawings were recorded (node v24.18.0) and the port measured against them
+#   (macOS 27.2): ULPS ulps of the drawn number itself. 10 of the donuts' path strings differ from the port's, in 16
+#   coordinates, 10 by 1 ulp and 6 by 2 (each compared twice, in the HTML and in the SVG); nothing else differs.
+#   (With correctly rounded sin, cos and log, from mpmath in place of the C library's: 6 coordinates, by up to 2.)
+# - Elsewhere, not measured: Linux (glibc), Windows (UCRT) and macOS on Intel, whose sin, cos and log are their own,
+#   not fdlibm's. ULPS ulps of the computation's operands (`_space_unit`, `_scatter_unit`), and never fewer than
+#   ULPS of the number itself. That holds while the C library's sin, cos and log are within three ulps of this
+#   macOS's, as measured: with macOS's moved by up to one, two, three and four ulps (as `_LibmOff` moves them, seeds
+#   0-39), a donut's numbers moved by at most 1, 2, 2 and 3 of those units and a scatter chart's by 1.14, 2.09, 3.04
+#   and 4.05, the last past ULPS. macOS's are not fdlibm's (they move the 16 coordinates above), but are within an
+#   ulp of them, as any two faithfully rounded results are; so it holds while a C library's are within two ulps of
+#   fdlibm's.
+ULPS = 4
+ULPS_OF_ITSELF = sys.platform == "darwin" and platform.machine() == "arm64"
+# The widget's plot area, inside its 960 by 480 chart: 960 − 126 − 160 wide and 480 − 42 high (scatterChart.tsx).
+_PLOT_WIDTH, _PLOT_HEIGHT = 674, 438
+
+
+def _space_unit() -> float:
+    """The ulp of a donut's largest operand: its centre's x (250) plus its radius (180)."""
+    return math.ulp(250 + 180)
+
+
+def _scatter_unit(datas: list) -> float:
+    """How far a scatter chart's coordinate moves, to first order, when each log term of it moves by an ulp of the
+    largest: the coordinate is extent·(L(v) − L(lo))/(L(hi) − L(lo)) at a position p in [0, 1], and its derivatives
+    in the three terms, in absolute value, add up to extent·(1 + (1 − p) + p)/(L(hi) − L(lo)), twice
+    extent/(L(hi) − L(lo)). The larger of the two axes'; an axis that starts at 0 has only NaN positions, which are
+    compared as strings."""
+    points = [(e["physicalCounts"]["runtime"], e["physicalCounts"]["physicalQubits"]) for d in datas for e in (d.get("frontierEntries") or [d])]
+    units = [0.0]
+    for values, extent in (([x for x, _ in points], _PLOT_WIDTH), ([y for _, y in points], _PLOT_HEIGHT)):
+        lo, hi = min(values) / 2, max(values) * 2  # the widget's range: half the least, twice the most
+        if lo > 0:
+            a, b = math.log(lo), math.log(hi)
+            units.append(2 * extent * math.ulp(max(abs(a), abs(b))) / (b - a))
+    return max(units)
+
+
+def _held_to(unit: float) -> float:
+    """The operands' ulp a chart is held to on this platform: none where the bound is in ulps of each number."""
+    return 0.0 if ULPS_OF_ITSELF else unit
+
+
+def _same_value(theirs: str, ours: str, unit: float = 0.0) -> bool:
+    """Equal strings, or the same numbers to within `ULPS` ulps of the larger of the two, or `ULPS` times `unit`
+    (an ulp of the operands they are computed from) where that is more. No absolute tolerance: a coordinate near
+    zero is held as tightly as any other."""
+    if theirs == ours:
+        return True
+    a, b = re.split(r"[ ,]", theirs), re.split(r"[ ,]", ours)
+    if len(a) != len(b):
+        return False
+    for x, y in zip(a, b):
+        if x == y:
+            continue
+        if not (_NUMBER.match(x) and _NUMBER.match(y)) or not _within_ulps(float(x), float(y), unit):
+            return False
+    return True
+
+
+def _within_ulps(x: float, y: float, unit: float = 0.0) -> bool:
+    return abs(x - y) <= ULPS * max(math.ulp(max(abs(x), abs(y))), unit)
+
+
+def test_chart_tolerance_is_ulps():
+    """The tolerance is `ULPS` units in the last place of the numbers compared, however small they are, or of their
+    operands where those are larger: one more fails."""
+    for x in (430.0, 116.37900316405418, 1.5e-20, 1e-300):
+        near, far = x + ULPS * math.ulp(x), x + (ULPS + 1) * math.ulp(x)
+        assert _same_value(repr(x), repr(near)) and _same_value(f"M {x!r} 2", f"M {near!r} 2") and _same_value(repr(-near), repr(-x))
+        assert not _same_value(repr(x), repr(far)) and not _same_value(f"M {x!r} 2", f"M {far!r} 2")
+    assert _same_value("430", "430.00000000000006") and not _same_value("430", "430.0000000000003")
+    # Zero is held to the smallest subnormals (5e-324 is 1 ulp from it), where abs_tol=1e-9 let 1e-12 through.
+    assert not _same_value("0", "1e-12") and not _same_value("0", "1e-300") and _same_value("0", "5e-324") and _same_value("0", "-0")
+    assert not _same_value("M 1 2", "L 1 2") and not _same_value("1 2", "1 2 3")
+    # In ulps of the operands: the donut's top, 5.08, is held to 4 ulps of 430 (256 of its own), and no further.
+    unit, y = _space_unit(), 5.075582580878432
+    assert unit == 2.0**-44 and _same_value(repr(y), repr(y + ULPS * unit), unit) and _same_value(f"M 1 {y!r}", f"M 1 {y - ULPS * unit!r}", unit)
+    assert not _same_value(repr(y), repr(y + (ULPS + 1) * unit), unit) and not _same_value(repr(y), repr(y + (ULPS + 1) * unit))
+    assert not _same_value("0", "1e-12", unit) and _same_value("0", repr(ULPS * unit), unit) and not _same_value("0", repr((ULPS + 1) * unit), unit)
+    # Never fewer than ULPS ulps of the number itself, where those are more than its operands'.
+    assert _same_value("1e20", repr(1e20 + ULPS * math.ulp(1e20)), unit) and not _same_value("1e20", repr(1e20 + (ULPS + 1) * math.ulp(1e20)), unit)
+    # The scatter's unit: an axis from 1/2 to 2·e (one point at 1 and one at e, a log range of 1 + 2 log 2), whose
+    # largest |log| is 1 + log 2; an axis starting at 0 is not counted.
+    one = {"physicalCounts": {"runtime": 1.0, "physicalQubits": 0.0}}
+    e = {"physicalCounts": {"runtime": math.e, "physicalQubits": 7.0}}
+    d = math.log(2 * math.e) - math.log(0.5)
+    assert _scatter_unit([one, e]) == 2 * _PLOT_WIDTH * math.ulp(math.log(2 * math.e)) / d
+    assert _scatter_unit([{"frontierEntries": [one, e]}]) == _scatter_unit([one, e])
+
+
+# What the port adds to an element so that the chart draws alone as the widget's stylesheet draws it.
+ADDED = {"xmlns", "fill", "stroke", "stroke-width", "r", "text-anchor", "dominant-baseline", "font-size", "font-family", "transform", "style"}
+
+
+def _compare(theirs, ours, where: str = "", unit: float = 0.0) -> None:
+    """The widget's tree and the port's: the same elements and text, the same attributes but for those the port
+    adds, and their numbers the same to within `_same_value`'s bound with the operands' ulp `unit`."""
+    if isinstance(theirs, str):
+        assert theirs == ours, where
+        return
+    assert ours["tag"] == theirs["tag"], where
+    where = f"{where}/{theirs['tag']}"
+    for key, value in theirs["attrs"].items():
+        resolved = _VAR.sub(r"\1", value) if key in ("fill", "stroke") else value
+        assert key in ours["attrs"] and _same_value(resolved, ours["attrs"][key], unit), (where, key, value, ours["attrs"].get(key))
+    assert set(ours["attrs"]) - set(theirs["attrs"]) <= ADDED, (where, set(ours["attrs"]) - set(theirs["attrs"]))
+    a, b = _joined(theirs["children"]), _joined(ours["children"])
+    assert len(a) == len(b), (where, a, b)
+    for x, y in zip(a, b):
+        _compare(x, y, where, unit)
+
+
+def _without_watermark(node):
+    """The widget's tree less its watermark ("Created with Microsoft Quantum Resource Estimator"), which the
+    port does not draw: these charts are not made by Microsoft's estimator."""
+    if isinstance(node, str):
+        return node
+    return dict(node, children=[_without_watermark(c) for c in node["children"] if isinstance(c, str) or c["attrs"].get("class") != "qs-scatterChart-watermark"])
+
+
+def test_number_strings_are_javascripts():
+    for text, (string, locale, rounded) in zip(WIDGET["numbers"], DRAWN["numbers"]):
+        x = float(text)
+        r = rep._js_round(x)
+        assert (rep._js_string(x), rep._js_locale(x), "-0" if r == 0 and math.copysign(1, r) < 0 else rep._js_string(r)) == (string, locale, rounded), text
+
+
+def test_color_map_and_ticks_are_the_widgets():
+    assert [rep.color_map(n) for n in WIDGET["colors"]] == DRAWN["colors"]
+    assert [rep.time_ticks(a, b) for a, b in WIDGET["time_ticks"]] == DRAWN["time_ticks"]
+    assert [rep.integer_ticks(a, b) for a, b in WIDGET["integer_ticks"]] == DRAWN["integer_ticks"]
+    # Where the widget never returns (a lower bound below 1: its first tick, 10^⌊log₁₀ min⌋ rounded, is 0, and
+    # 0 × 10 stays 0), the port starts at 1.
+    assert rep.integer_ticks(0.5, 2) == [{"value": 1, "label": "1"}] and rep.integer_ticks(0.5, 0.8) == []
+    # NaN bounds give no ticks, as in the widget; an infinite upper bound (where the widget never returns either)
+    # stops at the last power of ten below it.
+    assert rep.integer_ticks(math.nan, 5) == [] and rep.time_ticks(math.nan, 5) == [] and len(rep.integer_ticks(1, math.inf)) == 309
+
+
+def test_run_names_are_the_widgets():
+    for keys, drawn in zip(WIDGET["scatter"], DRAWN["scatter"]):
+        assert rep.run_names([_material(k) for k in keys]) == drawn["run_names"], keys
+
+
+@pytest.mark.parametrize("index", range(len(WIDGET["space"])), ids=[f"{k.split('/')[-1]}@{i}" for k, i in WIDGET["space"]])
+def test_space_chart_against_widget(index):
+    """The SpaceChart (qsharp_widgets' donut of the physical qubits, the algorithm's against the T factories',
+    and its side table) of each single result, a frontier's at several entries (one past its end reads the
+    first, as the widget does): the widget's elements, attributes and text."""
+    key, entry = WIDGET["space"][index]
+    chart = az.EstimatorResult(_material(key)).space_chart(entry)
+    (theirs,) = DRAWN["space"][index]
+    _compare(theirs, _as_tree(ET.fromstring(chart._repr_html_())), unit=_held_to(_space_unit()))
+    _compare(theirs["children"][0], _as_tree(ET.fromstring(str(chart))), unit=_held_to(_space_unit()))
+
+
+@pytest.mark.parametrize("index", range(len(WIDGET["scatter"])))
+def test_scatter_chart_against_widget(index):
+    """The estimates overview's scatter chart (physical qubits against runtime, both logarithmic) of results
+    together, a frontier's entries joined by a line: the widget's elements, attributes and text, and its colors."""
+    keys = WIDGET["scatter"][index]
+    drawn = DRAWN["scatter"][index]
+    datas = [_material(k) for k in keys]
+    result = az.EstimatorResult(datas[0] if len(datas) == 1 else datas)
+    chart = result.scatter_chart()
+    (div,) = drawn["tree"]
+    _compare(_without_watermark(div["children"][0]), _as_tree(ET.fromstring(str(chart))), unit=_held_to(_scatter_unit(datas)))
+    assert rep.color_map(len(keys)) == drawn["colors"]
+    legend = ET.fromstring(chart._repr_html_())
+    assert [td.text or "" for td in legend.iter("td") if td.get("data-colid") == "0"] == drawn["run_names"]
+    rows = [[td.text for td in tr.iter("td") if td.get("data-colid")] for tr in legend.iter("tr")][1:]
+    firsts = [fx.materialize(k, RESULTS) for k in keys]
+    firsts = [d["frontierEntries"][0] if "frontierEntries" in d else d for d in firsts]
+    assert [r[1:] for r in rows] == [[d["physicalCountsFormatted"]["physicalQubitsForTfactoriesPercentage"], f"{d['physicalCounts']['physicalQubits']:,}", d["physicalCountsFormatted"]["runtime"], f"{d['physicalCounts']['rqops']:,}"] for d in firsts]
+
+
+class _LibmOff:
+    """The math module, its sin, cos, log and log10 moved by `ulps` ulps up, down or not at all, by input (a
+    function of the input and `seed`, as a C library's results are): another C library's."""
+
+    MOVED = ("sin", "cos", "log", "log10")
+
+    def __init__(self, seed: int, ulps: int):
+        self.seed, self.ulps = seed, ulps
+
+    def __getattr__(self, name: str):
+        f = getattr(math, name)
+        if name not in self.MOVED:
+            return f
+
+        def moved(x):
+            v = f(x)
+            way = hashlib.sha256(struct.pack("<dB", float(x), self.seed)).digest()[0] % 3 - 1
+            for _ in range(self.ulps if way and math.isfinite(v) else 0):
+                v = math.nextafter(v, way * math.inf)
+            return v
+
+        return moved
+
+
+def _charts() -> list:
+    """Every chart the widget drew: its kind, the widget's tree, the port's, and the ulp of its operands."""
+    out = []
+    for index, (key, entry) in enumerate(WIDGET["space"]):
+        chart = az.EstimatorResult(_material(key)).space_chart(entry)
+        out.append(("space", DRAWN["space"][index][0], _as_tree(ET.fromstring(chart._repr_html_())), _space_unit()))
+    for index, keys in enumerate(WIDGET["scatter"]):
+        datas = [_material(k) for k in keys]
+        chart = az.EstimatorResult(datas[0] if len(datas) == 1 else datas).scatter_chart()
+        (div,) = DRAWN["scatter"][index]["tree"]
+        out.append(("scatter", _without_watermark(div["children"][0]), _as_tree(ET.fromstring(str(chart))), _scatter_unit(datas)))
+    return out
+
+
+def _ulps_apart(a, b) -> float:
+    """The most a number in the attributes of tree `b` is from the same number in tree `a` (one chart drawn twice),
+    in ulps of itself."""
+    if isinstance(a, str):
+        return 0.0
+    most = 0.0
+    for key, value in a["attrs"].items():
+        for x, y in zip(re.split(r"[ ,]", value), re.split(r"[ ,]", b["attrs"][key])):
+            if x != y:
+                most = max(most, abs(float(x) - float(y)) / math.ulp(max(abs(float(x)), abs(float(y)))))
+    return max([most] + [_ulps_apart(x, y) for x, y in zip(a["children"], b["children"])])
+
+
+@pytest.mark.parametrize("ulps", [1, 2])
+def test_chart_tolerance_holds_for_a_libm_off_by(ulps, monkeypatch):
+    """The bound off macOS on arm64, in ulps of the operands, here on every platform. With this C library's sin,
+    cos, log and log10 moved by `ulps` ulps or not, by input (four such libraries), the charts' numbers move by
+    many ulps of themselves, far past `ULPS`: 32 per ulp of sin near the donut's top, and more in a scatter chart.
+    Yet every chart is still the widget's to within `ULPS` ulps of its operands."""
+    unmoved = _charts()
+    moved = {"space": 0.0, "scatter": 0.0}
+    for seed in range(4):
+        monkeypatch.setattr(rep, "math", _LibmOff(seed, ulps))
+        for (kind, theirs, ours, unit), (_, _, before, _) in zip(_charts(), unmoved):
+            _compare(theirs, ours, unit=unit)
+            moved[kind] = max(moved[kind], _ulps_apart(before, ours))
+    assert moved["space"] >= 32 and moved["scatter"] >= 32, moved
+
+
+def test_space_chart_svg_wellformed():
+    """Every chart is an SVG document (and its HTML well-formed XML) that xml.etree reads, with the SVG namespace,
+    a size, and only finite numbers or NaN where the widget draws NaN."""
+    charts = [az.EstimatorResult(_material(key)).space_chart(entry) for key, entry in WIDGET["space"]]
+    charts += [az.EstimatorResult([_material(k) for k in keys] if len(keys) > 1 else _material(keys[0])).scatter_chart() for keys in WIDGET["scatter"]]
+    for chart in charts:
+        root = ET.fromstring(str(chart))
+        assert root.tag == "{http://www.w3.org/2000/svg}svg" and root.get("width") and root.get("viewBox") and chart._repr_svg_() == str(chart)
+        ET.fromstring(chart._repr_html_())
+        assert "Infinity" not in str(chart) and "undefined" not in str(chart)
+    assert len(charts) == len(WIDGET["space"]) + len(WIDGET["scatter"])
+
+
+def _strokes(chart) -> list:
+    """Each drawn point's color, in order (a frontier's entries one after another)."""
+    return [c.get("stroke") for c in ET.fromstring(str(chart)).iter("{http://www.w3.org/2000/svg}circle")]
+
+
+def _table_names(chart) -> list:
+    return [td.text or "" for td in ET.fromstring(chart._repr_html_()).iter("td") if td.get("data-colid") == "0"]
+
+
+def test_charts_of_results():
+    """A batch's space chart is its item's; a failed result raises its error; the scatter of a batch draws its
+    succeeded items (the widget draws none of them when one has failed). As in the widget, colors and run names
+    count the estimates, here every item of the batch, and each item keeps its color, the color map's too: a
+    failed item's entry is dropped with it."""
+    counts = _counts()
+    batch = counts.estimate([{}, {"constraints": {"maxDuration": "1 ns"}}, {"estimateType": "frontier"}])
+    frontier = len(batch[2]["frontierEntries"])
+    with pytest.raises(ValueError, match=r"^Cannot draw the space chart of a batching job: draw an item's \(result\[i\]\.space_chart\(\)\)$"):
+        batch.space_chart()
+    with pytest.raises(az.EstimatorError):
+        batch[1].space_chart()
+    with pytest.raises(az.EstimatorError):
+        batch[1].scatter_chart()
+    assert str(batch[2].space_chart(1)) != str(batch[2].space_chart()) == str(batch[2].space_chart(0))
+    three = rep.color_map(3)
+    assert frontier > 1 and _strokes(batch.scatter_chart()) == [three[0]] + [three[2]] * frontier
+    assert _strokes(batch.scatter_chart(colors=["red", "green", "blue"])) == ["red"] + ["blue"] * frontier
+    assert _strokes(batch.scatter_chart(colors=three)) == _strokes(batch.scatter_chart())
+    # A list of one per succeeded item does not count the failed one: ignored, with the widget's warning.
+    for colors in (["red"], ["red", "blue"], ["red", "green", "blue", "black"]):
+        with pytest.warns(UserWarning, match="^The number of colors does not match the number of estimates. Ignoring provided colors.$"):
+            assert _strokes(batch.scatter_chart(colors=colors)) == _strokes(batch.scatter_chart())
+    for names in (["a"], ["mine", "yours"]):
+        with pytest.warns(UserWarning, match="^The number of runNames does not match the number of estimates. Ignoring provided runNames.$"):
+            assert _table_names(batch.scatter_chart(run_names=names)) == rep.run_names([batch.data(0), batch.data(2)])
+    assert _table_names(batch.scatter_chart(run_names=["mine", "failed", "yours"])) == ["mine", "yours"]
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")  # matching counts warn of nothing; an empty list is no list, as in the widget
+        batch.scatter_chart(colors=["red", "green", "blue"], run_names=["mine", "failed", "yours"])
+        assert _strokes(batch.scatter_chart(colors=[], run_names=[])) == _strokes(batch.scatter_chart())
+    # A single result is one estimate.
+    assert _strokes(batch[0].scatter_chart(colors=["red"])) == ["red"] and _table_names(batch[0].scatter_chart(run_names=["one"])) == ["one"]
+    with pytest.warns(UserWarning, match="^The number of colors does not match"):
+        batch[2].scatter_chart(colors=["red"] * frontier)
+    # With no failed item, the colors are the color map's of the batch, as the widget draws them.
+    whole = counts.estimate([{}, {"errorBudget": 0.01}, {"qubitParams": {"name": "qubit_maj_ns_e6"}, "qecScheme": {"name": "floquet_code"}}])
+    assert _strokes(whole.scatter_chart()) == three and _strokes(whole.scatter_chart(colors=["a", "b", "c"])) == ["a", "b", "c"]

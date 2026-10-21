@@ -3,12 +3,14 @@
 # modified for stabilizer_qec: Python dataclasses in place of the Rust structs and traits, fasteval 0.2.4's
 # parser, constant folding and evaluator written out in place of the compiled expressions, the binomial quantile
 # of the `probability` crate (0.20) written out, the profiling output left out; with the QDK's Python
-# `LogicalCounts.estimate` and `EstimatorResult` (qdk/estimator/_estimator.py) as data, their HTML left out;
+# `LogicalCounts.estimate` and `EstimatorResult` (qdk/estimator/_estimator.py), their report's HTML, diagrams and
+# plot and the qsharp_widgets charts in azure_report.py, the QDK's parameter classes in azure_params.py;
 # its errors (`EstimatorError` with the QDK's codes and messages, `QSharpError` for input it cannot read, with
 # serde_json's reason and its position in the JSON text, serde's derived readers written out).
 # The numbers are the QDK's bit for bit on its own test cases (tests/estimate_port/qdk_estimates.json), and the
 # whole result, the report's text included, on each of them (tests/estimate_port/qdk_reports.json.gz); its errors
-# and echoes on 286 inputs it reads or refuses (tests/estimate_port/qdk_errors.json).
+# and echoes on 286 inputs it reads or refuses (tests/estimate_port/qdk_errors.json); the report's HTML on forty
+# results and the parameter classes on 124 objects (qdk_reports.json.gz, qdk_params.json).
 """Azure's Resource Estimator: from logical counts (qubits, T, rotations, CCZ, measurements) to physical
 qubits and runtime on a chosen qubit model and QEC scheme, with the T factories found by the QDK's exhaustive
 search over distillation rounds and code distances, and the QDK's report: the counts formatted as it formats
@@ -39,9 +41,24 @@ import functools
 import json
 import math
 import re
+import sys
 import unicodedata
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+
+# The QDK's parameter classes (qdk.estimator), under its names; its `QECScheme` names are on `QECScheme` here.
+from .azure_params import (  # noqa: F401
+    DistillationUnitSpecification,
+    ErrorBudgetPartition,
+    EstimatorConstraints,
+    EstimatorInputParamsItem,
+    EstimatorParams,
+    EstimatorQecScheme,
+    EstimatorQubitParams,
+    MeasurementErrorRate,
+    ProtocolSpecificDistillationUnitSpecification,
+    QubitParams,
+)
 
 MAX_CODE_DISTANCE = 50
 MAX_DISTILLATION_ROUNDS = 3
@@ -62,13 +79,18 @@ class EstimatorError(ValueError):
     """The QDK's `EstimatorError`: an estimate the QDK refuses, with its `code` (``Qdk.Qsc.Estimates.`` and the
     error's name, as ``Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget``) and its `message`, ``Error
     estimating resources (<code>):`` with the QDK's reason on the next line, which is also the error's string.
-    `reason` is the reason alone, what a batch's failed item holds as its ``message``. A ValueError here (the
-    QDK's derives from BaseException)."""
+    `reason` is the reason alone, what a batch's failed item holds as its ``message``. Its `args` are its code
+    and reason, and its repr ``EstimatorError('<code>', '<reason>')``, as the QDK's are.
+
+    A ValueError here, as in 2.1, where the QDK's derives from BaseException alone: this package promises that
+    bad input raises a ValueError or a TypeError. Code that catches it by name, as with the QDK, works the same;
+    the one difference is that ``issubclass(EstimatorError, Exception)`` (and ``ValueError``) is true here, so
+    ``except Exception`` and ``except ValueError`` catch it too."""
 
     def __init__(self, code: str, reason: str):
+        # As the QDK's, the base class's __init__ is not called: its `args` stay those given, (code, reason).
         self.code, self.reason = code, reason
         self.message = f"Error estimating resources ({code}):\n{reason}"
-        super().__init__(self.message)
 
     def __str__(self) -> str:
         return self.message
@@ -86,7 +108,13 @@ class EstimatorError(ValueError):
 class QSharpError(ValueError):
     """The QDK's `QSharpError` as its `LogicalCounts.estimate` raises it when the logical counts or the job
     parameters do not read: ``cannot parse JSON: '<serde's reason> at line 1 column <n>'``, the column counted
-    in the JSON text the QDK's Python sends (``json.dumps`` of the counts, of the list of items)."""
+    in the JSON text the QDK's Python sends (``json.dumps`` of the counts, of the list of items).
+
+    A ValueError here, as in 2.1, where the QDK's (``qdk.qsharp.QSharpError``, made in its native module) derives
+    from Exception alone (its type stub says BaseException; the class it raises derives from Exception): this
+    package promises that bad input raises a ValueError or a TypeError. Code that catches it by name or with
+    ``except Exception``, as with the QDK, works the same; the one difference is that ``issubclass(QSharpError,
+    ValueError)`` is true here, so ``except ValueError`` catches it too."""
 
 
 def _parse_error(reason: str) -> EstimatorError:
@@ -1206,6 +1234,10 @@ class QECScheme:
     physical_qubits_per_logical_qubit: str = ""
     max_code_distance: int = MAX_CODE_DISTANCE
 
+    # The QDK's `QECScheme` names (``qdk.estimator.QECScheme``), for `EstimatorQecScheme`'s ``name``.
+    SURFACE_CODE = "surface_code"
+    FLOQUET_CODE = "floquet_code"
+
     @staticmethod
     def surface_code_gate_based() -> "QECScheme":
         return QECScheme("surface_code", 0.01, 0.03, 0, "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance", "2 * codeDistance * codeDistance")
@@ -1435,8 +1467,11 @@ class LogicalCounts:
         """The QDK's `LogicalCounts.estimate`: the estimate for a dict of job parameters (``qubitParams``,
         ``qecScheme``, ``errorBudget``, ``constraints``, ``distillationUnitSpecifications``, ``estimateType``), or
         a batch for a list of them (an item that fails holds the QDK's ``code`` and ``message``; a single estimate
-        that fails raises the QDK's `EstimatorError`, parameters it cannot read its `QSharpError`). The
-        `EstimatorParams` here and the QDK's own are taken too, through their ``as_dict``."""
+        that fails raises the QDK's `EstimatorError`, parameters it cannot read its `QSharpError`). An
+        `EstimatorParams`, the port's or the QDK's, is taken as the QDK takes it: a batch's items, each with the
+        top level's sections it lacks (``as_dict()["items"]``), else its one dict. Any other object with an
+        ``as_dict`` (an `EstimatorInputParamsItem`, the port's or the QDK's, among them) is taken as its one
+        dict, as 2.1 takes it, where the QDK's JSON encoding refuses it with a TypeError."""
         if params is None:
             items = [{}]
         elif isinstance(params, dict):
@@ -3364,45 +3399,66 @@ def _read_counts(data: Dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------------------------
 
 
-def _lookup(result: dict, path: str):
-    """A report entry's value: its path's keys followed into the result (into a frontier's first entry where the
-    top level lacks one, as the QDK's tables do); ``N/A`` where the path ends."""
-    value = result
-    for key in path.split("/"):
-        if isinstance(value, dict) and key not in value and "frontierEntries" in value:
-            value = value["frontierEntries"][0]
-        if not isinstance(value, dict) or key not in value:
-            return "N/A"
-        value = value[key]
-    return value
+def _report():
+    """The report's module (its HTML, charts and plot), loaded when first drawn: markdown, where installed, is
+    imported with it, as the QDK imports it."""
+    from . import azure_report
+
+    return azure_report
 
 
-def _text_table(header: Optional[List[str]], sections: List[Tuple[str, List[List[str]]]]) -> str:
-    """Columns padded to their widest cell, each section under its title."""
-    rows = [r for _, rs in sections for r in rs] + ([header] if header else [])
-    widths = [max(len(r[i]) for r in rows) for i in range(len(rows[0]))]
+class _EstimateFailed(EstimatorError, AttributeError):
+    """What a failed result's `summary` raises: both the QDK's error and 2.1's.
+    - The QDK's AttributeError: its string and `args` are the QDK's message, ``'EstimatorResult' object has no
+      attribute 'summary'``, and from Python 3.10 its `name` and `obj` are set, as Python sets the QDK's. So
+      ``hasattr(result, "summary")`` is False and ``except AttributeError`` catches it, as with the QDK.
+    - 2.1's EstimatorError, which 2.1 raised from a failed result's `summary`: its `code`, `reason` and `message`
+      are the failed estimate's. So ``except EstimatorError`` (and ``except ValueError``) catch it, as in 2.1.
+      Unlike an EstimatorError's, its string is not its `message` but the QDK's.
+    It pickles and copies as an AttributeError does: its `args`, then its attributes (and, where that Python keeps
+    an AttributeError's, its `name`)."""
 
-    def line(r):
-        return ("  " + "  ".join(c.ljust(w) for c, w in zip(r, widths))).rstrip()
+    def __init__(self, message: str, code: str = "", reason: str = ""):
+        EstimatorError.__init__(self, code, reason)
+        AttributeError.__init__(self, message)
 
-    out = [line(header)] if header else []
-    for title, rs in sections:
-        out.append(title)
-        out.extend(line(r) for r in rs)
-    return "\n".join(out)
+    __str__ = AttributeError.__str__
+    __reduce__ = AttributeError.__reduce__
+
+
+def _no_attribute(name: str, obj: "EstimatorResult", error: Optional[EstimatorError] = None) -> AttributeError:
+    """The AttributeError Python raises for the QDK's result, which lacks the attribute `name`; with the failed
+    estimate's `error`, it is also that EstimatorError (`_EstimateFailed`)."""
+    message = f"'EstimatorResult' object has no attribute '{name}'"
+    e = AttributeError(message) if error is None else _EstimateFailed(message, error.code, error.reason)
+    if sys.version_info >= (3, 10):
+        # As Python sets them on the QDK's. Python fills them in on a property's AttributeError when it is read with
+        # getattr or hasattr, but not always with `result.summary`.
+        e.name, e.obj = name, obj
+    return e
 
 
 class EstimatorResult(dict):
-    """The QDK's `EstimatorResult`, its data: one estimate's result dict (as `azure_estimate` gives it), or a
-    batch's, indexed 0, 1, … by the items' results (a failed item holds the QDK's ``code`` and ``message``, and
-    its `EstimatorError` in `error`; a list of one failed item raises it, as the QDK's does). A key a frontier estimate's result lacks is looked up in its first (shortest) entry, as the QDK's
-    is. `summary` is the QDK's summary table (and a batch's side-by-side table) as text; the HTML of
-    ``_repr_html_``, the diagrams and the plot are not ported."""
+    """The QDK's `EstimatorResult`: one estimate's result dict (as `azure_estimate` gives it), or a batch's,
+    indexed 0, 1, … by the items' results (a failed item holds the QDK's ``code`` and ``message``, and its
+    `EstimatorError` in `error`; a list of one failed item raises it, as the QDK's does). A key a frontier
+    estimate's result lacks is looked up in its first (shortest) entry, as the QDK's is.
+
+    Its report is the QDK's: ``_repr_html_()`` draws the result's HTML table (a batch's overview: its first five
+    items side by side; a failed result raises its error), ``summary`` the summary table and ``result[i:j]`` a
+    batch's items side by side, each as text (the string) and as HTML (``.content``, ``_repr_html_()``), and
+    ``diagram.space`` and ``diagram.time`` the QDK's diagrams; a batch has ``plot()`` (matplotlib). As in the QDK,
+    a failed result has no `summary` or `diagram` and a single one no `plot` (AttributeError; a failed `summary`'s
+    is also its EstimatorError, which 2.1 raised from it). The QDK's side-by-side table reads
+    each path as it is, so a frontier item's counts there are "N/A". The tables are drawn when first asked for
+    (the QDK draws them when the result is made: its prints, and a table it cannot draw, come then). And the
+    charts of the QDK's notebook widgets, as SVG: `space_chart` and `scatter_chart`."""
 
     MAX_DEFAULT_ITEMS_IN_TABLE = 5
 
     def __init__(self, data: Union[dict, List[Union[dict, "EstimatorResult"]]], error: Optional[BaseException] = None):
         self._error = error
+        self._drawn: Dict[str, Any] = {}
         if isinstance(data, list) and len(data) == 1 and not isinstance(data[0], EstimatorResult):
             data = data[0]
             if not self._is_succeeded(data) and "code" in data:
@@ -3444,47 +3500,102 @@ class EstimatorResult(dict):
         return json.dumps(self._data)
 
     def __getitem__(self, key):
+        """A slice of a batch is its items side by side (text, and HTML in a notebook); any other key reads the
+        data (a frontier's first entry for a key its result lacks)."""
         if isinstance(key, slice):
             if self._is_simple:
                 raise ValueError("Cannot pass slice to '__getitem__' for non-batching job")
-            return self._batch_table(range(len(self))[key])
+            indices = range(len(self))[key]
+            report = _report()
+            return report.Report(report.batch_text(self, indices), lambda: report.batch_result_table(self, indices))
         if super().__contains__(key):
             return super().__getitem__(key)
         if super().__contains__("frontierEntries"):
             return super().__getitem__("frontierEntries")[0][key]
         raise KeyError(key)
 
+    def __getstate__(self) -> Dict[str, Any]:
+        # What was drawn is not kept: a result unpickled (or copied) draws its tables again when asked.
+        return dict(self.__dict__, _drawn={})
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        # A result pickled by 2.1 has no `_drawn` (2.1 drew nothing): it starts with nothing drawn, as any does.
+        self.__dict__.update(state)
+        self.__dict__.setdefault("_drawn", {})
+
+    def _drawn_once(self, name: str, draw: Callable[[], Any]) -> Any:
+        if name not in self._drawn:
+            self._drawn[name] = draw()
+        return self._drawn[name]
+
+    def _repr_html_(self) -> str:
+        """The QDK's HTML table of the result: its report's groups (a batch's overview: its first five items side
+        by side, "None of the jobs succeeded" printed where none did); a failed result raises its error."""
+        if self._error is not None:
+            raise self._error
+        report = _report()
+        return self._drawn_once("html", lambda: report.item_result_table(self) if self._is_simple else report.batch_overview(self))
+
     @property
     def summary(self) -> str:
-        """The summary table as text: each report group's entries as label, value and description; for a batch,
-        the items side by side (the first five; slice the result, ``result[:]``, for all)."""
+        """The summary table: each report group's entries as label, value and description (in the HTML the
+        explanations are tooltips); for a batch, its overview, the items side by side (the first five; slice the
+        result, ``result[:]``, for all). Text, with the QDK's HTML as ``.content`` and ``_repr_html_()``. A failed
+        result has none: it raises the QDK's AttributeError, which is also the estimate's EstimatorError (its code,
+        reason and message), as 2.1 raised, so ``hasattr`` is False and ``except EstimatorError`` still catches it."""
+        report = _report()
         if not self._is_simple:
             n = min(len(self), self.MAX_DEFAULT_ITEMS_IN_TABLE)
             note = f"(the first {n} of {len(self)} items; result[:] shows them all)\n" if len(self) > n else ""
-            return note + self._batch_table(range(n))
+            return self._drawn_once("summary", lambda: report.Report(note + report.batch_text(self, range(n)), self._repr_html_))
+        if not self._is_succeeded(self._data):
+            raise _no_attribute("summary", self, self._error if isinstance(self._error, EstimatorError) else None)
+        return self._drawn_once("summary", lambda: report.Report(report.item_summary_text(self), lambda: report.item_result_summary_table(self)))
+
+    @property
+    def diagram(self):
+        """The QDK's space and time diagrams of a succeeded single result (``diagram.space``, ``diagram.time``):
+        HTML that loads the QDK's visualization script from its CDN."""
+        if not self._is_simple or not self._is_succeeded(self._data):
+            raise _no_attribute("diagram", self)
+        return self._drawn_once("diagram", lambda: _report().EstimatorResultDiagram(self.data().copy()))
+
+    @property
+    def plot(self) -> Callable[..., None]:
+        """A batch's plot (matplotlib needed): each item's physical qubits against its runtime, both logarithmic,
+        the runtime ticks in units (``1 ns`` to ``1 century``); ``labels`` names the items in the legend. A single
+        result has none (AttributeError, as the QDK's)."""
+        if self._is_simple:
+            raise _no_attribute("plot", self)
+        return self._plot
+
+    def _plot(self, **kwargs: Any) -> None:
+        _report().plot(self, **kwargs)
+
+    def space_chart(self, index: Optional[int] = None):
+        """The QDK's widget SpaceChart of a single result, as SVG (the string; in a notebook with its side table):
+        the physical qubits of the algorithm against the T factories'. A frontier's entry `index` (its first by
+        default, or out of range). A failed result raises its error."""
+        if not self._is_simple:
+            raise ValueError("Cannot draw the space chart of a batching job: draw an item's (result[i].space_chart())")
         if self._error is not None:
             raise self._error
-        groups = self["reportData"]["groups"]
-        return _text_table(None, [(g["title"], [[e["label"], str(_lookup(self, e["path"])), e["description"]] for e in g["entries"]]) for g in groups])
+        return _report().space_chart(self._data, index)
 
-    def _batch_table(self, indices) -> str:
-        """The QDK's side-by-side table: the rows of the first succeeded item's groups, each label once, with
-        every item's value (``N/A`` for a failed item or a path it lacks)."""
-        items = {i: dict.__getitem__(self, i) for i in indices}
-        succeeded = [i for i, item in items.items() if self._is_succeeded(item)]
-        if not succeeded:
-            return "None of the jobs succeeded"
-        sections = []
-        for group_index, group in enumerate(items[succeeded[0]]["reportData"]["groups"]):
-            rows, seen = [], set()
-            for i in succeeded:
-                for entry in items[i]["reportData"]["groups"][group_index]["entries"]:
-                    if entry["label"] in seen:
-                        continue
-                    seen.add(entry["label"])
-                    rows.append([entry["label"]] + [str(_lookup(item, entry["path"])) if j in succeeded else "N/A" for j, item in items.items()])
-            sections.append((group["title"], rows))
-        return _text_table(["Item"] + [str(i) for i in items], sections)
+    def scatter_chart(self, colors: Optional[Sequence[str]] = None, run_names: Optional[Sequence[str]] = None):
+        """The QDK's widget estimates overview's scatter chart, as SVG (the string; in a notebook under its table):
+        physical qubits against runtime, both logarithmic, a frontier's entries joined by a line; for a batch,
+        each succeeded item (the widget draws a batch only when all have succeeded), in the widget's colors or
+        `colors`, named in the table by `run_names` or the widget's. As in the widget, `colors` and `run_names`
+        give one entry per estimate, here per batch item, a failed one too (one for a single result), else they
+        are ignored with the widget's warning; each item keeps its entry, and the color map's color, when a failed
+        item's is dropped with it. A failed result raises its error."""
+        if self._is_simple:
+            if self._error is not None:
+                raise self._error
+            return _report().scatter_chart([self._data], colors, run_names)
+        kept = [i for i, d in enumerate(self._data) if self._is_succeeded(d)]
+        return _report().scatter_chart(self._data, colors, run_names, kept)
 
     def summary_data_frame(self, labels: Optional[List] = None):
         """The QDK's batch overview as a pandas DataFrame (pandas needed), a row per item: logical qubits,

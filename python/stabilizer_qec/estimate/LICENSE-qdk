@@ -1,5 +1,7 @@
 The Azure Quantum Resource Estimator port in azure.py derives from microsoft/qdk
-(source/resource_estimator), which is distributed under the following license.
+(source/resource_estimator), its parameter classes in azure_params.py and its report in
+azure_report.py from the qdk package (qdk/estimator/_estimator.py) and the qsharp_widgets package
+(source/npm/qsharp/ux), all of which are distributed under the following license.
 
     MIT License
 

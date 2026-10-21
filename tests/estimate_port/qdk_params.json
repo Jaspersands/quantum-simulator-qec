@@ -1,0 +1,3999 @@
+{
+"qdk": "1.33.1",
+"python": "3.13",
+"names": {
+"all": [
+"EstimatorError",
+"LogicalCounts",
+"EstimatorResult",
+"QubitParams",
+"QECScheme",
+"MeasurementErrorRate",
+"EstimatorQubitParams",
+"EstimatorQecScheme",
+"ProtocolSpecificDistillationUnitSpecification",
+"DistillationUnitSpecification",
+"ErrorBudgetPartition",
+"EstimatorConstraints",
+"EstimatorInputParamsItem",
+"EstimatorParams"
+],
+"constants": {
+"EstimatorResult": {
+"MAX_DEFAULT_ITEMS_IN_TABLE": 5
+},
+"QubitParams": {
+"GATE_US_E3": "qubit_gate_us_e3",
+"GATE_US_E4": "qubit_gate_us_e4",
+"GATE_NS_E3": "qubit_gate_ns_e3",
+"GATE_NS_E4": "qubit_gate_ns_e4",
+"MAJ_NS_E4": "qubit_maj_ns_e4",
+"MAJ_NS_E6": "qubit_maj_ns_e6"
+},
+"QECScheme": {
+"SURFACE_CODE": "surface_code",
+"FLOQUET_CODE": "floquet_code"
+},
+"EstimatorParams": {
+"MAX_NUM_ITEMS": 1000
+}
+}
+},
+"cases": [
+{
+"name": "mer valid",
+"make": {
+"new": "MeasurementErrorRate",
+"args": [
+0.1,
+0.2
+],
+"kwargs": {}
+},
+"qdk": {
+"value": {
+"process": 0.1,
+"readout": 0.2
+},
+"warnings": []
+}
+},
+{
+"name": "mer keywords",
+"make": {
+"new": "MeasurementErrorRate",
+"args": [],
+"kwargs": {
+"readout": 0.25,
+"process": 0.5
+}
+},
+"qdk": {
+"value": {
+"process": 0.5,
+"readout": 0.25
+},
+"warnings": []
+}
+},
+{
+"name": "mer process zero",
+"make": {
+"new": "MeasurementErrorRate",
+"args": [
+0.0,
+0.2
+],
+"kwargs": {}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "process must be between 0 and 1",
+"warnings": []
+}
+},
+{
+"name": "mer readout one",
+"make": {
+"new": "MeasurementErrorRate",
+"args": [
+0.1,
+1.0
+],
+"kwargs": {}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "readout must be between 0 and 1",
+"warnings": []
+}
+},
+{
+"name": "mer readout negative int",
+"make": {
+"new": "MeasurementErrorRate",
+"args": [
+0.1,
+-1
+],
+"kwargs": {}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "readout must be between 0 and 1",
+"warnings": []
+}
+},
+{
+"name": "mer readout string",
+"make": {
+"new": "MeasurementErrorRate",
+"args": [
+0.1,
+"0.2"
+],
+"kwargs": {}
+},
+"qdk": {
+"raised": "TypeError",
+"str": "'<=' not supported between instances of 'str' and 'float'",
+"warnings": []
+}
+},
+{
+"name": "mer unvalidated",
+"make": {
+"new": "MeasurementErrorRate",
+"args": [
+2.0,
+-1.0
+],
+"kwargs": {}
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"value": {
+"process": 2.0,
+"readout": -1.0
+},
+"warnings": []
+}
+},
+{
+"name": "mer repr",
+"make": {
+"new": "MeasurementErrorRate",
+"args": [
+0.1,
+0.2
+],
+"kwargs": {}
+},
+"call": [
+"repr"
+],
+"qdk": {
+"value": "MeasurementErrorRate(process=0.1, readout=0.2)",
+"warnings": []
+}
+},
+{
+"name": "mer missing arguments",
+"make": {
+"new": "MeasurementErrorRate",
+"args": [],
+"kwargs": {}
+},
+"py": true,
+"qdk": {
+"raised": "TypeError",
+"str": "MeasurementErrorRate.__init__() missing 2 required positional arguments: 'process' and 'readout'",
+"warnings": []
+}
+},
+{
+"name": "qubit empty",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {}
+},
+"qdk": {
+"value": {},
+"warnings": []
+}
+},
+{
+"name": "qubit repr",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3"
+}
+},
+"call": [
+"repr"
+],
+"qdk": {
+"value": "EstimatorQubitParams(name='qubit_gate_ns_e3', instruction_set=None, one_qubit_measurement_time=None, two_qubit_joint_measurement_time=None, one_qubit_gate_time=None, two_qubit_gate_time=None, t_gate_time=None, one_qubit_measurement_error_rate=None, two_qubit_joint_measurement_error_rate=None, one_qubit_gate_error_rate=None, two_qubit_gate_error_rate=None, t_gate_error_rate=None, idle_error_rate=None)",
+"warnings": []
+}
+},
+{
+"name": "qubit preset GATE_US_E3",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": {
+"const": "QubitParams.GATE_US_E3"
+}
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_gate_us_e3"
+},
+"warnings": []
+}
+},
+{
+"name": "qubit preset GATE_US_E4",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": {
+"const": "QubitParams.GATE_US_E4"
+}
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_gate_us_e4"
+},
+"warnings": []
+}
+},
+{
+"name": "qubit preset GATE_NS_E3",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": {
+"const": "QubitParams.GATE_NS_E3"
+}
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_gate_ns_e3"
+},
+"warnings": []
+}
+},
+{
+"name": "qubit preset GATE_NS_E4",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": {
+"const": "QubitParams.GATE_NS_E4"
+}
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_gate_ns_e4"
+},
+"warnings": []
+}
+},
+{
+"name": "qubit preset MAJ_NS_E4",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": {
+"const": "QubitParams.MAJ_NS_E4"
+}
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_maj_ns_e4"
+},
+"warnings": []
+}
+},
+{
+"name": "qubit preset MAJ_NS_E6",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": {
+"const": "QubitParams.MAJ_NS_E6"
+}
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_maj_ns_e6"
+},
+"warnings": []
+}
+},
+{
+"name": "qubit preset with overrides",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e4",
+"one_qubit_gate_error_rate": 0.0001,
+"t_gate_time": "60 ns"
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_gate_ns_e4",
+"tGateTime": "60 ns",
+"oneQubitGateErrorRate": 0.0001
+},
+"warnings": []
+}
+},
+{
+"name": "qubit preset with instruction set",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_maj_ns_e4",
+"instruction_set": "Majorana"
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_maj_ns_e4",
+"instructionSet": "Majorana"
+},
+"warnings": []
+}
+},
+{
+"name": "qubit preset with bad instruction set",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_maj_ns_e4",
+"instruction_set": "photonic"
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "instruction_set must be GateBased or Majorana",
+"warnings": []
+}
+},
+{
+"name": "qubit custom name only",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "my_qubit"
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "instruction_set must be set for custom qubit parameters",
+"warnings": []
+}
+},
+{
+"name": "qubit custom no instruction set",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"one_qubit_gate_time": "50 ns"
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "instruction_set must be set for custom qubit parameters",
+"warnings": []
+}
+},
+{
+"name": "qubit custom instruction set only",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"instruction_set": "GateBased"
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "one_qubit_measurement_time must be set",
+"warnings": []
+}
+},
+{
+"name": "qubit custom no measurement rate",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"instruction_set": "gate_based",
+"one_qubit_measurement_time": "100 ns"
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "one_qubit_measurement_error_rate must be set",
+"warnings": []
+}
+},
+{
+"name": "qubit custom no gate time",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"instruction_set": "gateBased",
+"one_qubit_measurement_time": "100 ns",
+"one_qubit_measurement_error_rate": 0.001
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "one_qubit_gate_time must be set",
+"warnings": []
+}
+},
+{
+"name": "qubit custom gate based",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"instruction_set": "GateBased",
+"one_qubit_measurement_time": "100 ns",
+"one_qubit_measurement_error_rate": 0.001,
+"one_qubit_gate_time": "50 ns"
+}
+},
+"qdk": {
+"value": {
+"instructionSet": "GateBased",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitGateTime": "50 ns",
+"oneQubitMeasurementErrorRate": 0.001
+},
+"warnings": []
+}
+},
+{
+"name": "qubit custom gate based full",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "mine",
+"instruction_set": "gate-based",
+"one_qubit_measurement_time": "1 µs",
+"two_qubit_joint_measurement_time": "1 μs",
+"one_qubit_gate_time": "50 ns",
+"two_qubit_gate_time": "+.5us",
+"t_gate_time": "1e-6 s",
+"one_qubit_measurement_error_rate": 0.001,
+"two_qubit_joint_measurement_error_rate": 0.002,
+"one_qubit_gate_error_rate": 0.0001,
+"two_qubit_gate_error_rate": 0.0002,
+"t_gate_error_rate": 0.001,
+"idle_error_rate": 1e-05
+}
+},
+"qdk": {
+"value": {
+"name": "mine",
+"instructionSet": "gate-based",
+"oneQubitMeasurementTime": "1 µs",
+"twoQubitJointMeasurementTime": "1 μs",
+"oneQubitGateTime": "50 ns",
+"twoQubitGateTime": "+.5us",
+"tGateTime": "1e-6 s",
+"oneQubitMeasurementErrorRate": 0.001,
+"twoQubitJointMeasurementErrorRate": 0.002,
+"oneQubitGateErrorRate": 0.0001,
+"twoQubitGateErrorRate": 0.0002,
+"tGateErrorRate": 0.001,
+"idleErrorRate": 1e-05
+},
+"warnings": []
+}
+},
+{
+"name": "qubit custom majorana no gate time needed",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"instruction_set": "Majorana",
+"one_qubit_measurement_time": "100 ns",
+"one_qubit_measurement_error_rate": {
+"new": "MeasurementErrorRate",
+"args": [
+0.0001,
+0.0002
+],
+"kwargs": {}
+}
+}
+},
+"qdk": {
+"value": {
+"instructionSet": "Majorana",
+"oneQubitMeasurementTime": "100 ns",
+"oneQubitMeasurementErrorRate": {
+"process": 0.0001,
+"readout": 0.0002
+}
+},
+"warnings": []
+}
+},
+{
+"name": "qubit custom majorana both rates",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"instruction_set": "majorana",
+"one_qubit_measurement_time": "100 ns",
+"two_qubit_joint_measurement_time": "100 ns",
+"t_gate_time": "100 ns",
+"one_qubit_measurement_error_rate": {
+"new": "MeasurementErrorRate",
+"args": [
+0.0001,
+0.0002
+],
+"kwargs": {}
+},
+"two_qubit_joint_measurement_error_rate": {
+"new": "MeasurementErrorRate",
+"args": [
+0.0003,
+0.0004
+],
+"kwargs": {}
+},
+"t_gate_error_rate": 0.05,
+"idle_error_rate": 1e-05
+}
+},
+"qdk": {
+"value": {
+"instructionSet": "majorana",
+"oneQubitMeasurementTime": "100 ns",
+"twoQubitJointMeasurementTime": "100 ns",
+"tGateTime": "100 ns",
+"oneQubitMeasurementErrorRate": {
+"process": 0.0001,
+"readout": 0.0002
+},
+"twoQubitJointMeasurementErrorRate": {
+"process": 0.0003,
+"readout": 0.0004
+},
+"tGateErrorRate": 0.05,
+"idleErrorRate": 1e-05
+},
+"warnings": []
+}
+},
+{
+"name": "qubit nested rate invalid",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_maj_ns_e4",
+"one_qubit_measurement_error_rate": {
+"new": "MeasurementErrorRate",
+"args": [
+0.0,
+0.0001
+],
+"kwargs": {}
+}
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "process must be between 0 and 1",
+"warnings": []
+}
+},
+{
+"name": "qubit nested rate unvalidated",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_maj_ns_e4",
+"two_qubit_joint_measurement_error_rate": {
+"new": "MeasurementErrorRate",
+"args": [
+5.0,
+0.0001
+],
+"kwargs": {}
+}
+}
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"value": {
+"name": "qubit_maj_ns_e4",
+"twoQubitJointMeasurementErrorRate": {
+"process": 5.0,
+"readout": 0.0001
+}
+},
+"warnings": []
+}
+},
+{
+"name": "qubit instruction set invalid",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"instruction_set": "quantum"
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "instruction_set must be GateBased or Majorana",
+"warnings": []
+}
+},
+{
+"name": "qubit instruction set lowercase gate",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"instruction_set": "gatebased"
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "instruction_set must be GateBased or Majorana",
+"warnings": []
+}
+},
+{
+"name": "qubit time invalid unit",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"one_qubit_measurement_time": "100 parsecs"
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "one_qubit_measurement_time is not a valid time string; use a suffix s, ms, us, or ns",
+"warnings": []
+}
+},
+{
+"name": "qubit time negative",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"t_gate_time": "-5 ns"
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "t_gate_time is not a valid time string; use a suffix s, ms, us, or ns",
+"warnings": []
+}
+},
+{
+"name": "qubit time leading space",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"t_gate_time": " 5 ns"
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "t_gate_time is not a valid time string; use a suffix s, ms, us, or ns",
+"warnings": []
+}
+},
+{
+"name": "qubit time trailing newline",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"t_gate_time": "5 ns\n"
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_gate_ns_e3",
+"tGateTime": "5 ns\n"
+},
+"warnings": []
+}
+},
+{
+"name": "qubit time no space",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"two_qubit_gate_time": "5ms"
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_gate_ns_e3",
+"twoQubitGateTime": "5ms"
+},
+"warnings": []
+}
+},
+{
+"name": "qubit time exponent",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"two_qubit_gate_time": "2.5E+2 ns"
+}
+},
+"qdk": {
+"value": {
+"name": "qubit_gate_ns_e3",
+"twoQubitGateTime": "2.5E+2 ns"
+},
+"warnings": []
+}
+},
+{
+"name": "qubit time number",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"one_qubit_gate_time": 50
+}
+},
+"py": true,
+"qdk": {
+"raised": "TypeError",
+"str": "expected string or bytes-like object, got 'int'",
+"warnings": []
+}
+},
+{
+"name": "qubit measurement rate int",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"one_qubit_measurement_error_rate": 1
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "one_qubit_measurement_error_rate must be either a float or MeasurementErrorRate with two fields: 'process' and 'readout'",
+"warnings": []
+}
+},
+{
+"name": "qubit measurement rate one",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"one_qubit_measurement_error_rate": 1.0
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "one_qubit_measurement_error_rate must be between 0 and 1",
+"warnings": []
+}
+},
+{
+"name": "qubit measurement rate string",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"two_qubit_joint_measurement_error_rate": "1e-3"
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "two_qubit_joint_measurement_error_rate must be either a float or MeasurementErrorRate with two fields: 'process' and 'readout'",
+"warnings": []
+}
+},
+{
+"name": "qubit gate rate zero",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"t_gate_error_rate": 0.0
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "t_gate_error_rate must be between 0 and 1",
+"warnings": []
+}
+},
+{
+"name": "qubit idle rate string",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_ns_e3",
+"idle_error_rate": "0.1"
+}
+},
+"qdk": {
+"raised": "TypeError",
+"str": "'<=' not supported between instances of 'str' and 'float'",
+"warnings": []
+}
+},
+{
+"name": "qubit invalid unvalidated",
+"make": {
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"instruction_set": "quantum",
+"t_gate_error_rate": 7.0,
+"one_qubit_measurement_error_rate": {
+"new": "MeasurementErrorRate",
+"args": [
+3.0,
+4.0
+],
+"kwargs": {}
+}
+}
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"value": {
+"instructionSet": "quantum",
+"oneQubitMeasurementErrorRate": {
+"process": 3.0,
+"readout": 4.0
+},
+"tGateErrorRate": 7.0
+},
+"warnings": []
+}
+},
+{
+"name": "scheme empty",
+"make": {
+"new": "EstimatorQecScheme",
+"args": [],
+"kwargs": {}
+},
+"qdk": {
+"value": {},
+"warnings": []
+}
+},
+{
+"name": "scheme surface",
+"make": {
+"new": "EstimatorQecScheme",
+"args": [],
+"kwargs": {
+"name": {
+"const": "QECScheme.SURFACE_CODE"
+}
+}
+},
+"qdk": {
+"value": {
+"name": "surface_code"
+},
+"warnings": []
+}
+},
+{
+"name": "scheme floquet with distance",
+"make": {
+"new": "EstimatorQecScheme",
+"args": [],
+"kwargs": {
+"name": {
+"const": "QECScheme.FLOQUET_CODE"
+},
+"max_code_distance": 31
+}
+},
+"qdk": {
+"value": {
+"name": "floquet_code",
+"maxCodeDistance": 31
+},
+"warnings": []
+}
+},
+{
+"name": "scheme custom",
+"make": {
+"new": "EstimatorQecScheme",
+"args": [],
+"kwargs": {
+"error_correction_threshold": 0.01,
+"crossing_prefactor": 0.03,
+"distance_coefficient_power": 0,
+"logical_cycle_time": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physical_qubits_per_logical_qubit": "2 * codeDistance * codeDistance",
+"max_code_distance": 25
+}
+},
+"qdk": {
+"value": {
+"errorCorrectionThreshold": 0.01,
+"crossingPrefactor": 0.03,
+"distanceCoefficientPower": 0,
+"logicalCycleTime": "(4 * twoQubitGateTime + 2 * oneQubitMeasurementTime) * codeDistance",
+"physicalQubitsPerLogicalQubit": "2 * codeDistance * codeDistance",
+"maxCodeDistance": 25
+},
+"warnings": []
+}
+},
+{
+"name": "scheme threshold one",
+"make": {
+"new": "EstimatorQecScheme",
+"args": [],
+"kwargs": {
+"name": "surface_code",
+"error_correction_threshold": 1.0
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "error_correction_threshold must be between 0 and 1",
+"warnings": []
+}
+},
+{
+"name": "scheme unchecked fields",
+"make": {
+"new": "EstimatorQecScheme",
+"args": [],
+"kwargs": {
+"error_correction_threshold": 0.5,
+"crossing_prefactor": "x",
+"distance_coefficient_power": -3
+}
+},
+"qdk": {
+"value": {
+"errorCorrectionThreshold": 0.5,
+"crossingPrefactor": "x",
+"distanceCoefficientPower": -3
+},
+"warnings": []
+}
+},
+{
+"name": "scheme repr",
+"make": {
+"new": "EstimatorQecScheme",
+"args": [],
+"kwargs": {
+"name": "surface_code"
+}
+},
+"call": [
+"repr"
+],
+"qdk": {
+"value": "EstimatorQecScheme(name='surface_code', error_correction_threshold=None, crossing_prefactor=None, distance_coefficient_power=None, logical_cycle_time=None, physical_qubits_per_logical_qubit=None, max_code_distance=None)",
+"warnings": []
+}
+},
+{
+"name": "protocol empty",
+"make": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "num_unit_qubits must be set",
+"warnings": []
+}
+},
+{
+"name": "protocol no duration",
+"make": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_unit_qubits": 20
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "duration_in_qubit_cycle_time must be set",
+"warnings": []
+}
+},
+{
+"name": "protocol no qubits",
+"make": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"duration_in_qubit_cycle_time": 13
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "num_unit_qubits must be set",
+"warnings": []
+}
+},
+{
+"name": "protocol valid",
+"make": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_unit_qubits": 20,
+"duration_in_qubit_cycle_time": 13
+}
+},
+"qdk": {
+"value": {
+"numUnitQubits": 20,
+"durationInQubitCycleTime": 13
+},
+"warnings": []
+}
+},
+{
+"name": "protocol empty unvalidated",
+"make": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {}
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"value": {},
+"warnings": []
+}
+},
+{
+"name": "unit empty",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "name must be set or custom specification must be provided",
+"warnings": []
+}
+},
+{
+"name": "unit name",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"name": "15-1 RM"
+}
+},
+"qdk": {
+"value": {
+"name": "15-1 RM"
+},
+"warnings": []
+}
+},
+{
+"name": "unit name and custom",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"name": "15-1 RM",
+"num_input_ts": 15
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "If predefined name is provided, custom specification is not allowed. Either remove name or remove all other specification of the distillation unit",
+"warnings": []
+}
+},
+{
+"name": "unit display name only",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"display_name": "mine"
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "num_input_ts must be set",
+"warnings": []
+}
+},
+{
+"name": "unit no output count",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_input_ts": 15
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "num_output_ts must be set",
+"warnings": []
+}
+},
+{
+"name": "unit no failure formula",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_input_ts": 15,
+"num_output_ts": 1
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "failure_probability_formula must be set",
+"warnings": []
+}
+},
+{
+"name": "unit no output formula",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_input_ts": 15,
+"num_output_ts": 1,
+"failure_probability_formula": "15 * inputErrorRate"
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "output_error_rate_formula must be set",
+"warnings": []
+}
+},
+{
+"name": "unit custom",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"display_name": "mine",
+"num_input_ts": 15,
+"num_output_ts": 1,
+"failure_probability_formula": "15.0 * inputErrorRate + 356.0 * cliffordErrorRate",
+"output_error_rate_formula": "35.0 * inputErrorRate ^ 3 + 7.1 * cliffordErrorRate"
+}
+},
+"qdk": {
+"value": {
+"displayName": "mine",
+"numInputTs": 15,
+"numOutputTs": 1,
+"failureProbabilityFormula": "15.0 * inputErrorRate + 356.0 * cliffordErrorRate",
+"outputErrorRateFormula": "35.0 * inputErrorRate ^ 3 + 7.1 * cliffordErrorRate"
+},
+"warnings": []
+}
+},
+{
+"name": "unit custom with specifications",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_input_ts": 15,
+"num_output_ts": 1,
+"failure_probability_formula": "15.0 * inputErrorRate + 356.0 * cliffordErrorRate",
+"output_error_rate_formula": "35.0 * inputErrorRate ^ 3 + 7.1 * cliffordErrorRate",
+"physical_qubit_specification": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_unit_qubits": 31,
+"duration_in_qubit_cycle_time": 24
+}
+},
+"logical_qubit_specification": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_unit_qubits": 15,
+"duration_in_qubit_cycle_time": 13
+}
+},
+"logical_qubit_specification_first_round_override": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_unit_qubits": 20,
+"duration_in_qubit_cycle_time": 11
+}
+}
+}
+},
+"qdk": {
+"value": {
+"numInputTs": 15,
+"numOutputTs": 1,
+"failureProbabilityFormula": "15.0 * inputErrorRate + 356.0 * cliffordErrorRate",
+"outputErrorRateFormula": "35.0 * inputErrorRate ^ 3 + 7.1 * cliffordErrorRate",
+"physicalQubitSpecification": {
+"numUnitQubits": 31,
+"durationInQubitCycleTime": 24
+},
+"logicalQubitSpecification": {
+"numUnitQubits": 15,
+"durationInQubitCycleTime": 13
+},
+"logicalQubitSpecificationFirstRoundOverride": {
+"numUnitQubits": 20,
+"durationInQubitCycleTime": 11
+}
+},
+"warnings": []
+}
+},
+{
+"name": "unit custom override incomplete",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_input_ts": 15,
+"num_output_ts": 1,
+"failure_probability_formula": "15.0 * inputErrorRate + 356.0 * cliffordErrorRate",
+"output_error_rate_formula": "35.0 * inputErrorRate ^ 3 + 7.1 * cliffordErrorRate",
+"logical_qubit_specification_first_round_override": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_unit_qubits": 20
+}
+}
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "duration_in_qubit_cycle_time must be set",
+"warnings": []
+}
+},
+{
+"name": "unit custom physical incomplete",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_input_ts": 15,
+"num_output_ts": 1,
+"failure_probability_formula": "15.0 * inputErrorRate + 356.0 * cliffordErrorRate",
+"output_error_rate_formula": "35.0 * inputErrorRate ^ 3 + 7.1 * cliffordErrorRate",
+"physical_qubit_specification": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"duration_in_qubit_cycle_time": 3
+}
+}
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "num_unit_qubits must be set",
+"warnings": []
+}
+},
+{
+"name": "unit name with empty specification",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"name": "15-1 RM",
+"physical_qubit_specification": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {}
+}
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "If predefined name is provided, custom specification is not allowed. Either remove name or remove all other specification of the distillation unit",
+"warnings": []
+}
+},
+{
+"name": "unit empty specification unvalidated",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"num_input_ts": 15,
+"num_output_ts": 1,
+"failure_probability_formula": "15.0 * inputErrorRate + 356.0 * cliffordErrorRate",
+"output_error_rate_formula": "35.0 * inputErrorRate ^ 3 + 7.1 * cliffordErrorRate",
+"physical_qubit_specification": {
+"new": "ProtocolSpecificDistillationUnitSpecification",
+"args": [],
+"kwargs": {}
+}
+}
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"value": {
+"numInputTs": 15,
+"numOutputTs": 1,
+"failureProbabilityFormula": "15.0 * inputErrorRate + 356.0 * cliffordErrorRate",
+"outputErrorRateFormula": "35.0 * inputErrorRate ^ 3 + 7.1 * cliffordErrorRate",
+"physicalQubitSpecification": {
+"$obj": "ProtocolSpecificDistillationUnitSpecification",
+"attrs": {
+"num_unit_qubits": null,
+"duration_in_qubit_cycle_time": null
+}
+}
+},
+"warnings": []
+}
+},
+{
+"name": "unit empty unvalidated",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {}
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"value": {},
+"warnings": []
+}
+},
+{
+"name": "unit repr",
+"make": {
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"name": "15-1 space-efficient"
+}
+},
+"call": [
+"repr"
+],
+"qdk": {
+"value": "DistillationUnitSpecification(name='15-1 space-efficient', display_name=None, num_input_ts=None, num_output_ts=None, failure_probability_formula=None, output_error_rate_formula=None, physical_qubit_specification=None, logical_qubit_specification=None, logical_qubit_specification_first_round_override=None)",
+"warnings": []
+}
+},
+{
+"name": "budget default",
+"make": {
+"new": "ErrorBudgetPartition",
+"args": [],
+"kwargs": {}
+},
+"qdk": {
+"value": {
+"logical": 0.0003333333333333333,
+"tStates": 0.0003333333333333333,
+"rotations": 0.0003333333333333333
+},
+"warnings": []
+}
+},
+{
+"name": "budget parts",
+"make": {
+"new": "ErrorBudgetPartition",
+"args": [
+0.01,
+0.02,
+0.03
+],
+"kwargs": {}
+},
+"qdk": {
+"value": {
+"logical": 0.01,
+"tStates": 0.02,
+"rotations": 0.03
+},
+"warnings": []
+}
+},
+{
+"name": "budget unchecked",
+"make": {
+"new": "ErrorBudgetPartition",
+"args": [],
+"kwargs": {
+"logical": -1.0,
+"t_states": 2,
+"rotations": "x"
+}
+},
+"qdk": {
+"value": {
+"logical": -1.0,
+"tStates": 2,
+"rotations": "x"
+},
+"warnings": []
+}
+},
+{
+"name": "budget repr",
+"make": {
+"new": "ErrorBudgetPartition",
+"args": [],
+"kwargs": {}
+},
+"call": [
+"repr"
+],
+"qdk": {
+"value": "ErrorBudgetPartition(logical=0.0003333333333333333, t_states=0.0003333333333333333, rotations=0.0003333333333333333)",
+"warnings": []
+}
+},
+{
+"name": "constraints empty",
+"make": {
+"new": "EstimatorConstraints",
+"args": [],
+"kwargs": {}
+},
+"qdk": {
+"value": {},
+"warnings": []
+}
+},
+{
+"name": "constraints valid",
+"make": {
+"new": "EstimatorConstraints",
+"args": [],
+"kwargs": {
+"logical_depth_factor": 1.5,
+"max_t_factories": 10,
+"max_physical_qubits": 1000000
+}
+},
+"qdk": {
+"value": {
+"logicalDepthFactor": 1.5,
+"maxTFactories": 10,
+"maxPhysicalQubits": 1000000
+},
+"warnings": []
+}
+},
+{
+"name": "constraints duration",
+"make": {
+"new": "EstimatorConstraints",
+"args": [],
+"kwargs": {
+"max_duration": "1 ms",
+"max_t_factories": 3
+}
+},
+"qdk": {
+"value": {
+"maxTFactories": 3,
+"maxDuration": "1 ms"
+},
+"warnings": []
+}
+},
+{
+"name": "constraints depth factor below one",
+"make": {
+"new": "EstimatorConstraints",
+"args": [],
+"kwargs": {
+"logical_depth_factor": 0.5
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "logical_depth_factor must be at least 1",
+"warnings": []
+}
+},
+{
+"name": "constraints no factories",
+"make": {
+"new": "EstimatorConstraints",
+"args": [],
+"kwargs": {
+"max_t_factories": 0
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "max_t_factories must be at least 1",
+"warnings": []
+}
+},
+{
+"name": "constraints no qubits",
+"make": {
+"new": "EstimatorConstraints",
+"args": [],
+"kwargs": {
+"max_physical_qubits": 0
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "max_physical_qubits must be at least 1",
+"warnings": []
+}
+},
+{
+"name": "constraints duration invalid",
+"make": {
+"new": "EstimatorConstraints",
+"args": [],
+"kwargs": {
+"max_duration": "1 fortnight"
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "max_duration is not a valid time string; use a suffix s, ms, us, or ns",
+"warnings": []
+}
+},
+{
+"name": "constraints duration number",
+"make": {
+"new": "EstimatorConstraints",
+"args": [],
+"kwargs": {
+"max_duration": 1000
+}
+},
+"py": true,
+"qdk": {
+"raised": "TypeError",
+"str": "expected string or bytes-like object, got 'int'",
+"warnings": []
+}
+},
+{
+"name": "constraints duration and qubits",
+"make": {
+"new": "EstimatorConstraints",
+"args": [],
+"kwargs": {
+"max_duration": "1 s",
+"max_physical_qubits": 1000000
+}
+},
+"qdk": {
+"raised": "LookupError",
+"str": "Both duration and number of physical qubits constraints are provided, but only one is allowed at a time.",
+"warnings": []
+}
+},
+{
+"name": "constraints duration and qubits unvalidated",
+"make": {
+"new": "EstimatorConstraints",
+"args": [],
+"kwargs": {
+"max_duration": "1 s",
+"max_physical_qubits": 0
+}
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"value": {
+"maxDuration": "1 s",
+"maxPhysicalQubits": 0
+},
+"warnings": []
+}
+},
+{
+"name": "item empty",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {}
+},
+"qdk": {
+"value": {},
+"warnings": []
+}
+},
+{
+"name": "item everything",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"qubit_params.name",
+"qubit_gate_ns_e4"
+],
+[
+"qec_scheme.name",
+"surface_code"
+],
+[
+"error_budget",
+0.01
+],
+[
+"estimate_type",
+"frontier"
+],
+[
+"constraints.max_t_factories",
+4
+],
+[
+"distillation_unit_specifications",
+[
+{
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"name": "15-1 RM"
+}
+},
+{
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"display_name": "mine",
+"num_input_ts": 15,
+"num_output_ts": 1,
+"failure_probability_formula": "15.0 * inputErrorRate + 356.0 * cliffordErrorRate",
+"output_error_rate_formula": "35.0 * inputErrorRate ^ 3 + 7.1 * cliffordErrorRate"
+}
+}
+]
+]
+]
+},
+"qdk": {
+"value": {
+"qubitParams": {
+"name": "qubit_gate_ns_e4"
+},
+"qecScheme": {
+"name": "surface_code"
+},
+"distillationUnitSpecifications": [
+{
+"name": "15-1 RM"
+},
+{
+"displayName": "mine",
+"numInputTs": 15,
+"numOutputTs": 1,
+"failureProbabilityFormula": "15.0 * inputErrorRate + 356.0 * cliffordErrorRate",
+"outputErrorRateFormula": "35.0 * inputErrorRate ^ 3 + 7.1 * cliffordErrorRate"
+}
+],
+"constraints": {
+"maxTFactories": 4
+},
+"errorBudget": 0.01,
+"estimateType": "frontier"
+},
+"warnings": []
+}
+},
+{
+"name": "item budget zero",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"error_budget",
+0.0
+]
+]
+},
+"qdk": {
+"raised": "ValueError",
+"str": "error_budget must be value between 0 and 1",
+"warnings": []
+}
+},
+{
+"name": "item budget one int",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"error_budget",
+1
+]
+]
+},
+"qdk": {
+"raised": "ValueError",
+"str": "error_budget must be value between 0 and 1",
+"warnings": []
+}
+},
+{
+"name": "item budget bool",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"error_budget",
+true
+]
+]
+},
+"qdk": {
+"raised": "ValueError",
+"str": "error_budget must be value between 0 and 1",
+"warnings": []
+}
+},
+{
+"name": "item budget string dropped",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"error_budget",
+"0.1"
+]
+]
+},
+"qdk": {
+"value": {},
+"warnings": []
+}
+},
+{
+"name": "item budget partition",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"error_budget",
+{
+"new": "ErrorBudgetPartition",
+"args": [
+0.0001,
+0.0002,
+0.0003
+],
+"kwargs": {}
+}
+]
+]
+},
+"qdk": {
+"value": {
+"errorBudget": {
+"logical": 0.0001,
+"tStates": 0.0002,
+"rotations": 0.0003
+}
+},
+"warnings": []
+}
+},
+{
+"name": "item budget zero unvalidated",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"error_budget",
+0.0
+]
+]
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"value": {
+"errorBudget": 0.0
+},
+"warnings": []
+}
+},
+{
+"name": "item estimate type invalid",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"estimate_type",
+"pareto"
+]
+]
+},
+"qdk": {
+"raised": "ValueError",
+"str": "estimate_type must be either 'frontier' or 'singlePoint'",
+"warnings": []
+}
+},
+{
+"name": "item estimate type invalid unvalidated",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"estimate_type",
+"pareto"
+]
+]
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"raised": "ValueError",
+"str": "estimate_type must be either 'frontier' or 'singlePoint'",
+"warnings": []
+}
+},
+{
+"name": "item unit invalid",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"distillation_unit_specifications",
+[
+{
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"name": "15-1 RM"
+}
+},
+{
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {}
+}
+]
+]
+]
+},
+"qdk": {
+"raised": "LookupError",
+"str": "name must be set or custom specification must be provided",
+"warnings": []
+}
+},
+{
+"name": "item units empty unvalidated",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"distillation_unit_specifications",
+[
+{
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {}
+},
+{
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {}
+}
+]
+]
+]
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"value": {},
+"warnings": []
+}
+},
+{
+"name": "item merged with nothing",
+"make": {
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"qubit_params.name",
+"qubit_gate_us_e3"
+]
+]
+},
+"call": [
+"as_dict",
+{
+"additional_params": null
+}
+],
+"qdk": {
+"value": {
+"qubitParams": {
+"name": "qubit_gate_us_e3"
+}
+},
+"warnings": []
+}
+},
+{
+"name": "params empty",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {}
+},
+"qdk": {
+"value": {},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params single",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {},
+"set": [
+[
+"qubit_params.name",
+"qubit_maj_ns_e6"
+],
+[
+"qec_scheme.name",
+"floquet_code"
+],
+[
+"error_budget",
+{
+"new": "ErrorBudgetPartition",
+"args": [],
+"kwargs": {}
+}
+],
+[
+"constraints.logical_depth_factor",
+2.0
+]
+]
+},
+"qdk": {
+"value": {
+"qubitParams": {
+"name": "qubit_maj_ns_e6"
+},
+"qecScheme": {
+"name": "floquet_code"
+},
+"constraints": {
+"logicalDepthFactor": 2.0
+},
+"errorBudget": {
+"logical": 0.0003333333333333333,
+"tStates": 0.0003333333333333333,
+"rotations": 0.0003333333333333333
+}
+},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params single has_items",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {}
+},
+"call": [
+"attr",
+"has_items"
+],
+"qdk": {
+"value": false,
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params single items",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {}
+},
+"call": [
+"attr",
+"items"
+],
+"qdk": {
+"raised": "Exception",
+"str": "Cannot access items in a non-batching job, call make_params with num_items parameter",
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params zero items",
+"make": {
+"new": "EstimatorParams",
+"args": [
+0
+],
+"kwargs": {}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "num_items must be a positive value less or equal to 1000",
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params negative items",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": -1
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "num_items must be a positive value less or equal to 1000",
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params 1001 items",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 1001
+}
+},
+"qdk": {
+"raised": "ValueError",
+"str": "num_items must be a positive value less or equal to 1000",
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params 1000 items",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 1000
+}
+},
+"qdk": {
+"value": {
+"items": [
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{},
+{}
+],
+"resumeAfterFailedItem": true
+},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params cap",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {}
+},
+"call": [
+"attr",
+"MAX_NUM_ITEMS"
+],
+"qdk": {
+"value": 1000,
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params items string",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": "2"
+}
+},
+"qdk": {
+"raised": "TypeError",
+"str": "'<=' not supported between instances of 'str' and 'int'",
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params items float",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2.5
+}
+},
+"qdk": {
+"raised": "TypeError",
+"str": "'float' object cannot be interpreted as an integer",
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params one item",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 1
+}
+},
+"qdk": {
+"value": {
+"items": [
+{}
+],
+"resumeAfterFailedItem": true
+},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch items",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+}
+},
+"call": [
+"attr",
+"items"
+],
+"qdk": {
+"value": [
+{
+"$obj": "EstimatorInputParamsItem",
+"attrs": {
+"qubit_params": {
+"$obj": "EstimatorQubitParams",
+"attrs": {
+"name": null,
+"instruction_set": null,
+"one_qubit_measurement_time": null,
+"two_qubit_joint_measurement_time": null,
+"one_qubit_gate_time": null,
+"two_qubit_gate_time": null,
+"t_gate_time": null,
+"one_qubit_measurement_error_rate": null,
+"two_qubit_joint_measurement_error_rate": null,
+"one_qubit_gate_error_rate": null,
+"two_qubit_gate_error_rate": null,
+"t_gate_error_rate": null,
+"idle_error_rate": null
+}
+},
+"qec_scheme": {
+"$obj": "EstimatorQecScheme",
+"attrs": {
+"name": null,
+"error_correction_threshold": null,
+"crossing_prefactor": null,
+"distance_coefficient_power": null,
+"logical_cycle_time": null,
+"physical_qubits_per_logical_qubit": null,
+"max_code_distance": null
+}
+},
+"distillation_unit_specifications": [],
+"constraints": {
+"$obj": "EstimatorConstraints",
+"attrs": {
+"logical_depth_factor": null,
+"max_t_factories": null,
+"max_duration": null,
+"max_physical_qubits": null
+}
+},
+"error_budget": null,
+"estimate_type": null
+}
+},
+{
+"$obj": "EstimatorInputParamsItem",
+"attrs": {
+"qubit_params": {
+"$obj": "EstimatorQubitParams",
+"attrs": {
+"name": null,
+"instruction_set": null,
+"one_qubit_measurement_time": null,
+"two_qubit_joint_measurement_time": null,
+"one_qubit_gate_time": null,
+"two_qubit_gate_time": null,
+"t_gate_time": null,
+"one_qubit_measurement_error_rate": null,
+"two_qubit_joint_measurement_error_rate": null,
+"one_qubit_gate_error_rate": null,
+"two_qubit_gate_error_rate": null,
+"t_gate_error_rate": null,
+"idle_error_rate": null
+}
+},
+"qec_scheme": {
+"$obj": "EstimatorQecScheme",
+"attrs": {
+"name": null,
+"error_correction_threshold": null,
+"crossing_prefactor": null,
+"distance_coefficient_power": null,
+"logical_cycle_time": null,
+"physical_qubits_per_logical_qubit": null,
+"max_code_distance": null
+}
+},
+"distillation_unit_specifications": [],
+"constraints": {
+"$obj": "EstimatorConstraints",
+"attrs": {
+"logical_depth_factor": null,
+"max_t_factories": null,
+"max_duration": null,
+"max_physical_qubits": null
+}
+},
+"error_budget": null,
+"estimate_type": null
+}
+}
+],
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch merged",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 3
+},
+"set": [
+[
+"qubit_params.name",
+"qubit_gate_ns_e3"
+],
+[
+"qec_scheme.name",
+"surface_code"
+],
+[
+"error_budget",
+0.01
+],
+[
+"constraints.max_t_factories",
+2
+],
+[
+"items.1.qubit_params.name",
+"qubit_maj_ns_e4"
+],
+[
+"items.1.qec_scheme.name",
+"floquet_code"
+],
+[
+"items.2.error_budget",
+{
+"new": "ErrorBudgetPartition",
+"args": [
+0.0001,
+0.0002,
+0.0003
+],
+"kwargs": {}
+}
+],
+[
+"items.2.constraints.max_physical_qubits",
+1000000
+]
+]
+},
+"qdk": {
+"value": {
+"qubitParams": {
+"name": "qubit_gate_ns_e3"
+},
+"qecScheme": {
+"name": "surface_code"
+},
+"constraints": {
+"maxTFactories": 2
+},
+"errorBudget": 0.01,
+"items": [
+{
+"qubitParams": {
+"name": "qubit_gate_ns_e3"
+},
+"qecScheme": {
+"name": "surface_code"
+},
+"constraints": {
+"maxTFactories": 2
+},
+"errorBudget": 0.01
+},
+{
+"qubitParams": {
+"name": "qubit_maj_ns_e4"
+},
+"qecScheme": {
+"name": "floquet_code"
+},
+"constraints": {
+"maxTFactories": 2
+},
+"errorBudget": 0.01
+},
+{
+"qubitParams": {
+"name": "qubit_gate_ns_e3"
+},
+"qecScheme": {
+"name": "surface_code"
+},
+"constraints": {
+"maxPhysicalQubits": 1000000
+},
+"errorBudget": {
+"logical": 0.0001,
+"tStates": 0.0002,
+"rotations": 0.0003
+}
+}
+],
+"resumeAfterFailedItem": true
+},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch units only where the item has its own",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+},
+"set": [
+[
+"distillation_unit_specifications",
+[
+{
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"name": "15-1 space-efficient"
+}
+}
+]
+],
+[
+"items.1.distillation_unit_specifications",
+[
+{
+"new": "DistillationUnitSpecification",
+"args": [],
+"kwargs": {
+"name": "15-1 RM"
+}
+}
+]
+]
+]
+},
+"qdk": {
+"value": {
+"distillationUnitSpecifications": [
+{
+"name": "15-1 space-efficient"
+}
+],
+"items": [
+{},
+{
+"distillationUnitSpecifications": [
+{
+"name": "15-1 RM"
+},
+{
+"name": "15-1 space-efficient"
+}
+]
+}
+],
+"resumeAfterFailedItem": true
+},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch estimate type not inherited",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+},
+"set": [
+[
+"estimate_type",
+"frontier"
+],
+[
+"items.0.estimate_type",
+"singlePoint"
+]
+]
+},
+"qdk": {
+"value": {
+"estimateType": "frontier",
+"items": [
+{
+"estimateType": "singlePoint"
+},
+{}
+],
+"resumeAfterFailedItem": true
+},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch partition inherited",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+},
+"set": [
+[
+"error_budget",
+{
+"new": "ErrorBudgetPartition",
+"args": [
+0.002,
+0.003,
+0.004
+],
+"kwargs": {}
+}
+]
+]
+},
+"qdk": {
+"value": {
+"errorBudget": {
+"logical": 0.002,
+"tStates": 0.003,
+"rotations": 0.004
+},
+"items": [
+{
+"errorBudget": {
+"logical": 0.002,
+"tStates": 0.003,
+"rotations": 0.004
+}
+},
+{
+"errorBudget": {
+"logical": 0.002,
+"tStates": 0.003,
+"rotations": 0.004
+}
+}
+],
+"resumeAfterFailedItem": true
+},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch top budget invalid",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+},
+"set": [
+[
+"error_budget",
+1.5
+]
+]
+},
+"qdk": {
+"raised": "ValueError",
+"str": "error_budget must be value between 0 and 1",
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch item budget invalid",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+},
+"set": [
+[
+"items.1.error_budget",
+-0.5
+]
+]
+},
+"qdk": {
+"raised": "ValueError",
+"str": "error_budget must be value between 0 and 1",
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch item qubit invalid",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+},
+"set": [
+[
+"items.1.qubit_params.instruction_set",
+"GateBased"
+]
+]
+},
+"qdk": {
+"raised": "LookupError",
+"str": "one_qubit_measurement_time must be set",
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch top qubit invalid",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+},
+"set": [
+[
+"qubit_params.t_gate_error_rate",
+2.0
+]
+]
+},
+"qdk": {
+"raised": "ValueError",
+"str": "t_gate_error_rate must be between 0 and 1",
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch unvalidated",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+},
+"set": [
+[
+"error_budget",
+1.5
+],
+[
+"items.0.estimate_type",
+"frontier"
+],
+[
+"items.1.constraints.max_t_factories",
+0
+]
+]
+},
+"call": [
+"as_dict",
+{
+"validate": false
+}
+],
+"qdk": {
+"value": {
+"errorBudget": 1.5,
+"items": [
+{
+"errorBudget": 1.5,
+"estimateType": "frontier"
+},
+{
+"constraints": {
+"maxTFactories": 0
+},
+"errorBudget": 1.5
+}
+],
+"resumeAfterFailedItem": true
+},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params batch item merged by hand",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+},
+"set": [
+[
+"qec_scheme.name",
+"floquet_code"
+],
+[
+"items.0.qubit_params.name",
+"qubit_maj_ns_e6"
+]
+]
+},
+"call": [
+"item_as_dict",
+0
+],
+"qdk": {
+"value": {
+"qubitParams": {
+"name": "qubit_maj_ns_e6"
+},
+"qecScheme": {
+"name": "floquet_code"
+}
+},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+},
+{
+"name": "params items replaced by a list",
+"make": {
+"new": "EstimatorParams",
+"args": [],
+"kwargs": {
+"num_items": 2
+},
+"set": [
+[
+"items.0",
+{
+"new": "EstimatorInputParamsItem",
+"args": [],
+"kwargs": {}
+}
+],
+[
+"items.1.qubit_params",
+{
+"new": "EstimatorQubitParams",
+"args": [],
+"kwargs": {
+"name": "qubit_gate_us_e4"
+}
+}
+]
+]
+},
+"qdk": {
+"value": {
+"items": [
+{},
+{
+"qubitParams": {
+"name": "qubit_gate_us_e4"
+}
+}
+],
+"resumeAfterFailedItem": true
+},
+"warnings": [
+[
+"DeprecationWarning",
+"This version of QRE is deprecated and will be removed in a future release. Please use the new version of QRE in qdk.qre. Refer to aka.ms/qdk.QREv3 for more information."
+]
+]
+}
+}
+]
+}
