@@ -1,7 +1,9 @@
 The files in this directory transliterate PyMatching 2.4.0's sparse blossom
-(src/pymatching/sparse_blossom/: tracker, flooder, matcher, search, driver) to Rust, and build
-its matching graph in PyMatching 2.4.0's and 2.2.2's neighbour orders. Modified from the
-originals: rewritten in Rust, with indices into arenas for its pointers.
+(src/pymatching/sparse_blossom/: tracker, flooder, matcher, search, driver, and diagram, its
+animation's drawing) to Rust, and build its matching graph in PyMatching 2.4.0's and 2.2.2's
+neighbour orders. Modified from the originals: rewritten in Rust, with indices into arenas for
+its pointers. The animation's command (diagram/animation_main.cc) is ported to Python in
+python/stabilizer_qec/pymatching.py, under the same notice.
 
 Copyright 2022 PyMatching Contributors
 

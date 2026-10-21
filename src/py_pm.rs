@@ -243,7 +243,65 @@ impl PyUserGraph {
     }
 }
 
+/// PyMatching's `animate` (`pm_exact::write_animated_decoding_svg_frames`): a model's graph as
+/// PyMatching's animation builds it (1000 weight levels) and its detectors placed on the page.
+#[pyclass(name = "PmAnimation", module = "stabilizer_qec._core")]
+pub struct PyPmAnimation {
+    graph: std::sync::Arc<crate::pm_exact::Graph>,
+    coords: Vec<crate::pm_exact::Point>,
+    boundary: Vec<crate::pm_exact::Point>,
+}
+
+#[pymethods]
+impl PyPmAnimation {
+    /// `dem_text`'s graph and `detector_coordinates` (each detector's, in order; empty for none)
+    /// placed at `pixels_per_unit_length`, in PyMatching's order: the places, then the graph.
+    #[new]
+    fn new(dem_text: &str, detector_coordinates: Vec<Vec<f64>>, pixels_per_unit_length: u32) -> PyResult<Self> {
+        use crate::pm_exact::{pick_coords_for_drawing, Graph, NeighbourOrder};
+        let dem = crate::dem_program::DemProgram::parse(dem_text).map_err(err)?;
+        let (coords, boundary) = pick_coords_for_drawing(&detector_coordinates, pixels_per_unit_length as f32);
+        let g = UserGraph::from_dem(&dem).map_err(err)?;
+        let graph = Graph::try_from_user_graph(&g, NeighbourOrder::V2_4, 1000).map_err(err)?;
+        if coords.len() < graph.num_nodes {
+            return Err(err(format!("{} detector coordinates for a graph of {} nodes", coords.len(), graph.num_nodes)));
+        }
+        Ok(PyPmAnimation { graph: std::sync::Arc::new(graph), coords, boundary })
+    }
+
+    /// Draws the run on `detection_events`, handing each frame (an SVG document) to `emit` as it
+    /// is drawn. Raises what `emit` raises, and ValueError (PyMatching's `Unknown tentative event
+    /// type.`) when the queue runs dry before every region is frozen.
+    fn run(
+        &self,
+        detection_events: Vec<u64>,
+        held_frames_per_event: usize,
+        held_frames_at_start: usize,
+        held_frames_at_end: usize,
+        max_growth_between_frames: usize,
+        emit: Bound<'_, PyAny>,
+    ) -> PyResult<()> {
+        use crate::pm_exact::{write_animated_decoding_svg_frames, AnimationError, FrameSchedule, UNKNOWN_TENTATIVE_EVENT};
+        if let Some(&d) = detection_events.iter().find(|&&d| d >= self.graph.num_nodes as u64) {
+            return Err(err(format!("Detection event index {d} is too large for a graph of {} nodes", self.graph.num_nodes)));
+        }
+        let schedule = FrameSchedule {
+            frames_per_mwpm_event: held_frames_per_event,
+            hold_frames_at_start: held_frames_at_start,
+            hold_frames_at_end: held_frames_at_end,
+            max_growth_between_frames,
+        };
+        let mut m = Mwpm::new(self.graph.clone());
+        match write_animated_decoding_svg_frames(&mut m, &self.coords, &self.boundary, &detection_events, schedule, |frame| emit.call1((frame,)).map(|_| ())) {
+            Ok(()) => Ok(()),
+            Err(AnimationError::Frame(e)) => Err(e),
+            Err(AnimationError::UnknownTentativeEvent) => Err(err(UNKNOWN_TENTATIVE_EVENT.into())),
+        }
+    }
+}
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyUserGraph>()?;
+    m.add_class::<PyPmAnimation>()?;
     Ok(())
 }

@@ -26,7 +26,10 @@ modified to fit this crate. That covers:
   (`src/clifford/gltf_texture.b64`), reproduced unmodified;
 - the command line's help pages (`python/stabilizer_qec/_stim_help.json.gz`: what `stim help`
   prints for each instruction, result format and command, taken by `tools/stim_help.py`),
-  reproduced unmodified but for `stim <command>` reading `stabilizer-qec <command>`.
+  reproduced unmodified but for `stim <command>` reading `stabilizer-qec <command>`;
+- the flag parsing and first-shot reading of `pymatching animate`
+  (`python/stabilizer_qec/pymatching.py`), from the Stim that PyMatching 2.4.0 builds with
+  (commit 1320ad7e: `util_bot/arg_parse.cc`, `io/measure_record_reader.inl`), with its messages.
 
 Stim's own docstring examples are run as a conformance suite (`tests/stim_doctests.py`); they
 are read from an installed copy of Stim at test time, not distributed.
@@ -161,7 +164,9 @@ transliterates PyMatching 2.4.0's sparse blossom (`src/pymatching/sparse_blossom
 tracker, flooder, matcher, search flooder and decoding driver) to Rust, and builds its matching
 graph in PyMatching 2.4.0's and 2.2.2's neighbour orders (their `driver/user_graph.cc`, and
 2.2.2's `driver/io.h`); "Copyright 2022 PyMatching Contributors", its notice in
-`src/pm_exact/LICENSE`, each file marked as modified.
+`src/pm_exact/LICENSE`, each file marked as modified. `src/pm_exact/diagram.rs` and the
+`animate` command in `python/stabilizer_qec/pymatching.py` port PyMatching 2.4.0's `animate`
+(`diagram/mwpm_diagram.cc`, `diagram/animation_main.cc`), under the same notice.
 
 ## Tesseract
 
