@@ -20,7 +20,9 @@ extraction, with the slice's spatial pipes merged for ``merged`` rounds and spli
 correlation surface of the graph is an observable, its records the final logicals it touches,
 the outcomes of the merges it passes along and the seam readouts it crosses. The engine keeps
 one patch per tile, so a program that reuses a tile is written by the engine's writer in Python
-(``_program``), which is the engine's text on every program the engine takes.
+(``_program``), which is the engine's text on every program the engine takes. A program's
+``circuit`` is in the engine's layout; its ``generate_stim_circuit(k)`` writes the graph in
+tqec's, and refuses a program whose rounds tqec's layout cannot honour.
 
 The graph's shadowed faces are fixed first, as tqec does. The engine's patches face their
 horizontal neighbours with X-type walls (a horizontal merge measures Z⊗Z) and their vertical
@@ -33,6 +35,7 @@ ports."""
 
 from __future__ import annotations
 
+import numbers
 import operator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Sequence, Union
@@ -74,12 +77,65 @@ class CompiledBlockGraph:
     def num_merges(self) -> int:
         return sum(1 for s in self.steps if s[0] == "merge")
 
-    def generate_stim_circuit(self, k: Optional[int] = None, noise_model=None, manhattan_radius: int = 2, **ignored):
-        """The noiseless circuit at scale ``k`` (distance 2k + 1; default this one's distance),
-        with ``noise_model`` laid over it, as ``TopologicalComputationGraph`` writes it."""
+    def generate_stim_circuit(self, k: Optional[int] = None, noise_model=None, manhattan_radius: int = 2, detector_database=None, database_path=None, do_not_use_database: bool = False, only_use_database: bool = False, reschedule_measurements: bool = True):
+        """tqec's circuit of this program's graph at scale ``k`` (distance 2k + 1; by default
+        this program's distance), with ``noise_model`` laid over it:
+        ``TopologicalComputationGraph.generate_stim_circuit``, whose parameters these are, with
+        tqec's names, order and defaults, apart from two defaults: ``k``'s (this program's
+        scale; tqec's ``k`` has none) and ``database_path``'s (None: the path is taken and not
+        used; tqec's is its database file).
+
+        A program has two layouts. ``circuit`` is the engine's: one patch per tile with its own
+        boundaries and ancillas (the CNOT at distance 3 has 113 qubits), each time slice
+        ``rounds`` rounds and each merge ``merged``, under the engine's SD6 noise ``p``. This is
+        tqec's: its plaquettes, detectors and observables (the CNOT at k = 1 has 81 qubits), each
+        time slice, merges included, ``2k + 1`` rounds (``block_temporal_height(k) + 2`` for a
+        ``LinearFunction`` height). A program whose rounds differ from tqec's at ``k`` (other
+        ``rounds`` or ``merged``, or a number or callable ``block_temporal_height``) is refused
+        with a ``ValueError``: tqec's layout cannot honour them, and ``circuit`` is its circuit.
+        (In 2.1 this method wrote the engine's layout at distance 2k + 1.)"""
         if self.computation is None:
             raise TQECError("this program was not made by compile_block_graph")
-        return self.computation.generate_stim_circuit((self.distance - 1) // 2 if k is None else k, noise_model, manhattan_radius, **ignored)
+        k = (self.distance - 1) // 2 if k is None else k
+        computation = self._in_tqecs_layout(_scale(k))
+        return computation.generate_stim_circuit(k, noise_model, manhattan_radius, detector_database, database_path, do_not_use_database, only_use_database, reschedule_measurements)
+
+    def _in_tqecs_layout(self, k: int) -> "TopologicalComputationGraph":
+        """The computation that writes this program in tqec's layout at scale ``k``, or a
+        ``ValueError`` when tqec's layout cannot honour the program's rounds there."""
+        computation = self.computation
+        height = computation._height
+        if _is_linear_function(height) or (height is None and computation._rounds is None and computation._merged is None):
+            # tqec's own height, or the defaults: both layouts run block_temporal_height(k) + 2
+            # rounds (2k + 1 by default) in every time slice, merges included.
+            return computation
+        tqec_rounds = 2 * k + 1
+        rounds = computation._rounds_at(k)
+        rounds = tqec_rounds if rounds is None else rounds
+        merged = rounds if computation._merged is None else computation._merged
+        # The program's time slices: each runs `rounds` rounds, or `merged` when it merges.
+        slices: set[bool] = set()
+        merging = False
+        for step in self.steps:
+            if step[0] == "merge":
+                merging = True
+            elif step[0] == "rounds":
+                slices.add(merging)
+                merging = False
+        if (False in slices and rounds != tqec_rounds) or (True in slices and merged != tqec_rounds):
+            given = ", ".join(f"{name}={value!r}" for name, value in (("rounds", computation._rounds), ("merged", computation._merged), ("block_temporal_height", height)) if value is not None)
+            if slices == {False}:
+                runs = f"each time slice runs {rounds} rounds"
+            elif slices == {True}:
+                runs = f"each merge runs {merged} rounds"
+            else:
+                runs = f"each time slice runs {rounds} rounds and each merge {merged}"
+            raise ValueError(f"this program was compiled with {given}, so at k = {k} {runs}; generate_stim_circuit writes tqec's layout, which runs 2k + 1 = {tqec_rounds} rounds in every time slice, merges included, and cannot honour that. The program's circuit, in the engine's layout, is .circuit (at its distance; compile_block_graph(graph, distance, ...) for another)")
+        if height is None:
+            return computation
+        # A number or callable height whose rounds at k are tqec's default: tqec's layout with its
+        # default height (tqec takes a LinearFunction only).
+        return TopologicalComputationGraph(computation.block_graph, convention=computation.convention, observables=computation._observables)
 
 
 def _basis_name(basis: Basis) -> str:
@@ -393,18 +449,37 @@ def _scale(k: object) -> int:
     raise TQECError(f"k must be a positive integer (the distance is 2k + 1), not {k!r}")
 
 
+def _is_linear_function(height: object) -> bool:
+    """Whether ``height`` is a ``LinearFunction`` (ours, or tqec's by its slope and offset)."""
+    from .scale import LinearFunction
+
+    return isinstance(height, LinearFunction) or (hasattr(height, "slope") and hasattr(height, "offset"))
+
+
+def _is_number(height: object) -> bool:
+    return isinstance(height, numbers.Real) and not isinstance(height, bool)
+
+
+# Appended to the refusal of a number or a callable as tqec's block_temporal_height.
+_HEIGHT_HINT = "2.1 took a number or a callable of k here, as the engine's rounds; the engine still does, at a distance: compile_block_graph(graph, distance, block_temporal_height=...)"
+
+
 def _linear_height(height: object):
     """``block_temporal_height`` as tqec's compile takes it: a ``LinearFunction`` (ours, or
-    tqec's by its slope and offset); a number is the constant function, which tqec refuses."""
+    tqec's by its slope and offset); a number is the constant function, which tqec refuses
+    (``TopologicalComputationGraph`` appends a hint to tqec's error)."""
     from .scale import LinearFunction
 
     if height is None or isinstance(height, LinearFunction):
         return height
-    if hasattr(height, "slope") and hasattr(height, "offset"):
+    if _is_linear_function(height):
         return LinearFunction(height.slope, height.offset)
-    if isinstance(height, (int, float)) and not isinstance(height, bool):
+    if _is_number(height):
         return LinearFunction(0, height)
-    raise TQECError(f"block_temporal_height must be a LinearFunction (slope * k + offset; tqec's default is LinearFunction(2, -1)), not {height!r}")
+    message = f"block_temporal_height must be a LinearFunction (slope * k + offset; tqec's default is LinearFunction(2, -1)), not {height!r}"
+    if callable(height):
+        message += f". {_HEIGHT_HINT}."
+    raise TQECError(message)
 
 
 def _noisy(noise_model, circuit):
@@ -469,7 +544,13 @@ class TopologicalComputationGraph:
             observables = self._observables
             if observables is not None and not isinstance(observables, str):
                 observables = list(observables)
-            self._tqec = tqec_compile_block_graph(self._graph, convention=TQEC_CONVENTIONS[self.convention.name], observables=observables, **kwargs)
+            try:
+                self._tqec = tqec_compile_block_graph(self._graph, convention=TQEC_CONVENTIONS[self.convention.name], observables=observables, **kwargs)
+            except TQECError as error:
+                # A number is the constant height, whose cubes tqec refuses with this message.
+                if _is_number(self._height) and str(error).startswith("Cannot add the block as a cube."):
+                    error.args = (f"{error} block_temporal_height={self._height!r} is a constant height, and tqec's is a LinearFunction of k (slope * k + offset, the rounds between a block's initialisation and measurement layers; LinearFunction(2, -1) by default). {_HEIGHT_HINT}.",)
+                raise
         return self._tqec
 
     @property
