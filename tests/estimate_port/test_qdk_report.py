@@ -273,9 +273,16 @@ def _joined(children: list) -> list:
     return out
 
 
+# How many units in the last place a drawn number may differ from the widget's. V8's sin and cos (fdlibm's) are
+# not the C library's: on macOS, where the widget's drawings were recorded (node v24.18.0), 20 of the donuts' path
+# strings differ from the port's, in 32 coordinates, 20 by 1 ulp and 12 by 2; nothing else differs. The C
+# libraries of Linux and Windows are within an ulp of the true sin and cos too, as fdlibm is (not measured here).
+ULPS = 4
+
+
 def _same_value(theirs: str, ours: str) -> bool:
-    """Equal strings, or the same numbers (a coordinate's last bit may differ: V8's sin, cos and log are not the
-    C library's)."""
+    """Equal strings, or the same numbers to within `ULPS` units in the last place (no absolute tolerance, so a
+    coordinate near zero is held as tightly as any other)."""
     if theirs == ours:
         return True
     a, b = re.split(r"[ ,]", theirs), re.split(r"[ ,]", ours)
@@ -284,9 +291,20 @@ def _same_value(theirs: str, ours: str) -> bool:
     for x, y in zip(a, b):
         if x == y:
             continue
-        if not (_NUMBER.match(x) and _NUMBER.match(y)) or not math.isclose(float(x), float(y), rel_tol=1e-12, abs_tol=1e-9):
+        if not (_NUMBER.match(x) and _NUMBER.match(y)) or not _within_ulps(float(x), float(y)):
             return False
     return True
+
+
+def _within_ulps(x: float, y: float) -> bool:
+    return abs(x - y) <= ULPS * math.ulp(max(abs(x), abs(y)))
+
+
+def test_chart_tolerance_is_ulps():
+    """The tolerance is a few ulps of the numbers compared, however small they are."""
+    assert _same_value("M 1 2", "M 1 2") and _same_value("430", "430.00000000000006") and _same_value("1e-300", "1.0000000000000001e-300")
+    assert not _same_value("430", "430.0000000000003") and not _same_value("0", "1e-12") and not _same_value("1e-20", "1.000000000000001e-20")
+    assert not _same_value("M 1 2", "L 1 2") and not _same_value("1 2", "1 2 3")
 
 
 # What the port adds to an element so that the chart draws alone as the widget's stylesheet draws it.
