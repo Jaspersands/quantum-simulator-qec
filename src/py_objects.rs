@@ -554,6 +554,30 @@ impl PyCoherentSampler {
         self.sampler.kernel.contraction_width()
     }
 
+    /// Why a complete kernel's class sums are not contracted, for the Python sampler's warning:
+    /// "off" (max_contraction=0), "budget" (past it: `contraction_entries_needed`), "width"
+    /// (past every budget, 2^31 entries) or "internal" (a bug: `contraction_internal_error`).
+    #[getter]
+    fn contraction_refusal(&self) -> Option<&'static str> {
+        use crate::coherent::contract::Refusal;
+        self.sampler.kernel.contraction_refusal().map(|why| match why {
+            Refusal::Off => "off",
+            Refusal::Budget(_) => "budget",
+            Refusal::Width => "width",
+            Refusal::Internal(_) => "internal",
+        })
+    }
+
+    /// With the class sums past the budget, the entries a budget needs at least: a smaller one
+    /// refuses them, and (but for a coupling the early refusal does not see) this one plans them.
+    #[getter]
+    fn contraction_entries_needed(&self) -> Option<usize> {
+        match self.sampler.kernel.contraction_refusal() {
+            Some(crate::coherent::contract::Refusal::Budget(entries)) => Some(entries),
+            _ => None,
+        }
+    }
+
     /// Why the class sums are not contracted when that is a bug, not the budget: the Python
     /// sampler then warns that it is an internal error rather than to raise max_contraction.
     #[getter]

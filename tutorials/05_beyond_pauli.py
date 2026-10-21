@@ -111,12 +111,12 @@ print(f"decoded on the merged model   {merged:.4f} ± {merr:.4f}")
 #
 # The state vector stops at 24 qubits; the coherent sampler does not. At d = 7 (97 qubits,
 # 2,401 rotations) with θ = 0.01, though, a rotation after every tick ties the 444 generators
-# together too widely to contract: the tables would pass `max_contraction` (2^16 entries by
-# default). The sampler says so in a warning, printed here, and each shot sums only the
-# products of up to three generators its faults touch: a truncation (`exact_weights` is
-# False, `contraction_width` None), so the rate below is an estimate that leaves some of the
-# interference out. A rotation once per round instead contracts exactly at this size, with
-# width 9.
+# together too widely to contract at any budget: the tables would hold more than 2^31 entries,
+# the most `max_contraction` allows (2^16 by default), so raising it does not help. The sampler
+# says so in a warning, printed here, and each shot sums only the products of up to three
+# generators its faults touch: a truncation (`exact_weights` is False, `contraction_width`
+# None), so the rate below is an estimate that leaves some of the interference out. A rotation
+# once per round instead contracts exactly at this size, with width 9.
 
 # %%
 c7 = memory(0.01, d=7, rounds=7)

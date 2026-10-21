@@ -24,7 +24,8 @@
 //! entries at width w, so a shot costs O(k·2^w). The plan (the order, each table's variables,
 //! where each factor and table goes) is built once; a shot fills the factors and eliminates.
 //! Past `max_entries` entries in all (at most `MAX_ENTRIES`), or with a table of more than 32
-//! variables, the plan is not built and the kernel truncates instead.
+//! variables, the plan is not built and the kernel truncates instead; the refusal says whether a
+//! larger budget may plan it, and how large it must be at least.
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
@@ -128,9 +129,17 @@ const MAX_DEGREE: usize = 32;
 /// Why a complete kernel has no contraction plan.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Refusal {
-    /// Its tables would hold more than the budget's entries in all (or one would span 32
-    /// variables or more besides its own): the kernel truncates, and a larger budget may plan it.
-    Budget,
+    /// A budget of 0: the contraction is off.
+    Off,
+    /// Its tables would hold more than the budget's entries in all, but no more than
+    /// `MAX_ENTRIES`: the kernel truncates, and a larger budget may plan it. A budget below the
+    /// entries given refuses it. Those are the plan's own when the refusal came after the
+    /// couplings (a budget of that many plans it); otherwise they are the shared locations'
+    /// order's, which the couplings can only rarely raise.
+    Budget(usize),
+    /// Its tables would hold more than `MAX_ENTRIES` entries in all (a table spanning 32
+    /// variables or more holds 2^33 entries alone): no budget plans it.
+    Width,
     /// Its generators' products are not what a kernel's are: a product of two did not carry
     /// through the circuit, or their phases are not a quadratic form. Neither can happen to a
     /// complete kernel's generators (their products are kernel elements, and a product's phase
@@ -153,16 +162,18 @@ impl ContractionPlan {
         ContractionPlan::try_build(p, solver, kernel, max_entries).ok()
     }
 
-    /// The plan, or why there is none: the budget's doing ([`Refusal::Budget`]) or a bug
-    /// ([`Refusal::Internal`], which panics in debug builds).
+    /// The plan, or why there is none: the contraction off ([`Refusal::Off`]), past this
+    /// budget ([`Refusal::Budget`], with the entries a budget needs at least), past every budget
+    /// ([`Refusal::Width`]), or a bug ([`Refusal::Internal`], which panics in debug builds).
+    /// Each elimination order is found up to `MAX_ENTRIES` whatever the budget, so a refusal
+    /// says which; the order, and so the plan, is the same at any budget that holds it.
     pub fn try_build(p: &Program, solver: &GaugeSolver, kernel: &Kernel, max_entries: usize) -> Result<ContractionPlan, Refusal> {
         let generators = &kernel.generators;
         let k = generators.len();
-        let max_entries = max_entries.min(MAX_ENTRIES);
-        // Every variable's table has two entries at least.
-        if max_entries == 0 || k > max_entries / 2 {
-            return Err(Refusal::Budget);
+        if max_entries == 0 {
+            return Err(Refusal::Off);
         }
+        let max_entries = max_entries.min(MAX_ENTRIES);
         // The factors: a single generator's (its phase, its sign, the locations it alone
         // holds), then one per other set of generators that hold a location in common.
         let mut scope_of: Vec<Vec<usize>> = vec![Vec::new(); p.locations.len()];
@@ -186,13 +197,17 @@ impl ContractionPlan {
                 adj[a].extend(f.scope.iter().copied().filter(|&b| b != a));
             }
         }
-        // A cheap refusal first, before the couplings cost a product of each pair that meets:
-        // the order of the shared locations' graph alone, which the couplings only add edges
-        // to. Min-fill is a heuristic, though, not monotone under added edges, so this order
-        // can (rarely) be wider than the whole graph's: a kernel the whole graph's order would
-        // fit is then refused, conservatively (it truncates, with the warning; no weight is
-        // wrong).
-        min_fill(adj.clone(), max_entries).ok_or(Refusal::Budget)?;
+        // A cheap refusal first, before the couplings cost a product of each pair that meets
+        // (most of a plan's time on a large kernel: on 200 rounds of the d = 3 memory, 1,604
+        // generators, thousands of times its orders'): the order of the shared locations' graph
+        // alone, which the couplings only add edges to. Min-fill is a heuristic, though, not
+        // monotone under added edges, so this order can (rarely) be wider than the whole
+        // graph's: a kernel the whole graph's order would fit is then refused, conservatively,
+        // for this budget or for every one (it truncates, with the warning; no weight is wrong).
+        let (_, shared) = min_fill(adj.clone(), MAX_ENTRIES).ok_or(Refusal::Width)?;
+        if shared > max_entries {
+            return Err(Refusal::Budget(shared));
+        }
         let pairs = meeting_pairs(p, solver, generators);
         debug_assert!(pairs.is_some(), "a generator of a complete kernel is not in the kernel");
         let pairs = pairs.ok_or(Refusal::Internal("a generator's gauges do not solve: it is not in the kernel"))?;
@@ -213,8 +228,12 @@ impl ContractionPlan {
                 _ => return Err(Refusal::Internal("the products' phases are not a quadratic form (an odd cross term)")),
             }
         }
-        let order = min_fill(adj, max_entries).ok_or(Refusal::Budget)?;
+        let (order, entries) = min_fill(adj, MAX_ENTRIES).ok_or(Refusal::Width)?;
+        if entries > max_entries {
+            return Err(Refusal::Budget(entries));
+        }
         let plan = ContractionPlan::eliminate(factors, couplings, &order, phases);
+        debug_assert_eq!(plan.entries(), entries);
         #[cfg(debug_assertions)]
         assert!(plan.factor_form_holds(p, solver, generators, 64, 0x5eed), "the class sum's factor form disagrees with Program::element");
         Ok(plan)
@@ -386,9 +405,10 @@ impl ContractionPlan {
 }
 
 /// A min-fill elimination order of the graph `adj` (ties to fewer neighbours, then the lower
-/// vertex), or None once its tables, 2^{1 + neighbours} entries each, pass `max_entries`, or a
-/// vertex has `MAX_DEGREE` neighbours or more when it goes, whatever the budget.
-fn min_fill(mut adj: Vec<BTreeSet<usize>>, max_entries: usize) -> Option<Vec<usize>> {
+/// vertex) and its tables' entries in all, 2^{1 + neighbours} each; or None once those pass
+/// `max_entries`, or a vertex has `MAX_DEGREE` neighbours or more when it goes, whatever the
+/// budget. The order does not depend on `max_entries`, only whether it is returned.
+fn min_fill(mut adj: Vec<BTreeSet<usize>>, max_entries: usize) -> Option<(Vec<usize>, usize)> {
     let fill = |adj: &[BTreeSet<usize>], v: usize| {
         let nb: Vec<usize> = adj[v].iter().copied().collect();
         (0..nb.len()).map(|a| nb[a + 1..].iter().filter(|&&b| !adj[nb[a]].contains(&b)).count()).sum::<usize>()
@@ -427,7 +447,7 @@ fn min_fill(mut adj: Vec<BTreeSet<usize>>, max_entries: usize) -> Option<Vec<usi
             queue.insert((key[x].0, key[x].1, x));
         }
     }
-    Some(order)
+    Some((order, entries))
 }
 
 /// The pairs of generators whose operators meet: carried through the circuit (each one's
@@ -635,14 +655,16 @@ mod tests {
     }
 
     /// A complete kernel's plan (the default budget's), asserting that a kernel refused one
-    /// needs it: refused by the budget, and needing more entries than the budget along the order
-    /// a plan with no budget takes. A refusal within the budget (by the early pass on the shared
-    /// locations alone, or by a bug) fails.
+    /// needs it: refused by the budget, needing more entries than the budget along the order a
+    /// plan with no budget takes, and at least those the refusal gave. A refusal within the
+    /// budget (by the early pass on the shared locations alone, or by a bug) fails, as does one
+    /// past every budget.
     fn plan_within_budget<'a>(p: &Program, solver: &GaugeSolver, kernel: &'a Kernel, text: &str) -> Option<&'a ContractionPlan> {
         if kernel.complete && kernel.plan().is_none() {
-            assert_eq!(kernel.contraction_refusal(), Some(Refusal::Budget), "{text}");
+            let Some(Refusal::Budget(needed)) = kernel.contraction_refusal() else { panic!("{:?}\n{text}", kernel.contraction_refusal()) };
             let unbounded = ContractionPlan::try_build(p, solver, kernel, usize::MAX).unwrap_or_else(|why| panic!("no plan at any budget ({why:?})\n{text}"));
             assert!(unbounded.entries() > MAX_CONTRACTION, "refused within the budget: the plan needs {} entries\n{text}", unbounded.entries());
+            assert!(needed > MAX_CONTRACTION && unbounded.entries() >= needed, "needed {needed}, planned in {}\n{text}", unbounded.entries());
         }
         kernel.plan()
     }
@@ -772,7 +794,7 @@ mod tests {
         let options = CoherentOptions { max_contraction: 0, ..CoherentOptions::default() };
         let (_, _, k0) = kernel(&text, options);
         assert!(k0.plan().is_none() && k0.contraction_width().is_none() && !k0.is_whole());
-        assert_eq!((k.contraction_refusal(), k0.contraction_refusal()), (None, Some(Refusal::Budget)));
+        assert_eq!((k.contraction_refusal(), k0.contraction_refusal()), (None, Some(Refusal::Off)));
         let s = crate::coherent::sampler::CoherentSampler::new(&Circuit::parse(&text).unwrap(), options).unwrap();
         let w = s.sample_seeded(9, 0, 20_000, 1).weights;
         let sum: f64 = w.iter().sum();
@@ -796,6 +818,39 @@ mod tests {
         assert!(ContractionPlan::build(&p, &solver, &k, plan.entries() - 1).is_none());
     }
 
+    /// A refusal says what budget would plan the kernel: none at 0 (the contraction off); past
+    /// the budget, the entries a budget needs at least, which the plan's own reach from any
+    /// budget in at most two raises (the shared locations' order's, then the plan's); past every
+    /// budget, `Width`.
+    #[test]
+    fn refusals_say_what_budget_would_plan() {
+        let text = crate::coherent::kernel::nonlocal::surface(3, 3, 0.25);
+        let (p, solver, k) = kernel(&text, CoherentOptions::default());
+        let plan = k.plan().unwrap();
+        assert_eq!(ContractionPlan::try_build(&p, &solver, &k, 0).err(), Some(Refusal::Off));
+        assert_eq!(ContractionPlan::try_build(&p, &solver, &k, plan.entries() - 1).err(), Some(Refusal::Budget(plan.entries())));
+        for start in [1, 2 * k.generators.len(), plan.entries() / 2, plan.entries() - 1] {
+            let (mut budget, mut raises) = (start, 0);
+            let planned = loop {
+                match ContractionPlan::try_build(&p, &solver, &k, budget) {
+                    Ok(planned) => break planned,
+                    Err(Refusal::Budget(needed)) => {
+                        assert!(needed > budget && needed <= plan.entries(), "{start}: {budget} needs {needed}");
+                        (budget, raises) = (needed, raises + 1);
+                    }
+                    Err(why) => panic!("{start}: {budget}: {why:?}"),
+                }
+            };
+            assert!((1..=2).contains(&raises) && budget == plan.entries(), "{start}: {raises} raises to {budget}");
+            assert_eq!((planned.width(), planned.entries()), (plan.width(), plan.entries()));
+        }
+        // In the sampler too: the kernel keeps its refusal.
+        let (_, _, small) = kernel(&text, CoherentOptions { max_contraction: 40, ..CoherentOptions::default() });
+        assert!(matches!(small.contraction_refusal(), Some(Refusal::Budget(needed)) if needed > 40 && needed <= plan.entries()));
+        let (_, _, wide) = kernel(&crate::coherent::kernel::nonlocal::surface(3, 40, 0.25), CoherentOptions::default());
+        assert_eq!(wide.contraction_refusal(), Some(Refusal::Width));
+    }
+
     /// However large the budget, no table spans more than 32 variables (past that its index
     /// overflows the plan's 32-bit masks) or holds more than 2^31 entries: the order refuses a
     /// variable of 32 neighbours or more at any budget, and a budget past `MAX_ENTRIES` is
@@ -806,16 +861,21 @@ mod tests {
     fn huge_budgets_never_plan_32_wide_tables() {
         let clique = |n: usize| -> Vec<BTreeSet<usize>> { (0..n).map(|v| (0..n).filter(|&u| u != v).collect()).collect() };
         // 32 variables: 31 neighbours at the first, 2^33 − 2 entries in all.
-        assert_eq!(min_fill(clique(32), usize::MAX).map(|order| order.len()), Some(32));
+        assert_eq!(min_fill(clique(32), usize::MAX).map(|(order, entries)| (order.len(), entries)), Some((32, (1 << 33) - 2)));
         assert_eq!(min_fill(clique(32), (1 << 33) - 3), None);
         assert_eq!(min_fill(clique(33), usize::MAX), None);
+        // 31 variables: 2^31 entries at the first, the most a plan allows, and 2^32 − 2 in all,
+        // past MAX_ENTRIES, which is the most a plan's orders are found to.
+        assert_eq!(min_fill(clique(31), usize::MAX).map(|(order, entries)| (order.len(), entries)), Some((31, (1 << 32) - 2)));
+        assert_eq!(min_fill(clique(31), MAX_ENTRIES), None);
+        assert_eq!(min_fill(clique(30), MAX_ENTRIES).map(|(_, entries)| entries), Some((1 << 31) - 2));
         let (p, solver, k) = kernel(&crate::coherent::kernel::nonlocal::surface(3, 40, 0.25), CoherentOptions::default());
         assert!(k.complete && k.num_nonlocal == 39 && k.plan().is_none(), "{} {}", k.complete, k.num_nonlocal);
-        assert_eq!(k.contraction_refusal(), Some(Refusal::Budget));
-        assert_eq!(ContractionPlan::try_build(&p, &solver, &k, usize::MAX).err(), Some(Refusal::Budget));
+        assert_eq!(k.contraction_refusal(), Some(Refusal::Width));
+        assert_eq!(ContractionPlan::try_build(&p, &solver, &k, usize::MAX).err(), Some(Refusal::Width));
         let wide = CoherentOptions { max_contraction: usize::MAX, ..CoherentOptions::default() };
         let (_, _, k) = kernel(&crate::coherent::kernel::nonlocal::surface(3, 40, 0.25), wide);
-        assert!(k.complete && k.contraction_width().is_none() && k.contraction_refusal() == Some(Refusal::Budget));
+        assert!(k.complete && k.contraction_width().is_none() && k.contraction_refusal() == Some(Refusal::Width));
         // A narrow kernel plans the same at any budget past its own.
         let (p, solver, k) = kernel(&crate::coherent::kernel::nonlocal::surface(3, 3, 0.25), CoherentOptions::default());
         let plan = ContractionPlan::build(&p, &solver, &k, usize::MAX).unwrap();

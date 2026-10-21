@@ -932,7 +932,8 @@ class Circuit:
         default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans more than 32
         generators at any budget): past it, and with more than twelve generators, a shot sums
         the products of up to ``order`` generators its faults touch, a truncation, and the
-        sampler warns. ``max_complete`` is the most rotations whose kernel is completed; past it
+        sampler warns, saying how large a budget the class sums need or that none up to 2^31
+        contracts them. ``max_complete`` is the most rotations whose kernel is completed; past it
         the generators are the local ones only, interference between distant faults is left
         out, ``kernel_complete`` is False and the sampler warns.
 
@@ -2234,7 +2235,10 @@ def _contraction_warning(s: Any, order: int, entries: int) -> Union[str, None]:
     """What the coherent sampler `s` (the core's, of a complete kernel) warns of its class sums:
     a bug, when the core refused to contract them for a reason other than the budget (which
     cannot happen: the products' phases are a quadratic form); or the truncation, when they are
-    past the budget and not listed; else nothing."""
+    not contracted and not listed, with what would contract them: the core's refusal says
+    whether a budget of at most 2^31 entries would ("budget", and the entries it needs at
+    least), none would ("width"), or the contraction is off ("off", max_contraction=0); else
+    nothing."""
     internal = getattr(s, "contraction_internal_error", None)
     if internal is not None:
         outcome = (
@@ -2243,13 +2247,23 @@ def _contraction_warning(s: Any, order: int, entries: int) -> Union[str, None]:
             else f"each shot sums the products of up to order={order} generators its faults touch instead, so the weights are truncated (exact_weights is False)"
         )
         return f"internal error in stabilizer-qec: the class sums' contraction was refused ({internal}), which cannot happen; {outcome}; please report this circuit at {_REPORT}"
-    if not s.exact_weights:
+    if s.exact_weights:
+        return None
+    k = s.num_generators
+    truncated = f"each shot sums the products of up to order={order} generators its faults touch, not its whole class, so the weights are truncated (exact_weights is False)"
+    refusal = s.contraction_refusal
+    if refusal == "off":
+        return f"the contraction is off (max_contraction=0), so the circuit's {k} interference generators are not contracted: {truncated}"
+    if refusal == "width":
         return (
-            f"the circuit's {s.num_generators} interference generators contract past max_contraction={entries} table "
-            f"entries: each shot sums the products of up to order={order} generators its faults touch, not its whole class, "
-            "so the weights are truncated (exact_weights is False); raise max_contraction to sum the whole class"
+            f"the circuit's {k} interference generators interact too widely to contract at any max_contraction: their tables would "
+            f"hold more than 2^31 = {_MAX_CONTRACTION} entries in all, the most a budget allows; {truncated}"
         )
-    return None
+    needed = s.contraction_entries_needed
+    return (
+        f"the circuit's {k} interference generators contract past max_contraction={entries} table entries (their tables "
+        f"would hold {needed} or more): {truncated}; raise max_contraction to {needed} or more to sum the whole class"
+    )
 
 
 class CoherentSampler:

@@ -40,8 +40,8 @@ import stabilizer_qec as sq
 OUT = Path(__file__).resolve().parent.parent / "data" / "coherent"
 NOISE = 0.002  # SD-style circuit noise besides the rotations
 THREADS = 0
-# With --only field=value[,value...]: the rows to re-measure; every other row is kept as the file
-# has it.
+# With --only field=value[,value...]: the rows to re-measure (added, where the file lacks them);
+# every other row is kept as the file has it.
 ONLY: dict = {}
 KEPT: dict = {}
 SECTIONS = ("validate", "sweep", "crosstalk", "capacity")
@@ -72,6 +72,11 @@ def grid(name: str) -> list:
 
 def label(key: dict) -> str:
     return ", ".join(f"{f}={v}" for f, v in key.items())
+
+
+def row_key(name: str, row: dict) -> tuple:
+    """The fields that name a row of the file `name`, in order."""
+    return tuple(row[f] for f in KEYS[name])
 
 
 def wanted(key: dict) -> bool:
@@ -284,14 +289,19 @@ def twirl_rate(c: sq.Circuit, tw: sq.Circuit, *, min_failures: int = 300, max_sh
 
 def save(name: str, payload: dict) -> None:
     """The file, stamped with this version, each row with the version that measured it (this
-    one for a row measured now); with --only, every row it had, those re-measured so far in
-    place of theirs, the others kept with their stamps."""
+    one for a row measured now); with --only, the grid's rows in its order, each re-measured so
+    far in place of the file's (or added, where the file lacked it), the others as the file has
+    them with their stamps, then any of the file's rows outside the grid, kept too."""
     OUT.mkdir(parents=True, exist_ok=True)
     version = measured_by()
     rows = [r if "version" in r else {**r, "version": version} for r in payload["rows"]]
     if name in KEPT:
-        new = {tuple(r[f] for f in KEYS[name]): r for r in rows}
-        rows = [new.get(tuple(r[f] for f in KEYS[name])) or kept(name, r) for r in KEPT[name]["rows"]]
+        new = {row_key(name, r): r for r in rows}
+        old = {row_key(name, r): kept(name, r) for r in KEPT[name]["rows"]}
+        keys = [row_key(name, key) for key in grid(name)]
+        rows = [new[key] if key in new else old[key] for key in keys if key in new or key in old]
+        in_grid = set(keys)
+        rows += [r for key, r in old.items() if key not in in_grid]
     for r in rows:
         if not isinstance(r["coherent"].get("exact"), bool):
             raise ValueError(f"{name} row {label({f: r[f] for f in KEYS[name]})} does not say whether its weights were exact (coherent.exact)")
@@ -330,10 +340,12 @@ def validate() -> None:
             rows.append(previous("validate", key))
             continue
         c, tw = memory(3, theta, rounds=2)
-        if ONLY and previous("validate", key).get("exact_shots") == shots:
+        before = find("validate", key) if ONLY else None
+        if before is not None and before.get("exact_shots") == shots:
             # The state vector's samples are seeded, so re-measuring gives the file's again, and
-            # they take most of the row's time (60,000 shots of 17 qubits): with --only, keep them.
-            pe = previous("validate", key)["exact"]
+            # they take most of the row's time (60,000 shots of 17 qubits): with --only, keep them
+            # (a row the file lacks is sampled).
+            pe = before["exact"]
         else:
             de, oe = c.compile_exact_sampler(seed=7).sample(shots, separate_observables=True, threads=THREADS)
             fail = (decoder(tw).decode_batch(de) != oe).any(axis=1)

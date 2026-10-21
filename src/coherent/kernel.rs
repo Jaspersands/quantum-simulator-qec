@@ -392,9 +392,11 @@ impl Kernel {
         self.plan.as_ref().map(ContractionPlan::width)
     }
 
-    /// With the kernel complete and its class sums not contracted, why: past the budget
-    /// (`Refusal::Budget`), or a bug (`Refusal::Internal`, which release builds survive by
-    /// listing a small kernel's span or truncating, and which the Python sampler warns of).
+    /// With the kernel complete and its class sums not contracted, why: the contraction off
+    /// (`Refusal::Off`), past the budget (`Refusal::Budget`, with the entries a budget needs at
+    /// least), past every budget (`Refusal::Width`), or a bug (`Refusal::Internal`, which release
+    /// builds survive by listing a small kernel's span or truncating, and which the Python
+    /// sampler warns of).
     pub fn contraction_refusal(&self) -> Option<Refusal> {
         self.refusal
     }
