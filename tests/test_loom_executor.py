@@ -6,6 +6,7 @@ the Mimiq and Guppy texts and Loom's validation messages; and the noisy circuits
 
 from __future__ import annotations
 
+import builtins
 import json
 import pathlib
 import re
@@ -436,6 +437,319 @@ def test_error_type_parameters_are_looms():
 
 
 # ---------------------------------------------------------------------------------------------
+# If/else circuits, against el-loom 0.4.0 (tests/loom_port/fixtures_ifelse.json)
+# ---------------------------------------------------------------------------------------------
+
+IFELSE = json.loads((pathlib.Path(__file__).parent / "loom_port" / "fixtures_ifelse.json").read_text())
+
+# ----- build_ifelse() is the recorder's, verbatim; ns is a namespace of Loom's names -----
+IFELSE_CIRCUITS = ["rsc_match_paulis", "rsc_not_else", "rsc_nested_or", "rep_and_nor_measure", "rep_xor_nand_else", "rep_match_not_feedforward"]
+
+
+def ifelse_base(ns, code):
+    """A distance-3 memory, reset and syndrome rounds, interpreted: its final circuit and its
+    channels by label."""
+    if code == "rsc":
+        lattice = ns.Lattice.square_2d((15, 15))
+        block, cycles = ns.RotatedSurfaceCode.create(3, 3, lattice, unique_label="b"), 1
+    else:
+        lattice = ns.Lattice.linear((10,))
+        block, cycles = ns.RepetitionCode.create(3, "Z", lattice, unique_label="b"), 2
+    step = ns.interpret_eka(ns.Eka(lattice, [block], [ns.ResetAllDataQubits("b"), ns.MeasureBlockSyndromes("b", n_cycles=cycles)]))
+    return step.final_circuit, {c.label: c for c in step.final_circuit.channels}
+
+
+def build_ifelse(ns, name):
+    """The recorded if/else circuits: an interpreted memory followed by branches on its syndrome
+    bits (and on bits measured in the branches)."""
+    C, IE, B = ns.Circuit, ns.IfElseCircuit, ns.BoolOp
+    base, ch = ifelse_base(ns, name[:3])
+    new = {}
+
+    def chan(label):
+        if label not in ch and label not in new:
+            new[label] = ns.Channel(type=ns.ChannelType.CLASSICAL, label=label)
+        return ch.get(label) or new[label]
+
+    def g(op, *labels):
+        return C(op, channels=[chan(x) for x in labels])
+
+    if name == "rsc_match_paulis":
+        # Single-bit conditions on single Paulis: what Stim and Mimiq take. Two conditional Ys
+        # share a tick, and a plain gate sits between the branches.
+        body = C("corrections", circuit=[
+            [IE(if_circuit=g("x", "(1, 1, 0)"), condition_circuit=g(B.MATCH, "c_(1, 1, 1)_0")), IE(if_circuit=g("z", "(2, 2, 0)"), condition_circuit=g("match", "c_(2, 1, 1)_0"))],
+            [IE(if_circuit=g("y", "(0, 0, 0)"), condition_circuit=g("MATCH", "c_(0, 1, 1)_0")), IE(if_circuit=g("y", "(2, 0, 0)"), condition_circuit=g(B.MATCH, "c_(2, 0, 1)_0"))],
+            [g("h", "(1, 1, 0)")],
+            [IE(if_circuit=g("x", "(1, 1, 0)"), condition_circuit=g(B.MATCH, "c_(1, 2, 1)_0"))],
+        ])
+    elif name == "rsc_not_else":
+        # NOT, else branches, a composite if branch, a measurement in a branch, an empty if branch.
+        flip = C("flip", circuit=[[g("x", "(0, 0, 0)"), g("z", "(1, 0, 0)")], [g("h", "(0, 0, 0)")]])
+        body = C("branches", circuit=[
+            [IE(if_circuit=flip, else_circuit=g("h", "(1, 0, 0)"), condition_circuit=g(B.NOT, "c_(1, 2, 1)_0"))],
+            [IE(if_circuit=C("measure_data", circuit=[g("measurement", "(2, 2, 0)", "c_extra")]), condition_circuit=g(B.NOT, "c_(3, 2, 1)_0")), IE(else_circuit=g("reset_+", "(0, 2, 0)"), condition_circuit=g(B.MATCH, "c_(1, 3, 1)_0"))],
+        ])
+    elif name == "rsc_nested_or":
+        # OR over two bits, an if/else three deep in the if branch, an AND if/else (measuring)
+        # in a composite else branch; then a plain gate.
+        deep = IE(if_circuit=IE(if_circuit=g("x", "(1, 1, 0)"), condition_circuit=g(B.MATCH, "c_(2, 0, 1)_0")), condition_circuit=g(B.NOT, "c_(2, 2, 1)_0"))
+        inner_else = IE(if_circuit=g("measure_y", "(1, 1, 0)", "c_m1"), else_circuit=g("z", "(1, 1, 0)"), condition_circuit=g(B.AND, "c_(1, 1, 1)_0", "c_(2, 1, 1)_0"))
+        outer = IE(if_circuit=deep, else_circuit=C("else_block", circuit=[inner_else, g("h", "(1, 1, 0)")]), condition_circuit=g(B.OR, "c_(0, 1, 1)_0", "c_(1, 2, 1)_0"))
+        body = C("after", circuit=[outer, g("y", "(0, 0, 0)")])
+    elif name == "rep_and_nor_measure":
+        # AND on a measurement, NOR on a Pauli, MATCH on the bit measured in the branch.
+        body = C("feedforward", circuit=[
+            IE(if_circuit=g("measurement", "(1, 0)", "c_m"), condition_circuit=g(B.AND, "c_(0, 1)_0", "c_(1, 1)_0")),
+            IE(if_circuit=g("x", "(2, 0)"), condition_circuit=g(B.NOR, "c_(0, 1)_1", "c_(1, 1)_1")),
+            IE(if_circuit=g("z", "(0, 0)"), condition_circuit=g(B.MATCH, "c_m")),
+        ])
+    elif name == "rep_xor_nand_else":
+        # XOR and NAND over two and three bits, multi-instruction resets and measurements.
+        body = C("parities", circuit=[
+            IE(if_circuit=g("x", "(1, 0)"), condition_circuit=g(B.XOR, "c_(0, 1)_0", "c_(1, 1)_0")),
+            IE(if_circuit=C("fix", circuit=[g("z", "(0, 0)"), g("z", "(2, 0)")]), else_circuit=g("reset_-i", "(1, 0)"), condition_circuit=g(B.NAND, "c_(0, 1)_1", "c_(1, 1)_1", "c_(0, 1)_0")),
+            IE(if_circuit=g("measure_x", "(2, 0)", "c_x"), else_circuit=g("phaseinv", "(2, 0)"), condition_circuit=g(B.XOR, "c_(0, 1)_0", "c_(1, 1)_0", "c_(1, 1)_1")),
+        ])
+    elif name == "rep_match_not_feedforward":
+        # MATCH and NOT on single Paulis (Stim and Mimiq take them), on syndrome bits and on a
+        # bit measured after the first branches.
+        body = C("feedforward", circuit=[
+            [IE(if_circuit=g("x", "(1, 0)"), condition_circuit=g(B.MATCH, "c_(0, 1)_0")), IE(if_circuit=g("z", "(2, 0)"), condition_circuit=g(B.MATCH, "c_(1, 1)_0"))],
+            [g("measurement", "(1, 0)", "c_m")],
+            [IE(if_circuit=g("y", "(1, 0)"), condition_circuit=g(B.NOT, "c_m")), IE(if_circuit=g("x", "(0, 0)"), condition_circuit=g(B.NOT, "c_(0, 1)_1"))],
+        ])
+    else:
+        raise KeyError(name)
+    return C(name, circuit=[base, body])
+# ----- end of the recorder's build_ifelse() -----
+
+
+IFELSE_STEPS = {}
+
+
+def ifelse_circuit(name):
+    if name not in IFELSE_STEPS:
+        IFELSE_STEPS[name] = build_ifelse(loom, name)
+    return IFELSE_STEPS[name]
+
+
+def text_converters():
+    return {"qasm": loom.EkaToQasmConverter(), "cudaq": loom.EkaToCudaqConverter(), "pennylane": loom.EkaToPennylaneConverter(), "catalyst": loom.EkaToPennylaneConverter(is_catalyst=True, import_prefix="pl"), "mimiq": loom.EkaToMimiqConverter(), "guppy": loom.EkaToGuppylangConverter()}
+
+
+def by_label(mapping):
+    return {channel.label: value for channel, value in mapping.items()}
+
+
+def unid(text, circuit):
+    """The text with channel ids as labels, as recorded (Loom's PennyLane registers name the
+    qubits by id)."""
+    for channel in circuit.channels:
+        text = text.replace(channel.id, channel.label)
+    return text
+
+
+def loom_message(recorded):
+    """The message of a recorded refusal: pydantic's ValidationError wraps a validator's
+    ValueError message as 'Value error, <message> [type=...'."""
+    kind, text = recorded
+    if kind == "ValidationError":
+        return re.search(r"Value error, (.*) \[type=", text, re.S).group(1)
+    return text
+
+
+def raises_looms(recorded, make):
+    """Raises the recorded error's type (pydantic's ValidationError, a ValueError, here a
+    ValueError)."""
+    kind = ValueError if recorded[0] == "ValidationError" else getattr(builtins, recorded[0])
+    with pytest.raises(kind) as info:
+        make()
+    return info
+
+
+@pytest.mark.parametrize("target", ["qasm", "cudaq", "pennylane", "catalyst", "mimiq", "guppy"])
+@pytest.mark.parametrize("name", IFELSE_CIRCUITS)
+def test_ifelse_text_is_looms(name, target):
+    ref = IFELSE["circuits"][name][target]
+    converter = text_converters()[target]
+    if "error" in ref:
+        info = raises_looms(ref["error"], lambda: converter.convert_circuit(ifelse_circuit(name)))
+        assert str(info.value) == ref["error"][1]
+        return
+    circuit = ifelse_circuit(name)
+    text, qubits, bits = converter.convert_circuit(circuit)
+    assert unid(text, circuit) == ref["text"]
+    assert by_label(qubits) == ref["qmap"] and by_label(bits) == ref["cmap"]
+
+
+@pytest.mark.parametrize("name", IFELSE_CIRCUITS)
+def test_ifelse_stim_is_looms(name):
+    ref = IFELSE["circuits"][name]["stim"]
+    if "error" in ref:
+        info = raises_looms(ref["error"], lambda: loom.EkaToStimConverter().convert_circuit(ifelse_circuit(name)))
+        assert str(info.value) == ref["error"][1]
+        return
+    lines, _, records, counter = loom.EkaToStimConverter().emit_circuit_program(ifelse_circuit(name))
+    assert lines == ref["lines"]
+    assert by_label(records) == ref["records"] and counter == ref["num_measurements"]
+    program = loom.EkaToStimConverter().convert_circuit(ifelse_circuit(name))
+    assert str(program.circuit) == ref["stim"]
+    assert ifelse_circuit(name).duration == IFELSE["circuits"][name]["duration"]
+
+
+def test_ifelse_noisy_stim_is_looms():
+    # A time-independent model gives the conditional Paulis no noise (their gate is Loom's
+    # classical_controlled_<pauli>, not a gate of the circuit); a time-dependent one cannot
+    # place them in time, and wants a duration for the if/else itself.
+    circuit = ifelse_circuit("rsc_match_paulis")
+    ref = IFELSE["circuits"]["rsc_match_paulis"]["stim_noisy"]
+    models = [HomogeneousTimeIndependentCEM(circuit=circuit, error_type=ErrorType.DEPOLARIZING1, application_mode=ApplicationMode.AFTER_GATE, error_probability=0.01, target_gates=["x", "y", "z", "h"]), HomogeneousTimeIndependentCEM(circuit=circuit, error_type=ErrorType.PAULI_X, application_mode=ApplicationMode.END_OF_TICK, error_probability=0.002)]
+    lines, _, records, _ = loom.EkaToStimConverter().emit_circuit_program(circuit, error_models=models, with_ticks=True)
+    assert lines == ref["lines"] and by_label(records) == ref["records"]
+    assert str(loom.EkaToStimConverter().convert_circuit(circuit, error_models=models, with_ticks=True).circuit) == ref["stim"]
+    durations = {"x": 1, "y": 1, "z": 1, "h": 1, "cx": 2, "cz": 2, "reset": 1, "reset_0": 1, "measurement": 5, "if-else_circuit": 1}
+    t1t2 = AsymmetricDepolarizeCEM(circuit=circuit, t1=1000.0, t2=1500.0, gate_durations=durations, application_mode=ApplicationMode.AFTER_GATE)
+    uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    recorded = IFELSE["errors"]["stim_time_dependent"]
+    assert recorded[0] == "ValueError"
+    with pytest.raises(ValueError) as info:
+        loom.EkaToStimConverter().emit_circuit_program(circuit, error_models=[t1t2])
+    # The id is the conditional Pauli's, a gate Loom makes for it, so in no time mapping.
+    assert re.sub(uuid, "UUID", str(info.value)) == re.sub(uuid, "UUID", recorded[1])
+    with pytest.raises(ValueError, match=re.escape(loom_message(IFELSE["errors"]["cem_missing_ifelse_duration"]))):
+        AsymmetricDepolarizeCEM(circuit=circuit, t1=1000.0, t2=1500.0, gate_durations={k: v for k, v in durations.items() if k != "if-else_circuit"}, application_mode=ApplicationMode.AFTER_GATE)
+    # Noise on a conditional Pauli: Loom's noise line cannot take its record target.
+    q0, q1, c0 = Channel(label="q0"), Channel(label="q1"), Channel(type=ChannelType.CLASSICAL, label="c0")
+    small = Circuit("o", circuit=[[Circuit("measurement", channels=[q1, c0])], [loom.IfElseCircuit(if_circuit=Circuit("x", channels=[q0]), condition_circuit=Circuit("match", channels=[c0]))]])
+    model = CircuitErrorModel(circuit=small, error_type=ErrorType.DEPOLARIZING1, application_mode=ApplicationMode.AFTER_GATE, is_time_dependent=False, gate_error_probabilities={"classical_controlled_x": lambda t: [0.01]})
+    with pytest.raises(AttributeError, match="'int' object has no attribute 'value'"):
+        loom.EkaToStimConverter().convert_circuit(small, error_models=[model])
+
+
+def small_ifelse():
+    """The recorder's small circuits, on labelled channels."""
+    q0, q1 = Channel(label="q0"), Channel(label="q1")
+    c0, c1, c2 = (Channel(type=ChannelType.CLASSICAL, label=f"c{i}") for i in range(3))
+    small = loom.IfElseCircuit(if_circuit=Circuit("x", channels=[q0]), else_circuit=Circuit("long", circuit=[Circuit("y", channels=[q1]), Circuit("z", channels=[q1])]), condition_circuit=Circuit("xor", channels=[c0, c1]))
+    outer = Circuit("outer", circuit=[[Circuit("measurement", channels=[q0, c0]), Circuit("measurement", channels=[q1, c1])], [small]])
+    return (q0, q1, c0, c1, c2), small, outer
+
+
+def test_ifelse_circuit_is_looms():
+    (q0, q1, c0, c1, c2), small, outer = small_ifelse()
+    ref = IFELSE["strings"]
+    assert repr(small) == ref["repr"] and small.detailed_str() == ref["detailed"]
+    assert repr(outer) == ref["outer_repr"] and outer.detailed_str() == ref["outer_detailed"]
+    assert repr(loom.IfElseCircuit()) == ref["default_repr"] and repr(outer.flatten()) == ref["flatten_repr"]
+    assert small.duration == ref["duration"] and [c.label for c in small.channels if c.is_classical()] == ref["channels"]
+    assert [[repr(g) for g in tick] for tick in Circuit.unroll(outer)] == ref["unroll"]
+    unrolled = loom.IfElseCircuit.unroll(small)[0]
+    assert [unrolled.if_circuit.name, repr(unrolled.else_circuit)] == ref["unrolled_branches"]
+    wrapped = loom.IfElseCircuit(if_circuit=Circuit("cx", channels=[q0, q1], duration=2))
+    assert [wrapped.if_circuit.name, wrapped.duration] == ref["wrapped"]
+    assert str(loom.BoolOp("XOR")) == ref["boolop_upper"] and loom.BoolOp("XOR") is loom.BoolOp.XOR
+    assert loom.EkaToQasmConverter().convert_circuit(small)[0] == ref["qasm_top"]
+    info = raises_looms(ref["stim_unmeasured"], lambda: loom.EkaToStimConverter().convert_circuit(loom.IfElseCircuit(if_circuit=Circuit("x", channels=[q0]), condition_circuit=Circuit("match", channels=[c0]))))
+    assert str(info.value) == ref["stim_unmeasured"][1]
+    # The channels: the condition's, then the branches' (quantum first); a condition bit a
+    # branch also uses appears twice, as in Loom.
+    assert small.channels[:2] == (c0, c1) and set(small.channels[2:]) == {q0, q1}
+    shared = loom.IfElseCircuit(if_circuit=Circuit("measurement", channels=[q0, c0]), condition_circuit=Circuit("match", channels=[c0]))
+    assert shared.channels == (c0, q0, c0)
+    # Equality: branches and conditions, labels and ids aside; Circuit's equality stops at the
+    # first if/else it meets, as Loom's does.
+    again = loom.IfElseCircuit(if_circuit=Circuit("x", channels=[Channel()]), else_circuit=Circuit("long", circuit=[Circuit("y", channels=[q1]), Circuit("z", channels=[q1])]), condition_circuit=Circuit("xor", channels=[c0, c2]))
+    assert again == small and small != loom.IfElseCircuit(if_circuit=Circuit("z", channels=[q0]), condition_circuit=Circuit("match", channels=[c0])) and small != Circuit("x", channels=[q0]) and Circuit("x", channels=[q0]) != small
+    later = [Circuit("o", circuit=[[small], [], [Circuit(g, channels=[q0])]]) for g in ("h", "x")]
+    assert later[0] == later[1] and outer == outer.clone()
+    assert hash(small) == hash(small.id)
+    # Cloning keeps the branches and maps their channels.
+    cloned = outer.clone()
+    assert cloned.circuit[1][0].if_circuit.channels[0] is cloned.circuit[0][0].channels[0]
+    assert cloned.circuit[1][0].condition_circuit.channels == (cloned.circuit[0][0].channels[1], cloned.circuit[0][1].channels[1])
+    assert isinstance(small.clone([c2, Channel(type=ChannelType.CLASSICAL), Channel(), Channel()]), loom.IfElseCircuit)
+
+
+def test_ifelse_refusals_are_looms():
+    (q0, q1, c0, c1, c2), small, _ = small_ifelse()
+    errors = IFELSE["errors"]
+    uuid = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    cases = {
+        "cond_quantum": lambda: loom.IfElseCircuit(condition_circuit=Circuit("match", channels=[q0])),
+        "cond_and_one": lambda: loom.IfElseCircuit(condition_circuit=Circuit("and", channels=[c0])),
+        "cond_not_two": lambda: loom.IfElseCircuit(condition_circuit=Circuit("not", channels=[c0, c1])),
+        "cond_no_channel": lambda: loom.IfElseCircuit(condition_circuit=Circuit("match")),
+        "cond_unknown": lambda: loom.IfElseCircuit(condition_circuit=Circuit("maybe", channels=[c0])),
+        "as_gate": lambda: loom.IfElseCircuit.as_gate(),
+        "circuit_seq": lambda: small.circuit_seq(),
+        "padded": lambda: loom.IfElseCircuit.construct_padded_circuit_time_sequence(),
+        "boolop_unknown": lambda: loom.BoolOp("Maybe"),
+        "stim_non_pauli": lambda: loom.EkaToStimConverter().convert_circuit(Circuit("o", circuit=[[Circuit("measurement", channels=[q1, c0])], [loom.IfElseCircuit(if_circuit=Circuit("h", channels=[q0]), condition_circuit=Circuit("match", channels=[c0]))]])),
+        "mimiq_t": lambda: loom.EkaToMimiqConverter().convert_circuit(Circuit("o", circuit=[[Circuit("measurement", channels=[q1, c0])], [loom.IfElseCircuit(if_circuit=Circuit("t", channels=[q0]), condition_circuit=Circuit("match", channels=[c0]))]])),
+        "mimiq_or": lambda: loom.EkaToMimiqConverter().convert_circuit(loom.IfElseCircuit(if_circuit=Circuit("x", channels=[q0]), condition_circuit=Circuit("or", channels=[c0, c1]))),
+        "qasm_composite_condition": lambda: loom.EkaToQasmConverter().convert_circuit(loom.IfElseCircuit(if_circuit=Circuit("x", channels=[q0]), condition_circuit=Circuit("match", circuit=[Circuit("match", channels=[c0])]))),
+        "qasm_x_two_qubits": lambda: loom.EkaToQasmConverter().convert_circuit(Circuit("o", circuit=[[Circuit("x", channels=[q0, q1])]])),
+        "qasm_measurement_no_bit": lambda: loom.EkaToQasmConverter().convert_circuit(Circuit("o", circuit=[[Circuit("measurement", channels=[q0])]])),
+        "guppy_x_with_bit": lambda: loom.EkaToGuppylangConverter().convert_circuit(Circuit("o", circuit=[[Circuit("x", channels=[q0, c0])]])),
+        "cudaq_cx_one_qubit": lambda: loom.EkaToCudaqConverter().convert_circuit(Circuit("o", circuit=[[Circuit("cx", channels=[q0])]])),
+        "pennylane_composite_gate": lambda: loom.EkaToPennylaneConverter().convert_circuit(Circuit("o", circuit=[[Circuit("x", circuit=[Circuit("x", channels=[q0])])]])),
+    }
+    assert set(cases) | {"stim_time_dependent", "cem_missing_ifelse_duration"} == set(errors)
+    for key, make in cases.items():
+        info = raises_looms(errors[key], make)
+        expected = loom_message(errors[key])
+        if key == "cond_quantum":
+            # The channel's repr carries its random id.
+            assert re.sub(uuid, "UUID", str(info.value)) == re.sub(uuid, "UUID", expected)
+        else:
+            assert str(info.value) == expected, key
+    with pytest.raises(TypeError):
+        loom.IfElseCircuit(Circuit("x", channels=[q0]))
+    with pytest.raises(ValueError, match="if_circuit: Input should be an instance of Circuit"):
+        loom.IfElseCircuit(if_circuit="x")
+
+
+def test_ifelse_gates_outside_a_condition_are_looms():
+    # Bool operations and control flow as plain gates: Loom writes their text where they stand.
+    q0, q1 = Channel(label="q0"), Channel(label="q1")
+    c0, c1, c2 = (Channel(type=ChannelType.CLASSICAL, label=f"c{i}") for i in range(3))
+    loose = Circuit("loose", circuit=[[Circuit("measurement", channels=[q0, c0]), Circuit("measurement", channels=[q1, c1])], [Circuit("and", channels=[c0, c1])], [Circuit("classical_if", description="flag"), Circuit("not", channels=[c2])], [Circuit("end_if", description="flag, is_else=False")]])
+    converters = text_converters()
+    for target, ref in IFELSE["strings"]["loose"].items():
+        text, qubits, bits = converters[target].convert_circuit(loose)
+        assert text == ref["text"] and by_label(qubits) == ref["qmap"] and by_label(bits) == ref["cmap"]
+
+
+def test_ifelse_feedforward_runs_on_the_simulator():
+    # Stim's classically controlled Paulis, sampled here: X on the measured 1 flips the target.
+    q0, q1, c0, c1 = Channel(label="(0, 0)"), Channel(label="(1, 0)"), Channel(type=ChannelType.CLASSICAL, label="c0"), Channel(type=ChannelType.CLASSICAL, label="c1")
+    circuit = Circuit("ff", circuit=[[Circuit("reset", channels=[q0]), Circuit("reset", channels=[q1])], [Circuit("x", channels=[q0])], [Circuit("measurement", channels=[q0, c0])], [loom.IfElseCircuit(if_circuit=Circuit("x", channels=[q1]), condition_circuit=Circuit("match", channels=[c0]))], [Circuit("measurement", channels=[q1, c1])]])
+    program = loom.EkaToStimConverter().convert_circuit(circuit)
+    assert "CX rec[-1] 1" in program.text
+    shots = program.circuit.compile_sampler(seed=1).sample(20)
+    assert shots[:, program.records[c1]].all() and shots[:, program.records[c0]].all()
+
+
+def test_ifelse_round_trips_and_loom_paths():
+    (q0, q1, c0, c1, c2), small, outer = small_ifelse()
+    again = Circuit.fromdict(json.loads(json.dumps(outer.asdict())))
+    assert isinstance(again.circuit[1][0], loom.IfElseCircuit) and again == outer
+    assert loom.EkaToGuppylangConverter().convert_circuit(again)[0] == loom.EkaToGuppylangConverter().convert_circuit(outer)[0]
+    from stabilizer_qec.loom.eka import IfElseCircuit
+    from stabilizer_qec.loom.eka.ifelse_circuit import IfElseCircuit as Same
+    from stabilizer_qec.loom.eka.utilities import BoolOp
+
+    assert IfElseCircuit is Same is loom.IfElseCircuit and BoolOp is loom.BoolOp
+    assert [str(b) for b in BoolOp.multi_bit_list()] == ["and", "nand", "or", "nor", "xor"] and BoolOp.mono_bit_list() == [BoolOp.NOT, BoolOp.MATCH]
+    assert small.is_condition_single_bit is False and small.is_single_gate_conditioned is False
+    single = IfElseCircuit(if_circuit=Circuit("x", channels=[q0]), condition_circuit=Circuit("not", channels=[c2]))
+    assert single.is_condition_single_bit and single.is_single_gate_conditioned and single.if_circuit.name == "wrapped_x"
+    flat = single.flatten()
+    assert isinstance(flat, IfElseCircuit) and flat.condition_circuit.circuit and flat == single
+
+
+# ---------------------------------------------------------------------------------------------
 # Against Loom installed
 # ---------------------------------------------------------------------------------------------
 
@@ -462,3 +776,36 @@ def test_noisy_memory_against_loom_live():
     step = step_of("memory_z_d3")
     ours = [HomogeneousTimeIndependentCEM(circuit=step.final_circuit, error_type=ErrorType.DEPOLARIZING2, application_mode=ApplicationMode.AFTER_GATE, error_probability=0.001, target_gates=["cx", "cz"]), AsymmetricDepolarizeCEM(circuit=step.final_circuit, t1=20000.0, t2=30000.0, gate_durations=FIXTURES["durations"], application_mode=ApplicationMode.IDLE_END_OF_TICK)]
     assert canonical(loom.EkaToStimConverter().convert(step, error_models=ours, with_ticks=True).text) == canonical(text)
+
+
+@pytest.mark.skipif(not their_loom, reason="el-loom is not installed")
+@pytest.mark.parametrize("name", IFELSE_CIRCUITS)
+def test_ifelse_against_loom_live(name):
+    from types import SimpleNamespace
+
+    import loom.eka as their_eka
+    import loom.executor as their_executor
+    from loom.eka.operations import MeasureBlockSyndromes as TheirMBS, ResetAllDataQubits as TheirReset
+    from loom.eka.utilities import BoolOp as TheirBoolOp
+    from loom.interpreter import interpret_eka as their_interpret
+    from loom_repetition_code.code_factory import RepetitionCode as TheirRep
+    from loom_rotated_surface_code.code_factory import RotatedSurfaceCode as TheirRSC
+
+    ns = SimpleNamespace(Channel=their_eka.Channel, ChannelType=their_eka.ChannelType, Circuit=their_eka.Circuit, Eka=their_eka.Eka, IfElseCircuit=their_eka.IfElseCircuit, Lattice=their_eka.Lattice, MeasureBlockSyndromes=TheirMBS, ResetAllDataQubits=TheirReset, BoolOp=TheirBoolOp, interpret_eka=their_interpret, RepetitionCode=TheirRep, RotatedSurfaceCode=TheirRSC)
+    theirs, ours = build_ifelse(ns, name), ifelse_circuit(name)
+    their_converters = {"qasm": their_executor.EkaToQasmConverter(), "cudaq": their_executor.EkaToCudaqConverter(), "pennylane": their_executor.EkaToPennylaneConverter(), "catalyst": their_executor.EkaToPennylaneConverter(is_catalyst=True, import_prefix="pl"), "mimiq": their_executor.EkaToMimiqConverter(), "guppy": their_executor.EkaToGuppylangConverter()}
+    for target, converter in text_converters().items():
+        try:
+            expected = unid(their_converters[target].convert_circuit(theirs)[0], theirs)
+        except ValueError as error:
+            with pytest.raises(ValueError, match=re.escape(str(error))):
+                converter.convert_circuit(ours)
+            continue
+        assert unid(converter.convert_circuit(ours)[0], ours) == expected, target
+    try:
+        expected = their_executor.EkaToStimConverter().emit_circuit_program(theirs)[0]
+    except ValueError as error:
+        with pytest.raises(ValueError, match=re.escape(str(error))):
+            loom.EkaToStimConverter().emit_circuit_program(ours)
+        return
+    assert loom.EkaToStimConverter().emit_circuit_program(ours)[0] == list(expected)

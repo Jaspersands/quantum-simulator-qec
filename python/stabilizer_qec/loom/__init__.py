@@ -28,8 +28,13 @@ is ``stabilizer_qec.loom.repetition_code.code_factory``; the other Loom module p
 >>> circuit.num_detectors, circuit.num_observables
 (76, 1)
 
+Loom's if-else circuits (``IfElseCircuit`` on a ``BoolOp`` condition) go through every
+exporter: OpenQASM, PennyLane, CUDA-Q and Guppy write any condition and branches, Stim a
+single-bit condition on one Pauli (Stim's classically controlled ``CX rec[-k]``), Mimiq one
+Clifford gate under an ``IfStatement``.
+
 What is not ported: Loom's base and logical operations (they are defined, but the interpreter
-refuses them), if-else circuits, the Visualizer, cliffordsim and the executor's legacy cliffordsim
+refuses them), the Visualizer, cliffordsim and the executor's legacy cliffordsim
 export, the Tanner graphs, parity-check matrices and the syndrome-circuit algorithms built on
 them, the Pauli-array algebra of ``loom.eka.utilities``, ``dumps``/``loads`` (``asdict`` and
 ``fromdict`` instead), the converters' operation signatures, and the plugin machinery (entry
@@ -91,6 +96,7 @@ from .eka import (
 )
 from .error_model import ApplicationMode, AsymmetricDepolarizeCEM, CircuitErrorModel, ErrorProbProtocol, ErrorType, HomogeneousTimeDependentCEM, HomogeneousTimeIndependentCEM, noise_annotated_stim_circuit
 from .executor import Converter, EkaToCudaqConverter, EkaToGuppylangConverter, EkaToMimiqConverter, EkaToPennylaneConverter, EkaToQasmConverter, EkaToStimConverter, Executor, StimProgram, TargetLanguage, eka_to_circuit
+from .ifelse_circuit import BoolOp, IfElseCircuit
 from .interpreter import Detector, InterpretationStep, LogicalObservable, Syndrome, SyndromeMissingError, cleanup_final_step, interpret_eka
 from .five_qubit_perfect_code import FiveQubitPerfectCode
 from .repetition_code import RepetitionCode
@@ -143,18 +149,19 @@ def _namespace(name: str, loom_name: str, names: dict) -> None:
 def _register_loom_paths() -> None:
     import sys
 
-    from . import circuit as circuit_module, eka as eka_module, interpreter as interpreter_module
+    from . import circuit as circuit_module, eka as eka_module, ifelse_circuit as ifelse_module, interpreter as interpreter_module
 
     g = globals()
-    # loom.eka also has the circuit IR and the logical states.
-    for name in ("Channel", "ChannelType", "Circuit", "SyndromeCircuit", "LogicalState"):
+    # loom.eka also has the circuit IR, the if-else circuit and the logical states.
+    for name in ("Channel", "ChannelType", "Circuit", "IfElseCircuit", "SyndromeCircuit", "LogicalState"):
         setattr(eka_module, name, g[name])
     _register("eka.circuit", circuit_module)
+    _register("eka.ifelse_circuit", ifelse_module)
     code_operations = ["CodeOperation", "ConditionalLogicalX", "ConditionalLogicalY", "ConditionalLogicalZ", "Direction", "Grow", "LogicalMeasurement", "LogicalX", "LogicalY", "LogicalZ", "MeasureBlockSyndromes", "MeasureLogicalX", "MeasureLogicalY", "MeasureLogicalZ", "Merge", "Operation", "Orientation", "ResetAllAncillaQubits", "ResetAllDataQubits", "ResourceState", "Shrink", "SingleQubitPauliEigenstate", "Split", "StateInjection"]
     operations = ["BaseOperation", "CNOT", "CodeOperation", "ConditionalLogicalX", "ConditionalLogicalY", "ConditionalLogicalZ", "Grow", "Hadamard", "LogicalMeasurement", "LogicalX", "LogicalY", "LogicalZ", "MeasureBlockSyndromes", "MeasureLogicalX", "MeasureLogicalY", "MeasureLogicalZ", "MeasureObservable", "MeasureStabilizerSyndrome", "Merge", "Operation", "Phase", "PhaseInverse", "Reset", "ResetAllAncillaQubits", "ResetAllDataQubits", "Shrink", "Split", "StateInjection", "T", "X", "Y", "Z"]
     _namespace("eka.operations", "loom.eka.operations", {name: g[name] for name in operations})
     _namespace("eka.operations.code_operation", "loom.eka.operations.code_operation", {name: g[name] for name in code_operations})
-    _namespace("eka.utilities", "loom.eka.utilities", {"DiagonalDirection": DiagonalDirection, "Direction": Direction, "Orientation": Orientation, "ResourceState": ResourceState, "SingleQubitPauliEigenstate": SingleQubitPauliEigenstate, "SyndromeMissingError": SyndromeMissingError, "apply_to_nested": circuit_module.apply_to_nested})
+    _namespace("eka.utilities", "loom.eka.utilities", {"BoolOp": BoolOp, "DiagonalDirection": DiagonalDirection, "Direction": Direction, "Orientation": Orientation, "ResourceState": ResourceState, "SingleQubitPauliEigenstate": SingleQubitPauliEigenstate, "SyndromeMissingError": SyndromeMissingError, "apply_to_nested": circuit_module.apply_to_nested})
     _namespace("interpreter.interpreter", "loom.interpreter.interpreter", {"BaseOperation": BaseOperation, "Circuit": Circuit, "CodeOperation": CodeOperation, "Eka": Eka, "InterpretationStep": InterpretationStep, "Operation": Operation, "cleanup_final_step": cleanup_final_step, "interpret_eka": interpret_eka, "interpret_operation": interpreter_module.interpret_operation})
     # The code plugins: loom_<code>.code_factory (and its <code> module), and the rotated
     # surface code's utilities and operations.

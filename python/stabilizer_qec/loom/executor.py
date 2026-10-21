@@ -3,12 +3,14 @@
 # eka_to_guppylang_converter,op_signature}.py; Copyright 2024 Entropica Labs Pte Ltd, Apache License 2.0; see
 # LICENSE in this directory), modified for stabilizer_qec: the Stim text becomes this package's Circuit (with
 # the noise of the error models in error_model.py) inside a StimProgram that unpacks as Loom's (circuit, qubits,
-# records), the qubit indices are ints rather than stim.GateTargets, the Executor is a plain class, and if-else
-# circuits are left out (no operation Loom interprets makes one).
+# records), the qubit indices are ints rather than stim.GateTargets, and the Executor is a plain class.
 """Loom's executors: an interpreted Eka as a Stim circuit (this package's ``Circuit``, with
 detectors and observables, and the noise of Loom's circuit error models), or as OpenQASM 3,
 PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outcome; and the
-``Executor`` that picks a converter by ``TargetLanguage``."""
+``Executor`` that picks a converter by ``TargetLanguage``. If-else circuits (``IfElseCircuit``)
+become each target's conditional: OpenQASM, PennyLane, CUDA-Q and Guppy take any condition and
+branches; Stim a single Pauli on one bit (``CX rec[-k] q``), Mimiq a single gate on ``match``,
+``not``, ``and`` or ``nor`` (an ``IfStatement``)."""
 
 from __future__ import annotations
 
@@ -33,19 +35,72 @@ TWO_QUBIT = frozenset({"cnot", "cx", "cy", "cz", "swap"})
 RESETS = frozenset({"reset", "reset_0", "reset_1", "reset_+", "reset_-", "reset_+i", "reset_-i"})
 MEASUREMENTS = frozenset({"measurement", "measure_z", "measure_x", "measure_y"})
 CLIFFORD_OPS = SINGLE_QUBIT | TWO_QUBIT | RESETS | MEASUREMENTS
+# Loom's Clifford gates ("hadamard" this port's name for "h"; "t" the one non-Clifford gate).
+_CLIFFORD = CLIFFORD_OPS - {"t"}
+# Loom's classical operations: the conditions (BoolOp), the control flow an if-else circuit
+# becomes, and the comment and indentation the text converters write.
+BOOL_OPS_MULTI_BIT = frozenset({"and", "nand", "or", "nor", "xor"})
+BOOL_OPS_MONO_BIT = frozenset({"not", "match"})
+BOOL_OPS = BOOL_OPS_MULTI_BIT | BOOL_OPS_MONO_BIT
+CONTROL_FLOW_OPS = frozenset({"classical_if", "classical_else", "end_if"})
+UTILS_OPS = frozenset({"comment", "indent_more", "indent_less"})
+EKA_OPS = CLIFFORD_OPS | BOOL_OPS | CONTROL_FLOW_OPS | UTILS_OPS
+# What separates the condition from whether an else branch follows, in an end_if's description.
+_ELSE_SEPARATOR = ", is_else="
+_LEAF_ONLY = "The circuit must be an leaf circuit with channels."
+# The prefix of the gates Stim's and Mimiq's if-else circuits become.
+_CONTROLLED = "classical_controlled_"
+
+
+def _signature(name: str) -> tuple[int, int]:
+    """Loom's OpSignature: the quantum and classical channels an operation takes."""
+    if name in SINGLE_QUBIT or name in RESETS:
+        return 1, 0
+    if name in TWO_QUBIT:
+        return 2, 0
+    if name in MEASUREMENTS:
+        return 1, 1
+    if name in BOOL_OPS_MULTI_BIT:
+        return 0, 2
+    if name in BOOL_OPS_MONO_BIT:
+        return 0, 1
+    return 0, 0
 
 
 def _validate(name: str, n_quantum: int, n_classical: int) -> None:
-    if name in SINGLE_QUBIT or name in RESETS:
-        want = (1, 0)
-    elif name in TWO_QUBIT:
-        want = (2, 0)
-    elif name in MEASUREMENTS:
-        want = (1, 1)
-    else:
-        raise KeyError(f"Operation {name} not found in operations map.")
-    if (n_quantum, n_classical) != want:
-        raise ValueError(f"Operation {name} takes {want[0]} quantum and {want[1]} classical channels, not {n_quantum} and {n_classical}.")
+    """Loom's check of an operation's targets: the quantum ones exactly; the classical ones
+    exactly, except a comment's (any) and a condition's (two or more for the many-bit ones,
+    and, as in Loom, any number for ``not`` and ``match``)."""
+    if name not in EKA_OPS:
+        raise ValueError(f"Unsupported operation '{name}'")
+    want_quantum, want_classical = _signature(name)
+    if want_quantum != n_quantum:
+        raise ValueError(f"{name} quantum target must have {want_quantum} qubits, but got {n_quantum}.")
+    if want_classical != n_classical:
+        if name in UTILS_OPS:
+            return
+        if name in BOOL_OPS:
+            if n_classical <= want_classical and want_classical != 1:
+                raise ValueError(f"{name} must have at least {want_classical} classical bits")
+            return
+        raise ValueError(f"{name} classical target must have {want_classical} bits, but got {n_classical}.")
+
+
+def _ifelse(circuit: Circuit) -> bool:
+    return hasattr(circuit, "_loom_ifelse_marker")
+
+
+def _python_condition(name: str, bits: list[str]) -> str:
+    """A condition in Python's words, as CUDA-Q's and Guppy's converters write it."""
+    if name == "match":
+        return bits[0]
+    if name == "not":
+        return f"not {bits[0]}"
+    if name in ("and", "or"):
+        return f" {name} ".join(bits)
+    if name == "xor":
+        return " ^ ".join(bits)
+    return f"not ({' and '.join(bits)})" if name == "nand" else f"not ({' or '.join(bits)})"
 
 
 # ---------------------------------------------------------------------------------------------
@@ -91,6 +146,9 @@ _STIM_NOISE = {
 }
 
 _UNFUSED = {"DETECTOR", "OBSERVABLE_INCLUDE", "QUBIT_COORDS", "TICK", "SHIFT_COORDS", "REPEAT", "MPAD"}
+
+# Stim's classically controlled Paulis, the gates its if-else circuits become.
+_STIM_CONTROLLED = frozenset({"classical_controlled_x", "classical_controlled_y", "classical_controlled_z"})
 
 
 def eka_to_stim_coordinates(label) -> Union[int, tuple]:
@@ -210,23 +268,43 @@ def _step_argument(interpreted_eka: Optional[InterpretationStep], step: Optional
 class Converter:
     """The converters' base (Stim's overrides it all); for the text converters, Loom's
     depth-first emission: a composite circuit's gates in tick order, wrapped in ``Start of
-    circuit`` / ``End of circuit`` comments (circuits named ``wrapped_...`` excepted)."""
+    circuit`` / ``End of circuit`` comments (circuits named ``wrapped_...`` excepted), an
+    if-else circuit its condition's text in the target's ``if``, its branches indented four
+    spaces a level, and its ``else`` when the else branch is not empty."""
 
     comment_prefix = "#"
     ops: dict[str, Any] = {}
     ALLOW_ERROR_MODELS = False
 
     def emit_circuit_program(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
+        if not isinstance(circuit, Circuit):
+            raise TypeError("Input must be a Circuit instance.")
         lines: list[str] = []
         stack = deque([circuit])
+        level = 0
+        indent = "    "
         while stack:
             current = stack.popleft()
             if current.name == "empty_circuit":
                 continue
-            if current.name == "comment":
-                lines.append(f"{self.comment_prefix} {current.description}")
-            elif current.name in self.ops:
-                lines.extend(self.emit_leaf(current, qmap, cmap).splitlines())
+            if current.name in EKA_OPS:
+                if current.name == "indent_more":
+                    level += 1
+                elif current.name == "indent_less":
+                    level = max(0, level - 1)
+                elif current.name == "comment":
+                    lines.append(f"{indent * level}{self.emit_leaf(current, {}, {})}")
+                else:
+                    lines.extend(f"{indent * level}{line}" for line in self.emit_leaf(current, qmap, cmap).splitlines())
+            elif _ifelse(current):
+                condition = self.emit_leaf(current.condition_circuit, qmap, cmap)
+                has_else = current.else_circuit.name != "empty_branch"
+                branches = [Circuit(name="classical_if", description=condition), Circuit(name="indent_more"), current.if_circuit]
+                if has_else:
+                    branches += [Circuit(name="indent_less"), Circuit(name="classical_else", description=condition), Circuit(name="indent_more"), current.else_circuit]
+                branches += [Circuit(name="indent_less"), Circuit(name="end_if", description=f"{condition}{_ELSE_SEPARATOR}{has_else}")]
+                for item in reversed(branches):
+                    stack.appendleft(item)
             else:
                 nested = [c for tick in current.circuit for c in tick]
                 if not current.name.startswith("wrapped_"):
@@ -234,6 +312,15 @@ class Converter:
                 for line in reversed(nested):
                     stack.appendleft(line)
         return "\n".join(lines)
+
+    def _handles(self, name: str) -> bool:
+        """Whether the name is in Loom's operations map for the target: its gates, and the
+        conditions, control flow and comments."""
+        return name in self.ops or name in BOOL_OPS or name in CONTROL_FLOW_OPS or name in UTILS_OPS
+
+    def _empty(self, circuit: Circuit) -> bool:
+        """Loom's empty input: a gate the target does not know, or no channels."""
+        return (not circuit.circuit and not self._handles(circuit.name)) or not circuit.channels
 
     def emit_leaf(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
         raise NotImplementedError
@@ -273,37 +360,75 @@ class EkaToStimConverter(Converter):
         cmap = {c: None for c in circuit.channels if c.is_classical()}
         return lines, qmap, cmap
 
+    @staticmethod
+    def parse_if_operation(if_circuit) -> Circuit:
+        """An if-else circuit as Stim's classically controlled Pauli: a gate
+        ``classical_controlled_<pauli>`` on the condition's bit and the Pauli's qubit. Stim
+        takes one bit (``match``; ``not`` too, as in Loom, though Stim's ``CX rec[-k]`` fires on
+        a 1) and one Pauli in the if branch, no else branch."""
+        if not if_circuit.is_condition_single_bit:
+            raise ValueError("Unsupported operation for Stim conversion: Stim only supports single bit conditions for if-else circuits.")
+        if not if_circuit.is_single_gate_conditioned:
+            raise ValueError("Unsupported operation for Stim conversion: Stim only supports single gate conditioned if-else circuits.")
+        applied_pauli = if_circuit.if_circuit.circuit[0][0].name
+        if applied_pauli not in {"x", "y", "z"}:
+            raise ValueError("Unsupported operation for Stim conversion: Stim only supports conditional pauli operations in if-else circuits.")
+        return Circuit(name=f"classical_controlled_{applied_pauli}", channels=[if_circuit.condition_circuit.channels[0], if_circuit.if_circuit.channels[0]])
+
     def emit_circuit_program(self, circuit: Circuit, error_models: Optional[Sequence[CircuitErrorModel]] = None, with_ticks: bool = False) -> tuple[list[str], dict[Channel, tuple[Any, int]], dict[Channel, int], int]:
         error_models, with_ticks = _models_and_ticks(error_models, with_ticks)
+        if not isinstance(circuit, Circuit):
+            raise TypeError("Input must be a Circuit instance.")
         if not circuit.channels or not circuit.circuit:
             return [], {}, {}, 0
         models = list(error_models or [])
         lines, qmap, cmap = self.emit_init_instructions(circuit)
         every_qubit = [i for _, i in qmap.values()]
-        counter = 0
-        for tick, layer in enumerate(Circuit.unroll(circuit)):
+        # As Loom, every tick's gates are checked and grouped before any is written.
+        layers: list[dict[tuple[str, tuple], list[tuple[list[int], list[Channel]]]]] = []
+        for layer in Circuit.unroll(circuit):
             groups: dict[tuple[str, tuple], list[tuple[list[int], list[Channel]]]] = {}
             for op in layer:
-                if op.name not in _STIM_OPS:
+                if op.name == "if-else_circuit":
+                    op = self.parse_if_operation(op)
+                if op.name not in _STIM_OPS and op.name not in _STIM_CONTROLLED:
                     raise KeyError(f"Operation {op.name} not found in operations map.")
                 classical = [c for c in op.channels if c.is_classical()]
                 targets = [qmap[c][1] for c in op.channels if c.is_quantum()]
-                _validate(op.name, len(targets), len(classical))
+                if op.name in _STIM_CONTROLLED:
+                    if len(classical) != 1 or len(targets) != 1:
+                        raise ValueError(f"Classically controlled operation {op.name} must have one classical control channel and one quantum target channel.")
+                else:
+                    _validate(op.name, len(targets), len(classical))
                 noises = []
                 for cem in models:
                     args = cem.get_gate_error_probability(op)
                     if args:
                         noises.append((cem.error_type, cem.application_mode, tuple(args)))
                 groups.setdefault((op.name, tuple(noises)), []).append((targets, classical))
+            layers.append(groups)
+        counter = 0
+        for tick, groups in enumerate(layers):
             for (name, noises), items in groups.items():
-                if name in MEASUREMENTS:
-                    for _, classical in items:
-                        cmap[classical[0]] = counter
-                        counter += 1
-                flat = [t for targets, _ in items for t in targets]
-                ops = _STIM_OPS[name]
-                instructions = [_stim_line(o, flat) for o in (ops if isinstance(ops, tuple) else (ops,))]
+                if name in _STIM_CONTROLLED:
+                    # Loom pairs each bit's record offset with its qubit, then writes the
+                    # first pair only: the group's other conditional Paulis are dropped.
+                    offsets = [[cmap[c] - counter for c in classical] for _, classical in items]
+                    pairs = [[offset[0], targets[0]] for offset, (targets, _) in zip(offsets, items)]
+                    instructions = [f"C{name[len('classical_controlled_'):].upper()} rec[{pairs[0][0]}] {pairs[0][1]}"]
+                else:
+                    if name in MEASUREMENTS:
+                        for _, classical in items:
+                            cmap[classical[0]] = counter
+                            counter += 1
+                    flat = [t for targets, _ in items for t in targets]
+                    ops = _STIM_OPS[name]
+                    instructions = [_stim_line(o, flat) for o in (ops if isinstance(ops, tuple) else (ops,))]
                 for error_type, mode, args in noises:
+                    if mode in (ApplicationMode.BEFORE_GATE, ApplicationMode.AFTER_GATE) and name in _STIM_CONTROLLED:
+                        # Loom writes the noise on the (record, qubit) pairs, and fails on the
+                        # record offset as it would on a Stim target.
+                        raise AttributeError("'int' object has no attribute 'value'")
                     if mode == ApplicationMode.BEFORE_GATE:
                         instructions = [_stim_line(_STIM_NOISE[error_type], flat, args)] + instructions
                     if mode == ApplicationMode.AFTER_GATE:
@@ -432,15 +557,28 @@ class EkaToQasmConverter(Converter):
             lines.append(f"bit[{len(classical)}] c;")
         return lines, {c: i for i, c in enumerate(quantum)}, {c: i for i, c in enumerate(classical)}
 
-    def emit_leaf(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
+    def emit_leaf(self, circuit: Circuit, qmap: dict, cmap: dict) -> Optional[str]:
+        if circuit.circuit:
+            raise ValueError(_LEAF_ONLY)
         q = [f"q[{qmap[c]}]" for c in circuit.channels if c.is_quantum()]
         cl = [f"c[{cmap[c]}]" for c in circuit.channels if c.is_classical()]
-        _validate(circuit.name, len(q), len(cl))
-        op = self.ops[circuit.name]
+        name, desc = circuit.name, circuit.description
+        _validate(name, len(q), len(cl))
+        if name in UTILS_OPS:
+            return f"{self.comment_prefix} {desc}" if name == "comment" else None
+        if name in CONTROL_FLOW_OPS:
+            return {"classical_if": f"if ({desc}) {{", "classical_else": "} else {", "end_if": "}"}[name]
+        if name in BOOL_OPS:
+            return {
+                "match": lambda: cl[0], "not": lambda: f"!{cl[0]}",
+                "and": lambda: " == 1 && ".join(cl) + " == 1", "or": lambda: " == 1 || ".join(cl) + " == 1", "xor": lambda: " == 1 ^ ".join(cl) + " == 1",
+                "nand": lambda: f"!({' == 1 && '.join(cl)} == 1)", "nor": lambda: f"!({' == 1 || '.join(cl)} == 1)",
+            }[name]()
+        op = self.ops[name]
         ops = op if isinstance(op, list) else [op]
-        if circuit.name in TWO_QUBIT:
+        if name in TWO_QUBIT:
             return f"{ops[0]} {q[0]}, {q[1]};"
-        if circuit.name in MEASUREMENTS:
+        if name in MEASUREMENTS:
             return "\n".join([f"{o} {q[0]};" for o in ops[:-1]] + [f"{ops[-1]} {q[0]} -> {cl[0]};"])
         return "\n".join(f"{o} {q[0]};" for o in ops)
 
@@ -488,12 +626,23 @@ class EkaToCudaqConverter(Converter):
         return [f"q = cudaq.qvector({len(quantum)})"], {c: f"q[{i}]" for i, c in enumerate(quantum)}, {c: f"c{i}" for i, c in enumerate(classical)}
 
     def emit_leaf(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
+        if circuit.circuit:
+            raise ValueError(_LEAF_ONLY)
         q = [qmap[c] for c in circuit.channels if c.is_quantum()]
         cl = [cmap[c] for c in circuit.channels if c.is_classical()]
         labels = [c.label for c in circuit.channels if c.is_classical()]
-        _validate(circuit.name, len(q), len(cl))
-        op = self.ops[circuit.name]
-        if circuit.name in MEASUREMENTS:
+        name, desc = circuit.name, circuit.description
+        _validate(name, len(q), len(cl))
+        if name in UTILS_OPS:
+            if name != "comment":
+                raise ValueError(f"Unsupported utils operation: {name}")
+            return f"{self.comment_prefix} {desc}"
+        if name in CONTROL_FLOW_OPS:
+            return {"classical_if": f"if ({desc}):", "classical_else": "else:", "end_if": ""}[name]
+        if name in BOOL_OPS:
+            return _python_condition(name, cl)
+        op = self.ops[name]
+        if name in MEASUREMENTS:
             return f"{cl[0]} = {op}({q[0]}, regName='{labels[0]}')"
         if op == "":
             return ""
@@ -553,14 +702,38 @@ class EkaToPennylaneConverter(Converter):
         return [f"measurements = {{}}", f"{self.import_prefix}registers({init})"], qmap, cmap
 
     def emit_leaf(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
+        if circuit.circuit:
+            raise ValueError(_LEAF_ONLY)
         q = [qmap[c] for c in circuit.channels if c.is_quantum()]
         cl = [cmap[c] for c in circuit.channels if c.is_classical()]
-        _validate(circuit.name, len(q), len(cl))
-        op = self.ops[circuit.name]
+        name, desc = circuit.name, circuit.description
+        _validate(name, len(q), len(cl))
+        if name in UTILS_OPS:
+            if name != "comment":
+                raise ValueError(f"Unsupported utils operation: {name}")
+            return f"{self.comment_prefix} {desc}"
+        if name == "classical_if":
+            return "def call_if_true():"
+        if name == "classical_else":
+            return "def call_else():"
+        if name == "end_if":
+            # A branch is a function, applied under qml.cond once it is written.
+            cond, is_else_present = tuple(desc.split(_ELSE_SEPARATOR))
+            apply = [f"{self.import_prefix}cond({cond}, call_if_true)()"]
+            if is_else_present == "True":
+                apply.append(f"{self.import_prefix}cond(~({cond}), call_else)()")
+            return "\n".join(apply)
+        if name in BOOL_OPS:
+            return {
+                "match": lambda: f"{cl[0]} == 1", "not": lambda: f"~({cl[0]} == 1)",
+                "and": lambda: f"({' == 1) & ('.join(cl)} == 1)", "or": lambda: f"({' == 1) | ('.join(cl)} == 1)", "xor": lambda: f"({' == 1) ^ ('.join(cl)} == 1)",
+                "nand": lambda: f"~ (({' == 1) & ('.join(cl)} == 1)) ", "nor": lambda: f"~ (({' == 1) | ('.join(cl)} == 1))",
+            }[name]()
+        op = self.ops[name]
         ops = op if isinstance(op, list) else [op]
-        if circuit.name in MEASUREMENTS:
+        if name in MEASUREMENTS:
             return "\n".join([f"{self.import_prefix}{o}({q[0]})" for o in ops[:-1]] + [f"{cl[0]} = {ops[-1]}({q[0]})"])
-        if circuit.name in RESETS:
+        if name in RESETS:
             return "\n".join([f"{ops[0]}({q[0]}, reset=True)"] + [f"{self._prefixed(o)}({q})" for o in ops[1:]])
         return "\n".join(f"{self._prefixed(o)}({q})" for o in ops)
 
@@ -609,19 +782,56 @@ class EkaToMimiqConverter(Converter):
         classical = sorted((c for c in circuit.channels if c.is_classical()), key=lambda c: c.label)
         return [f"{self.circuit_varname} = {self.mimiq_import_prefix}Circuit()"], {c: i for i, c in enumerate(quantum)}, {c: i for i, c in enumerate(classical)}
 
+    def _handles(self, name: str) -> bool:
+        # Loom's map: the gates, the comment and indentation, and a conditional Clifford gate.
+        return name in self.ops or (name.startswith(_CONTROLLED) and name[len(_CONTROLLED):] in _CLIFFORD)
+
     def emit_leaf(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
-        if circuit.name not in self.ops:
+        if circuit.circuit:
+            raise ValueError(_LEAF_ONLY)
+        if not self._handles(circuit.name):
             raise ValueError(f"Unsupported operation: {circuit.name}")
-        if circuit.name == "comment":
-            return f"# {circuit.description}"
-        if circuit.name in ("indent_more", "indent_less"):
-            raise ValueError(f"Unsupported utils operation: {circuit.name}")
         q = [str(qmap[c]) for c in circuit.channels if c.is_quantum()]
         cl = [cmap[c] for c in circuit.channels if c.is_classical()]
-        _validate(circuit.name, len(q), len(cl))
-        op = self.ops[circuit.name]
+        name, desc = circuit.name, circuit.description
+        if not name.startswith(_CONTROLLED):
+            _validate(name, len(q), len(cl))
         targets = ", ".join(map(str, q + cl))
-        return "\n".join(f"{self.circuit_varname}.push({self.mimiq_import_prefix}{o}, {targets})" for o in (op if isinstance(op, list) else [op]))
+        if name in UTILS_OPS:
+            if name != "comment":
+                raise ValueError(f"Unsupported utils operation: {name}")
+            return f"{self.comment_prefix} {desc}"
+        prefix = self.mimiq_import_prefix
+        if name.startswith(_CONTROLLED):
+            # The gate under an IfStatement on the condition's bits, the description its
+            # bitstring.
+            op = self.ops[name[len(_CONTROLLED):]]
+            return "\n".join(f'{self.circuit_varname}.push({prefix}IfStatement({prefix}{o}, {prefix}BitString("{desc}")), {targets})' for o in (op if isinstance(op, list) else [op]))
+        op = self.ops[name]
+        return "\n".join(f"{self.circuit_varname}.push({prefix}{o}, {targets})" for o in (op if isinstance(op, list) else [op]))
+
+    def parse_if_operation(self, if_circuit) -> Circuit:
+        """An if-else circuit as Mimiq's conditional gate: ``classical_controlled_<gate>`` on
+        the gate's channels then the condition's, its description the bitstring the bits must
+        read (``match`` 1, ``not`` 0, ``and`` all 1s, ``nor`` all 0s). Mimiq takes one Clifford
+        gate in the if branch and no else branch."""
+        if not if_circuit.is_single_gate_conditioned:
+            raise ValueError("Unsupported operation for Mimiq conversion: Mimiq only supports single gate conditioned if-else circuits.")
+        applied_unitary = if_circuit.if_circuit.circuit[0][0].name
+        if applied_unitary in EKA_OPS and applied_unitary not in _CLIFFORD:
+            raise ValueError("Unsupported operation for Mimiq conversion: Mimiq only supports single qubit unitary operations in if-else circuits.")
+        condition = if_circuit.condition_circuit
+        if condition.name == "match":
+            desc = "1"
+        elif condition.name == "not":
+            desc = "0"
+        elif condition.name == "and":
+            desc = "1" * len(condition.channels)
+        elif condition.name == "nor":
+            desc = "0" * len(condition.channels)
+        else:
+            raise ValueError(f"Unsupported bool operator for Mimiqconditional statement: {condition.name}")
+        return Circuit(name=f"{_CONTROLLED}{applied_unitary}", channels=tuple(if_circuit.if_circuit.channels) + tuple(condition.channels), description=desc)
 
     def convert_circuit(self, input_circuit: Circuit) -> tuple[str, dict[Channel, int], dict[Channel, int]]:
         if (not input_circuit.circuit and input_circuit.name not in self.ops) or not input_circuit.channels:
@@ -630,7 +840,9 @@ class EkaToMimiqConverter(Converter):
         lines = ["# Mimiq Program Generated from Eka"] + init + [""]
         for layer in Circuit.unroll(input_circuit):
             for op in layer:
-                if op.name not in self.ops:
+                if op.name == "if-else_circuit":
+                    op = self.parse_if_operation(op)
+                if not self._handles(op.name):
                     raise ValueError(f"Unsupported operation: {op.name}")
                 lines.append(self.emit_leaf(op, qmap, cmap))
         return "\n".join(lines), qmap, cmap
@@ -687,9 +899,22 @@ class EkaToGuppylangConverter(Converter):
         return init, {c: f"q[{i}]" for i, c in enumerate(quantum)}, {c: f"c[{i}]" for i, c in enumerate(classical)}
 
     def emit_leaf(self, circuit: Circuit, qmap: dict, cmap: dict) -> str:
+        if circuit.circuit:
+            raise ValueError(_LEAF_ONLY)
+        if not self._handles(circuit.name):
+            raise ValueError(f"Unsupported operation: {circuit.name}")
         q = [qmap[c] for c in circuit.channels if c.is_quantum()]
         cl = [cmap[c] for c in circuit.channels if c.is_classical()]
-        _validate(circuit.name, len(q), len(cl))
+        name, desc = circuit.name, circuit.description
+        _validate(name, len(q), len(cl))
+        if name in UTILS_OPS:
+            if name != "comment":
+                raise ValueError(f"Unsupported utils operation: {name}")
+            return f"{self.comment_prefix} {desc}"
+        if name in CONTROL_FLOW_OPS:
+            return {"classical_if": f"if ({desc}):", "classical_else": "else:", "end_if": ""}[name]
+        if name in BOOL_OPS:
+            return _python_condition(name, cl)
         op = self.ops[circuit.name]
         ops = op if isinstance(op, list) else [op]
         if circuit.name in MEASUREMENTS:

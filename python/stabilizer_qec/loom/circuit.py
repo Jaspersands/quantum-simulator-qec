@@ -1,7 +1,7 @@
 # Ported from Loom (entropicalabs/el-loom 0.4.0, src/loom/eka/channel.py, circuit.py and syndrome_circuit.py, and
 # apply_to_nested from src/loom/eka/utilities/serialization.py; Copyright 2024 Entropica Labs Pte Ltd, Apache
 # License 2.0; see LICENSE in this directory), modified for stabilizer_qec: plain dataclasses in place of
-# pydantic, the if-else circuits left out.
+# pydantic. The if-else circuit (ifelse_circuit.py) is told apart by its marker, as in Loom.
 """Loom's circuit IR: channels (quantum or classical wires), gates (leaf circuits named after
 their operation) and composite circuits (time slices of sub-circuits, each slice one tick, a
 sub-circuit lasting its duration), with Loom's timing, unrolling, cloning, padding and building
@@ -177,13 +177,16 @@ class Circuit:
         return reduce(lambda x, y: x + y, self.circuit, ())
 
     def flatten(self) -> "Circuit":
-        """The gates of the circuit, nesting removed, in a list (the time structure too)."""
+        """The gates of the circuit, nesting removed, in a list (the time structure too); an
+        if-else circuit stays one element, its branches flattened."""
         flat: list[Circuit] = []
         queue = [self]
         while queue:
             nxt = queue.pop()
             if not nxt.circuit:
                 flat.append(nxt)
+            elif hasattr(nxt, "_loom_ifelse_marker"):
+                flat.append(nxt.flatten())
             else:
                 for tick in nxt.circuit:
                     for circ in tick:
@@ -193,13 +196,16 @@ class Circuit:
 
     @classmethod
     def unroll(cls, circuit: "Circuit") -> tuple[tuple["Circuit", ...], ...]:
-        """The gates tick by tick, nesting removed and the time structure kept."""
+        """The gates tick by tick, nesting removed and the time structure kept; an if-else
+        circuit stays whole in its tick, its branches unrolled."""
         out: list[tuple[Circuit, ...]] = [() for _ in range(max(len(circuit.circuit), circuit.duration))]
         stack = [(0, circuit)]
         while stack:
             time, circ = stack.pop()
             if not circ.circuit:
                 out[time] += (circ,)
+            elif hasattr(circ, "_loom_ifelse_marker"):
+                out[time] += circ.unroll(circ)
             else:
                 for i, tick in enumerate(circ.circuit):
                     for sub in reversed(tick):
@@ -221,6 +227,9 @@ class Circuit:
 
         def update(circ: Circuit) -> Circuit:
             chans = [channel_map[c.id] for c in circ.channels]
+            if hasattr(circ, "_loom_ifelse_marker"):
+                # As Loom: the branches and the condition mapped, the rest made anew.
+                return type(circ)(if_circuit=update(circ.if_circuit), else_circuit=update(circ.else_circuit), condition_circuit=update(circ.condition_circuit))
             if not circ.circuit:
                 return Circuit(circ.name, channels=chans, duration=circ.duration, description=circ.description)
             return Circuit(circ.name, circuit=tuple(tuple(update(sub) for sub in tick) for tick in circ.circuit), channels=chans, description=circ.description)
@@ -238,6 +247,9 @@ class Circuit:
             if len(slice1) != len(slice2):
                 return False
             for g1, g2 in zip(sorted(slice1, key=lambda x: x.name), sorted(slice2, key=lambda x: x.name)):
+                if hasattr(g1, "_loom_ifelse_marker") or hasattr(g2, "_loom_ifelse_marker"):
+                    # Loom's: the first if-else pair met decides.
+                    return g1 == g2
                 if g1.name != g2.name:
                     return False
                 for c1, c2 in zip(g1.channels, g2.channels):
@@ -254,7 +266,7 @@ class Circuit:
             return f"{self.name} (base gate)"
         lines = [f"{self.name} ({len(self.circuit)} ticks)"]
         for i, tick in enumerate(self.circuit):
-            lines.extend(f"{i}: {gate.name}" for gate in tick)
+            lines.extend(f"{i}: {gate!r}" if hasattr(gate, "_loom_ifelse_marker") else f"{i}: {gate.name}" for gate in tick)
         return "\n".join(lines)
 
     def detailed_str(self) -> str:
@@ -263,7 +275,10 @@ class Circuit:
         for i, tick in enumerate(self.circuit):
             tick_str += f"{i}: "
             for gate in tick:
-                tick_str += f"{gate.name} - {' '.join(str(chan.label) for chan in gate.channels)}\n"
+                if hasattr(gate, "_loom_ifelse_marker"):
+                    tick_str += gate.detailed_str()
+                else:
+                    tick_str += f"{gate.name} - {' '.join(str(chan.label) for chan in gate.channels)}\n"
         return tick_str
 
     @staticmethod
@@ -297,8 +312,15 @@ class Circuit:
 
     @classmethod
     def fromdict(cls, data: dict, channels: Optional[dict[str, Channel]] = None) -> "Circuit":
-        """A circuit from its dict (Loom's ``dataclasses.asdict`` form), channels shared by id."""
+        """A circuit from its dict (Loom's ``dataclasses.asdict`` form), channels shared by id;
+        a dict with an ``if_circuit`` an if-else circuit (Loom's own Circuit reads it back as
+        a plain composite circuit; this an extension)."""
         channels = {} if channels is None else channels
+        if "if_circuit" in data:
+            from .ifelse_circuit import IfElseCircuit
+
+            branches = {key: cls.fromdict(data[key], channels) for key in ("if_circuit", "else_circuit", "condition_circuit")}
+            return IfElseCircuit(**branches, description=data.get("description", ""), id=data.get("id"))
 
         def chan(d: dict) -> Channel:
             if d["id"] not in channels:

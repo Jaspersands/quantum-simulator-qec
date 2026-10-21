@@ -1,0 +1,1212 @@
+{
+ "circuits": {
+  "rep_and_nor_measure": {
+   "catalyst": {
+    "cmap": {
+     "c_(0, 1)_0": "measurements[\"c_(0, 1)_0\"]",
+     "c_(0, 1)_1": "measurements[\"c_(0, 1)_1\"]",
+     "c_(1, 1)_0": "measurements[\"c_(1, 1)_0\"]",
+     "c_(1, 1)_1": "measurements[\"c_(1, 1)_1\"]",
+     "c_m": "measurements[\"c_m\"]"
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\npl.registers({'(0, 0)': 1, '(0, 1)': 1, '(1, 0)': 1, '(1, 1)': 1, '(2, 0)': 1})\n\n# Start of circuit: rep_and_nor_measure\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\ncatalyst_measure(0, reset=True)\ncatalyst_measure(2, reset=True)\ncatalyst_measure(4, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\ncatalyst_measure(1, reset=True)\ncatalyst_measure(3, reset=True)\npl.Hadamard([1])\npl.Hadamard([3])\npl.CZ([1, 0])\npl.CZ([3, 2])\npl.CZ([1, 2])\npl.CZ([3, 4])\npl.Hadamard([1])\npl.Hadamard([3])\nmeasurements[\"c_(0, 1)_0\"] = catalyst_measure(1)\nmeasurements[\"c_(1, 1)_0\"] = catalyst_measure(3)\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\ncatalyst_measure(1, reset=True)\ncatalyst_measure(3, reset=True)\npl.Hadamard([1])\npl.Hadamard([3])\npl.CZ([1, 0])\npl.CZ([3, 2])\npl.CZ([1, 2])\npl.CZ([3, 4])\npl.Hadamard([1])\npl.Hadamard([3])\nmeasurements[\"c_(0, 1)_1\"] = catalyst_measure(1)\nmeasurements[\"c_(1, 1)_1\"] = catalyst_measure(3)\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: feedforward\ndef call_if_true():\n    measurements[\"c_m\"] = catalyst_measure(2)\npl.cond((measurements[\"c_(0, 1)_0\"] == 1) & (measurements[\"c_(1, 1)_0\"] == 1), call_if_true)()\ndef call_if_true():\n    pl.PauliX([4])\npl.cond(~ ((measurements[\"c_(0, 1)_1\"] == 1) | (measurements[\"c_(1, 1)_1\"] == 1)), call_if_true)()\ndef call_if_true():\n    pl.PauliZ([0])\npl.cond(measurements[\"c_m\"] == 1, call_if_true)()\n#  End of circuit: feedforward\n#  End of circuit: rep_and_nor_measure"
+   },
+   "cudaq": {
+    "cmap": {
+     "c_(0, 1)_0": "c0",
+     "c_(0, 1)_1": "c1",
+     "c_(1, 1)_0": "c2",
+     "c_(1, 1)_1": "c3",
+     "c_m": "c4"
+    },
+    "qmap": {
+     "(0, 0)": "q[0]",
+     "(0, 1)": "q[1]",
+     "(1, 0)": "q[2]",
+     "(1, 1)": "q[3]",
+     "(2, 0)": "q[4]"
+    },
+    "text": "q = cudaq.qvector(5)\n# Start of circuit: rep_and_nor_measure\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nreset(q[0])\nreset(q[2])\nreset(q[4])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nreset(q[1])\nreset(q[3])\nh(q[1])\nh(q[3])\ncz(q[1], q[0])\ncz(q[3], q[2])\ncz(q[1], q[2])\ncz(q[3], q[4])\nh(q[1])\nh(q[3])\nc0 = mz(q[1], regName='c_(0, 1)_0')\nc2 = mz(q[3], regName='c_(1, 1)_0')\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\nreset(q[1])\nreset(q[3])\nh(q[1])\nh(q[3])\ncz(q[1], q[0])\ncz(q[3], q[2])\ncz(q[1], q[2])\ncz(q[3], q[4])\nh(q[1])\nh(q[3])\nc1 = mz(q[1], regName='c_(0, 1)_1')\nc3 = mz(q[3], regName='c_(1, 1)_1')\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: feedforward\nif (c0 and c2):\n    c4 = mz(q[2], regName='c_m')\nif (not (c1 or c3)):\n    x(q[4])\nif (c4):\n    z(q[0])\n#  End of circuit: feedforward\n#  End of circuit: rep_and_nor_measure"
+   },
+   "duration": 16,
+   "guppy": {
+    "cmap": {
+     "c_(0, 1)_0": "c[0]",
+     "c_(0, 1)_1": "c[1]",
+     "c_(1, 1)_0": "c[2]",
+     "c_(1, 1)_1": "c[3]",
+     "c_m": "c[4]"
+    },
+    "qmap": {
+     "(0, 0)": "q[0]",
+     "(0, 1)": "q[1]",
+     "(1, 0)": "q[2]",
+     "(1, 1)": "q[3]",
+     "(2, 0)": "q[4]"
+    },
+    "text": "q = array(guppyQ.qubit() for _ in range(5))\nc = array(False for _ in range(5))\n# Start of circuit: rep_and_nor_measure\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nguppyQ.reset(q[0])\nguppyQ.reset(q[2])\nguppyQ.reset(q[4])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nguppyQ.reset(q[1])\nguppyQ.reset(q[3])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nguppyQ.cz(q[1], q[0])\nguppyQ.cz(q[3], q[2])\nguppyQ.cz(q[1], q[2])\nguppyQ.cz(q[3], q[4])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nc[0] = guppyQSys.measure_and_reset(q[1])\nbuiltins.result('c_(0, 1)_0', c[0])\nc[2] = guppyQSys.measure_and_reset(q[3])\nbuiltins.result('c_(1, 1)_0', c[2])\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\nguppyQ.reset(q[1])\nguppyQ.reset(q[3])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nguppyQ.cz(q[1], q[0])\nguppyQ.cz(q[3], q[2])\nguppyQ.cz(q[1], q[2])\nguppyQ.cz(q[3], q[4])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nc[1] = guppyQSys.measure_and_reset(q[1])\nbuiltins.result('c_(0, 1)_1', c[1])\nc[3] = guppyQSys.measure_and_reset(q[3])\nbuiltins.result('c_(1, 1)_1', c[3])\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: feedforward\nif (c[0] and c[2]):\n    c[4] = guppyQSys.measure_and_reset(q[2])\n    builtins.result('c_m', c[4])\nif (not (c[1] or c[3])):\n    guppyQ.x(q[4])\nif (c[4]):\n    guppyQ.z(q[0])\n#  End of circuit: feedforward\n#  End of circuit: rep_and_nor_measure\nfor e in q:\n   guppyQ.discard(e) "
+   },
+   "mimiq": {
+    "cmap": {
+     "c_(0, 1)_0": 0,
+     "c_(0, 1)_1": 1,
+     "c_(1, 1)_0": 2,
+     "c_(1, 1)_1": 3,
+     "c_m": 4
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "# Mimiq Program Generated from Eka\ncircuit = mc.Circuit()\n\ncircuit.push(mc.ResetZ(), 0)\ncircuit.push(mc.ResetZ(), 2)\ncircuit.push(mc.ResetZ(), 4)\ncircuit.push(mc.ResetZ(), 1)\ncircuit.push(mc.ResetZ(), 3)\ncircuit.push(mc.GateH(), 1)\ncircuit.push(mc.GateH(), 3)\ncircuit.push(mc.GateCZ(), 1, 0)\ncircuit.push(mc.GateCZ(), 3, 2)\ncircuit.push(mc.GateCZ(), 1, 2)\ncircuit.push(mc.GateCZ(), 3, 4)\ncircuit.push(mc.GateH(), 1)\ncircuit.push(mc.GateH(), 3)\ncircuit.push(mc.MeasureZ(), 1, 0)\ncircuit.push(mc.MeasureZ(), 3, 2)\ncircuit.push(mc.ResetZ(), 1)\ncircuit.push(mc.ResetZ(), 3)\ncircuit.push(mc.GateH(), 1)\ncircuit.push(mc.GateH(), 3)\ncircuit.push(mc.GateCZ(), 1, 0)\ncircuit.push(mc.GateCZ(), 3, 2)\ncircuit.push(mc.GateCZ(), 1, 2)\ncircuit.push(mc.GateCZ(), 3, 4)\ncircuit.push(mc.GateH(), 1)\ncircuit.push(mc.GateH(), 3)\ncircuit.push(mc.MeasureZ(), 1, 1)\ncircuit.push(mc.MeasureZ(), 3, 3)\ncircuit.push(mc.IfStatement(mc.MeasureZ(), mc.BitString(\"11\")), 2, 4, 0, 2)\ncircuit.push(mc.IfStatement(mc.GateX(), mc.BitString(\"00\")), 4, 1, 3)\ncircuit.push(mc.IfStatement(mc.GateZ(), mc.BitString(\"1\")), 0, 4)"
+   },
+   "pennylane": {
+    "cmap": {
+     "c_(0, 1)_0": "measurements[\"c_(0, 1)_0\"]",
+     "c_(0, 1)_1": "measurements[\"c_(0, 1)_1\"]",
+     "c_(1, 1)_0": "measurements[\"c_(1, 1)_0\"]",
+     "c_(1, 1)_1": "measurements[\"c_(1, 1)_1\"]",
+     "c_m": "measurements[\"c_m\"]"
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\nqml.registers({'(0, 0)': 1, '(0, 1)': 1, '(1, 0)': 1, '(1, 1)': 1, '(2, 0)': 1})\n\n# Start of circuit: rep_and_nor_measure\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nqml.measure(0, reset=True)\nqml.measure(2, reset=True)\nqml.measure(4, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nqml.measure(1, reset=True)\nqml.measure(3, reset=True)\nqml.Hadamard([1])\nqml.Hadamard([3])\nqml.CZ([1, 0])\nqml.CZ([3, 2])\nqml.CZ([1, 2])\nqml.CZ([3, 4])\nqml.Hadamard([1])\nqml.Hadamard([3])\nmeasurements[\"c_(0, 1)_0\"] = qml.measure(1)\nmeasurements[\"c_(1, 1)_0\"] = qml.measure(3)\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\nqml.measure(1, reset=True)\nqml.measure(3, reset=True)\nqml.Hadamard([1])\nqml.Hadamard([3])\nqml.CZ([1, 0])\nqml.CZ([3, 2])\nqml.CZ([1, 2])\nqml.CZ([3, 4])\nqml.Hadamard([1])\nqml.Hadamard([3])\nmeasurements[\"c_(0, 1)_1\"] = qml.measure(1)\nmeasurements[\"c_(1, 1)_1\"] = qml.measure(3)\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: feedforward\ndef call_if_true():\n    measurements[\"c_m\"] = qml.measure(2)\nqml.cond((measurements[\"c_(0, 1)_0\"] == 1) & (measurements[\"c_(1, 1)_0\"] == 1), call_if_true)()\ndef call_if_true():\n    qml.PauliX([4])\nqml.cond(~ ((measurements[\"c_(0, 1)_1\"] == 1) | (measurements[\"c_(1, 1)_1\"] == 1)), call_if_true)()\ndef call_if_true():\n    qml.PauliZ([0])\nqml.cond(measurements[\"c_m\"] == 1, call_if_true)()\n#  End of circuit: feedforward\n#  End of circuit: rep_and_nor_measure"
+   },
+   "qasm": {
+    "cmap": {
+     "c_(0, 1)_0": 0,
+     "c_(0, 1)_1": 1,
+     "c_(1, 1)_0": 2,
+     "c_(1, 1)_1": 3,
+     "c_m": 4
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\n// Init registers\nqubit[5] q;\nbit[5] c;\n// Start of circuit: rep_and_nor_measure\n// Start of circuit: final circuit\n// Start of circuit: reset all data qubits of block b to |0>\nreset q[0];\nreset q[2];\nreset q[4];\n//  End of circuit: reset all data qubits of block b to |0>\n// Start of circuit: measure b syndromes 2 time(s)\n// Start of circuit: measure b syndromes - cycle 0\nreset q[1];\nreset q[3];\nh q[1];\nh q[3];\ncz q[1], q[0];\ncz q[3], q[2];\ncz q[1], q[2];\ncz q[3], q[4];\nh q[1];\nh q[3];\nmeasure q[1] -> c[0];\nmeasure q[3] -> c[2];\n//  End of circuit: measure b syndromes - cycle 0\n// Start of circuit: measure b syndromes - cycle 1\nreset q[1];\nreset q[3];\nh q[1];\nh q[3];\ncz q[1], q[0];\ncz q[3], q[2];\ncz q[1], q[2];\ncz q[3], q[4];\nh q[1];\nh q[3];\nmeasure q[1] -> c[1];\nmeasure q[3] -> c[3];\n//  End of circuit: measure b syndromes - cycle 1\n//  End of circuit: measure b syndromes 2 time(s)\n//  End of circuit: final circuit\n// Start of circuit: feedforward\nif (c[0] == 1 && c[2] == 1) {\n    measure q[2] -> c[4];\n}\nif (!(c[1] == 1 || c[3] == 1)) {\n    x q[4];\n}\nif (c[4]) {\n    z q[0];\n}\n//  End of circuit: feedforward\n//  End of circuit: rep_and_nor_measure"
+   },
+   "stim": {
+    "error": [
+     "ValueError",
+     "Unsupported operation for Stim conversion: Stim only supports single bit conditions for if-else circuits."
+    ]
+   }
+  },
+  "rep_match_not_feedforward": {
+   "catalyst": {
+    "cmap": {
+     "c_(0, 1)_0": "measurements[\"c_(0, 1)_0\"]",
+     "c_(0, 1)_1": "measurements[\"c_(0, 1)_1\"]",
+     "c_(1, 1)_0": "measurements[\"c_(1, 1)_0\"]",
+     "c_(1, 1)_1": "measurements[\"c_(1, 1)_1\"]",
+     "c_m": "measurements[\"c_m\"]"
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\npl.registers({'(0, 0)': 1, '(0, 1)': 1, '(1, 0)': 1, '(1, 1)': 1, '(2, 0)': 1})\n\n# Start of circuit: rep_match_not_feedforward\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\ncatalyst_measure(0, reset=True)\ncatalyst_measure(2, reset=True)\ncatalyst_measure(4, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\ncatalyst_measure(1, reset=True)\ncatalyst_measure(3, reset=True)\npl.Hadamard([1])\npl.Hadamard([3])\npl.CZ([1, 0])\npl.CZ([3, 2])\npl.CZ([1, 2])\npl.CZ([3, 4])\npl.Hadamard([1])\npl.Hadamard([3])\nmeasurements[\"c_(0, 1)_0\"] = catalyst_measure(1)\nmeasurements[\"c_(1, 1)_0\"] = catalyst_measure(3)\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\ncatalyst_measure(1, reset=True)\ncatalyst_measure(3, reset=True)\npl.Hadamard([1])\npl.Hadamard([3])\npl.CZ([1, 0])\npl.CZ([3, 2])\npl.CZ([1, 2])\npl.CZ([3, 4])\npl.Hadamard([1])\npl.Hadamard([3])\nmeasurements[\"c_(0, 1)_1\"] = catalyst_measure(1)\nmeasurements[\"c_(1, 1)_1\"] = catalyst_measure(3)\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: feedforward\ndef call_if_true():\n    pl.PauliX([2])\npl.cond(measurements[\"c_(0, 1)_0\"] == 1, call_if_true)()\ndef call_if_true():\n    pl.PauliZ([4])\npl.cond(measurements[\"c_(1, 1)_0\"] == 1, call_if_true)()\nmeasurements[\"c_m\"] = catalyst_measure(2)\ndef call_if_true():\n    pl.PauliY([2])\npl.cond(~(measurements[\"c_m\"] == 1), call_if_true)()\ndef call_if_true():\n    pl.PauliX([0])\npl.cond(~(measurements[\"c_(0, 1)_1\"] == 1), call_if_true)()\n#  End of circuit: feedforward\n#  End of circuit: rep_match_not_feedforward"
+   },
+   "cudaq": {
+    "cmap": {
+     "c_(0, 1)_0": "c0",
+     "c_(0, 1)_1": "c1",
+     "c_(1, 1)_0": "c2",
+     "c_(1, 1)_1": "c3",
+     "c_m": "c4"
+    },
+    "qmap": {
+     "(0, 0)": "q[0]",
+     "(0, 1)": "q[1]",
+     "(1, 0)": "q[2]",
+     "(1, 1)": "q[3]",
+     "(2, 0)": "q[4]"
+    },
+    "text": "q = cudaq.qvector(5)\n# Start of circuit: rep_match_not_feedforward\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nreset(q[0])\nreset(q[2])\nreset(q[4])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nreset(q[1])\nreset(q[3])\nh(q[1])\nh(q[3])\ncz(q[1], q[0])\ncz(q[3], q[2])\ncz(q[1], q[2])\ncz(q[3], q[4])\nh(q[1])\nh(q[3])\nc0 = mz(q[1], regName='c_(0, 1)_0')\nc2 = mz(q[3], regName='c_(1, 1)_0')\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\nreset(q[1])\nreset(q[3])\nh(q[1])\nh(q[3])\ncz(q[1], q[0])\ncz(q[3], q[2])\ncz(q[1], q[2])\ncz(q[3], q[4])\nh(q[1])\nh(q[3])\nc1 = mz(q[1], regName='c_(0, 1)_1')\nc3 = mz(q[3], regName='c_(1, 1)_1')\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: feedforward\nif (c0):\n    x(q[2])\nif (c2):\n    z(q[4])\nc4 = mz(q[2], regName='c_m')\nif (not c4):\n    y(q[2])\nif (not c1):\n    x(q[0])\n#  End of circuit: feedforward\n#  End of circuit: rep_match_not_feedforward"
+   },
+   "duration": 16,
+   "guppy": {
+    "cmap": {
+     "c_(0, 1)_0": "c[0]",
+     "c_(0, 1)_1": "c[1]",
+     "c_(1, 1)_0": "c[2]",
+     "c_(1, 1)_1": "c[3]",
+     "c_m": "c[4]"
+    },
+    "qmap": {
+     "(0, 0)": "q[0]",
+     "(0, 1)": "q[1]",
+     "(1, 0)": "q[2]",
+     "(1, 1)": "q[3]",
+     "(2, 0)": "q[4]"
+    },
+    "text": "q = array(guppyQ.qubit() for _ in range(5))\nc = array(False for _ in range(5))\n# Start of circuit: rep_match_not_feedforward\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nguppyQ.reset(q[0])\nguppyQ.reset(q[2])\nguppyQ.reset(q[4])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nguppyQ.reset(q[1])\nguppyQ.reset(q[3])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nguppyQ.cz(q[1], q[0])\nguppyQ.cz(q[3], q[2])\nguppyQ.cz(q[1], q[2])\nguppyQ.cz(q[3], q[4])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nc[0] = guppyQSys.measure_and_reset(q[1])\nbuiltins.result('c_(0, 1)_0', c[0])\nc[2] = guppyQSys.measure_and_reset(q[3])\nbuiltins.result('c_(1, 1)_0', c[2])\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\nguppyQ.reset(q[1])\nguppyQ.reset(q[3])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nguppyQ.cz(q[1], q[0])\nguppyQ.cz(q[3], q[2])\nguppyQ.cz(q[1], q[2])\nguppyQ.cz(q[3], q[4])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nc[1] = guppyQSys.measure_and_reset(q[1])\nbuiltins.result('c_(0, 1)_1', c[1])\nc[3] = guppyQSys.measure_and_reset(q[3])\nbuiltins.result('c_(1, 1)_1', c[3])\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: feedforward\nif (c[0]):\n    guppyQ.x(q[2])\nif (c[2]):\n    guppyQ.z(q[4])\nc[4] = guppyQSys.measure_and_reset(q[2])\nbuiltins.result('c_m', c[4])\nif (not c[4]):\n    guppyQ.y(q[2])\nif (not c[1]):\n    guppyQ.x(q[0])\n#  End of circuit: feedforward\n#  End of circuit: rep_match_not_feedforward\nfor e in q:\n   guppyQ.discard(e) "
+   },
+   "mimiq": {
+    "cmap": {
+     "c_(0, 1)_0": 0,
+     "c_(0, 1)_1": 1,
+     "c_(1, 1)_0": 2,
+     "c_(1, 1)_1": 3,
+     "c_m": 4
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "# Mimiq Program Generated from Eka\ncircuit = mc.Circuit()\n\ncircuit.push(mc.ResetZ(), 0)\ncircuit.push(mc.ResetZ(), 2)\ncircuit.push(mc.ResetZ(), 4)\ncircuit.push(mc.ResetZ(), 1)\ncircuit.push(mc.ResetZ(), 3)\ncircuit.push(mc.GateH(), 1)\ncircuit.push(mc.GateH(), 3)\ncircuit.push(mc.GateCZ(), 1, 0)\ncircuit.push(mc.GateCZ(), 3, 2)\ncircuit.push(mc.GateCZ(), 1, 2)\ncircuit.push(mc.GateCZ(), 3, 4)\ncircuit.push(mc.GateH(), 1)\ncircuit.push(mc.GateH(), 3)\ncircuit.push(mc.MeasureZ(), 1, 0)\ncircuit.push(mc.MeasureZ(), 3, 2)\ncircuit.push(mc.ResetZ(), 1)\ncircuit.push(mc.ResetZ(), 3)\ncircuit.push(mc.GateH(), 1)\ncircuit.push(mc.GateH(), 3)\ncircuit.push(mc.GateCZ(), 1, 0)\ncircuit.push(mc.GateCZ(), 3, 2)\ncircuit.push(mc.GateCZ(), 1, 2)\ncircuit.push(mc.GateCZ(), 3, 4)\ncircuit.push(mc.GateH(), 1)\ncircuit.push(mc.GateH(), 3)\ncircuit.push(mc.MeasureZ(), 1, 1)\ncircuit.push(mc.MeasureZ(), 3, 3)\ncircuit.push(mc.IfStatement(mc.GateX(), mc.BitString(\"1\")), 2, 0)\ncircuit.push(mc.IfStatement(mc.GateZ(), mc.BitString(\"1\")), 4, 2)\ncircuit.push(mc.MeasureZ(), 2, 4)\ncircuit.push(mc.IfStatement(mc.GateY(), mc.BitString(\"0\")), 2, 4)\ncircuit.push(mc.IfStatement(mc.GateX(), mc.BitString(\"0\")), 0, 1)"
+   },
+   "pennylane": {
+    "cmap": {
+     "c_(0, 1)_0": "measurements[\"c_(0, 1)_0\"]",
+     "c_(0, 1)_1": "measurements[\"c_(0, 1)_1\"]",
+     "c_(1, 1)_0": "measurements[\"c_(1, 1)_0\"]",
+     "c_(1, 1)_1": "measurements[\"c_(1, 1)_1\"]",
+     "c_m": "measurements[\"c_m\"]"
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\nqml.registers({'(0, 0)': 1, '(0, 1)': 1, '(1, 0)': 1, '(1, 1)': 1, '(2, 0)': 1})\n\n# Start of circuit: rep_match_not_feedforward\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nqml.measure(0, reset=True)\nqml.measure(2, reset=True)\nqml.measure(4, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nqml.measure(1, reset=True)\nqml.measure(3, reset=True)\nqml.Hadamard([1])\nqml.Hadamard([3])\nqml.CZ([1, 0])\nqml.CZ([3, 2])\nqml.CZ([1, 2])\nqml.CZ([3, 4])\nqml.Hadamard([1])\nqml.Hadamard([3])\nmeasurements[\"c_(0, 1)_0\"] = qml.measure(1)\nmeasurements[\"c_(1, 1)_0\"] = qml.measure(3)\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\nqml.measure(1, reset=True)\nqml.measure(3, reset=True)\nqml.Hadamard([1])\nqml.Hadamard([3])\nqml.CZ([1, 0])\nqml.CZ([3, 2])\nqml.CZ([1, 2])\nqml.CZ([3, 4])\nqml.Hadamard([1])\nqml.Hadamard([3])\nmeasurements[\"c_(0, 1)_1\"] = qml.measure(1)\nmeasurements[\"c_(1, 1)_1\"] = qml.measure(3)\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: feedforward\ndef call_if_true():\n    qml.PauliX([2])\nqml.cond(measurements[\"c_(0, 1)_0\"] == 1, call_if_true)()\ndef call_if_true():\n    qml.PauliZ([4])\nqml.cond(measurements[\"c_(1, 1)_0\"] == 1, call_if_true)()\nmeasurements[\"c_m\"] = qml.measure(2)\ndef call_if_true():\n    qml.PauliY([2])\nqml.cond(~(measurements[\"c_m\"] == 1), call_if_true)()\ndef call_if_true():\n    qml.PauliX([0])\nqml.cond(~(measurements[\"c_(0, 1)_1\"] == 1), call_if_true)()\n#  End of circuit: feedforward\n#  End of circuit: rep_match_not_feedforward"
+   },
+   "qasm": {
+    "cmap": {
+     "c_(0, 1)_0": 0,
+     "c_(0, 1)_1": 1,
+     "c_(1, 1)_0": 2,
+     "c_(1, 1)_1": 3,
+     "c_m": 4
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\n// Init registers\nqubit[5] q;\nbit[5] c;\n// Start of circuit: rep_match_not_feedforward\n// Start of circuit: final circuit\n// Start of circuit: reset all data qubits of block b to |0>\nreset q[0];\nreset q[2];\nreset q[4];\n//  End of circuit: reset all data qubits of block b to |0>\n// Start of circuit: measure b syndromes 2 time(s)\n// Start of circuit: measure b syndromes - cycle 0\nreset q[1];\nreset q[3];\nh q[1];\nh q[3];\ncz q[1], q[0];\ncz q[3], q[2];\ncz q[1], q[2];\ncz q[3], q[4];\nh q[1];\nh q[3];\nmeasure q[1] -> c[0];\nmeasure q[3] -> c[2];\n//  End of circuit: measure b syndromes - cycle 0\n// Start of circuit: measure b syndromes - cycle 1\nreset q[1];\nreset q[3];\nh q[1];\nh q[3];\ncz q[1], q[0];\ncz q[3], q[2];\ncz q[1], q[2];\ncz q[3], q[4];\nh q[1];\nh q[3];\nmeasure q[1] -> c[1];\nmeasure q[3] -> c[3];\n//  End of circuit: measure b syndromes - cycle 1\n//  End of circuit: measure b syndromes 2 time(s)\n//  End of circuit: final circuit\n// Start of circuit: feedforward\nif (c[0]) {\n    x q[2];\n}\nif (c[2]) {\n    z q[4];\n}\nmeasure q[2] -> c[4];\nif (!c[4]) {\n    y q[2];\n}\nif (!c[1]) {\n    x q[0];\n}\n//  End of circuit: feedforward\n//  End of circuit: rep_match_not_feedforward"
+   },
+   "stim": {
+    "lines": [
+     "QUBIT_COORDS(-0.5, 0.5) 0",
+     "QUBIT_COORDS(0, 0) 1",
+     "QUBIT_COORDS(0.5, 0.5) 2",
+     "QUBIT_COORDS(1, 0) 3",
+     "QUBIT_COORDS(1.5, 0.5) 4",
+     "R 0 2 4",
+     "R 1 3",
+     "H 1 3",
+     "CZ 1 0 3 2",
+     "CZ 1 2 3 4",
+     "H 1 3",
+     "M 1 3",
+     "R 1 3",
+     "H 1 3",
+     "CZ 1 0 3 2",
+     "CZ 1 2 3 4",
+     "H 1 3",
+     "M 1 3",
+     "CX rec[-4] 2",
+     "CZ rec[-3] 4",
+     "M 2",
+     "CY rec[-1] 2",
+     "CX rec[-3] 0"
+    ],
+    "num_measurements": 5,
+    "records": {
+     "c_(0, 1)_0": 0,
+     "c_(0, 1)_1": 2,
+     "c_(1, 1)_0": 1,
+     "c_(1, 1)_1": 3,
+     "c_m": 4
+    },
+    "stim": "QUBIT_COORDS(-0.5, 0.5) 0\nQUBIT_COORDS(0, 0) 1\nQUBIT_COORDS(0.5, 0.5) 2\nQUBIT_COORDS(1, 0) 3\nQUBIT_COORDS(1.5, 0.5) 4\nR 0 2 4 1 3\nH 1 3\nCZ 1 0 3 2 1 2 3 4\nH 1 3\nM 1 3\nR 1 3\nH 1 3\nCZ 1 0 3 2 1 2 3 4\nH 1 3\nM 1 3\nCX rec[-4] 2\nCZ rec[-3] 4\nM 2\nCY rec[-1] 2\nCX rec[-3] 0"
+   }
+  },
+  "rep_xor_nand_else": {
+   "catalyst": {
+    "cmap": {
+     "c_(0, 1)_0": "measurements[\"c_(0, 1)_0\"]",
+     "c_(0, 1)_1": "measurements[\"c_(0, 1)_1\"]",
+     "c_(1, 1)_0": "measurements[\"c_(1, 1)_0\"]",
+     "c_(1, 1)_1": "measurements[\"c_(1, 1)_1\"]",
+     "c_x": "measurements[\"c_x\"]"
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\npl.registers({'(0, 0)': 1, '(0, 1)': 1, '(1, 0)': 1, '(1, 1)': 1, '(2, 0)': 1})\n\n# Start of circuit: rep_xor_nand_else\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\ncatalyst_measure(0, reset=True)\ncatalyst_measure(2, reset=True)\ncatalyst_measure(4, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\ncatalyst_measure(1, reset=True)\ncatalyst_measure(3, reset=True)\npl.Hadamard([1])\npl.Hadamard([3])\npl.CZ([1, 0])\npl.CZ([3, 2])\npl.CZ([1, 2])\npl.CZ([3, 4])\npl.Hadamard([1])\npl.Hadamard([3])\nmeasurements[\"c_(0, 1)_0\"] = catalyst_measure(1)\nmeasurements[\"c_(1, 1)_0\"] = catalyst_measure(3)\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\ncatalyst_measure(1, reset=True)\ncatalyst_measure(3, reset=True)\npl.Hadamard([1])\npl.Hadamard([3])\npl.CZ([1, 0])\npl.CZ([3, 2])\npl.CZ([1, 2])\npl.CZ([3, 4])\npl.Hadamard([1])\npl.Hadamard([3])\nmeasurements[\"c_(0, 1)_1\"] = catalyst_measure(1)\nmeasurements[\"c_(1, 1)_1\"] = catalyst_measure(3)\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: parities\ndef call_if_true():\n    pl.PauliX([2])\npl.cond((measurements[\"c_(0, 1)_0\"] == 1) ^ (measurements[\"c_(1, 1)_0\"] == 1), call_if_true)()\ndef call_if_true():\n    # Start of circuit: fix\n    pl.PauliZ([0])\n    pl.PauliZ([4])\n    #  End of circuit: fix\ndef call_else():\n    catalyst_measure(2, reset=True)\n    pl.PauliX([2])\n    pl.Hadamard([2])\n    pl.S([2])\npl.cond(~ ((measurements[\"c_(0, 1)_1\"] == 1) & (measurements[\"c_(1, 1)_1\"] == 1) & (measurements[\"c_(0, 1)_0\"] == 1)) , call_if_true)()\npl.cond(~(~ ((measurements[\"c_(0, 1)_1\"] == 1) & (measurements[\"c_(1, 1)_1\"] == 1) & (measurements[\"c_(0, 1)_0\"] == 1)) ), call_else)()\ndef call_if_true():\n    pl.Hadamard(4)\n    measurements[\"c_x\"] = catalyst_measure(4)\ndef call_else():\n    pl.adjoint(pl.S)([4])\npl.cond((measurements[\"c_(0, 1)_0\"] == 1) ^ (measurements[\"c_(1, 1)_0\"] == 1) ^ (measurements[\"c_(1, 1)_1\"] == 1), call_if_true)()\npl.cond(~((measurements[\"c_(0, 1)_0\"] == 1) ^ (measurements[\"c_(1, 1)_0\"] == 1) ^ (measurements[\"c_(1, 1)_1\"] == 1)), call_else)()\n#  End of circuit: parities\n#  End of circuit: rep_xor_nand_else"
+   },
+   "cudaq": {
+    "cmap": {
+     "c_(0, 1)_0": "c0",
+     "c_(0, 1)_1": "c1",
+     "c_(1, 1)_0": "c2",
+     "c_(1, 1)_1": "c3",
+     "c_x": "c4"
+    },
+    "qmap": {
+     "(0, 0)": "q[0]",
+     "(0, 1)": "q[1]",
+     "(1, 0)": "q[2]",
+     "(1, 1)": "q[3]",
+     "(2, 0)": "q[4]"
+    },
+    "text": "q = cudaq.qvector(5)\n# Start of circuit: rep_xor_nand_else\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nreset(q[0])\nreset(q[2])\nreset(q[4])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nreset(q[1])\nreset(q[3])\nh(q[1])\nh(q[3])\ncz(q[1], q[0])\ncz(q[3], q[2])\ncz(q[1], q[2])\ncz(q[3], q[4])\nh(q[1])\nh(q[3])\nc0 = mz(q[1], regName='c_(0, 1)_0')\nc2 = mz(q[3], regName='c_(1, 1)_0')\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\nreset(q[1])\nreset(q[3])\nh(q[1])\nh(q[3])\ncz(q[1], q[0])\ncz(q[3], q[2])\ncz(q[1], q[2])\ncz(q[3], q[4])\nh(q[1])\nh(q[3])\nc1 = mz(q[1], regName='c_(0, 1)_1')\nc3 = mz(q[3], regName='c_(1, 1)_1')\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: parities\nif (c0 ^ c2):\n    x(q[2])\nif (not (c1 and c3 and c0)):\n    # Start of circuit: fix\n    z(q[0])\n    z(q[4])\n    #  End of circuit: fix\nelse:\n    reset(q[2])\n    x(q[2])\n    h(q[2])\n    s(q[2])\nif (c0 ^ c2 ^ c3):\n    c4 = mx(q[4], regName='c_x')\nelse:\n    z(q[4])\n    s(q[4])\n#  End of circuit: parities\n#  End of circuit: rep_xor_nand_else"
+   },
+   "duration": 17,
+   "guppy": {
+    "cmap": {
+     "c_(0, 1)_0": "c[0]",
+     "c_(0, 1)_1": "c[1]",
+     "c_(1, 1)_0": "c[2]",
+     "c_(1, 1)_1": "c[3]",
+     "c_x": "c[4]"
+    },
+    "qmap": {
+     "(0, 0)": "q[0]",
+     "(0, 1)": "q[1]",
+     "(1, 0)": "q[2]",
+     "(1, 1)": "q[3]",
+     "(2, 0)": "q[4]"
+    },
+    "text": "q = array(guppyQ.qubit() for _ in range(5))\nc = array(False for _ in range(5))\n# Start of circuit: rep_xor_nand_else\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nguppyQ.reset(q[0])\nguppyQ.reset(q[2])\nguppyQ.reset(q[4])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nguppyQ.reset(q[1])\nguppyQ.reset(q[3])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nguppyQ.cz(q[1], q[0])\nguppyQ.cz(q[3], q[2])\nguppyQ.cz(q[1], q[2])\nguppyQ.cz(q[3], q[4])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nc[0] = guppyQSys.measure_and_reset(q[1])\nbuiltins.result('c_(0, 1)_0', c[0])\nc[2] = guppyQSys.measure_and_reset(q[3])\nbuiltins.result('c_(1, 1)_0', c[2])\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\nguppyQ.reset(q[1])\nguppyQ.reset(q[3])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nguppyQ.cz(q[1], q[0])\nguppyQ.cz(q[3], q[2])\nguppyQ.cz(q[1], q[2])\nguppyQ.cz(q[3], q[4])\nguppyQ.h(q[1])\nguppyQ.h(q[3])\nc[1] = guppyQSys.measure_and_reset(q[1])\nbuiltins.result('c_(0, 1)_1', c[1])\nc[3] = guppyQSys.measure_and_reset(q[3])\nbuiltins.result('c_(1, 1)_1', c[3])\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: parities\nif (c[0] ^ c[2]):\n    guppyQ.x(q[2])\nif (not (c[1] and c[3] and c[0])):\n    # Start of circuit: fix\n    guppyQ.z(q[0])\n    guppyQ.z(q[4])\n    #  End of circuit: fix\nelse:\n    guppyQ.reset(q[2])\n    guppyQ.x(q[2])\n    guppyQ.h(q[2])\n    guppyQ.s(q[2])\nif (c[0] ^ c[2] ^ c[3]):\n    guppyQ.h(q[4])\n    c[4] = guppyQSys.measure_and_reset(q[4])\n    builtins.result('c_x', c[4])\nelse:\n    guppyQ.sdg(q[4])\n#  End of circuit: parities\n#  End of circuit: rep_xor_nand_else\nfor e in q:\n   guppyQ.discard(e) "
+   },
+   "mimiq": {
+    "error": [
+     "ValueError",
+     "Unsupported bool operator for Mimiqconditional statement: xor"
+    ]
+   },
+   "pennylane": {
+    "cmap": {
+     "c_(0, 1)_0": "measurements[\"c_(0, 1)_0\"]",
+     "c_(0, 1)_1": "measurements[\"c_(0, 1)_1\"]",
+     "c_(1, 1)_0": "measurements[\"c_(1, 1)_0\"]",
+     "c_(1, 1)_1": "measurements[\"c_(1, 1)_1\"]",
+     "c_x": "measurements[\"c_x\"]"
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\nqml.registers({'(0, 0)': 1, '(0, 1)': 1, '(1, 0)': 1, '(1, 1)': 1, '(2, 0)': 1})\n\n# Start of circuit: rep_xor_nand_else\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nqml.measure(0, reset=True)\nqml.measure(2, reset=True)\nqml.measure(4, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 2 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nqml.measure(1, reset=True)\nqml.measure(3, reset=True)\nqml.Hadamard([1])\nqml.Hadamard([3])\nqml.CZ([1, 0])\nqml.CZ([3, 2])\nqml.CZ([1, 2])\nqml.CZ([3, 4])\nqml.Hadamard([1])\nqml.Hadamard([3])\nmeasurements[\"c_(0, 1)_0\"] = qml.measure(1)\nmeasurements[\"c_(1, 1)_0\"] = qml.measure(3)\n#  End of circuit: measure b syndromes - cycle 0\n# Start of circuit: measure b syndromes - cycle 1\nqml.measure(1, reset=True)\nqml.measure(3, reset=True)\nqml.Hadamard([1])\nqml.Hadamard([3])\nqml.CZ([1, 0])\nqml.CZ([3, 2])\nqml.CZ([1, 2])\nqml.CZ([3, 4])\nqml.Hadamard([1])\nqml.Hadamard([3])\nmeasurements[\"c_(0, 1)_1\"] = qml.measure(1)\nmeasurements[\"c_(1, 1)_1\"] = qml.measure(3)\n#  End of circuit: measure b syndromes - cycle 1\n#  End of circuit: measure b syndromes 2 time(s)\n#  End of circuit: final circuit\n# Start of circuit: parities\ndef call_if_true():\n    qml.PauliX([2])\nqml.cond((measurements[\"c_(0, 1)_0\"] == 1) ^ (measurements[\"c_(1, 1)_0\"] == 1), call_if_true)()\ndef call_if_true():\n    # Start of circuit: fix\n    qml.PauliZ([0])\n    qml.PauliZ([4])\n    #  End of circuit: fix\ndef call_else():\n    qml.measure(2, reset=True)\n    qml.PauliX([2])\n    qml.Hadamard([2])\n    qml.S([2])\nqml.cond(~ ((measurements[\"c_(0, 1)_1\"] == 1) & (measurements[\"c_(1, 1)_1\"] == 1) & (measurements[\"c_(0, 1)_0\"] == 1)) , call_if_true)()\nqml.cond(~(~ ((measurements[\"c_(0, 1)_1\"] == 1) & (measurements[\"c_(1, 1)_1\"] == 1) & (measurements[\"c_(0, 1)_0\"] == 1)) ), call_else)()\ndef call_if_true():\n    qml.Hadamard(4)\n    measurements[\"c_x\"] = qml.measure(4)\ndef call_else():\n    qml.adjoint(qml.S)([4])\nqml.cond((measurements[\"c_(0, 1)_0\"] == 1) ^ (measurements[\"c_(1, 1)_0\"] == 1) ^ (measurements[\"c_(1, 1)_1\"] == 1), call_if_true)()\nqml.cond(~((measurements[\"c_(0, 1)_0\"] == 1) ^ (measurements[\"c_(1, 1)_0\"] == 1) ^ (measurements[\"c_(1, 1)_1\"] == 1)), call_else)()\n#  End of circuit: parities\n#  End of circuit: rep_xor_nand_else"
+   },
+   "qasm": {
+    "cmap": {
+     "c_(0, 1)_0": 0,
+     "c_(0, 1)_1": 1,
+     "c_(1, 1)_0": 2,
+     "c_(1, 1)_1": 3,
+     "c_x": 4
+    },
+    "qmap": {
+     "(0, 0)": 0,
+     "(0, 1)": 1,
+     "(1, 0)": 2,
+     "(1, 1)": 3,
+     "(2, 0)": 4
+    },
+    "text": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\n// Init registers\nqubit[5] q;\nbit[5] c;\n// Start of circuit: rep_xor_nand_else\n// Start of circuit: final circuit\n// Start of circuit: reset all data qubits of block b to |0>\nreset q[0];\nreset q[2];\nreset q[4];\n//  End of circuit: reset all data qubits of block b to |0>\n// Start of circuit: measure b syndromes 2 time(s)\n// Start of circuit: measure b syndromes - cycle 0\nreset q[1];\nreset q[3];\nh q[1];\nh q[3];\ncz q[1], q[0];\ncz q[3], q[2];\ncz q[1], q[2];\ncz q[3], q[4];\nh q[1];\nh q[3];\nmeasure q[1] -> c[0];\nmeasure q[3] -> c[2];\n//  End of circuit: measure b syndromes - cycle 0\n// Start of circuit: measure b syndromes - cycle 1\nreset q[1];\nreset q[3];\nh q[1];\nh q[3];\ncz q[1], q[0];\ncz q[3], q[2];\ncz q[1], q[2];\ncz q[3], q[4];\nh q[1];\nh q[3];\nmeasure q[1] -> c[1];\nmeasure q[3] -> c[3];\n//  End of circuit: measure b syndromes - cycle 1\n//  End of circuit: measure b syndromes 2 time(s)\n//  End of circuit: final circuit\n// Start of circuit: parities\nif (c[0] == 1 ^ c[2] == 1) {\n    x q[2];\n}\nif (!(c[1] == 1 && c[3] == 1 && c[0] == 1)) {\n    // Start of circuit: fix\n    z q[0];\n    z q[4];\n    //  End of circuit: fix\n} else {\n    reset q[2];\n    h q[2];\n    sdg q[2];\n}\nif (c[0] == 1 ^ c[2] == 1 ^ c[3] == 1) {\n    h q[4];\n    measure q[4] -> c[4];\n} else {\n    sdg q[4];\n}\n//  End of circuit: parities\n//  End of circuit: rep_xor_nand_else"
+   },
+   "stim": {
+    "error": [
+     "ValueError",
+     "Unsupported operation for Stim conversion: Stim only supports single bit conditions for if-else circuits."
+    ]
+   }
+  },
+  "rsc_match_paulis": {
+   "catalyst": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "measurements[\"c_(0, 1, 1)_0\"]",
+     "c_(1, 1, 1)_0": "measurements[\"c_(1, 1, 1)_0\"]",
+     "c_(1, 2, 1)_0": "measurements[\"c_(1, 2, 1)_0\"]",
+     "c_(1, 3, 1)_0": "measurements[\"c_(1, 3, 1)_0\"]",
+     "c_(2, 0, 1)_0": "measurements[\"c_(2, 0, 1)_0\"]",
+     "c_(2, 1, 1)_0": "measurements[\"c_(2, 1, 1)_0\"]",
+     "c_(2, 2, 1)_0": "measurements[\"c_(2, 2, 1)_0\"]",
+     "c_(3, 2, 1)_0": "measurements[\"c_(3, 2, 1)_0\"]"
+    },
+    "qmap": {
+     "(0, 0, 0)": 0,
+     "(0, 1, 0)": 1,
+     "(0, 1, 1)": 2,
+     "(0, 2, 0)": 3,
+     "(1, 0, 0)": 4,
+     "(1, 1, 0)": 5,
+     "(1, 1, 1)": 6,
+     "(1, 2, 0)": 7,
+     "(1, 2, 1)": 8,
+     "(1, 3, 1)": 9,
+     "(2, 0, 0)": 10,
+     "(2, 0, 1)": 11,
+     "(2, 1, 0)": 12,
+     "(2, 1, 1)": 13,
+     "(2, 2, 0)": 14,
+     "(2, 2, 1)": 15,
+     "(3, 2, 1)": 16
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\npl.registers({'(0, 0, 0)': 1, '(0, 1, 0)': 1, '(0, 1, 1)': 1, '(0, 2, 0)': 1, '(1, 0, 0)': 1, '(1, 1, 0)': 1, '(1, 1, 1)': 1, '(1, 2, 0)': 1, '(1, 2, 1)': 1, '(1, 3, 1)': 1, '(2, 0, 0)': 1, '(2, 0, 1)': 1, '(2, 1, 0)': 1, '(2, 1, 1)': 1, '(2, 2, 0)': 1, '(2, 2, 1)': 1, '(3, 2, 1)': 1})\n\n# Start of circuit: rsc_match_paulis\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\ncatalyst_measure(0, reset=True)\ncatalyst_measure(1, reset=True)\ncatalyst_measure(3, reset=True)\ncatalyst_measure(4, reset=True)\ncatalyst_measure(5, reset=True)\ncatalyst_measure(7, reset=True)\ncatalyst_measure(10, reset=True)\ncatalyst_measure(12, reset=True)\ncatalyst_measure(14, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\ncatalyst_measure(6, reset=True)\ncatalyst_measure(15, reset=True)\ncatalyst_measure(8, reset=True)\ncatalyst_measure(13, reset=True)\ncatalyst_measure(2, reset=True)\ncatalyst_measure(16, reset=True)\ncatalyst_measure(11, reset=True)\ncatalyst_measure(9, reset=True)\npl.Hadamard([6])\npl.Hadamard([15])\npl.Hadamard([8])\npl.Hadamard([13])\npl.Hadamard([2])\npl.Hadamard([16])\npl.Hadamard([11])\npl.Hadamard([9])\npl.CZ([6, 4])\npl.CZ([15, 12])\npl.CNOT([8, 5])\npl.CNOT([13, 10])\npl.CNOT([2, 0])\npl.CZ([9, 7])\npl.CZ([6, 0])\npl.CZ([15, 5])\npl.CNOT([8, 7])\npl.CNOT([13, 12])\npl.CNOT([2, 1])\npl.CZ([9, 3])\npl.CZ([6, 5])\npl.CZ([15, 14])\npl.CNOT([8, 1])\npl.CNOT([13, 4])\npl.CNOT([16, 12])\npl.CZ([11, 10])\npl.CZ([6, 1])\npl.CZ([15, 7])\npl.CNOT([8, 3])\npl.CNOT([13, 5])\npl.CNOT([16, 14])\npl.CZ([11, 4])\npl.Hadamard([6])\npl.Hadamard([15])\npl.Hadamard([8])\npl.Hadamard([13])\npl.Hadamard([2])\npl.Hadamard([16])\npl.Hadamard([11])\npl.Hadamard([9])\nmeasurements[\"c_(1, 1, 1)_0\"] = catalyst_measure(6)\nmeasurements[\"c_(2, 2, 1)_0\"] = catalyst_measure(15)\nmeasurements[\"c_(1, 2, 1)_0\"] = catalyst_measure(8)\nmeasurements[\"c_(2, 1, 1)_0\"] = catalyst_measure(13)\nmeasurements[\"c_(0, 1, 1)_0\"] = catalyst_measure(2)\nmeasurements[\"c_(3, 2, 1)_0\"] = catalyst_measure(16)\nmeasurements[\"c_(2, 0, 1)_0\"] = catalyst_measure(11)\nmeasurements[\"c_(1, 3, 1)_0\"] = catalyst_measure(9)\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: corrections\ndef call_if_true():\n    pl.PauliX([5])\npl.cond(measurements[\"c_(1, 1, 1)_0\"] == 1, call_if_true)()\ndef call_if_true():\n    pl.PauliZ([14])\npl.cond(measurements[\"c_(2, 1, 1)_0\"] == 1, call_if_true)()\ndef call_if_true():\n    pl.PauliY([0])\npl.cond(measurements[\"c_(0, 1, 1)_0\"] == 1, call_if_true)()\ndef call_if_true():\n    pl.PauliY([10])\npl.cond(measurements[\"c_(2, 0, 1)_0\"] == 1, call_if_true)()\npl.Hadamard([5])\ndef call_if_true():\n    pl.PauliX([5])\npl.cond(measurements[\"c_(1, 2, 1)_0\"] == 1, call_if_true)()\n#  End of circuit: corrections\n#  End of circuit: rsc_match_paulis"
+   },
+   "cudaq": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "c0",
+     "c_(1, 1, 1)_0": "c1",
+     "c_(1, 2, 1)_0": "c2",
+     "c_(1, 3, 1)_0": "c3",
+     "c_(2, 0, 1)_0": "c4",
+     "c_(2, 1, 1)_0": "c5",
+     "c_(2, 2, 1)_0": "c6",
+     "c_(3, 2, 1)_0": "c7"
+    },
+    "qmap": {
+     "(0, 0, 0)": "q[0]",
+     "(0, 1, 0)": "q[1]",
+     "(0, 1, 1)": "q[2]",
+     "(0, 2, 0)": "q[3]",
+     "(1, 0, 0)": "q[4]",
+     "(1, 1, 0)": "q[5]",
+     "(1, 1, 1)": "q[6]",
+     "(1, 2, 0)": "q[7]",
+     "(1, 2, 1)": "q[8]",
+     "(1, 3, 1)": "q[9]",
+     "(2, 0, 0)": "q[10]",
+     "(2, 0, 1)": "q[11]",
+     "(2, 1, 0)": "q[12]",
+     "(2, 1, 1)": "q[13]",
+     "(2, 2, 0)": "q[14]",
+     "(2, 2, 1)": "q[15]",
+     "(3, 2, 1)": "q[16]"
+    },
+    "text": "q = cudaq.qvector(17)\n# Start of circuit: rsc_match_paulis\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nreset(q[0])\nreset(q[1])\nreset(q[3])\nreset(q[4])\nreset(q[5])\nreset(q[7])\nreset(q[10])\nreset(q[12])\nreset(q[14])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nreset(q[6])\nreset(q[15])\nreset(q[8])\nreset(q[13])\nreset(q[2])\nreset(q[16])\nreset(q[11])\nreset(q[9])\nh(q[6])\nh(q[15])\nh(q[8])\nh(q[13])\nh(q[2])\nh(q[16])\nh(q[11])\nh(q[9])\ncz(q[6], q[4])\ncz(q[15], q[12])\ncx(q[8], q[5])\ncx(q[13], q[10])\ncx(q[2], q[0])\ncz(q[9], q[7])\ncz(q[6], q[0])\ncz(q[15], q[5])\ncx(q[8], q[7])\ncx(q[13], q[12])\ncx(q[2], q[1])\ncz(q[9], q[3])\ncz(q[6], q[5])\ncz(q[15], q[14])\ncx(q[8], q[1])\ncx(q[13], q[4])\ncx(q[16], q[12])\ncz(q[11], q[10])\ncz(q[6], q[1])\ncz(q[15], q[7])\ncx(q[8], q[3])\ncx(q[13], q[5])\ncx(q[16], q[14])\ncz(q[11], q[4])\nh(q[6])\nh(q[15])\nh(q[8])\nh(q[13])\nh(q[2])\nh(q[16])\nh(q[11])\nh(q[9])\nc1 = mz(q[6], regName='c_(1, 1, 1)_0')\nc6 = mz(q[15], regName='c_(2, 2, 1)_0')\nc2 = mz(q[8], regName='c_(1, 2, 1)_0')\nc5 = mz(q[13], regName='c_(2, 1, 1)_0')\nc0 = mz(q[2], regName='c_(0, 1, 1)_0')\nc7 = mz(q[16], regName='c_(3, 2, 1)_0')\nc4 = mz(q[11], regName='c_(2, 0, 1)_0')\nc3 = mz(q[9], regName='c_(1, 3, 1)_0')\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: corrections\nif (c1):\n    x(q[5])\nif (c5):\n    z(q[14])\nif (c0):\n    y(q[0])\nif (c4):\n    y(q[10])\nh(q[5])\nif (c2):\n    x(q[5])\n#  End of circuit: corrections\n#  End of circuit: rsc_match_paulis"
+   },
+   "duration": 13,
+   "guppy": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "c[0]",
+     "c_(1, 1, 1)_0": "c[1]",
+     "c_(1, 2, 1)_0": "c[2]",
+     "c_(1, 3, 1)_0": "c[3]",
+     "c_(2, 0, 1)_0": "c[4]",
+     "c_(2, 1, 1)_0": "c[5]",
+     "c_(2, 2, 1)_0": "c[6]",
+     "c_(3, 2, 1)_0": "c[7]"
+    },
+    "qmap": {
+     "(0, 0, 0)": "q[0]",
+     "(0, 1, 0)": "q[1]",
+     "(0, 1, 1)": "q[2]",
+     "(0, 2, 0)": "q[3]",
+     "(1, 0, 0)": "q[4]",
+     "(1, 1, 0)": "q[5]",
+     "(1, 1, 1)": "q[6]",
+     "(1, 2, 0)": "q[7]",
+     "(1, 2, 1)": "q[8]",
+     "(1, 3, 1)": "q[9]",
+     "(2, 0, 0)": "q[10]",
+     "(2, 0, 1)": "q[11]",
+     "(2, 1, 0)": "q[12]",
+     "(2, 1, 1)": "q[13]",
+     "(2, 2, 0)": "q[14]",
+     "(2, 2, 1)": "q[15]",
+     "(3, 2, 1)": "q[16]"
+    },
+    "text": "q = array(guppyQ.qubit() for _ in range(17))\nc = array(False for _ in range(8))\n# Start of circuit: rsc_match_paulis\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nguppyQ.reset(q[0])\nguppyQ.reset(q[1])\nguppyQ.reset(q[3])\nguppyQ.reset(q[4])\nguppyQ.reset(q[5])\nguppyQ.reset(q[7])\nguppyQ.reset(q[10])\nguppyQ.reset(q[12])\nguppyQ.reset(q[14])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nguppyQ.reset(q[6])\nguppyQ.reset(q[15])\nguppyQ.reset(q[8])\nguppyQ.reset(q[13])\nguppyQ.reset(q[2])\nguppyQ.reset(q[16])\nguppyQ.reset(q[11])\nguppyQ.reset(q[9])\nguppyQ.h(q[6])\nguppyQ.h(q[15])\nguppyQ.h(q[8])\nguppyQ.h(q[13])\nguppyQ.h(q[2])\nguppyQ.h(q[16])\nguppyQ.h(q[11])\nguppyQ.h(q[9])\nguppyQ.cz(q[6], q[4])\nguppyQ.cz(q[15], q[12])\nguppyQ.cx(q[8], q[5])\nguppyQ.cx(q[13], q[10])\nguppyQ.cx(q[2], q[0])\nguppyQ.cz(q[9], q[7])\nguppyQ.cz(q[6], q[0])\nguppyQ.cz(q[15], q[5])\nguppyQ.cx(q[8], q[7])\nguppyQ.cx(q[13], q[12])\nguppyQ.cx(q[2], q[1])\nguppyQ.cz(q[9], q[3])\nguppyQ.cz(q[6], q[5])\nguppyQ.cz(q[15], q[14])\nguppyQ.cx(q[8], q[1])\nguppyQ.cx(q[13], q[4])\nguppyQ.cx(q[16], q[12])\nguppyQ.cz(q[11], q[10])\nguppyQ.cz(q[6], q[1])\nguppyQ.cz(q[15], q[7])\nguppyQ.cx(q[8], q[3])\nguppyQ.cx(q[13], q[5])\nguppyQ.cx(q[16], q[14])\nguppyQ.cz(q[11], q[4])\nguppyQ.h(q[6])\nguppyQ.h(q[15])\nguppyQ.h(q[8])\nguppyQ.h(q[13])\nguppyQ.h(q[2])\nguppyQ.h(q[16])\nguppyQ.h(q[11])\nguppyQ.h(q[9])\nc[1] = guppyQSys.measure_and_reset(q[6])\nbuiltins.result('c_(1, 1, 1)_0', c[1])\nc[6] = guppyQSys.measure_and_reset(q[15])\nbuiltins.result('c_(2, 2, 1)_0', c[6])\nc[2] = guppyQSys.measure_and_reset(q[8])\nbuiltins.result('c_(1, 2, 1)_0', c[2])\nc[5] = guppyQSys.measure_and_reset(q[13])\nbuiltins.result('c_(2, 1, 1)_0', c[5])\nc[0] = guppyQSys.measure_and_reset(q[2])\nbuiltins.result('c_(0, 1, 1)_0', c[0])\nc[7] = guppyQSys.measure_and_reset(q[16])\nbuiltins.result('c_(3, 2, 1)_0', c[7])\nc[4] = guppyQSys.measure_and_reset(q[11])\nbuiltins.result('c_(2, 0, 1)_0', c[4])\nc[3] = guppyQSys.measure_and_reset(q[9])\nbuiltins.result('c_(1, 3, 1)_0', c[3])\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: corrections\nif (c[1]):\n    guppyQ.x(q[5])\nif (c[5]):\n    guppyQ.z(q[14])\nif (c[0]):\n    guppyQ.y(q[0])\nif (c[4]):\n    guppyQ.y(q[10])\nguppyQ.h(q[5])\nif (c[2]):\n    guppyQ.x(q[5])\n#  End of circuit: corrections\n#  End of circuit: rsc_match_paulis\nfor e in q:\n   guppyQ.discard(e) "
+   },
+   "mimiq": {
+    "cmap": {
+     "c_(0, 1, 1)_0": 0,
+     "c_(1, 1, 1)_0": 1,
+     "c_(1, 2, 1)_0": 2,
+     "c_(1, 3, 1)_0": 3,
+     "c_(2, 0, 1)_0": 4,
+     "c_(2, 1, 1)_0": 5,
+     "c_(2, 2, 1)_0": 6,
+     "c_(3, 2, 1)_0": 7
+    },
+    "qmap": {
+     "(0, 0, 0)": 0,
+     "(0, 1, 0)": 1,
+     "(0, 1, 1)": 2,
+     "(0, 2, 0)": 3,
+     "(1, 0, 0)": 4,
+     "(1, 1, 0)": 5,
+     "(1, 1, 1)": 6,
+     "(1, 2, 0)": 7,
+     "(1, 2, 1)": 8,
+     "(1, 3, 1)": 9,
+     "(2, 0, 0)": 10,
+     "(2, 0, 1)": 11,
+     "(2, 1, 0)": 12,
+     "(2, 1, 1)": 13,
+     "(2, 2, 0)": 14,
+     "(2, 2, 1)": 15,
+     "(3, 2, 1)": 16
+    },
+    "text": "# Mimiq Program Generated from Eka\ncircuit = mc.Circuit()\n\ncircuit.push(mc.ResetZ(), 0)\ncircuit.push(mc.ResetZ(), 1)\ncircuit.push(mc.ResetZ(), 3)\ncircuit.push(mc.ResetZ(), 4)\ncircuit.push(mc.ResetZ(), 5)\ncircuit.push(mc.ResetZ(), 7)\ncircuit.push(mc.ResetZ(), 10)\ncircuit.push(mc.ResetZ(), 12)\ncircuit.push(mc.ResetZ(), 14)\ncircuit.push(mc.ResetZ(), 6)\ncircuit.push(mc.ResetZ(), 15)\ncircuit.push(mc.ResetZ(), 8)\ncircuit.push(mc.ResetZ(), 13)\ncircuit.push(mc.ResetZ(), 2)\ncircuit.push(mc.ResetZ(), 16)\ncircuit.push(mc.ResetZ(), 11)\ncircuit.push(mc.ResetZ(), 9)\ncircuit.push(mc.GateH(), 6)\ncircuit.push(mc.GateH(), 15)\ncircuit.push(mc.GateH(), 8)\ncircuit.push(mc.GateH(), 13)\ncircuit.push(mc.GateH(), 2)\ncircuit.push(mc.GateH(), 16)\ncircuit.push(mc.GateH(), 11)\ncircuit.push(mc.GateH(), 9)\ncircuit.push(mc.GateCZ(), 6, 4)\ncircuit.push(mc.GateCZ(), 15, 12)\ncircuit.push(mc.GateCX(), 8, 5)\ncircuit.push(mc.GateCX(), 13, 10)\ncircuit.push(mc.GateCX(), 2, 0)\ncircuit.push(mc.GateCZ(), 9, 7)\ncircuit.push(mc.GateCZ(), 6, 0)\ncircuit.push(mc.GateCZ(), 15, 5)\ncircuit.push(mc.GateCX(), 8, 7)\ncircuit.push(mc.GateCX(), 13, 12)\ncircuit.push(mc.GateCX(), 2, 1)\ncircuit.push(mc.GateCZ(), 9, 3)\ncircuit.push(mc.GateCZ(), 6, 5)\ncircuit.push(mc.GateCZ(), 15, 14)\ncircuit.push(mc.GateCX(), 8, 1)\ncircuit.push(mc.GateCX(), 13, 4)\ncircuit.push(mc.GateCX(), 16, 12)\ncircuit.push(mc.GateCZ(), 11, 10)\ncircuit.push(mc.GateCZ(), 6, 1)\ncircuit.push(mc.GateCZ(), 15, 7)\ncircuit.push(mc.GateCX(), 8, 3)\ncircuit.push(mc.GateCX(), 13, 5)\ncircuit.push(mc.GateCX(), 16, 14)\ncircuit.push(mc.GateCZ(), 11, 4)\ncircuit.push(mc.GateH(), 6)\ncircuit.push(mc.GateH(), 15)\ncircuit.push(mc.GateH(), 8)\ncircuit.push(mc.GateH(), 13)\ncircuit.push(mc.GateH(), 2)\ncircuit.push(mc.GateH(), 16)\ncircuit.push(mc.GateH(), 11)\ncircuit.push(mc.GateH(), 9)\ncircuit.push(mc.MeasureZ(), 6, 1)\ncircuit.push(mc.MeasureZ(), 15, 6)\ncircuit.push(mc.MeasureZ(), 8, 2)\ncircuit.push(mc.MeasureZ(), 13, 5)\ncircuit.push(mc.MeasureZ(), 2, 0)\ncircuit.push(mc.MeasureZ(), 16, 7)\ncircuit.push(mc.MeasureZ(), 11, 4)\ncircuit.push(mc.MeasureZ(), 9, 3)\ncircuit.push(mc.IfStatement(mc.GateX(), mc.BitString(\"1\")), 5, 1)\ncircuit.push(mc.IfStatement(mc.GateZ(), mc.BitString(\"1\")), 14, 5)\ncircuit.push(mc.IfStatement(mc.GateY(), mc.BitString(\"1\")), 0, 0)\ncircuit.push(mc.IfStatement(mc.GateY(), mc.BitString(\"1\")), 10, 4)\ncircuit.push(mc.GateH(), 5)\ncircuit.push(mc.IfStatement(mc.GateX(), mc.BitString(\"1\")), 5, 2)"
+   },
+   "pennylane": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "measurements[\"c_(0, 1, 1)_0\"]",
+     "c_(1, 1, 1)_0": "measurements[\"c_(1, 1, 1)_0\"]",
+     "c_(1, 2, 1)_0": "measurements[\"c_(1, 2, 1)_0\"]",
+     "c_(1, 3, 1)_0": "measurements[\"c_(1, 3, 1)_0\"]",
+     "c_(2, 0, 1)_0": "measurements[\"c_(2, 0, 1)_0\"]",
+     "c_(2, 1, 1)_0": "measurements[\"c_(2, 1, 1)_0\"]",
+     "c_(2, 2, 1)_0": "measurements[\"c_(2, 2, 1)_0\"]",
+     "c_(3, 2, 1)_0": "measurements[\"c_(3, 2, 1)_0\"]"
+    },
+    "qmap": {
+     "(0, 0, 0)": 0,
+     "(0, 1, 0)": 1,
+     "(0, 1, 1)": 2,
+     "(0, 2, 0)": 3,
+     "(1, 0, 0)": 4,
+     "(1, 1, 0)": 5,
+     "(1, 1, 1)": 6,
+     "(1, 2, 0)": 7,
+     "(1, 2, 1)": 8,
+     "(1, 3, 1)": 9,
+     "(2, 0, 0)": 10,
+     "(2, 0, 1)": 11,
+     "(2, 1, 0)": 12,
+     "(2, 1, 1)": 13,
+     "(2, 2, 0)": 14,
+     "(2, 2, 1)": 15,
+     "(3, 2, 1)": 16
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\nqml.registers({'(0, 0, 0)': 1, '(0, 1, 0)': 1, '(0, 1, 1)': 1, '(0, 2, 0)': 1, '(1, 0, 0)': 1, '(1, 1, 0)': 1, '(1, 1, 1)': 1, '(1, 2, 0)': 1, '(1, 2, 1)': 1, '(1, 3, 1)': 1, '(2, 0, 0)': 1, '(2, 0, 1)': 1, '(2, 1, 0)': 1, '(2, 1, 1)': 1, '(2, 2, 0)': 1, '(2, 2, 1)': 1, '(3, 2, 1)': 1})\n\n# Start of circuit: rsc_match_paulis\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nqml.measure(0, reset=True)\nqml.measure(1, reset=True)\nqml.measure(3, reset=True)\nqml.measure(4, reset=True)\nqml.measure(5, reset=True)\nqml.measure(7, reset=True)\nqml.measure(10, reset=True)\nqml.measure(12, reset=True)\nqml.measure(14, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nqml.measure(6, reset=True)\nqml.measure(15, reset=True)\nqml.measure(8, reset=True)\nqml.measure(13, reset=True)\nqml.measure(2, reset=True)\nqml.measure(16, reset=True)\nqml.measure(11, reset=True)\nqml.measure(9, reset=True)\nqml.Hadamard([6])\nqml.Hadamard([15])\nqml.Hadamard([8])\nqml.Hadamard([13])\nqml.Hadamard([2])\nqml.Hadamard([16])\nqml.Hadamard([11])\nqml.Hadamard([9])\nqml.CZ([6, 4])\nqml.CZ([15, 12])\nqml.CNOT([8, 5])\nqml.CNOT([13, 10])\nqml.CNOT([2, 0])\nqml.CZ([9, 7])\nqml.CZ([6, 0])\nqml.CZ([15, 5])\nqml.CNOT([8, 7])\nqml.CNOT([13, 12])\nqml.CNOT([2, 1])\nqml.CZ([9, 3])\nqml.CZ([6, 5])\nqml.CZ([15, 14])\nqml.CNOT([8, 1])\nqml.CNOT([13, 4])\nqml.CNOT([16, 12])\nqml.CZ([11, 10])\nqml.CZ([6, 1])\nqml.CZ([15, 7])\nqml.CNOT([8, 3])\nqml.CNOT([13, 5])\nqml.CNOT([16, 14])\nqml.CZ([11, 4])\nqml.Hadamard([6])\nqml.Hadamard([15])\nqml.Hadamard([8])\nqml.Hadamard([13])\nqml.Hadamard([2])\nqml.Hadamard([16])\nqml.Hadamard([11])\nqml.Hadamard([9])\nmeasurements[\"c_(1, 1, 1)_0\"] = qml.measure(6)\nmeasurements[\"c_(2, 2, 1)_0\"] = qml.measure(15)\nmeasurements[\"c_(1, 2, 1)_0\"] = qml.measure(8)\nmeasurements[\"c_(2, 1, 1)_0\"] = qml.measure(13)\nmeasurements[\"c_(0, 1, 1)_0\"] = qml.measure(2)\nmeasurements[\"c_(3, 2, 1)_0\"] = qml.measure(16)\nmeasurements[\"c_(2, 0, 1)_0\"] = qml.measure(11)\nmeasurements[\"c_(1, 3, 1)_0\"] = qml.measure(9)\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: corrections\ndef call_if_true():\n    qml.PauliX([5])\nqml.cond(measurements[\"c_(1, 1, 1)_0\"] == 1, call_if_true)()\ndef call_if_true():\n    qml.PauliZ([14])\nqml.cond(measurements[\"c_(2, 1, 1)_0\"] == 1, call_if_true)()\ndef call_if_true():\n    qml.PauliY([0])\nqml.cond(measurements[\"c_(0, 1, 1)_0\"] == 1, call_if_true)()\ndef call_if_true():\n    qml.PauliY([10])\nqml.cond(measurements[\"c_(2, 0, 1)_0\"] == 1, call_if_true)()\nqml.Hadamard([5])\ndef call_if_true():\n    qml.PauliX([5])\nqml.cond(measurements[\"c_(1, 2, 1)_0\"] == 1, call_if_true)()\n#  End of circuit: corrections\n#  End of circuit: rsc_match_paulis"
+   },
+   "qasm": {
+    "cmap": {
+     "c_(0, 1, 1)_0": 0,
+     "c_(1, 1, 1)_0": 1,
+     "c_(1, 2, 1)_0": 2,
+     "c_(1, 3, 1)_0": 3,
+     "c_(2, 0, 1)_0": 4,
+     "c_(2, 1, 1)_0": 5,
+     "c_(2, 2, 1)_0": 6,
+     "c_(3, 2, 1)_0": 7
+    },
+    "qmap": {
+     "(0, 0, 0)": 0,
+     "(0, 1, 0)": 1,
+     "(0, 1, 1)": 2,
+     "(0, 2, 0)": 3,
+     "(1, 0, 0)": 4,
+     "(1, 1, 0)": 5,
+     "(1, 1, 1)": 6,
+     "(1, 2, 0)": 7,
+     "(1, 2, 1)": 8,
+     "(1, 3, 1)": 9,
+     "(2, 0, 0)": 10,
+     "(2, 0, 1)": 11,
+     "(2, 1, 0)": 12,
+     "(2, 1, 1)": 13,
+     "(2, 2, 0)": 14,
+     "(2, 2, 1)": 15,
+     "(3, 2, 1)": 16
+    },
+    "text": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\n// Init registers\nqubit[17] q;\nbit[8] c;\n// Start of circuit: rsc_match_paulis\n// Start of circuit: final circuit\n// Start of circuit: reset all data qubits of block b to |0>\nreset q[0];\nreset q[1];\nreset q[3];\nreset q[4];\nreset q[5];\nreset q[7];\nreset q[10];\nreset q[12];\nreset q[14];\n//  End of circuit: reset all data qubits of block b to |0>\n// Start of circuit: measure b syndromes 1 time(s)\n// Start of circuit: measure b syndromes - cycle 0\nreset q[6];\nreset q[15];\nreset q[8];\nreset q[13];\nreset q[2];\nreset q[16];\nreset q[11];\nreset q[9];\nh q[6];\nh q[15];\nh q[8];\nh q[13];\nh q[2];\nh q[16];\nh q[11];\nh q[9];\ncz q[6], q[4];\ncz q[15], q[12];\ncx q[8], q[5];\ncx q[13], q[10];\ncx q[2], q[0];\ncz q[9], q[7];\ncz q[6], q[0];\ncz q[15], q[5];\ncx q[8], q[7];\ncx q[13], q[12];\ncx q[2], q[1];\ncz q[9], q[3];\ncz q[6], q[5];\ncz q[15], q[14];\ncx q[8], q[1];\ncx q[13], q[4];\ncx q[16], q[12];\ncz q[11], q[10];\ncz q[6], q[1];\ncz q[15], q[7];\ncx q[8], q[3];\ncx q[13], q[5];\ncx q[16], q[14];\ncz q[11], q[4];\nh q[6];\nh q[15];\nh q[8];\nh q[13];\nh q[2];\nh q[16];\nh q[11];\nh q[9];\nmeasure q[6] -> c[1];\nmeasure q[15] -> c[6];\nmeasure q[8] -> c[2];\nmeasure q[13] -> c[5];\nmeasure q[2] -> c[0];\nmeasure q[16] -> c[7];\nmeasure q[11] -> c[4];\nmeasure q[9] -> c[3];\n//  End of circuit: measure b syndromes - cycle 0\n//  End of circuit: measure b syndromes 1 time(s)\n//  End of circuit: final circuit\n// Start of circuit: corrections\nif (c[1]) {\n    x q[5];\n}\nif (c[5]) {\n    z q[14];\n}\nif (c[0]) {\n    y q[0];\n}\nif (c[4]) {\n    y q[10];\n}\nh q[5];\nif (c[2]) {\n    x q[5];\n}\n//  End of circuit: corrections\n//  End of circuit: rsc_match_paulis"
+   },
+   "stim": {
+    "lines": [
+     "QUBIT_COORDS(0.5, 0.5) 0",
+     "QUBIT_COORDS(0.5, 1.5) 1",
+     "QUBIT_COORDS(0, 1) 2",
+     "QUBIT_COORDS(0.5, 2.5) 3",
+     "QUBIT_COORDS(1.5, 0.5) 4",
+     "QUBIT_COORDS(1.5, 1.5) 5",
+     "QUBIT_COORDS(1, 1) 6",
+     "QUBIT_COORDS(1.5, 2.5) 7",
+     "QUBIT_COORDS(1, 2) 8",
+     "QUBIT_COORDS(1, 3) 9",
+     "QUBIT_COORDS(2.5, 0.5) 10",
+     "QUBIT_COORDS(2, 0) 11",
+     "QUBIT_COORDS(2.5, 1.5) 12",
+     "QUBIT_COORDS(2, 1) 13",
+     "QUBIT_COORDS(2.5, 2.5) 14",
+     "QUBIT_COORDS(2, 2) 15",
+     "QUBIT_COORDS(3, 2) 16",
+     "R 0 1 3 4 5 7 10 12 14",
+     "R 6 15 8 13 2 16 11 9",
+     "H 6 15 8 13 2 16 11 9",
+     "CZ 6 4 15 12 9 7",
+     "CX 8 5 13 10 2 0",
+     "CZ 6 0 15 5 9 3",
+     "CX 8 7 13 12 2 1",
+     "CZ 6 5 15 14 11 10",
+     "CX 8 1 13 4 16 12",
+     "CZ 6 1 15 7 11 4",
+     "CX 8 3 13 5 16 14",
+     "H 6 15 8 13 2 16 11 9",
+     "M 6 15 8 13 2 16 11 9",
+     "CX rec[-8] 5",
+     "CZ rec[-5] 14",
+     "CY rec[-4] 0",
+     "H 5",
+     "CX rec[-6] 5"
+    ],
+    "num_measurements": 8,
+    "records": {
+     "c_(0, 1, 1)_0": 4,
+     "c_(1, 1, 1)_0": 0,
+     "c_(1, 2, 1)_0": 2,
+     "c_(1, 3, 1)_0": 7,
+     "c_(2, 0, 1)_0": 6,
+     "c_(2, 1, 1)_0": 3,
+     "c_(2, 2, 1)_0": 1,
+     "c_(3, 2, 1)_0": 5
+    },
+    "stim": "QUBIT_COORDS(0.5, 0.5) 0\nQUBIT_COORDS(0.5, 1.5) 1\nQUBIT_COORDS(0, 1) 2\nQUBIT_COORDS(0.5, 2.5) 3\nQUBIT_COORDS(1.5, 0.5) 4\nQUBIT_COORDS(1.5, 1.5) 5\nQUBIT_COORDS(1, 1) 6\nQUBIT_COORDS(1.5, 2.5) 7\nQUBIT_COORDS(1, 2) 8\nQUBIT_COORDS(1, 3) 9\nQUBIT_COORDS(2.5, 0.5) 10\nQUBIT_COORDS(2, 0) 11\nQUBIT_COORDS(2.5, 1.5) 12\nQUBIT_COORDS(2, 1) 13\nQUBIT_COORDS(2.5, 2.5) 14\nQUBIT_COORDS(2, 2) 15\nQUBIT_COORDS(3, 2) 16\nR 0 1 3 4 5 7 10 12 14 6 15 8 13 2 16 11 9\nH 6 15 8 13 2 16 11 9\nCZ 6 4 15 12 9 7\nCX 8 5 13 10 2 0\nCZ 6 0 15 5 9 3\nCX 8 7 13 12 2 1\nCZ 6 5 15 14 11 10\nCX 8 1 13 4 16 12\nCZ 6 1 15 7 11 4\nCX 8 3 13 5 16 14\nH 6 15 8 13 2 16 11 9\nM 6 15 8 13 2 16 11 9\nCX rec[-8] 5\nCZ rec[-5] 14\nCY rec[-4] 0\nH 5\nCX rec[-6] 5"
+   },
+   "stim_noisy": {
+    "lines": [
+     "QUBIT_COORDS(0.5, 0.5) 0",
+     "QUBIT_COORDS(0.5, 1.5) 1",
+     "QUBIT_COORDS(0, 1) 2",
+     "QUBIT_COORDS(0.5, 2.5) 3",
+     "QUBIT_COORDS(1.5, 0.5) 4",
+     "QUBIT_COORDS(1.5, 1.5) 5",
+     "QUBIT_COORDS(1, 1) 6",
+     "QUBIT_COORDS(1.5, 2.5) 7",
+     "QUBIT_COORDS(1, 2) 8",
+     "QUBIT_COORDS(1, 3) 9",
+     "QUBIT_COORDS(2.5, 0.5) 10",
+     "QUBIT_COORDS(2, 0) 11",
+     "QUBIT_COORDS(2.5, 1.5) 12",
+     "QUBIT_COORDS(2, 1) 13",
+     "QUBIT_COORDS(2.5, 2.5) 14",
+     "QUBIT_COORDS(2, 2) 15",
+     "QUBIT_COORDS(3, 2) 16",
+     "R 0 1 3 4 5 7 10 12 14",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "R 6 15 8 13 2 16 11 9",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "H 6 15 8 13 2 16 11 9",
+     "DEPOLARIZE1(0.01) 6 15 8 13 2 16 11 9",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "CZ 6 4 15 12 9 7",
+     "CX 8 5 13 10 2 0",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "CZ 6 0 15 5 9 3",
+     "CX 8 7 13 12 2 1",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "CZ 6 5 15 14 11 10",
+     "CX 8 1 13 4 16 12",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "CZ 6 1 15 7 11 4",
+     "CX 8 3 13 5 16 14",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "H 6 15 8 13 2 16 11 9",
+     "DEPOLARIZE1(0.01) 6 15 8 13 2 16 11 9",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "M 6 15 8 13 2 16 11 9",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "CX rec[-8] 5",
+     "CZ rec[-5] 14",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "CY rec[-4] 0",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "H 5",
+     "DEPOLARIZE1(0.01) 5",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK",
+     "CX rec[-6] 5",
+     "X_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+     "TICK"
+    ],
+    "num_measurements": 8,
+    "records": {
+     "c_(0, 1, 1)_0": 4,
+     "c_(1, 1, 1)_0": 0,
+     "c_(1, 2, 1)_0": 2,
+     "c_(1, 3, 1)_0": 7,
+     "c_(2, 0, 1)_0": 6,
+     "c_(2, 1, 1)_0": 3,
+     "c_(2, 2, 1)_0": 1,
+     "c_(3, 2, 1)_0": 5
+    },
+    "stim": "QUBIT_COORDS(0.5, 0.5) 0\nQUBIT_COORDS(0.5, 1.5) 1\nQUBIT_COORDS(0, 1) 2\nQUBIT_COORDS(0.5, 2.5) 3\nQUBIT_COORDS(1.5, 0.5) 4\nQUBIT_COORDS(1.5, 1.5) 5\nQUBIT_COORDS(1, 1) 6\nQUBIT_COORDS(1.5, 2.5) 7\nQUBIT_COORDS(1, 2) 8\nQUBIT_COORDS(1, 3) 9\nQUBIT_COORDS(2.5, 0.5) 10\nQUBIT_COORDS(2, 0) 11\nQUBIT_COORDS(2.5, 1.5) 12\nQUBIT_COORDS(2, 1) 13\nQUBIT_COORDS(2.5, 2.5) 14\nQUBIT_COORDS(2, 2) 15\nQUBIT_COORDS(3, 2) 16\nR 0 1 3 4 5 7 10 12 14\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nR 6 15 8 13 2 16 11 9\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nH 6 15 8 13 2 16 11 9\nDEPOLARIZE1(0.01) 6 15 8 13 2 16 11 9\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nCZ 6 4 15 12 9 7\nCX 8 5 13 10 2 0\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nCZ 6 0 15 5 9 3\nCX 8 7 13 12 2 1\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nCZ 6 5 15 14 11 10\nCX 8 1 13 4 16 12\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nCZ 6 1 15 7 11 4\nCX 8 3 13 5 16 14\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nH 6 15 8 13 2 16 11 9\nDEPOLARIZE1(0.01) 6 15 8 13 2 16 11 9\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nM 6 15 8 13 2 16 11 9\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nCX rec[-8] 5\nCZ rec[-5] 14\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nCY rec[-4] 0\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nH 5\nDEPOLARIZE1(0.01) 5\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK\nCX rec[-6] 5\nX_ERROR(0.002) 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\nTICK"
+   }
+  },
+  "rsc_nested_or": {
+   "catalyst": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "measurements[\"c_(0, 1, 1)_0\"]",
+     "c_(1, 1, 1)_0": "measurements[\"c_(1, 1, 1)_0\"]",
+     "c_(1, 2, 1)_0": "measurements[\"c_(1, 2, 1)_0\"]",
+     "c_(1, 3, 1)_0": "measurements[\"c_(1, 3, 1)_0\"]",
+     "c_(2, 0, 1)_0": "measurements[\"c_(2, 0, 1)_0\"]",
+     "c_(2, 1, 1)_0": "measurements[\"c_(2, 1, 1)_0\"]",
+     "c_(2, 2, 1)_0": "measurements[\"c_(2, 2, 1)_0\"]",
+     "c_(3, 2, 1)_0": "measurements[\"c_(3, 2, 1)_0\"]",
+     "c_m1": "measurements[\"c_m1\"]"
+    },
+    "qmap": {
+     "(0, 0, 0)": 0,
+     "(0, 1, 0)": 1,
+     "(0, 1, 1)": 2,
+     "(0, 2, 0)": 3,
+     "(1, 0, 0)": 4,
+     "(1, 1, 0)": 5,
+     "(1, 1, 1)": 6,
+     "(1, 2, 0)": 7,
+     "(1, 2, 1)": 8,
+     "(1, 3, 1)": 9,
+     "(2, 0, 0)": 10,
+     "(2, 0, 1)": 11,
+     "(2, 1, 0)": 12,
+     "(2, 1, 1)": 13,
+     "(2, 2, 0)": 14,
+     "(2, 2, 1)": 15,
+     "(3, 2, 1)": 16
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\npl.registers({'(0, 0, 0)': 1, '(0, 1, 0)': 1, '(0, 1, 1)': 1, '(0, 2, 0)': 1, '(1, 0, 0)': 1, '(1, 1, 0)': 1, '(1, 1, 1)': 1, '(1, 2, 0)': 1, '(1, 2, 1)': 1, '(1, 3, 1)': 1, '(2, 0, 0)': 1, '(2, 0, 1)': 1, '(2, 1, 0)': 1, '(2, 1, 1)': 1, '(2, 2, 0)': 1, '(2, 2, 1)': 1, '(3, 2, 1)': 1})\n\n# Start of circuit: rsc_nested_or\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\ncatalyst_measure(0, reset=True)\ncatalyst_measure(1, reset=True)\ncatalyst_measure(3, reset=True)\ncatalyst_measure(4, reset=True)\ncatalyst_measure(5, reset=True)\ncatalyst_measure(7, reset=True)\ncatalyst_measure(10, reset=True)\ncatalyst_measure(12, reset=True)\ncatalyst_measure(14, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\ncatalyst_measure(6, reset=True)\ncatalyst_measure(15, reset=True)\ncatalyst_measure(8, reset=True)\ncatalyst_measure(13, reset=True)\ncatalyst_measure(2, reset=True)\ncatalyst_measure(16, reset=True)\ncatalyst_measure(11, reset=True)\ncatalyst_measure(9, reset=True)\npl.Hadamard([6])\npl.Hadamard([15])\npl.Hadamard([8])\npl.Hadamard([13])\npl.Hadamard([2])\npl.Hadamard([16])\npl.Hadamard([11])\npl.Hadamard([9])\npl.CZ([6, 4])\npl.CZ([15, 12])\npl.CNOT([8, 5])\npl.CNOT([13, 10])\npl.CNOT([2, 0])\npl.CZ([9, 7])\npl.CZ([6, 0])\npl.CZ([15, 5])\npl.CNOT([8, 7])\npl.CNOT([13, 12])\npl.CNOT([2, 1])\npl.CZ([9, 3])\npl.CZ([6, 5])\npl.CZ([15, 14])\npl.CNOT([8, 1])\npl.CNOT([13, 4])\npl.CNOT([16, 12])\npl.CZ([11, 10])\npl.CZ([6, 1])\npl.CZ([15, 7])\npl.CNOT([8, 3])\npl.CNOT([13, 5])\npl.CNOT([16, 14])\npl.CZ([11, 4])\npl.Hadamard([6])\npl.Hadamard([15])\npl.Hadamard([8])\npl.Hadamard([13])\npl.Hadamard([2])\npl.Hadamard([16])\npl.Hadamard([11])\npl.Hadamard([9])\nmeasurements[\"c_(1, 1, 1)_0\"] = catalyst_measure(6)\nmeasurements[\"c_(2, 2, 1)_0\"] = catalyst_measure(15)\nmeasurements[\"c_(1, 2, 1)_0\"] = catalyst_measure(8)\nmeasurements[\"c_(2, 1, 1)_0\"] = catalyst_measure(13)\nmeasurements[\"c_(0, 1, 1)_0\"] = catalyst_measure(2)\nmeasurements[\"c_(3, 2, 1)_0\"] = catalyst_measure(16)\nmeasurements[\"c_(2, 0, 1)_0\"] = catalyst_measure(11)\nmeasurements[\"c_(1, 3, 1)_0\"] = catalyst_measure(9)\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: after\ndef call_if_true():\n    def call_if_true():\n        def call_if_true():\n            pl.PauliX([5])\n        pl.cond(measurements[\"c_(2, 0, 1)_0\"] == 1, call_if_true)()\n    pl.cond(~(measurements[\"c_(2, 2, 1)_0\"] == 1), call_if_true)()\ndef call_else():\n    # Start of circuit: else_block\n    def call_if_true():\n        pl.adjoint(pl.S)(5)\n        pl.Hadamard(5)\n        measurements[\"c_m1\"] = catalyst_measure(5)\n    def call_else():\n        pl.PauliZ([5])\n    pl.cond((measurements[\"c_(1, 1, 1)_0\"] == 1) & (measurements[\"c_(2, 1, 1)_0\"] == 1), call_if_true)()\n    pl.cond(~((measurements[\"c_(1, 1, 1)_0\"] == 1) & (measurements[\"c_(2, 1, 1)_0\"] == 1)), call_else)()\n    pl.Hadamard([5])\n    #  End of circuit: else_block\npl.cond((measurements[\"c_(0, 1, 1)_0\"] == 1) | (measurements[\"c_(1, 2, 1)_0\"] == 1), call_if_true)()\npl.cond(~((measurements[\"c_(0, 1, 1)_0\"] == 1) | (measurements[\"c_(1, 2, 1)_0\"] == 1)), call_else)()\npl.PauliY([0])\n#  End of circuit: after\n#  End of circuit: rsc_nested_or"
+   },
+   "cudaq": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "c0",
+     "c_(1, 1, 1)_0": "c1",
+     "c_(1, 2, 1)_0": "c2",
+     "c_(1, 3, 1)_0": "c3",
+     "c_(2, 0, 1)_0": "c4",
+     "c_(2, 1, 1)_0": "c5",
+     "c_(2, 2, 1)_0": "c6",
+     "c_(3, 2, 1)_0": "c7",
+     "c_m1": "c8"
+    },
+    "qmap": {
+     "(0, 0, 0)": "q[0]",
+     "(0, 1, 0)": "q[1]",
+     "(0, 1, 1)": "q[2]",
+     "(0, 2, 0)": "q[3]",
+     "(1, 0, 0)": "q[4]",
+     "(1, 1, 0)": "q[5]",
+     "(1, 1, 1)": "q[6]",
+     "(1, 2, 0)": "q[7]",
+     "(1, 2, 1)": "q[8]",
+     "(1, 3, 1)": "q[9]",
+     "(2, 0, 0)": "q[10]",
+     "(2, 0, 1)": "q[11]",
+     "(2, 1, 0)": "q[12]",
+     "(2, 1, 1)": "q[13]",
+     "(2, 2, 0)": "q[14]",
+     "(2, 2, 1)": "q[15]",
+     "(3, 2, 1)": "q[16]"
+    },
+    "text": "q = cudaq.qvector(17)\n# Start of circuit: rsc_nested_or\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nreset(q[0])\nreset(q[1])\nreset(q[3])\nreset(q[4])\nreset(q[5])\nreset(q[7])\nreset(q[10])\nreset(q[12])\nreset(q[14])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nreset(q[6])\nreset(q[15])\nreset(q[8])\nreset(q[13])\nreset(q[2])\nreset(q[16])\nreset(q[11])\nreset(q[9])\nh(q[6])\nh(q[15])\nh(q[8])\nh(q[13])\nh(q[2])\nh(q[16])\nh(q[11])\nh(q[9])\ncz(q[6], q[4])\ncz(q[15], q[12])\ncx(q[8], q[5])\ncx(q[13], q[10])\ncx(q[2], q[0])\ncz(q[9], q[7])\ncz(q[6], q[0])\ncz(q[15], q[5])\ncx(q[8], q[7])\ncx(q[13], q[12])\ncx(q[2], q[1])\ncz(q[9], q[3])\ncz(q[6], q[5])\ncz(q[15], q[14])\ncx(q[8], q[1])\ncx(q[13], q[4])\ncx(q[16], q[12])\ncz(q[11], q[10])\ncz(q[6], q[1])\ncz(q[15], q[7])\ncx(q[8], q[3])\ncx(q[13], q[5])\ncx(q[16], q[14])\ncz(q[11], q[4])\nh(q[6])\nh(q[15])\nh(q[8])\nh(q[13])\nh(q[2])\nh(q[16])\nh(q[11])\nh(q[9])\nc1 = mz(q[6], regName='c_(1, 1, 1)_0')\nc6 = mz(q[15], regName='c_(2, 2, 1)_0')\nc2 = mz(q[8], regName='c_(1, 2, 1)_0')\nc5 = mz(q[13], regName='c_(2, 1, 1)_0')\nc0 = mz(q[2], regName='c_(0, 1, 1)_0')\nc7 = mz(q[16], regName='c_(3, 2, 1)_0')\nc4 = mz(q[11], regName='c_(2, 0, 1)_0')\nc3 = mz(q[9], regName='c_(1, 3, 1)_0')\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: after\nif (c0 or c2):\n    if (not c6):\n        if (c4):\n            x(q[5])\nelse:\n    # Start of circuit: else_block\n    if (c1 and c5):\n        c8 = my(q[5], regName='c_m1')\n    else:\n        z(q[5])\n    h(q[5])\n    #  End of circuit: else_block\ny(q[0])\n#  End of circuit: after\n#  End of circuit: rsc_nested_or"
+   },
+   "duration": 12,
+   "guppy": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "c[0]",
+     "c_(1, 1, 1)_0": "c[1]",
+     "c_(1, 2, 1)_0": "c[2]",
+     "c_(1, 3, 1)_0": "c[3]",
+     "c_(2, 0, 1)_0": "c[4]",
+     "c_(2, 1, 1)_0": "c[5]",
+     "c_(2, 2, 1)_0": "c[6]",
+     "c_(3, 2, 1)_0": "c[7]",
+     "c_m1": "c[8]"
+    },
+    "qmap": {
+     "(0, 0, 0)": "q[0]",
+     "(0, 1, 0)": "q[1]",
+     "(0, 1, 1)": "q[2]",
+     "(0, 2, 0)": "q[3]",
+     "(1, 0, 0)": "q[4]",
+     "(1, 1, 0)": "q[5]",
+     "(1, 1, 1)": "q[6]",
+     "(1, 2, 0)": "q[7]",
+     "(1, 2, 1)": "q[8]",
+     "(1, 3, 1)": "q[9]",
+     "(2, 0, 0)": "q[10]",
+     "(2, 0, 1)": "q[11]",
+     "(2, 1, 0)": "q[12]",
+     "(2, 1, 1)": "q[13]",
+     "(2, 2, 0)": "q[14]",
+     "(2, 2, 1)": "q[15]",
+     "(3, 2, 1)": "q[16]"
+    },
+    "text": "q = array(guppyQ.qubit() for _ in range(17))\nc = array(False for _ in range(9))\n# Start of circuit: rsc_nested_or\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nguppyQ.reset(q[0])\nguppyQ.reset(q[1])\nguppyQ.reset(q[3])\nguppyQ.reset(q[4])\nguppyQ.reset(q[5])\nguppyQ.reset(q[7])\nguppyQ.reset(q[10])\nguppyQ.reset(q[12])\nguppyQ.reset(q[14])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nguppyQ.reset(q[6])\nguppyQ.reset(q[15])\nguppyQ.reset(q[8])\nguppyQ.reset(q[13])\nguppyQ.reset(q[2])\nguppyQ.reset(q[16])\nguppyQ.reset(q[11])\nguppyQ.reset(q[9])\nguppyQ.h(q[6])\nguppyQ.h(q[15])\nguppyQ.h(q[8])\nguppyQ.h(q[13])\nguppyQ.h(q[2])\nguppyQ.h(q[16])\nguppyQ.h(q[11])\nguppyQ.h(q[9])\nguppyQ.cz(q[6], q[4])\nguppyQ.cz(q[15], q[12])\nguppyQ.cx(q[8], q[5])\nguppyQ.cx(q[13], q[10])\nguppyQ.cx(q[2], q[0])\nguppyQ.cz(q[9], q[7])\nguppyQ.cz(q[6], q[0])\nguppyQ.cz(q[15], q[5])\nguppyQ.cx(q[8], q[7])\nguppyQ.cx(q[13], q[12])\nguppyQ.cx(q[2], q[1])\nguppyQ.cz(q[9], q[3])\nguppyQ.cz(q[6], q[5])\nguppyQ.cz(q[15], q[14])\nguppyQ.cx(q[8], q[1])\nguppyQ.cx(q[13], q[4])\nguppyQ.cx(q[16], q[12])\nguppyQ.cz(q[11], q[10])\nguppyQ.cz(q[6], q[1])\nguppyQ.cz(q[15], q[7])\nguppyQ.cx(q[8], q[3])\nguppyQ.cx(q[13], q[5])\nguppyQ.cx(q[16], q[14])\nguppyQ.cz(q[11], q[4])\nguppyQ.h(q[6])\nguppyQ.h(q[15])\nguppyQ.h(q[8])\nguppyQ.h(q[13])\nguppyQ.h(q[2])\nguppyQ.h(q[16])\nguppyQ.h(q[11])\nguppyQ.h(q[9])\nc[1] = guppyQSys.measure_and_reset(q[6])\nbuiltins.result('c_(1, 1, 1)_0', c[1])\nc[6] = guppyQSys.measure_and_reset(q[15])\nbuiltins.result('c_(2, 2, 1)_0', c[6])\nc[2] = guppyQSys.measure_and_reset(q[8])\nbuiltins.result('c_(1, 2, 1)_0', c[2])\nc[5] = guppyQSys.measure_and_reset(q[13])\nbuiltins.result('c_(2, 1, 1)_0', c[5])\nc[0] = guppyQSys.measure_and_reset(q[2])\nbuiltins.result('c_(0, 1, 1)_0', c[0])\nc[7] = guppyQSys.measure_and_reset(q[16])\nbuiltins.result('c_(3, 2, 1)_0', c[7])\nc[4] = guppyQSys.measure_and_reset(q[11])\nbuiltins.result('c_(2, 0, 1)_0', c[4])\nc[3] = guppyQSys.measure_and_reset(q[9])\nbuiltins.result('c_(1, 3, 1)_0', c[3])\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: after\nif (c[0] or c[2]):\n    if (not c[6]):\n        if (c[4]):\n            guppyQ.x(q[5])\nelse:\n    # Start of circuit: else_block\n    if (c[1] and c[5]):\n        guppyQ.sdg(q[5])\n        guppyQ.h(q[5])\n        c[8] = guppyQSys.measure_and_reset(q[5])\n        builtins.result('c_m1', c[8])\n    else:\n        guppyQ.z(q[5])\n    guppyQ.h(q[5])\n    #  End of circuit: else_block\nguppyQ.y(q[0])\n#  End of circuit: after\n#  End of circuit: rsc_nested_or\nfor e in q:\n   guppyQ.discard(e) "
+   },
+   "mimiq": {
+    "error": [
+     "ValueError",
+     "Unsupported operation for Mimiq conversion: Mimiq only supports single gate conditioned if-else circuits."
+    ]
+   },
+   "pennylane": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "measurements[\"c_(0, 1, 1)_0\"]",
+     "c_(1, 1, 1)_0": "measurements[\"c_(1, 1, 1)_0\"]",
+     "c_(1, 2, 1)_0": "measurements[\"c_(1, 2, 1)_0\"]",
+     "c_(1, 3, 1)_0": "measurements[\"c_(1, 3, 1)_0\"]",
+     "c_(2, 0, 1)_0": "measurements[\"c_(2, 0, 1)_0\"]",
+     "c_(2, 1, 1)_0": "measurements[\"c_(2, 1, 1)_0\"]",
+     "c_(2, 2, 1)_0": "measurements[\"c_(2, 2, 1)_0\"]",
+     "c_(3, 2, 1)_0": "measurements[\"c_(3, 2, 1)_0\"]",
+     "c_m1": "measurements[\"c_m1\"]"
+    },
+    "qmap": {
+     "(0, 0, 0)": 0,
+     "(0, 1, 0)": 1,
+     "(0, 1, 1)": 2,
+     "(0, 2, 0)": 3,
+     "(1, 0, 0)": 4,
+     "(1, 1, 0)": 5,
+     "(1, 1, 1)": 6,
+     "(1, 2, 0)": 7,
+     "(1, 2, 1)": 8,
+     "(1, 3, 1)": 9,
+     "(2, 0, 0)": 10,
+     "(2, 0, 1)": 11,
+     "(2, 1, 0)": 12,
+     "(2, 1, 1)": 13,
+     "(2, 2, 0)": 14,
+     "(2, 2, 1)": 15,
+     "(3, 2, 1)": 16
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\nqml.registers({'(0, 0, 0)': 1, '(0, 1, 0)': 1, '(0, 1, 1)': 1, '(0, 2, 0)': 1, '(1, 0, 0)': 1, '(1, 1, 0)': 1, '(1, 1, 1)': 1, '(1, 2, 0)': 1, '(1, 2, 1)': 1, '(1, 3, 1)': 1, '(2, 0, 0)': 1, '(2, 0, 1)': 1, '(2, 1, 0)': 1, '(2, 1, 1)': 1, '(2, 2, 0)': 1, '(2, 2, 1)': 1, '(3, 2, 1)': 1})\n\n# Start of circuit: rsc_nested_or\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nqml.measure(0, reset=True)\nqml.measure(1, reset=True)\nqml.measure(3, reset=True)\nqml.measure(4, reset=True)\nqml.measure(5, reset=True)\nqml.measure(7, reset=True)\nqml.measure(10, reset=True)\nqml.measure(12, reset=True)\nqml.measure(14, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nqml.measure(6, reset=True)\nqml.measure(15, reset=True)\nqml.measure(8, reset=True)\nqml.measure(13, reset=True)\nqml.measure(2, reset=True)\nqml.measure(16, reset=True)\nqml.measure(11, reset=True)\nqml.measure(9, reset=True)\nqml.Hadamard([6])\nqml.Hadamard([15])\nqml.Hadamard([8])\nqml.Hadamard([13])\nqml.Hadamard([2])\nqml.Hadamard([16])\nqml.Hadamard([11])\nqml.Hadamard([9])\nqml.CZ([6, 4])\nqml.CZ([15, 12])\nqml.CNOT([8, 5])\nqml.CNOT([13, 10])\nqml.CNOT([2, 0])\nqml.CZ([9, 7])\nqml.CZ([6, 0])\nqml.CZ([15, 5])\nqml.CNOT([8, 7])\nqml.CNOT([13, 12])\nqml.CNOT([2, 1])\nqml.CZ([9, 3])\nqml.CZ([6, 5])\nqml.CZ([15, 14])\nqml.CNOT([8, 1])\nqml.CNOT([13, 4])\nqml.CNOT([16, 12])\nqml.CZ([11, 10])\nqml.CZ([6, 1])\nqml.CZ([15, 7])\nqml.CNOT([8, 3])\nqml.CNOT([13, 5])\nqml.CNOT([16, 14])\nqml.CZ([11, 4])\nqml.Hadamard([6])\nqml.Hadamard([15])\nqml.Hadamard([8])\nqml.Hadamard([13])\nqml.Hadamard([2])\nqml.Hadamard([16])\nqml.Hadamard([11])\nqml.Hadamard([9])\nmeasurements[\"c_(1, 1, 1)_0\"] = qml.measure(6)\nmeasurements[\"c_(2, 2, 1)_0\"] = qml.measure(15)\nmeasurements[\"c_(1, 2, 1)_0\"] = qml.measure(8)\nmeasurements[\"c_(2, 1, 1)_0\"] = qml.measure(13)\nmeasurements[\"c_(0, 1, 1)_0\"] = qml.measure(2)\nmeasurements[\"c_(3, 2, 1)_0\"] = qml.measure(16)\nmeasurements[\"c_(2, 0, 1)_0\"] = qml.measure(11)\nmeasurements[\"c_(1, 3, 1)_0\"] = qml.measure(9)\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: after\ndef call_if_true():\n    def call_if_true():\n        def call_if_true():\n            qml.PauliX([5])\n        qml.cond(measurements[\"c_(2, 0, 1)_0\"] == 1, call_if_true)()\n    qml.cond(~(measurements[\"c_(2, 2, 1)_0\"] == 1), call_if_true)()\ndef call_else():\n    # Start of circuit: else_block\n    def call_if_true():\n        qml.adjoint(qml.S)(5)\n        qml.Hadamard(5)\n        measurements[\"c_m1\"] = qml.measure(5)\n    def call_else():\n        qml.PauliZ([5])\n    qml.cond((measurements[\"c_(1, 1, 1)_0\"] == 1) & (measurements[\"c_(2, 1, 1)_0\"] == 1), call_if_true)()\n    qml.cond(~((measurements[\"c_(1, 1, 1)_0\"] == 1) & (measurements[\"c_(2, 1, 1)_0\"] == 1)), call_else)()\n    qml.Hadamard([5])\n    #  End of circuit: else_block\nqml.cond((measurements[\"c_(0, 1, 1)_0\"] == 1) | (measurements[\"c_(1, 2, 1)_0\"] == 1), call_if_true)()\nqml.cond(~((measurements[\"c_(0, 1, 1)_0\"] == 1) | (measurements[\"c_(1, 2, 1)_0\"] == 1)), call_else)()\nqml.PauliY([0])\n#  End of circuit: after\n#  End of circuit: rsc_nested_or"
+   },
+   "qasm": {
+    "cmap": {
+     "c_(0, 1, 1)_0": 0,
+     "c_(1, 1, 1)_0": 1,
+     "c_(1, 2, 1)_0": 2,
+     "c_(1, 3, 1)_0": 3,
+     "c_(2, 0, 1)_0": 4,
+     "c_(2, 1, 1)_0": 5,
+     "c_(2, 2, 1)_0": 6,
+     "c_(3, 2, 1)_0": 7,
+     "c_m1": 8
+    },
+    "qmap": {
+     "(0, 0, 0)": 0,
+     "(0, 1, 0)": 1,
+     "(0, 1, 1)": 2,
+     "(0, 2, 0)": 3,
+     "(1, 0, 0)": 4,
+     "(1, 1, 0)": 5,
+     "(1, 1, 1)": 6,
+     "(1, 2, 0)": 7,
+     "(1, 2, 1)": 8,
+     "(1, 3, 1)": 9,
+     "(2, 0, 0)": 10,
+     "(2, 0, 1)": 11,
+     "(2, 1, 0)": 12,
+     "(2, 1, 1)": 13,
+     "(2, 2, 0)": 14,
+     "(2, 2, 1)": 15,
+     "(3, 2, 1)": 16
+    },
+    "text": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\n// Init registers\nqubit[17] q;\nbit[9] c;\n// Start of circuit: rsc_nested_or\n// Start of circuit: final circuit\n// Start of circuit: reset all data qubits of block b to |0>\nreset q[0];\nreset q[1];\nreset q[3];\nreset q[4];\nreset q[5];\nreset q[7];\nreset q[10];\nreset q[12];\nreset q[14];\n//  End of circuit: reset all data qubits of block b to |0>\n// Start of circuit: measure b syndromes 1 time(s)\n// Start of circuit: measure b syndromes - cycle 0\nreset q[6];\nreset q[15];\nreset q[8];\nreset q[13];\nreset q[2];\nreset q[16];\nreset q[11];\nreset q[9];\nh q[6];\nh q[15];\nh q[8];\nh q[13];\nh q[2];\nh q[16];\nh q[11];\nh q[9];\ncz q[6], q[4];\ncz q[15], q[12];\ncx q[8], q[5];\ncx q[13], q[10];\ncx q[2], q[0];\ncz q[9], q[7];\ncz q[6], q[0];\ncz q[15], q[5];\ncx q[8], q[7];\ncx q[13], q[12];\ncx q[2], q[1];\ncz q[9], q[3];\ncz q[6], q[5];\ncz q[15], q[14];\ncx q[8], q[1];\ncx q[13], q[4];\ncx q[16], q[12];\ncz q[11], q[10];\ncz q[6], q[1];\ncz q[15], q[7];\ncx q[8], q[3];\ncx q[13], q[5];\ncx q[16], q[14];\ncz q[11], q[4];\nh q[6];\nh q[15];\nh q[8];\nh q[13];\nh q[2];\nh q[16];\nh q[11];\nh q[9];\nmeasure q[6] -> c[1];\nmeasure q[15] -> c[6];\nmeasure q[8] -> c[2];\nmeasure q[13] -> c[5];\nmeasure q[2] -> c[0];\nmeasure q[16] -> c[7];\nmeasure q[11] -> c[4];\nmeasure q[9] -> c[3];\n//  End of circuit: measure b syndromes - cycle 0\n//  End of circuit: measure b syndromes 1 time(s)\n//  End of circuit: final circuit\n// Start of circuit: after\nif (c[0] == 1 || c[2] == 1) {\n    if (!c[6]) {\n        if (c[4]) {\n            x q[5];\n        }\n    }\n} else {\n    // Start of circuit: else_block\n    if (c[1] == 1 && c[5] == 1) {\n        sdg q[5];\n        h q[5];\n        measure q[5] -> c[8];\n    } else {\n        z q[5];\n    }\n    h q[5];\n    //  End of circuit: else_block\n}\ny q[0];\n//  End of circuit: after\n//  End of circuit: rsc_nested_or"
+   },
+   "stim": {
+    "error": [
+     "ValueError",
+     "Unsupported operation for Stim conversion: Stim only supports single bit conditions for if-else circuits."
+    ]
+   }
+  },
+  "rsc_not_else": {
+   "catalyst": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "measurements[\"c_(0, 1, 1)_0\"]",
+     "c_(1, 1, 1)_0": "measurements[\"c_(1, 1, 1)_0\"]",
+     "c_(1, 2, 1)_0": "measurements[\"c_(1, 2, 1)_0\"]",
+     "c_(1, 3, 1)_0": "measurements[\"c_(1, 3, 1)_0\"]",
+     "c_(2, 0, 1)_0": "measurements[\"c_(2, 0, 1)_0\"]",
+     "c_(2, 1, 1)_0": "measurements[\"c_(2, 1, 1)_0\"]",
+     "c_(2, 2, 1)_0": "measurements[\"c_(2, 2, 1)_0\"]",
+     "c_(3, 2, 1)_0": "measurements[\"c_(3, 2, 1)_0\"]",
+     "c_extra": "measurements[\"c_extra\"]"
+    },
+    "qmap": {
+     "(0, 0, 0)": 0,
+     "(0, 1, 0)": 1,
+     "(0, 1, 1)": 2,
+     "(0, 2, 0)": 3,
+     "(1, 0, 0)": 4,
+     "(1, 1, 0)": 5,
+     "(1, 1, 1)": 6,
+     "(1, 2, 0)": 7,
+     "(1, 2, 1)": 8,
+     "(1, 3, 1)": 9,
+     "(2, 0, 0)": 10,
+     "(2, 0, 1)": 11,
+     "(2, 1, 0)": 12,
+     "(2, 1, 1)": 13,
+     "(2, 2, 0)": 14,
+     "(2, 2, 1)": 15,
+     "(3, 2, 1)": 16
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\npl.registers({'(0, 0, 0)': 1, '(0, 1, 0)': 1, '(0, 1, 1)': 1, '(0, 2, 0)': 1, '(1, 0, 0)': 1, '(1, 1, 0)': 1, '(1, 1, 1)': 1, '(1, 2, 0)': 1, '(1, 2, 1)': 1, '(1, 3, 1)': 1, '(2, 0, 0)': 1, '(2, 0, 1)': 1, '(2, 1, 0)': 1, '(2, 1, 1)': 1, '(2, 2, 0)': 1, '(2, 2, 1)': 1, '(3, 2, 1)': 1})\n\n# Start of circuit: rsc_not_else\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\ncatalyst_measure(0, reset=True)\ncatalyst_measure(1, reset=True)\ncatalyst_measure(3, reset=True)\ncatalyst_measure(4, reset=True)\ncatalyst_measure(5, reset=True)\ncatalyst_measure(7, reset=True)\ncatalyst_measure(10, reset=True)\ncatalyst_measure(12, reset=True)\ncatalyst_measure(14, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\ncatalyst_measure(6, reset=True)\ncatalyst_measure(15, reset=True)\ncatalyst_measure(8, reset=True)\ncatalyst_measure(13, reset=True)\ncatalyst_measure(2, reset=True)\ncatalyst_measure(16, reset=True)\ncatalyst_measure(11, reset=True)\ncatalyst_measure(9, reset=True)\npl.Hadamard([6])\npl.Hadamard([15])\npl.Hadamard([8])\npl.Hadamard([13])\npl.Hadamard([2])\npl.Hadamard([16])\npl.Hadamard([11])\npl.Hadamard([9])\npl.CZ([6, 4])\npl.CZ([15, 12])\npl.CNOT([8, 5])\npl.CNOT([13, 10])\npl.CNOT([2, 0])\npl.CZ([9, 7])\npl.CZ([6, 0])\npl.CZ([15, 5])\npl.CNOT([8, 7])\npl.CNOT([13, 12])\npl.CNOT([2, 1])\npl.CZ([9, 3])\npl.CZ([6, 5])\npl.CZ([15, 14])\npl.CNOT([8, 1])\npl.CNOT([13, 4])\npl.CNOT([16, 12])\npl.CZ([11, 10])\npl.CZ([6, 1])\npl.CZ([15, 7])\npl.CNOT([8, 3])\npl.CNOT([13, 5])\npl.CNOT([16, 14])\npl.CZ([11, 4])\npl.Hadamard([6])\npl.Hadamard([15])\npl.Hadamard([8])\npl.Hadamard([13])\npl.Hadamard([2])\npl.Hadamard([16])\npl.Hadamard([11])\npl.Hadamard([9])\nmeasurements[\"c_(1, 1, 1)_0\"] = catalyst_measure(6)\nmeasurements[\"c_(2, 2, 1)_0\"] = catalyst_measure(15)\nmeasurements[\"c_(1, 2, 1)_0\"] = catalyst_measure(8)\nmeasurements[\"c_(2, 1, 1)_0\"] = catalyst_measure(13)\nmeasurements[\"c_(0, 1, 1)_0\"] = catalyst_measure(2)\nmeasurements[\"c_(3, 2, 1)_0\"] = catalyst_measure(16)\nmeasurements[\"c_(2, 0, 1)_0\"] = catalyst_measure(11)\nmeasurements[\"c_(1, 3, 1)_0\"] = catalyst_measure(9)\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: branches\ndef call_if_true():\n    # Start of circuit: flip\n    pl.PauliX([0])\n    pl.PauliZ([4])\n    pl.Hadamard([0])\n    #  End of circuit: flip\ndef call_else():\n    pl.Hadamard([4])\npl.cond(~(measurements[\"c_(1, 2, 1)_0\"] == 1), call_if_true)()\npl.cond(~(~(measurements[\"c_(1, 2, 1)_0\"] == 1)), call_else)()\ndef call_if_true():\n    # Start of circuit: measure_data\n    measurements[\"c_extra\"] = catalyst_measure(14)\n    #  End of circuit: measure_data\npl.cond(~(measurements[\"c_(3, 2, 1)_0\"] == 1), call_if_true)()\ndef call_if_true():\n    # Start of circuit: empty_branch\n    #  End of circuit: empty_branch\ndef call_else():\n    catalyst_measure(3, reset=True)\n    pl.Hadamard([3])\npl.cond(measurements[\"c_(1, 3, 1)_0\"] == 1, call_if_true)()\npl.cond(~(measurements[\"c_(1, 3, 1)_0\"] == 1), call_else)()\n#  End of circuit: branches\n#  End of circuit: rsc_not_else"
+   },
+   "cudaq": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "c0",
+     "c_(1, 1, 1)_0": "c1",
+     "c_(1, 2, 1)_0": "c2",
+     "c_(1, 3, 1)_0": "c3",
+     "c_(2, 0, 1)_0": "c4",
+     "c_(2, 1, 1)_0": "c5",
+     "c_(2, 2, 1)_0": "c6",
+     "c_(3, 2, 1)_0": "c7",
+     "c_extra": "c8"
+    },
+    "qmap": {
+     "(0, 0, 0)": "q[0]",
+     "(0, 1, 0)": "q[1]",
+     "(0, 1, 1)": "q[2]",
+     "(0, 2, 0)": "q[3]",
+     "(1, 0, 0)": "q[4]",
+     "(1, 1, 0)": "q[5]",
+     "(1, 1, 1)": "q[6]",
+     "(1, 2, 0)": "q[7]",
+     "(1, 2, 1)": "q[8]",
+     "(1, 3, 1)": "q[9]",
+     "(2, 0, 0)": "q[10]",
+     "(2, 0, 1)": "q[11]",
+     "(2, 1, 0)": "q[12]",
+     "(2, 1, 1)": "q[13]",
+     "(2, 2, 0)": "q[14]",
+     "(2, 2, 1)": "q[15]",
+     "(3, 2, 1)": "q[16]"
+    },
+    "text": "q = cudaq.qvector(17)\n# Start of circuit: rsc_not_else\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nreset(q[0])\nreset(q[1])\nreset(q[3])\nreset(q[4])\nreset(q[5])\nreset(q[7])\nreset(q[10])\nreset(q[12])\nreset(q[14])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nreset(q[6])\nreset(q[15])\nreset(q[8])\nreset(q[13])\nreset(q[2])\nreset(q[16])\nreset(q[11])\nreset(q[9])\nh(q[6])\nh(q[15])\nh(q[8])\nh(q[13])\nh(q[2])\nh(q[16])\nh(q[11])\nh(q[9])\ncz(q[6], q[4])\ncz(q[15], q[12])\ncx(q[8], q[5])\ncx(q[13], q[10])\ncx(q[2], q[0])\ncz(q[9], q[7])\ncz(q[6], q[0])\ncz(q[15], q[5])\ncx(q[8], q[7])\ncx(q[13], q[12])\ncx(q[2], q[1])\ncz(q[9], q[3])\ncz(q[6], q[5])\ncz(q[15], q[14])\ncx(q[8], q[1])\ncx(q[13], q[4])\ncx(q[16], q[12])\ncz(q[11], q[10])\ncz(q[6], q[1])\ncz(q[15], q[7])\ncx(q[8], q[3])\ncx(q[13], q[5])\ncx(q[16], q[14])\ncz(q[11], q[4])\nh(q[6])\nh(q[15])\nh(q[8])\nh(q[13])\nh(q[2])\nh(q[16])\nh(q[11])\nh(q[9])\nc1 = mz(q[6], regName='c_(1, 1, 1)_0')\nc6 = mz(q[15], regName='c_(2, 2, 1)_0')\nc2 = mz(q[8], regName='c_(1, 2, 1)_0')\nc5 = mz(q[13], regName='c_(2, 1, 1)_0')\nc0 = mz(q[2], regName='c_(0, 1, 1)_0')\nc7 = mz(q[16], regName='c_(3, 2, 1)_0')\nc4 = mz(q[11], regName='c_(2, 0, 1)_0')\nc3 = mz(q[9], regName='c_(1, 3, 1)_0')\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: branches\nif (not c2):\n    # Start of circuit: flip\n    x(q[0])\n    z(q[4])\n    h(q[0])\n    #  End of circuit: flip\nelse:\n    h(q[4])\nif (not c7):\n    # Start of circuit: measure_data\n    c8 = mz(q[14], regName='c_extra')\n    #  End of circuit: measure_data\nif (c3):\n    # Start of circuit: empty_branch\n    #  End of circuit: empty_branch\nelse:\n    reset(q[3])\n    h(q[3])\n#  End of circuit: branches\n#  End of circuit: rsc_not_else"
+   },
+   "duration": 11,
+   "guppy": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "c[0]",
+     "c_(1, 1, 1)_0": "c[1]",
+     "c_(1, 2, 1)_0": "c[2]",
+     "c_(1, 3, 1)_0": "c[3]",
+     "c_(2, 0, 1)_0": "c[4]",
+     "c_(2, 1, 1)_0": "c[5]",
+     "c_(2, 2, 1)_0": "c[6]",
+     "c_(3, 2, 1)_0": "c[7]",
+     "c_extra": "c[8]"
+    },
+    "qmap": {
+     "(0, 0, 0)": "q[0]",
+     "(0, 1, 0)": "q[1]",
+     "(0, 1, 1)": "q[2]",
+     "(0, 2, 0)": "q[3]",
+     "(1, 0, 0)": "q[4]",
+     "(1, 1, 0)": "q[5]",
+     "(1, 1, 1)": "q[6]",
+     "(1, 2, 0)": "q[7]",
+     "(1, 2, 1)": "q[8]",
+     "(1, 3, 1)": "q[9]",
+     "(2, 0, 0)": "q[10]",
+     "(2, 0, 1)": "q[11]",
+     "(2, 1, 0)": "q[12]",
+     "(2, 1, 1)": "q[13]",
+     "(2, 2, 0)": "q[14]",
+     "(2, 2, 1)": "q[15]",
+     "(3, 2, 1)": "q[16]"
+    },
+    "text": "q = array(guppyQ.qubit() for _ in range(17))\nc = array(False for _ in range(9))\n# Start of circuit: rsc_not_else\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nguppyQ.reset(q[0])\nguppyQ.reset(q[1])\nguppyQ.reset(q[3])\nguppyQ.reset(q[4])\nguppyQ.reset(q[5])\nguppyQ.reset(q[7])\nguppyQ.reset(q[10])\nguppyQ.reset(q[12])\nguppyQ.reset(q[14])\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nguppyQ.reset(q[6])\nguppyQ.reset(q[15])\nguppyQ.reset(q[8])\nguppyQ.reset(q[13])\nguppyQ.reset(q[2])\nguppyQ.reset(q[16])\nguppyQ.reset(q[11])\nguppyQ.reset(q[9])\nguppyQ.h(q[6])\nguppyQ.h(q[15])\nguppyQ.h(q[8])\nguppyQ.h(q[13])\nguppyQ.h(q[2])\nguppyQ.h(q[16])\nguppyQ.h(q[11])\nguppyQ.h(q[9])\nguppyQ.cz(q[6], q[4])\nguppyQ.cz(q[15], q[12])\nguppyQ.cx(q[8], q[5])\nguppyQ.cx(q[13], q[10])\nguppyQ.cx(q[2], q[0])\nguppyQ.cz(q[9], q[7])\nguppyQ.cz(q[6], q[0])\nguppyQ.cz(q[15], q[5])\nguppyQ.cx(q[8], q[7])\nguppyQ.cx(q[13], q[12])\nguppyQ.cx(q[2], q[1])\nguppyQ.cz(q[9], q[3])\nguppyQ.cz(q[6], q[5])\nguppyQ.cz(q[15], q[14])\nguppyQ.cx(q[8], q[1])\nguppyQ.cx(q[13], q[4])\nguppyQ.cx(q[16], q[12])\nguppyQ.cz(q[11], q[10])\nguppyQ.cz(q[6], q[1])\nguppyQ.cz(q[15], q[7])\nguppyQ.cx(q[8], q[3])\nguppyQ.cx(q[13], q[5])\nguppyQ.cx(q[16], q[14])\nguppyQ.cz(q[11], q[4])\nguppyQ.h(q[6])\nguppyQ.h(q[15])\nguppyQ.h(q[8])\nguppyQ.h(q[13])\nguppyQ.h(q[2])\nguppyQ.h(q[16])\nguppyQ.h(q[11])\nguppyQ.h(q[9])\nc[1] = guppyQSys.measure_and_reset(q[6])\nbuiltins.result('c_(1, 1, 1)_0', c[1])\nc[6] = guppyQSys.measure_and_reset(q[15])\nbuiltins.result('c_(2, 2, 1)_0', c[6])\nc[2] = guppyQSys.measure_and_reset(q[8])\nbuiltins.result('c_(1, 2, 1)_0', c[2])\nc[5] = guppyQSys.measure_and_reset(q[13])\nbuiltins.result('c_(2, 1, 1)_0', c[5])\nc[0] = guppyQSys.measure_and_reset(q[2])\nbuiltins.result('c_(0, 1, 1)_0', c[0])\nc[7] = guppyQSys.measure_and_reset(q[16])\nbuiltins.result('c_(3, 2, 1)_0', c[7])\nc[4] = guppyQSys.measure_and_reset(q[11])\nbuiltins.result('c_(2, 0, 1)_0', c[4])\nc[3] = guppyQSys.measure_and_reset(q[9])\nbuiltins.result('c_(1, 3, 1)_0', c[3])\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: branches\nif (not c[2]):\n    # Start of circuit: flip\n    guppyQ.x(q[0])\n    guppyQ.z(q[4])\n    guppyQ.h(q[0])\n    #  End of circuit: flip\nelse:\n    guppyQ.h(q[4])\nif (not c[7]):\n    # Start of circuit: measure_data\n    c[8] = guppyQSys.measure_and_reset(q[14])\n    builtins.result('c_extra', c[8])\n    #  End of circuit: measure_data\nif (c[3]):\n    # Start of circuit: empty_branch\n    #  End of circuit: empty_branch\nelse:\n    guppyQ.reset(q[3])\n    guppyQ.h(q[3])\n#  End of circuit: branches\n#  End of circuit: rsc_not_else\nfor e in q:\n   guppyQ.discard(e) "
+   },
+   "mimiq": {
+    "error": [
+     "ValueError",
+     "Unsupported operation for Mimiq conversion: Mimiq only supports single gate conditioned if-else circuits."
+    ]
+   },
+   "pennylane": {
+    "cmap": {
+     "c_(0, 1, 1)_0": "measurements[\"c_(0, 1, 1)_0\"]",
+     "c_(1, 1, 1)_0": "measurements[\"c_(1, 1, 1)_0\"]",
+     "c_(1, 2, 1)_0": "measurements[\"c_(1, 2, 1)_0\"]",
+     "c_(1, 3, 1)_0": "measurements[\"c_(1, 3, 1)_0\"]",
+     "c_(2, 0, 1)_0": "measurements[\"c_(2, 0, 1)_0\"]",
+     "c_(2, 1, 1)_0": "measurements[\"c_(2, 1, 1)_0\"]",
+     "c_(2, 2, 1)_0": "measurements[\"c_(2, 2, 1)_0\"]",
+     "c_(3, 2, 1)_0": "measurements[\"c_(3, 2, 1)_0\"]",
+     "c_extra": "measurements[\"c_extra\"]"
+    },
+    "qmap": {
+     "(0, 0, 0)": 0,
+     "(0, 1, 0)": 1,
+     "(0, 1, 1)": 2,
+     "(0, 2, 0)": 3,
+     "(1, 0, 0)": 4,
+     "(1, 1, 0)": 5,
+     "(1, 1, 1)": 6,
+     "(1, 2, 0)": 7,
+     "(1, 2, 1)": 8,
+     "(1, 3, 1)": 9,
+     "(2, 0, 0)": 10,
+     "(2, 0, 1)": 11,
+     "(2, 1, 0)": 12,
+     "(2, 1, 1)": 13,
+     "(2, 2, 0)": 14,
+     "(2, 2, 1)": 15,
+     "(3, 2, 1)": 16
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\nqml.registers({'(0, 0, 0)': 1, '(0, 1, 0)': 1, '(0, 1, 1)': 1, '(0, 2, 0)': 1, '(1, 0, 0)': 1, '(1, 1, 0)': 1, '(1, 1, 1)': 1, '(1, 2, 0)': 1, '(1, 2, 1)': 1, '(1, 3, 1)': 1, '(2, 0, 0)': 1, '(2, 0, 1)': 1, '(2, 1, 0)': 1, '(2, 1, 1)': 1, '(2, 2, 0)': 1, '(2, 2, 1)': 1, '(3, 2, 1)': 1})\n\n# Start of circuit: rsc_not_else\n# Start of circuit: final circuit\n# Start of circuit: reset all data qubits of block b to |0>\nqml.measure(0, reset=True)\nqml.measure(1, reset=True)\nqml.measure(3, reset=True)\nqml.measure(4, reset=True)\nqml.measure(5, reset=True)\nqml.measure(7, reset=True)\nqml.measure(10, reset=True)\nqml.measure(12, reset=True)\nqml.measure(14, reset=True)\n#  End of circuit: reset all data qubits of block b to |0>\n# Start of circuit: measure b syndromes 1 time(s)\n# Start of circuit: measure b syndromes - cycle 0\nqml.measure(6, reset=True)\nqml.measure(15, reset=True)\nqml.measure(8, reset=True)\nqml.measure(13, reset=True)\nqml.measure(2, reset=True)\nqml.measure(16, reset=True)\nqml.measure(11, reset=True)\nqml.measure(9, reset=True)\nqml.Hadamard([6])\nqml.Hadamard([15])\nqml.Hadamard([8])\nqml.Hadamard([13])\nqml.Hadamard([2])\nqml.Hadamard([16])\nqml.Hadamard([11])\nqml.Hadamard([9])\nqml.CZ([6, 4])\nqml.CZ([15, 12])\nqml.CNOT([8, 5])\nqml.CNOT([13, 10])\nqml.CNOT([2, 0])\nqml.CZ([9, 7])\nqml.CZ([6, 0])\nqml.CZ([15, 5])\nqml.CNOT([8, 7])\nqml.CNOT([13, 12])\nqml.CNOT([2, 1])\nqml.CZ([9, 3])\nqml.CZ([6, 5])\nqml.CZ([15, 14])\nqml.CNOT([8, 1])\nqml.CNOT([13, 4])\nqml.CNOT([16, 12])\nqml.CZ([11, 10])\nqml.CZ([6, 1])\nqml.CZ([15, 7])\nqml.CNOT([8, 3])\nqml.CNOT([13, 5])\nqml.CNOT([16, 14])\nqml.CZ([11, 4])\nqml.Hadamard([6])\nqml.Hadamard([15])\nqml.Hadamard([8])\nqml.Hadamard([13])\nqml.Hadamard([2])\nqml.Hadamard([16])\nqml.Hadamard([11])\nqml.Hadamard([9])\nmeasurements[\"c_(1, 1, 1)_0\"] = qml.measure(6)\nmeasurements[\"c_(2, 2, 1)_0\"] = qml.measure(15)\nmeasurements[\"c_(1, 2, 1)_0\"] = qml.measure(8)\nmeasurements[\"c_(2, 1, 1)_0\"] = qml.measure(13)\nmeasurements[\"c_(0, 1, 1)_0\"] = qml.measure(2)\nmeasurements[\"c_(3, 2, 1)_0\"] = qml.measure(16)\nmeasurements[\"c_(2, 0, 1)_0\"] = qml.measure(11)\nmeasurements[\"c_(1, 3, 1)_0\"] = qml.measure(9)\n#  End of circuit: measure b syndromes - cycle 0\n#  End of circuit: measure b syndromes 1 time(s)\n#  End of circuit: final circuit\n# Start of circuit: branches\ndef call_if_true():\n    # Start of circuit: flip\n    qml.PauliX([0])\n    qml.PauliZ([4])\n    qml.Hadamard([0])\n    #  End of circuit: flip\ndef call_else():\n    qml.Hadamard([4])\nqml.cond(~(measurements[\"c_(1, 2, 1)_0\"] == 1), call_if_true)()\nqml.cond(~(~(measurements[\"c_(1, 2, 1)_0\"] == 1)), call_else)()\ndef call_if_true():\n    # Start of circuit: measure_data\n    measurements[\"c_extra\"] = qml.measure(14)\n    #  End of circuit: measure_data\nqml.cond(~(measurements[\"c_(3, 2, 1)_0\"] == 1), call_if_true)()\ndef call_if_true():\n    # Start of circuit: empty_branch\n    #  End of circuit: empty_branch\ndef call_else():\n    qml.measure(3, reset=True)\n    qml.Hadamard([3])\nqml.cond(measurements[\"c_(1, 3, 1)_0\"] == 1, call_if_true)()\nqml.cond(~(measurements[\"c_(1, 3, 1)_0\"] == 1), call_else)()\n#  End of circuit: branches\n#  End of circuit: rsc_not_else"
+   },
+   "qasm": {
+    "cmap": {
+     "c_(0, 1, 1)_0": 0,
+     "c_(1, 1, 1)_0": 1,
+     "c_(1, 2, 1)_0": 2,
+     "c_(1, 3, 1)_0": 3,
+     "c_(2, 0, 1)_0": 4,
+     "c_(2, 1, 1)_0": 5,
+     "c_(2, 2, 1)_0": 6,
+     "c_(3, 2, 1)_0": 7,
+     "c_extra": 8
+    },
+    "qmap": {
+     "(0, 0, 0)": 0,
+     "(0, 1, 0)": 1,
+     "(0, 1, 1)": 2,
+     "(0, 2, 0)": 3,
+     "(1, 0, 0)": 4,
+     "(1, 1, 0)": 5,
+     "(1, 1, 1)": 6,
+     "(1, 2, 0)": 7,
+     "(1, 2, 1)": 8,
+     "(1, 3, 1)": 9,
+     "(2, 0, 0)": 10,
+     "(2, 0, 1)": 11,
+     "(2, 1, 0)": 12,
+     "(2, 1, 1)": 13,
+     "(2, 2, 0)": 14,
+     "(2, 2, 1)": 15,
+     "(3, 2, 1)": 16
+    },
+    "text": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\n// Init registers\nqubit[17] q;\nbit[9] c;\n// Start of circuit: rsc_not_else\n// Start of circuit: final circuit\n// Start of circuit: reset all data qubits of block b to |0>\nreset q[0];\nreset q[1];\nreset q[3];\nreset q[4];\nreset q[5];\nreset q[7];\nreset q[10];\nreset q[12];\nreset q[14];\n//  End of circuit: reset all data qubits of block b to |0>\n// Start of circuit: measure b syndromes 1 time(s)\n// Start of circuit: measure b syndromes - cycle 0\nreset q[6];\nreset q[15];\nreset q[8];\nreset q[13];\nreset q[2];\nreset q[16];\nreset q[11];\nreset q[9];\nh q[6];\nh q[15];\nh q[8];\nh q[13];\nh q[2];\nh q[16];\nh q[11];\nh q[9];\ncz q[6], q[4];\ncz q[15], q[12];\ncx q[8], q[5];\ncx q[13], q[10];\ncx q[2], q[0];\ncz q[9], q[7];\ncz q[6], q[0];\ncz q[15], q[5];\ncx q[8], q[7];\ncx q[13], q[12];\ncx q[2], q[1];\ncz q[9], q[3];\ncz q[6], q[5];\ncz q[15], q[14];\ncx q[8], q[1];\ncx q[13], q[4];\ncx q[16], q[12];\ncz q[11], q[10];\ncz q[6], q[1];\ncz q[15], q[7];\ncx q[8], q[3];\ncx q[13], q[5];\ncx q[16], q[14];\ncz q[11], q[4];\nh q[6];\nh q[15];\nh q[8];\nh q[13];\nh q[2];\nh q[16];\nh q[11];\nh q[9];\nmeasure q[6] -> c[1];\nmeasure q[15] -> c[6];\nmeasure q[8] -> c[2];\nmeasure q[13] -> c[5];\nmeasure q[2] -> c[0];\nmeasure q[16] -> c[7];\nmeasure q[11] -> c[4];\nmeasure q[9] -> c[3];\n//  End of circuit: measure b syndromes - cycle 0\n//  End of circuit: measure b syndromes 1 time(s)\n//  End of circuit: final circuit\n// Start of circuit: branches\nif (!c[2]) {\n    // Start of circuit: flip\n    x q[0];\n    z q[4];\n    h q[0];\n    //  End of circuit: flip\n} else {\n    h q[4];\n}\nif (!c[7]) {\n    // Start of circuit: measure_data\n    measure q[14] -> c[8];\n    //  End of circuit: measure_data\n}\nif (c[3]) {\n    // Start of circuit: empty_branch\n    //  End of circuit: empty_branch\n} else {\n    reset q[3];\n    h q[3];\n}\n//  End of circuit: branches\n//  End of circuit: rsc_not_else"
+   },
+   "stim": {
+    "error": [
+     "ValueError",
+     "Unsupported operation for Stim conversion: Stim only supports single gate conditioned if-else circuits."
+    ]
+   }
+  }
+ },
+ "errors": {
+  "as_gate": [
+   "NotImplementedError",
+   "IfElseCircuit cannot be represented as a gate."
+  ],
+  "boolop_unknown": [
+   "ValueError",
+   "`maybe` is an invalid input for enum `BoolOp`. Only the following values are allowed as an input: and, nand, or, nor, xor, not, match."
+  ],
+  "cem_missing_ifelse_duration": [
+   "ValidationError",
+   "1 validation error for AsymmetricDepolarizeCEM\n  Value error, Gate if-else_circuit not found in gate_durations dictionary. [type=value_error, input_value={'circuit': rsc_match_pau...TER_GATE: 'after_gate'>}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.9/v/value_error"
+  ],
+  "circuit_seq": [
+   "NotImplementedError",
+   "IfElseCircuit cannot be converted into a Circuit sequence."
+  ],
+  "cond_and_one": [
+   "ValidationError",
+   "1 validation error for IfElseCircuit\ncondition_circuit\n  Value error, Condition circuit with BoolOp 'and' must have at least two classical channels. [type=value_error, input_value=and (base gate), input_type=Circuit]\n    For further information visit https://errors.pydantic.dev/2.9/v/value_error"
+  ],
+  "cond_no_channel": [
+   "ValidationError",
+   "1 validation error for IfElseCircuit\ncondition_circuit\n  Value error, Condition circuit with BoolOp 'match' must have only one classical channel. [type=value_error, input_value=match (base gate), input_type=Circuit]\n    For further information visit https://errors.pydantic.dev/2.9/v/value_error"
+  ],
+  "cond_not_two": [
+   "ValidationError",
+   "1 validation error for IfElseCircuit\ncondition_circuit\n  Value error, Condition circuit with BoolOp 'not' must have only one classical channel. [type=value_error, input_value=not (base gate), input_type=Circuit]\n    For further information visit https://errors.pydantic.dev/2.9/v/value_error"
+  ],
+  "cond_quantum": [
+   "ValidationError",
+   "1 validation error for IfElseCircuit\ncondition_circuit\n  Value error, IfElseCircuit `condition_circuit` must be a circuit with classical channels only. Found channels: (Channel(type=<ChannelType.QUANTUM: 'quantum'>, label='q0', id='87126f0f-a6a3-436d-8bd9-1e7abb0e2064'),) [type=value_error, input_value=match (base gate), input_type=Circuit]\n    For further information visit https://errors.pydantic.dev/2.9/v/value_error"
+  ],
+  "cond_unknown": [
+   "ValidationError",
+   "1 validation error for IfElseCircuit\ncondition_circuit\n  Value error, Unsupported BoolOp 'maybe' for condition circuit. Supported BoolOps are: and, nand, or, nor, xor, not, match. [type=value_error, input_value=maybe (base gate), input_type=Circuit]\n    For further information visit https://errors.pydantic.dev/2.9/v/value_error"
+  ],
+  "cudaq_cx_one_qubit": [
+   "ValueError",
+   "cx quantum target must have 2 qubits, but got 1."
+  ],
+  "guppy_x_with_bit": [
+   "ValueError",
+   "x classical target must have 0 bits, but got 1."
+  ],
+  "mimiq_or": [
+   "ValueError",
+   "Unsupported bool operator for Mimiqconditional statement: or"
+  ],
+  "mimiq_t": [
+   "ValueError",
+   "Unsupported operation for Mimiq conversion: Mimiq only supports single qubit unitary operations in if-else circuits."
+  ],
+  "padded": [
+   "NotImplementedError",
+   "IfElseCircuit cannot construct a padded circuit time sequence."
+  ],
+  "pennylane_composite_gate": [
+   "ValueError",
+   "The circuit must be an leaf circuit with channels."
+  ],
+  "qasm_composite_condition": [
+   "ValueError",
+   "The circuit must be an leaf circuit with channels."
+  ],
+  "qasm_measurement_no_bit": [
+   "ValueError",
+   "measurement classical target must have 1 bits, but got 0."
+  ],
+  "qasm_x_two_qubits": [
+   "ValueError",
+   "x quantum target must have 1 qubits, but got 2."
+  ],
+  "stim_non_pauli": [
+   "ValueError",
+   "Unsupported operation for Stim conversion: Stim only supports conditional pauli operations in if-else circuits."
+  ],
+  "stim_time_dependent": [
+   "ValueError",
+   "Gate 6586f267-7b6f-40b3-9a46-613a1101a621 not found in operation time mapping."
+  ]
+ },
+ "source": "el-loom 0.4.0 (Python 3.12, pydantic 2.9.2, stim 1.16.0), recorded by plan22/t15/record_ifelse.py",
+ "strings": {
+  "boolop_upper": "xor",
+  "channels": [
+   "c0",
+   "c1"
+  ],
+  "default_repr": "if-else_circuit\n  if: empty_branch\n  else: empty_branch\n  condition: match",
+  "detailed": "if-else_circuit\n  if: wrapped_x\n    0: x - q0\n  else: long\n    0: y - q1\n    1: z - q1\n  condition: xor\n",
+  "duration": 2,
+  "flatten_repr": "outer (4 ticks)\n0: measurement\n1: measurement\n2: if-else_circuit\n  if: wrapped_x\n  else: long\n  condition: xor",
+  "loose": {
+   "cudaq": {
+    "cmap": {
+     "c0": "c0",
+     "c1": "c1",
+     "c2": "c2"
+    },
+    "qmap": {
+     "q0": "q[0]",
+     "q1": "q[1]"
+    },
+    "text": "q = cudaq.qvector(2)\n# Start of circuit: loose\nc0 = mz(q[0], regName='c0')\nc1 = mz(q[1], regName='c1')\nc0 and c1\nif (flag):\nnot c2\n#  End of circuit: loose"
+   },
+   "guppy": {
+    "cmap": {
+     "c0": "c[0]",
+     "c1": "c[1]",
+     "c2": "c[2]"
+    },
+    "qmap": {
+     "q0": "q[0]",
+     "q1": "q[1]"
+    },
+    "text": "q = array(guppyQ.qubit() for _ in range(2))\nc = array(False for _ in range(3))\n# Start of circuit: loose\nc[0] = guppyQSys.measure_and_reset(q[0])\nbuiltins.result('c0', c[0])\nc[1] = guppyQSys.measure_and_reset(q[1])\nbuiltins.result('c1', c[1])\nc[0] and c[1]\nif (flag):\nnot c[2]\n#  End of circuit: loose\nfor e in q:\n   guppyQ.discard(e) "
+   },
+   "pennylane": {
+    "cmap": {
+     "c0": "measurements[\"c0\"]",
+     "c1": "measurements[\"c1\"]",
+     "c2": "measurements[\"c2\"]"
+    },
+    "qmap": {
+     "q0": 0,
+     "q1": 1
+    },
+    "text": "# PennyLane Program Generated from Eka\n# Initialize Wires from Eka quantum channels Ids\nmeasurements = {}\nqml.registers({'q0': 1, 'q1': 1})\n\n# Start of circuit: loose\nmeasurements[\"c0\"] = qml.measure(0)\nmeasurements[\"c1\"] = qml.measure(1)\n(measurements[\"c0\"] == 1) & (measurements[\"c1\"] == 1)\ndef call_if_true():\n~(measurements[\"c2\"] == 1)\nqml.cond(flag, call_if_true)()\n#  End of circuit: loose"
+   },
+   "qasm": {
+    "cmap": {
+     "c0": 0,
+     "c1": 1,
+     "c2": 2
+    },
+    "qmap": {
+     "q0": 0,
+     "q1": 1
+    },
+    "text": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\n// Init registers\nqubit[2] q;\nbit[3] c;\n// Start of circuit: loose\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\nc[0] == 1 && c[1] == 1\nif (flag) {\n!c[2]\n}\n//  End of circuit: loose"
+   }
+  },
+  "outer_detailed": "outer\n0: measurement - q0 c0\nmeasurement - q1 c1\n1: if-else_circuit\n  if: wrapped_x\n    0: x - q0\n  else: long\n    0: y - q1\n    1: z - q1\n  condition: xor\n",
+  "outer_repr": "outer (2 ticks)\n0: measurement\n0: measurement\n1: if-else_circuit\n  if: wrapped_x\n  else: long\n  condition: xor",
+  "qasm_top": "OPENQASM 3.0;\ninclude \"stdgates.inc\";\n// Init registers\nqubit[2] q;\nbit[2] c;\nif (c[0] == 1 ^ c[1] == 1) {\n    x q[0];\n} else {\n    // Start of circuit: long\n    y q[1];\n    z q[1];\n    //  End of circuit: long\n}",
+  "repr": "if-else_circuit\n  if: wrapped_x\n  else: long\n  condition: xor",
+  "stim_unmeasured": [
+   "TypeError",
+   "unsupported operand type(s) for -: 'NoneType' and 'int'"
+  ],
+  "unroll": [
+   [
+    "measurement (base gate)",
+    "measurement (base gate)"
+   ],
+   [
+    "if-else_circuit\n  if: wrapped_x\n  else: long\n  condition: xor"
+   ],
+   []
+  ],
+  "unrolled_branches": [
+   "wrapped_x",
+   "long (2 ticks)\n0: y\n1: z"
+  ],
+  "wrapped": [
+   "wrapped_cx",
+   2
+  ]
+ }
+}
