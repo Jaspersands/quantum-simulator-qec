@@ -1,8 +1,9 @@
 # Ported from Tsim (QuEraComputing/tsim, bloqade-tsim 0.1.5, src/tsim/core/parse.py; Apache License 2.0;
 # see LICENSE in this directory), modified for stabilizer_qec: the circuit is a tsim.Circuit of this
 # package's operations, which ``tsim_instructions`` reads back as Tsim's tagged Stim (``I[T]`` as ``S[T]``,
-# a rotation in radians as ``I[R_Z(theta=a*pi)]`` in half-turns, a Pauli-product rotation as
-# ``SPP[R_PAULI(theta=a*pi)]`` or ``SPP[T]``, consecutive instructions Stim would fuse fused) and parses
+# a rotation in radians as ``I[R_Z(theta=a*pi)]`` in half-turns, a Pauli-product rotation as the
+# ``SPP[R_PAULI(theta=a*pi)]``, ``SPP_DAG[...]``, ``SPP[T]`` or ``SPP_DAG[T]`` it was, its ``!``s kept,
+# consecutive instructions Stim would fuse fused) and parses
 # with Tsim's own code; the graph is built on a chosen backend (this package's ZXGraph, or pyzx_param's
 # GraphS, when it imports).
 """Parser for converting circuits to ZX graph representations."""
@@ -15,7 +16,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from stabilizer_qec import _stim
 from stabilizer_qec.tsim.core.tags import is_t_tag
-from stabilizer_qec.tsim.utils.program_text import _NATIVE_TAG, _is_tpp_radians, _native_args, _read_turns
+from stabilizer_qec.tsim.utils.program_text import _NATIVE_TAG, _is_tpp_radians, _native_args, _product_rotation, _read_turns
 from stabilizer_qec.tsim.zx.graph import ZXGraph
 from stabilizer_qec.tsim.zx.instructions import (
     GATE_TABLE,
@@ -133,16 +134,17 @@ class TsimInstruction:
     __repr__ = __str__
 
 
-def _pauli_targets(factors: List[Tuple[str, int]]) -> List[int]:
+def _pauli_targets(factors: List[Tuple[bool, str, int]]) -> List[int]:
+    """A product's factors ``(inverted, letter, qubit)`` as Stim's raw targets (``!X0*Y1``)."""
     raw: List[int] = []
-    for i, (pauli, qubit) in enumerate(factors):
+    for i, (inverted, pauli, qubit) in enumerate(factors):
         if i:
             raw.append(_stim.GateTarget.combiner()._v)
-        raw.append(_stim.GateTarget(f"{pauli}{qubit}")._v)
+        raw.append(_stim.GateTarget(f"{'!' if inverted else ''}{pauli}{qubit}")._v)
     return raw
 
 
-def _spp_of_rotation(theta: str, factors: List[Tuple[str, int]]) -> TsimInstruction:
+def _spp_of_rotation(theta: str, factors: List[Tuple[bool, str, int]]) -> TsimInstruction:
     """A product rotation exp(-i theta P), ``theta`` its stored radians, as Tsim's ``SPP[T]`` (+-pi/8
     as ``repr`` writes it, ``TPP``) or ``SPP[R_PAULI(theta=a*pi)]`` (any other, ``R_PAULI(+-0.25)``
     among them: +-pi/8 with further digits)."""
@@ -160,8 +162,9 @@ def tsim_instructions(circuit: Any) -> Iterator[Any]:
     ``I[R_PAULI(theta=t, pauli=XY)] 0 1`` for each product and ``II[R_ZZ(theta=t)] 0 1``. They are
     read back as the half-turns they were written in (the shortest decimal number of half-turns that
     gives the stored radians, or the one their further digits give), so the phases are Tsim's exact
-    fractions, and a product rotation by +-pi/8 as ``SPP[T]`` or ``SPP[R_PAULI(theta=0.25*pi)]`` as
-    it was written. Consecutive instructions read back with one gate, tag and arguments are fused,
+    fractions, a product rotation by +-pi/8 as ``SPP[T]`` or ``SPP[R_PAULI(theta=0.25*pi)]`` as
+    it was written, and a product's ``!``s and a rotation's ``SPP_DAG`` as written
+    (``program_text._product_rotation``). Consecutive instructions read back with one gate, tag and arguments are fused,
     as Stim fuses them when Tsim builds its circuit (Tsim's ``R_PAULI`` limit of 64 qubits is per
     fused instruction). Every other instruction is as it is.
     """
@@ -205,16 +208,19 @@ def _tsim_form(name: str, tag: str, args: List[float], targets: List[int]) -> Op
             a, b, c = (_read_turns(params[k], 1.0) for k in ("theta", "phi", "lambda"))
             return [TsimInstruction("I", f"U3(theta={a}*pi, phi={b}*pi, lambda={c}*pi)", args, targets)]
         if name == "I" and gate == "R_PAULI" and set(params) == {"theta", "pauli"}:
-            pauli = params["pauli"].upper()
-            qubits = [_stim.GateTarget._raw(v).value for v in targets]
-            if len(pauli) != len(qubits) or not set(pauli) <= set("IXYZ"):
+            # The instruction ``tsim_to_native`` stored: SPP or SPP_DAG, T or R_PAULI, the ``!``s.
+            found = _product_rotation(params, [_stim.GateTarget._raw(v).value for v in targets])
+            if found is None:
                 return None
-            factors = [(p, q) for p, q in zip(pauli, qubits) if p != "I"]
-            return [_spp_of_rotation(params["theta"], factors)] if factors else []
+            dagger, turns, factors = found
+            if not factors:
+                return []
+            tag = "T" if turns is None else f"R_PAULI(theta={turns}*pi)"
+            return [TsimInstruction("SPP_DAG" if dagger else "SPP", tag, [], _pauli_targets(factors))]
         if name == "II" and gate in ("R_XX", "R_YY", "R_ZZ") and set(params) == {"theta"} and len(targets) % 2 == 0:
             qubits = [_stim.GateTarget._raw(v).value for v in targets]
             p = gate[2]
-            return [_spp_of_rotation(params["theta"], [(p, qubits[i]), (p, qubits[i + 1])]) for i in range(0, len(qubits), 2)]
+            return [_spp_of_rotation(params["theta"], [(False, p, qubits[i]), (False, p, qubits[i + 1])]) for i in range(0, len(qubits), 2)]
     except ValueError:
         return None
     return None

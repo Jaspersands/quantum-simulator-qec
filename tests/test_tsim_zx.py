@@ -801,9 +801,25 @@ FUSED_ERRORS = {
 }
 
 
-@pytest.mark.parametrize("text", list(PI_OVER_EIGHT_ERRORS) + list(FUSED_ERRORS))
+# A product's ``!``s and a rotation's ``SPP_DAG`` are kept, so they fuse as in Tsim (an SPP_DAG not with the
+# SPP of the negated angle, an inverted product with its own angle) and the messages quote them.
+X_RANGE = lambda a, b, bang="": " ".join(f"{bang}X{i}" for i in range(a, b))  # noqa: E731
+KEPT_ERRORS = {
+    "SPP_DAG[R_PAULI(theta=0.3*pi)] X0\nR_PAULI(-0.3) X0*X0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=-0.3*pi)] X0*X0'.",
+    "R_PAULI(0.3) X0*!X0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.3*pi)] X0*!X0'.",
+    "SPP[R_PAULI(theta=0.3*pi)] !X0*!X0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.3*pi)] !X0*!X0'.",
+    "SPP_DAG[R_PAULI(theta=0.25*pi)] !Z1\nSPP_DAG[R_PAULI(theta=0.25*pi)] Z0*!X0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP_DAG[R_PAULI(theta=0.25*pi)] !Z1 Z0*!X0'.",
+    f"SPP[R_PAULI(theta=0.3*pi)] {X_RANGE(0, 40, '!')}\nR_PAULI(0.3) {X_RANGE(40, 70)}": "R_PAULI supports at most 64 qubits per instruction, got 70.",
+    f"SPP_DAG[R_PAULI(theta=0.3*pi)] {X_RANGE(0, 40)}\nSPP_DAG[R_PAULI(theta=0.3*pi)] {X_RANGE(40, 70)}": "R_PAULI supports at most 64 qubits per instruction, got 70.",
+    "TPP !X0*Y0": "SPP[T] !X0*Y0 acted on an anti-Hermitian operator",
+    "TPP !X1\nTPP X0*Y0": "SPP[T] !X1 X0*Y0 acted on an anti-Hermitian operator",
+    "TPP !X1\nTPP_DAG X0*Y0": "SPP_DAG[T] X0*Y0 acted on an anti-Hermitian operator",
+}
+
+
+@pytest.mark.parametrize("text", list(PI_OVER_EIGHT_ERRORS) + list(FUSED_ERRORS) + list(KEPT_ERRORS))
 def test_r_pauli_errors_are_tsims(text):
-    message = {**PI_OVER_EIGHT_ERRORS, **FUSED_ERRORS}[text]
+    message = {**PI_OVER_EIGHT_ERRORS, **FUSED_ERRORS, **KEPT_ERRORS}[text]
     c = tsim.Circuit(text)
     for backend in ["own"] + (["pyzx_param"] if HAS_PYZX_PARAM else []):
         with pytest.raises(ValueError) as info:
@@ -843,10 +859,183 @@ def test_fused_instructions_within_the_limit_build():
         assert [str(i) for i in real.Circuit(other)._stim_circ] == [str(i) for i in tsim_instructions(tsim.Circuit(other))]
 
 
-# Printed here as written where Tsim's shorthand differs (the module's "Where it differs"): a tagged
-# SPP_DAG is the negated angle, and same-angle product rotations in a row stay lines of their own.
+# Tsim's product rotations as written: what this package holds (a ``!`` a lower-case letter, a rotation's
+# SPP_DAG its arguments in the other order, R_PAULI(+-0.25) +-pi/8 with further digits), Tsim's instruction
+# read back from it, the printing and the inverse's printing (Tsim's, but a product a line).
+KEPT_AS_WRITTEN = {
+    "SPP_DAG[R_PAULI(theta=0.3*pi)] X0": ("I[R_PAULI(pauli=X, theta=-0.47123889803846897)] 0", ["SPP_DAG[R_PAULI(theta=0.3*pi)] X0"], "SPP_DAG[R_PAULI(theta=0.3*pi)] X0", "R_PAULI(0.3) X0"),
+    "SPP[R_PAULI(theta=0.3*pi)] !X0*Y1": ("I[R_PAULI(theta=-0.47123889803846897, pauli=xY)] 0 1", ["SPP[R_PAULI(theta=0.3*pi)] !X0*Y1"], "SPP[R_PAULI(theta=0.3*pi)] !X0*Y1", "SPP_DAG[R_PAULI(theta=0.3*pi)] Y1*!X0"),
+    "R_PAULI(0.3) X0*!X1": ("I[R_PAULI(theta=-0.47123889803846897, pauli=Xx)] 0 1", ["SPP[R_PAULI(theta=0.3*pi)] X0*!X1"], "R_PAULI(0.3) X0*!X1", "SPP_DAG[R_PAULI(theta=0.3*pi)] !X1*X0"),
+    "TPP !X0": ("I[R_PAULI(theta=-0.39269908169872414, pauli=x)] 0", ["SPP[T] !X0"], "TPP !X0", "TPP_DAG !X0"),
+    "SPP_DAG[R_PAULI(theta=0.25*pi)] !Z0": ("I[R_PAULI(pauli=z, theta=0.392699081698724139)] 0", ["SPP_DAG[R_PAULI(theta=0.25*pi)] !Z0"], "SPP_DAG[R_PAULI(theta=0.25*pi)] !Z0", "SPP[R_PAULI(theta=0.25*pi)] !Z0"),
+    "SPP_DAG[R_PAULI(theta=-0.0*pi)] X0": ("I[R_PAULI(pauli=X, theta=0.0)] 0", ["SPP_DAG[R_PAULI(theta=-0.0*pi)] X0"], "SPP_DAG[R_PAULI(theta=-0.0*pi)] X0", "R_PAULI(-0.0) X0"),
+    "SPP[T] x0 * Y1": ("I[R_PAULI(theta=0.39269908169872414, pauli=XY)] 0 1", ["SPP[T] X0*Y1"], "TPP X0*Y1", "TPP_DAG Y1*X0"),
+    "TPP_DAG !X0 X1": ("I[R_PAULI(theta=0.39269908169872414, pauli=x)] 0\nI[R_PAULI(theta=-0.39269908169872414, pauli=X)] 1", ["SPP_DAG[T] !X0 X1"], "TPP_DAG !X0\nTPP_DAG X1", "TPP X1\nTPP !X0"),
+}
+
+
+@pytest.mark.parametrize("text", list(KEPT_AS_WRITTEN))
+def test_a_daggered_or_inverted_product_is_kept_as_written(text):
+    """A rotation's ``SPP_DAG`` and a product's ``!``s are kept: read back as Tsim's instruction, printed
+    as Tsim prints it (and read again as the same circuit), inverted as Stim inverts it (``SPP`` and
+    ``SPP_DAG`` exchanged, the angle as written)."""
+    from stabilizer_qec.tsim.zx.parse import tsim_instructions
+
+    held, read, printed, inverse = KEPT_AS_WRITTEN[text]
+    c = tsim.Circuit(text)
+    assert c._stim_exact_text() == held
+    assert [str(i) for i in tsim_instructions(c)] == read
+    assert str(c) == printed and str(c.inverse()) == inverse
+    assert tsim.Circuit(str(c)) == c and c.inverse().inverse() == c
+    assert record(tsim.Circuit(str(c)).get_graph(backend="own")) == record(c.get_graph(backend="own"))
+    assert np.allclose(c.inverse().to_matrix(), c.to_matrix().conj().T, atol=1e-12, rtol=0)
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        ref = real.Circuit(text)
+        assert [str(i) for i in ref._stim_circ] == read
+        assert str(ref) == printed or "\n" in printed  # a product a line here (PRINTED_HERE)
+        for backend in ["own"] + (["pyzx_param"] if HAS_PYZX_PARAM else []):
+            assert record(ref.get_graph()) == record(c.get_graph(backend=backend)), backend
+            assert record(ref.inverse().get_graph()) == record(c.inverse().get_graph(backend=backend)), backend
+        assert record(real.Circuit(printed).get_graph()) == record(ref.get_graph())
+        assert ref.tcount() == c.tcount()
+        assert_matrix_is_tsims(c, ref)
+        assert_matrix_is_tsims(c.inverse(), ref.inverse())
+
+
+@pytest.mark.parametrize("gate, untagged, targets", [("SPP[T]", "SPP", "X0*"), ("SPP[T]", "SPP", "*X0"), ("TPP", "SPP", "X0*"), ("SPP_DAG[R_PAULI(theta=0.3*pi)]", "SPP_DAG", "X0*"), ("SPP[T]", "SPP", "2"), ("SPP[R_PAULI(theta=0.3*pi)]", "SPP", "X0 2")])
+def test_a_product_that_does_not_parse_is_refused_as_spps(gate, untagged, targets):
+    """A tagged product whose targets do not parse is refused as this package's parser refuses the
+    untagged gate on them (a ``ValueError`` naming the line; Tsim's is Stim's ``ValueError``), not with
+    an ``IndexError``."""
+    with pytest.raises(ValueError) as plain:
+        sq.Circuit(f"{untagged} {targets}")
+    with pytest.raises(ValueError) as tagged:
+        tsim.Circuit(f"{gate} {targets}")
+    assert str(tagged.value) == str(plain.value) and str(tagged.value).startswith("line 1: ")
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        with pytest.raises(ValueError):
+            real.Circuit(f"{gate} {targets}")
+
+
+def test_a_daggered_rotation_fuses_as_in_tsim():
+    """``SPP_DAG[R_PAULI(theta=0.3*pi)]`` does not fuse with ``R_PAULI(-0.3)`` (the review's 70 qubits
+    build, as in Tsim), and an inverted product fuses with its own angle, not the negated one."""
+    from stabilizer_qec.tsim.zx.parse import tsim_instructions
+
+    apart = f"SPP_DAG[R_PAULI(theta=0.3*pi)] {X_RANGE(0, 40)}\nR_PAULI(-0.3) {X_RANGE(40, 70)}"
+    c = tsim.Circuit(apart)
+    assert [str(i) for i in tsim_instructions(c)] == [f"SPP_DAG[R_PAULI(theta=0.3*pi)] {X_RANGE(0, 40)}", f"SPP[R_PAULI(theta=-0.3*pi)] {X_RANGE(40, 70)}"]
+    assert c.get_graph(backend="own").num_vertices() == 210 and c.tcount() == 70
+    together = "SPP[R_PAULI(theta=0.3*pi)] !X0\nR_PAULI(0.3) X1\nR_PAULI(-0.3) X2\nSPP_DAG[R_PAULI(theta=0.3*pi)] X3\nSPP_DAG[R_PAULI(theta=0.3*pi)] !Y4"
+    fused = ["SPP[R_PAULI(theta=0.3*pi)] !X0 X1", "SPP[R_PAULI(theta=-0.3*pi)] X2", "SPP_DAG[R_PAULI(theta=0.3*pi)] X3 !Y4"]
+    assert [str(i) for i in tsim_instructions(tsim.Circuit(together))] == fused
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        for text in (apart, together):
+            assert record(real.Circuit(text).get_graph()) == record(tsim.Circuit(text).get_graph(backend="own"))
+            assert [str(i) for i in real.Circuit(text)._stim_circ] == [str(i) for i in tsim_instructions(tsim.Circuit(text))]
+
+
+def test_a_native_pair_rotation_by_pi_over_eight_prints_as_the_tpp_it_is():
+    """This package's own ``II[R_ZZ(theta=pi/8)]`` (pi/8 as ``repr`` writes it) is ``TPP`` to the ZX graph:
+    it prints as ``TPP Z0*Z1``, which reads back to the same graph and matrix. With further digits it
+    is ``R_ZZ(0.25)``, Tsim's R_PAULI, both ways."""
+    cases = {
+        "II[R_ZZ(theta=0.39269908169872414)] 0 1\nM 0": ("TPP Z0*Z1\nM 0", Fraction(0)),
+        "II[R_XX(theta=-0.39269908169872414)] 0 1 2 3\nM 0": ("TPP_DAG X0*X1\nTPP_DAG X2*X3\nM 0", Fraction(0)),
+        "II[R_ZZ(theta=0.392699081698724139)] 0 1\nM 0": ("R_ZZ(0.25) 0 1\nM 0", Fraction(15, 8)),
+    }
+    for native, (printed, scalar) in cases.items():
+        c = tsim.Circuit(sq.Circuit(native))
+        assert str(c) == printed
+        again = tsim.Circuit(str(c))
+        assert record(again.get_graph(backend="own")) == record(c.get_graph(backend="own"))
+        assert record(c.get_graph(backend="own"))["scalar"][1] == scalar
+        assert np.allclose(again.to_matrix(), c.to_matrix(), atol=1e-12, rtol=0)
+        if importlib.util.find_spec("tsim") is not None:
+            import tsim as real
+
+            assert record(real.Circuit(printed).get_graph()) == record(c.get_graph(backend="own"))
+
+
+# Unmeasured, the unitary engine would give a matrix of these; Tsim's builders refuse them.
+REFUSED_BY_THE_BUILDERS = {
+    "R_PAULI(0.3) Z0*Z0": (ValueError, "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.3*pi)] Z0*Z0'."),
+    "R_PAULI(0.25) Z0*Z0": (ValueError, "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.25*pi)] Z0*Z0'."),
+    "R_PAULI(0.3) X0*!X0": (ValueError, "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.3*pi)] X0*!X0'."),
+    "H 1\nTPP X0*Y0": (ValueError, "SPP[T] X0*Y0 acted on an anti-Hermitian operator"),
+    "SPP X0*Y0": (ValueError, "SPP X0*Y0 acted on an anti-Hermitian operator"),
+    "SPP_DAG X1*Y1": (ValueError, "SPP_DAG X1*Y1 acted on an anti-Hermitian operator"),
+    "MPP X0*Y0": (ValueError, "MPP X0*Y0 acted on an anti-Hermitian operator"),
+    "H 0\nCX sweep[0] 0": (NotImplementedError, "Sweep bit targets (e.g. sweep[N]) are not supported in instruction 'CX sweep[0] 0'"),
+    "R_PAULI(0.3) " + X_RANGE(0, 65): (ValueError, "R_PAULI supports at most 64 qubits per instruction, got 65."),
+    "\n".join(f"R_ZZ(0.3) {2 * i} {2 * i + 1}" for i in range(33)): (ValueError, "R_PAULI supports at most 64 qubits per instruction, got 66."),
+}
+
+
+@pytest.mark.parametrize("text", list(REFUSED_BY_THE_BUILDERS))
+def test_to_matrix_raises_what_tsims_builders_raise(text):
+    kind, message = REFUSED_BY_THE_BUILDERS[text]
+    c = tsim.Circuit(text)
+    for method in (c.to_matrix, c.to_tensor):
+        with pytest.raises(kind) as info:
+            method()
+        assert str(info.value) == message
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        with pytest.raises(kind) as theirs:
+            real.Circuit(text).to_matrix()
+        assert str(theirs.value) == message
+
+
+def test_to_matrix_of_a_product_naming_a_qubit_twice_is_tsims():
+    """A product that cancels on a qubit no other instruction names leaves it out (``TPP Z0*Z0`` is
+    [[1]]), and one naming a qubit twice keeps its sign (``TPP X0*Y0*X0`` is ``TPP_DAG Y0``, X Y X being
+    -Y): Tsim's ZX tensor, where the unitary engine would keep the qubit and drop the sign."""
+    h = np.array([[1, 1], [1, -1]]) / np.sqrt(2)
+    y = np.array([[0, -1j], [1j, 0]])
+    tpp_dag_y = np.exp(-1j * np.pi / 8) * (np.cos(np.pi / 8) * np.eye(2) + 1j * np.sin(np.pi / 8) * y)
+    cases = {
+        "TPP Z0*Z0": np.array([[1]]),
+        "TPP !Z0*Z0": np.array([[1]]),
+        "SPP_DAG Y0*Y0": np.array([[1]]),
+        "TPP Z0*Z0\nH 1": h,
+        "TPP X0*Y0*X0": tpp_dag_y,
+        "H 0\nTPP X0*Y0*X0": tpp_dag_y @ h,
+    }
+    for text, want in cases.items():
+        got = tsim.Circuit(text).to_matrix()
+        assert got.shape == want.shape and np.allclose(got, want, atol=1e-12, rtol=0), text
+        if importlib.util.find_spec("tsim") is not None:
+            import tsim as real
+
+            assert_matrix_is_tsims(tsim.Circuit(text), real.Circuit(text))
+
+
+def test_the_detector_error_model_reads_a_product_as_tsims_stim_does():
+    """Tsim's model is Stim's of its tagged circuit: a product rotation is its instruction's Clifford
+    gate on its product, ``SPP_DAG`` and the ``!``s as written."""
+    from stabilizer_qec.tsim._native import stim_reading
+
+    c = tsim.Circuit("SPP_DAG[R_PAULI(theta=0.3*pi)] !X0*Y1\nR_PAULI(-0.3) Z2\nTPP !X3\nTPP_DAG Y4")
+    assert stim_reading(c._stim_exact_text()) == "SPP_DAG !X0*Y1\nSPP Z2\nSPP !X3\nSPP_DAG Y4"
+    text = "R 0 1\nH 0\nSPP_DAG[R_PAULI(theta=0.3*pi)] !X0*X1\nX_ERROR(0.1) 0\nTPP !Z1\nDEPOLARIZE1(0.05) 1\nM 0 1\nDETECTOR rec[-1] rec[-2]"
+    model = tsim.Circuit(text).detector_error_model(allow_gauge_detectors=True)
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        assert str(model) == str(real.Circuit(text).detector_error_model(allow_gauge_detectors=True))
+
+
+# Printed here as written where Tsim's shorthand differs (the module's "Where it differs"): same-angle
+# product rotations in a row stay lines of their own.
 PRINTED_HERE = {
-    "SPP_DAG[R_PAULI(theta=0.25*pi)] X0\nM 0": "R_PAULI(-0.25) X0\nM 0",
     "H 0 1\nR_PAULI(0.25) X0*Z1 Y1\nR_PAULI(0.25) Z0\nMPP X0*X1\nDETECTOR rec[-1]": "H 0 1\nR_PAULI(0.25) X0*Z1\nR_PAULI(0.25) Y1\nR_PAULI(0.25) Z0\nMPP X0*X1\nDETECTOR rec[-1]",
     "R_ZZ(0.3) 0 1\nR_ZZ(0.3) 1 2\nM 0": "R_ZZ(0.3) 0 1\nR_ZZ(0.3) 1 2\nM 0",
 }
@@ -864,6 +1053,8 @@ PRINTED_HERE = {
         "R_PAULI(0.25) X0*Y1",
         "R_YY(-0.25) 0 1\nR_ZZ(0.25) 1 2\nTPP X0*Z2",
         "R_PAULI(-0.25) X0*Z1\nR_Z(0.25) 1\nDETECTOR",
+        "SPP_DAG[R_PAULI(theta=0.25*pi)] X0\nM 0",  # printed as Tsim prints it
+        "SPP[R_PAULI(theta=-0.25*pi)] !X0*Z1\nSPP_DAG[R_PAULI(theta=0.25*pi)] Y1",
     ]
     + list(PRINTED_HERE),
 )
@@ -883,13 +1074,15 @@ def test_pi_over_eight_product_rotations_against_tsim(text):
         assert_matrix_is_tsims(mine.inverse(), ref.inverse())
 
 
+# Tsim's printing of the inverse: Stim inverts a product rotation's SPP to SPP_DAG, its tag (the angle as
+# written) untouched.
 INVERSES = {
-    "R_PAULI(0.25) X0*Z1": "R_PAULI(-0.25) Z1*X0",
-    "R_XX(0.25) 0 1\nR_Z(1.9967044602602857) 0": "R_Z(-1.9967044602602857) 0\nR_XX(-0.25) 1 0",
-    "U3(0.1, 0.2, 0.3) 0\nTPP X0*Z1\nR_PAULI(-0.25) Y1": "R_PAULI(0.25) Y1\nTPP_DAG Z1*X0\nU3(-0.1, -0.3, -0.2) 0",
-    "REPEAT 2 {\n    R_PAULI(0.3) X0*Z1*Y2\n    T 0\n}": "REPEAT 2 {\n    T_DAG 0\n    R_PAULI(-0.3) Y2*Z1*X0\n}",
-    "R_ZZ(0.3) 0 1\nR_Y(-0.7) 2\nU3(0.25, 0.5, -0.125) 1": "U3(-0.25, 0.125, -0.5) 1\nR_Y(0.7) 2\nR_ZZ(-0.3) 1 0",
-    "R_X(0.10044109572818205) 0\nR_PAULI(-1.4074629084552872) X0*Y1": "R_PAULI(1.4074629084552872) Y1*X0\nR_X(-0.10044109572818205) 0",
+    "R_PAULI(0.25) X0*Z1": "SPP_DAG[R_PAULI(theta=0.25*pi)] Z1*X0",
+    "R_XX(0.25) 0 1\nR_Z(1.9967044602602857) 0": "R_Z(-1.9967044602602857) 0\nSPP_DAG[R_PAULI(theta=0.25*pi)] X1*X0",
+    "U3(0.1, 0.2, 0.3) 0\nTPP X0*Z1\nR_PAULI(-0.25) Y1": "SPP_DAG[R_PAULI(theta=-0.25*pi)] Y1\nTPP_DAG Z1*X0\nU3(-0.1, -0.3, -0.2) 0",
+    "REPEAT 2 {\n    R_PAULI(0.3) X0*Z1*Y2\n    T 0\n}": "REPEAT 2 {\n    T_DAG 0\n    SPP_DAG[R_PAULI(theta=0.3*pi)] Y2*Z1*X0\n}",
+    "R_ZZ(0.3) 0 1\nR_Y(-0.7) 2\nU3(0.25, 0.5, -0.125) 1": "U3(-0.25, 0.125, -0.5) 1\nR_Y(0.7) 2\nSPP_DAG[R_PAULI(theta=0.3*pi)] Z1*Z0",
+    "R_X(0.10044109572818205) 0\nR_PAULI(-1.4074629084552872) X0*Y1": "SPP_DAG[R_PAULI(theta=-1.4074629084552872*pi)] Y1*X0\nR_X(-0.10044109572818205) 0",
     # A zero is 0.0, as Tsim's float(-Fraction(0)).
     "R_Z(0.0) 0\nU3(0, -0.0, 0.5) 1\nR_X(-0.0) 2": "R_X(0.0) 2\nU3(0.0, -0.5, 0.0) 1\nR_Z(0.0) 0",
 }
@@ -909,6 +1102,7 @@ def test_inverse_of_rotations_is_tsims(text):
         import tsim as real
 
         theirs = real.Circuit(text).inverse()
+        assert str(theirs) == INVERSES[text]
         assert record(theirs.get_graph()) == record(inverse.get_graph(backend="own"))
         assert_matrix_is_tsims(inverse, theirs)
 
@@ -955,7 +1149,7 @@ def test_angle_literals_against_tsim(seed):
                 assert str(ref) == str(mine), text
             assert record(ref.get_graph()) == record(mine.get_graph(backend="own")), text
             assert record(ref.inverse().get_graph()) == record(mine.inverse().get_graph(backend="own")), text
-            if "R_PAULI" not in text and "R_YY" not in text:  # Tsim prints an inverted product as SPP_DAG[...]
+            if not text.endswith(" Y2"):
                 assert str(ref.inverse()) == str(mine.inverse()), text
 
 
@@ -1078,3 +1272,87 @@ def test_random_unmeasured_annotated_circuits_against_tsim(seed):
     want = np.asarray(real.Circuit(text).to_matrix())
     got = tsim.Circuit(text).to_matrix()
     assert got.shape == want.shape and np.allclose(got, want, atol=1e-9, rtol=0), text
+
+
+PRODUCT_ANGLES = ["0.3", "-0.3", "0.25", "-0.25", "0.5", "0.0", "-0.0", "1.9967044602602857", "0.30000000000000004"]
+
+
+def random_product_circuit(rng, n: int, length: int, distinct: bool, measure: bool) -> str:
+    """Product rotations as Tsim writes them: ``SPP``/``SPP_DAG`` of ``R_PAULI`` and ``T`` in its tagged
+    Stim, ``R_PAULI``, ``TPP``, ``TPP_DAG`` and ``R_PP`` in its shorthand, with ``!``s on factors (not
+    the first in the shorthand, which Tsim does not read), a few angles (so that lines fuse), a qubit
+    named twice in a product unless ``distinct``; gates, ``TICK`` and, if ``measure``, measurements
+    and detectors between."""
+
+    def product(lead: bool) -> str:
+        k = int(rng.integers(1, 4))
+        qubits = [int(q) for q in rng.choice(n, min(k, n), replace=False)] if distinct else [int(rng.integers(n)) for _ in range(k)]
+        return "*".join(f"{'!' if rng.random() < 0.3 and (lead or j) else ''}{rng.choice(list('XYZ'))}{q}" for j, q in enumerate(qubits))
+
+    def products(lead: bool = True) -> str:
+        return " ".join(product(lead) for _ in range(int(rng.integers(1, 3))))
+
+    lines, measured = [], 0
+    for _ in range(length):
+        u, a = rng.random(), str(rng.choice(PRODUCT_ANGLES))
+        if u < 0.2:
+            lines.append(f"{rng.choice(['SPP', 'SPP_DAG'])}[R_PAULI(theta={a}*pi)] {products()}")
+        elif u < 0.35:
+            lines.append(f"R_PAULI({a}) {products(lead=False)}")
+        elif u < 0.5:
+            lines.append(f"{rng.choice(['TPP', 'TPP_DAG', 'SPP', 'SPP_DAG'])} {products()}")
+        elif u < 0.58 and n > 1:
+            q0, q1 = (int(x) for x in rng.choice(n, 2, replace=False))
+            lines.append(f"R_{rng.choice(list('XYZ')) * 2}({a}) {q0} {q1}")
+        elif u < 0.7:
+            lines.append(f"{rng.choice(['H', 'S', 'T', 'T_DAG', 'SQRT_X'])} {int(rng.integers(n))}")
+        elif u < 0.75:
+            lines.append("TICK")
+        elif u < 0.8 and n > 1:
+            q0, q1 = (int(x) for x in rng.choice(n, 2, replace=False))
+            lines.append(f"CX {q0} {q1}")
+        elif measure and u < 0.9:
+            lines.append(f"M {int(rng.integers(n))}")
+            measured += 1
+        elif measure and measured and u < 0.95:
+            lines.append("DETECTOR rec[-1]")
+    return "\n".join(lines)
+
+
+def outcome(f):
+    """``("ok", value)``, or the exception's type and message."""
+    try:
+        return ("ok", f())
+    except Exception as exc:  # noqa: BLE001 - compared with Tsim's
+        return (type(exc).__name__, str(exc))
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_random_product_rotations_against_tsim(seed):
+    """Tsim's graphs (or its error, type and message), sampling graphs, T-count, matrix and inverse, and
+    Tsim reading this package's printing as the same circuit; the model (an anti-Hermitian product's
+    message is this package's Stim's, its type Stim's)."""
+    real = pytest.importorskip("tsim")
+    rng = np.random.default_rng(5000 + seed)
+    n, measure = int(rng.integers(1, 4)), bool(rng.random() < 0.4)
+    text = random_product_circuit(rng, n, int(rng.integers(1, 8)), distinct=seed % 2 == 0, measure=measure)
+    ref, mine = real.Circuit(text), tsim.Circuit(text)
+    for backend in ["own"] + (["pyzx_param"] if HAS_PYZX_PARAM else []):
+        assert outcome(lambda: record(ref.get_graph())) == outcome(lambda: record(mine.get_graph(backend=backend))), (backend, text)
+        for sample in (False, True):
+            assert outcome(lambda: record(ref.get_sampling_graph(sample))) == outcome(lambda: record(mine.get_sampling_graph(sample, backend=backend))), (backend, sample, text)
+    assert outcome(ref.tcount) == outcome(mine.tcount), text
+    built = outcome(lambda: ref.to_matrix())
+    if built[0] == "ok":
+        assert_matrix_is_tsims(mine, ref)
+    else:
+        assert outcome(mine.to_matrix) == built, text
+    assert tsim.Circuit(str(mine)) == mine, text
+    assert outcome(lambda: record(real.Circuit(str(mine)).get_graph())) == outcome(lambda: record(ref.get_graph())), text
+    theirs, ours = outcome(lambda: str(ref.detector_error_model(allow_gauge_detectors=True))), outcome(lambda: str(mine.detector_error_model(allow_gauge_detectors=True)))
+    assert ours[0] == theirs[0] and (ours == theirs or "anti-Hermitian" in theirs[1]), text
+    if not measure:
+        ref_inverse, inverse = ref.inverse(), mine.inverse()
+        assert outcome(lambda: record(ref_inverse.get_graph())) == outcome(lambda: record(inverse.get_graph(backend="own"))), text
+        if outcome(lambda: ref_inverse.to_matrix())[0] == "ok":
+            assert_matrix_is_tsims(inverse, ref_inverse)

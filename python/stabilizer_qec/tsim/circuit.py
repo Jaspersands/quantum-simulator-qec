@@ -9,6 +9,7 @@ Tsim's sampling conventions."""
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from typing import Any, Union
 
@@ -20,6 +21,7 @@ from stabilizer_qec.tsim._native import tsim_to_native
 from stabilizer_qec.tsim.utils.program_text import (
     _NATIVE_LINE,
     _NATIVE_TAG,
+    _is_tpp_radians,
     _native_args,
     controlled_gate_decomposition_lines,
     enriched_stim_error,
@@ -77,16 +79,27 @@ def _of_native_text(cls: type, text: str) -> "Circuit":
     return cls._of_native(text)
 
 
+# What a circuit's text has when Tsim's graph builders can refuse it where the unitary engine does not:
+# products (SPP, MPP, TPP's and R_PAULI's I[R_PAULI], the pair rotations' II[...]) and sweep bits.
+_REFUSED_BY_TSIMS_BUILDERS = ("SPP", "MPP", "R_PAULI", "II[", "sweep[")
+_ROTATION_TARGETS = re.compile(r"^[ \t]*I\[[ \t]*R_PAULI\b[^\]\n]*\][ \t]+([^\n]*)$", re.M)
+
+
+def _a_rotation_repeats_a_qubit(text: str) -> bool:
+    """Whether a Pauli-product rotation (``I[R_PAULI(...)] 0 0 1``) names a qubit twice."""
+    return any(len(set(targets.split())) < len(targets.split()) for targets in _ROTATION_TARGETS.findall(text))
+
 # A rotation's tag renamed so that the core's inverse leaves it alone (an unknown tag on I is inert),
 # the inverse's tag written by ``_rotations_inverted`` instead.
 _AS_INVERTED = "~stabilizer_qec_inverted"
 
 
-def _negated(number: str) -> str:
-    """``-number`` as written (its digits kept); a zero is ``0.0``, as Tsim's ``float(-Fraction)``."""
+def _negated(number: str, zero: Union[str, None] = "0.0") -> str:
+    """``-number`` as written (its digits kept); a zero is ``zero``, ``0.0`` as Tsim's
+    ``float(-Fraction)`` gives it (``None``: the zero's sign changed too, ``0.0`` and ``-0.0``)."""
     number = number.strip()
-    if float(number) == 0:
-        return "0.0"
+    if zero is not None and float(number) == 0:
+        return zero
     if number.startswith("-"):
         return number[1:]
     return "-" + (number[1:] if number.startswith("+") else number)
@@ -97,8 +110,10 @@ def _rotations_inverted(text: str) -> Union[str, None]:
     ``I[R_PAULI(theta=t, pauli=XZ)]``, ``II[R_ZZ(theta=t)]``, ``I[U3(...)]``) replaced by its
     inverse's, the angles negated as written (their further digits kept, so the half-turns read back
     are the negated ones, and ``R_PAULI(0.25)`` stays apart from ``TPP``), an ``R_PAULI``'s letters
-    reversed (the inverse reverses the targets) and ``U3(θ, φ, λ)`` as ``U3(−θ, −λ, −φ)``, under names the
-    core's inverse leaves alone; ``None`` if the text already has such a name."""
+    reversed (the inverse reverses the targets) and its ``SPP`` and ``SPP_DAG`` exchanged (Tsim's
+    inverse of ``R_PAULI(0.3) X0`` is ``SPP_DAG[R_PAULI(theta=0.3*pi)] X0``), and ``U3(θ, φ, λ)`` as
+    ``U3(−θ, −λ, −φ)``, under names the core's inverse leaves alone; ``None`` if the text already has
+    such a name."""
     if _AS_INVERTED in text:
         return None
     out = []
@@ -114,7 +129,14 @@ def _rotations_inverted(text: str) -> Union[str, None]:
         if gate == "I" and name in ("R_X", "R_Y", "R_Z") and set(args) == {"theta"} or gate == "II" and name in ("R_XX", "R_YY", "R_ZZ") and set(args) == {"theta"}:
             tag = f"theta={_negated(args['theta'])}"
         elif gate == "I" and name == "R_PAULI" and set(args) == {"theta", "pauli"}:
-            tag = f"theta={_negated(args['theta'])}, pauli={args['pauli'][::-1]}"
+            # Stim inverts Tsim's SPP[R_PAULI(theta=a*pi)] to SPP_DAG[...] of the same a, its tag untouched:
+            # the radians negated exactly (a zero's sign too), the arguments' order (the SPP_DAG) turned,
+            # the letters' case (the !s) kept; a TPP's dagger is its sign.
+            theta, pauli = _negated(args["theta"], zero=None), args["pauli"][::-1]
+            dagger = list(args) == ["pauli", "theta"]
+            if not _is_tpp_radians(args["theta"]):
+                dagger = not dagger
+            tag = f"pauli={pauli}, theta={theta}" if dagger else f"theta={theta}, pauli={pauli}"
         elif gate == "I" and name == "U3" and set(args) == {"theta", "phi", "lambda"}:
             tag = f"theta={_negated(args['theta'])}, phi={_negated(args['lambda'])}, lambda={_negated(args['phi'])}"
         else:
@@ -544,7 +566,8 @@ class Circuit(_Base):
     def to_matrix(self, *, endian: str = "big") -> np.ndarray:
         """Convert circuit to matrix representation, as Tsim's ``to_matrix``: the map the
         circuit's gates apply to the qubits it names (a qubit no instruction names is dropped,
-        so ``R_ZZ(0.5) 0 2`` is 4 × 4), qubit 0 the most significant bit of an index
+        so ``R_ZZ(0.5) 0 2`` is 4 × 4, and so is one only a product that cancels on it names,
+        ``TPP Z0*Z0`` being [[1]] as in Tsim), qubit 0 the most significant bit of an index
         (``endian="little"``: the least). A qubit whose first operation is a reset (``R``,
         ``RX``, ``RY``) starts in that state and has no input: a circuit that resets every qubit
         first gives its state, a 2^n × 1 column (up to 22 qubits), and one that resets some a
@@ -552,7 +575,8 @@ class Circuit(_Base):
         ``TICK`` are nothing. At most 2^22 entries (a unitary of 11 qubits).
 
         A circuit with a measurement, a detector or observable, a reset after a qubit's first
-        operation or feedback is Tsim's ZX tensor of it (``tsim.zx.tensorfy``), contracted in
+        operation, feedback or a product rotation naming a qubit twice (``TPP X0*Y0*X0``) is Tsim's
+        ZX tensor of it (``tsim.zx.tensorfy``), contracted in
         numpy with every measurement outcome and error bit read as 0: a measurement is the
         identity on its qubit times 1/sqrt(2) (``H 0`` then ``M 0`` is [[.5, .5], [.5, -.5]]), a
         detector or observable is an X spider joined to the measurements it XORs, projecting their
@@ -560,12 +584,29 @@ class Circuit(_Base):
         ``OBSERVABLE_INCLUDE(k)`` makes the observables 0 to k, so ``OBSERVABLE_INCLUDE(2)`` is
         [[8]]), a reset projects (and prepares), ``MPP`` and heralded noise add an output qubit
         (the first, qubit -2 in Tsim's graph), feedback is the controlled gate. Its qubits are the
-        ZX graph's: the inputs of the qubits first used by a gate, the outputs of every qubit."""
+        ZX graph's: the inputs of the qubits first used by a gate, the outputs of every qubit.
+
+        Tsim's graph builders refuse what the unitary engine would run (an ``R_PAULI`` naming a
+        qubit twice or more than 64, an anti-Hermitian product, a sweep bit): a circuit with Pauli
+        products or sweep bits has its graph built first, so it raises Tsim's error."""
         if endian not in ("big", "little"):
             raise ValueError(f"endian must be 'big' or 'little', got {endian!r}")
         needs_zx, pair_identity = _lane_scan(self)
         if needs_zx:
             return self._zx_matrix(endian)
+        text = self._stim_exact_text()
+        if any(word in text for word in _REFUSED_BY_TSIMS_BUILDERS):
+            # Tsim's matrix is of its ZX graph, whose builders refuse what the unitary engine runs: an
+            # R_PAULI's repeated qubit or more than 64, an anti-Hermitian product, a sweep bit. Built for
+            # those errors, Tsim's, raised first as in Tsim. A product that cancels on a qubit no other
+            # instruction names (``TPP Z0*Z0``) leaves it out of the graph, so out of Tsim's matrix, and
+            # one that names a qubit twice (``TPP X0*Y0*X0``, -Y) is a sign the engine does not keep:
+            # both are the ZX tensor.
+            from stabilizer_qec.tsim.zx import parse_stim_circuit
+
+            built = parse_stim_circuit(self, backend="own")
+            if set(built.first_vertex) != _qubits_named(self) or _a_rotation_repeats_a_qubit(text):
+                return self._zx_matrix(endian)
         ideal = self.without_noise()
         # A qubit only noise names (or an II) stays, as an input the circuit leaves alone (Tsim's identity).
         lanes = sorted((_qubits_named(self) - _qubits_named(ideal)) | pair_identity)

@@ -15,8 +15,10 @@
   ``tcount``, ``is_clifford`` and ``inverse`` are Tsim's; ``to_matrix`` is Tsim's map on the
   qubits the circuit names, a state column when every qubit is reset first, and, of a circuit
   with measurements, detectors or observables (one that XORs no measurement is a factor of 2),
-  resets after a qubit's first operation, feedback or noise on a qubit before its reset, Tsim's
-  ZX tensor with every measurement outcome and error bit read as 0;
+  resets after a qubit's first operation, feedback, noise on a qubit before its reset or a
+  product rotation naming a qubit twice, Tsim's ZX tensor with every measurement outcome and
+  error bit read as 0 (a circuit with Pauli products or sweep bits has its ZX graph built first,
+  so its errors are Tsim's);
   ``diagram`` defaults to the timeline SVG, its tagged gates labelled, with Tsim's ``height``,
   ``width`` and ``zoomable`` for the notebook view, and draws the ZX graph for ``"pyzx"``,
   ``"pyzx-dets"`` and ``"pyzx-meas"``.
@@ -60,14 +62,28 @@ Where it differs from Tsim:
 - Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
   JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.
 - An angle appended as an int prints as a float (``R_Z(1.0)``, Tsim ``R_Z(1)``); a tag on an
-  appended ``T``, ``T_DAG``, ``TPP`` or ``TPP_DAG`` is not kept. A tagged ``SPP_DAG`` of a rotation
-  (``SPP_DAG[R_PAULI(theta=0.3*pi)] X0``, which ``inverse`` gives in Tsim) is stored as the negated
-  angle, so it prints as ``R_PAULI(-0.3) X0`` and an error quotes it as
-  ``SPP[R_PAULI(theta=-0.3*pi)] X0``; the same graph.
+  appended ``T``, ``T_DAG``, ``TPP`` or ``TPP_DAG`` is not kept, nor the spacing inside a tagged
+  rotation's (``SPP[R_PAULI( theta=0.3*pi )]`` is quoted ``SPP[R_PAULI(theta=0.3*pi)]``); the angle
+  literals of a ``stim.Circuit`` are read as floats, as Tsim reads its program text (Tsim's
+  ``from_stim_program`` keeps the stim circuit's ``0.30000000000000001*pi``, the phase
+  30000000000000001/10^17, where this is 3/10). Text that does not parse raises this package's
+  ``ValueError`` naming the line (``SPP: bad Pauli product '2'`` for ``R_ZZ(0.25) 0 1 2 3``, Stim's
+  "Gate SPP only takes Pauli targets").
+- A product rotation is held one product a line, ``I[R_PAULI(theta=t, pauli=XY)] 0 1`` in radians,
+  and the rest of Tsim's instruction is kept in how that is written: a factor's letter is lower
+  case where it has a ``!`` (``SPP[T] !X0*Y1`` is ``pauli=xY``), the ``SPP_DAG`` of a rotation has
+  its arguments in the other order (``SPP_DAG[R_PAULI(theta=0.3*pi)] X0`` is
+  ``I[R_PAULI(pauli=X, theta=-0.47123889803846897)] 0``), and ``R_PAULI(±0.25)`` is ±π/8 with
+  further digits (``0.392699081698724139``; ``TPP``'s is ``0.39269908169872414``). That is the text
+  ``circuit[i]``, ``stim_circuit``, ``to_file`` and this package's own errors show. Read back, the
+  instruction is Tsim's: it prints as Tsim's (``SPP_DAG[R_PAULI(theta=0.3*pi)] X0``,
+  ``TPP !X0``), and it fuses with its neighbours, counts towards ``R_PAULI``'s 64 qubits and is
+  quoted in errors as in Tsim.
 - Two product rotations with the same angle in a row stay two lines (Tsim's Stim text fuses
-  them into one, which its shorthand misprints). They are one instruction to the ZX graph, as in
-  Tsim, so ``R_PAULI``'s limit of 64 qubits is counted over them (33 ``R_ZZ(0.3)`` lines in a row
-  are Tsim's error, "got 66").
+  them into one, which its shorthand misprints), and a product naming one qubit twice prints as
+  ``R_PAULI(0.3) X0*X0`` (Tsim's shorthand ``R_XX(0.3) 0 0`` does not read back). They are one
+  instruction to the ZX graph, as in Tsim, so ``R_PAULI``'s limit of 64 qubits is counted over
+  them (33 ``R_ZZ(0.3)`` lines in a row are Tsim's error, "got 66").
 - ``tcount`` is the graph's, as Tsim's: a coherent error (``I_ERROR[R_Z(...)]``) is not a gate
   (``stabilizer_qec.Circuit.tcount`` counts its phase).
 - An angle is kept as it was written, as Tsim keeps it (the radians this package stores carry

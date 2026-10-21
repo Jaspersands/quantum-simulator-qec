@@ -211,6 +211,8 @@ def test_tsims_operations_read_with_tsims_meaning(seed):
 def test_tsim_to_native_forms():
     assert tsim_to_native("S[T] 0 1\nS_DAG[T:x] 2") == "I[T] 0 1\nI[T_DAG] 2"
     assert tsim_to_native("I[R_Z(theta=0.5*pi)] 0") == f"I[R_Z(theta={math.pi / 4!r})] 0"
-    assert tsim_to_native("SPP_DAG[T] X0*!Y1 Z2") == f"I[R_PAULI(theta={math.pi / 8!r}, pauli=XY)] 0 1\nI[R_PAULI(theta={-math.pi / 8!r}, pauli=Z)] 2"
+    # A factor's ! is its letter in lower case, a rotation's SPP_DAG its arguments in the other order.
+    assert tsim_to_native("SPP_DAG[T] X0*!Y1 Z2") == f"I[R_PAULI(theta={math.pi / 8!r}, pauli=Xy)] 0 1\nI[R_PAULI(theta={-math.pi / 8!r}, pauli=Z)] 2"
+    assert tsim_to_native("SPP_DAG[R_PAULI(theta=0.3*pi)] X0 !Z1*Y2") == "I[R_PAULI(pauli=X, theta=-0.47123889803846897)] 0\nI[R_PAULI(pauli=zY, theta=0.47123889803846897)] 1 2"
     assert tsim_to_native("H 0  # keep\nS 1") == "H 0  # keep\nS 1"
     assert list(itertools.islice(tsim_to_native("I[U3(theta=1.0*pi, phi=0.5*pi, lambda=0.0*pi)] 3").split("\n"), 1)) == [f"I[U3(theta={math.pi!r}, phi={math.pi / 2!r}, lambda=0.0)] 3"]
