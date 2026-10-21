@@ -136,7 +136,7 @@ def test_a_long_memory_builds_fast_and_decodes_where_it_fits():
     import pymatching
 
     want = pymatching.Matching.from_detector_error_model(long.detector_error_model(decompose_errors=True)).decode_batch(dets)
-    assert (pred != want).sum() <= 2  # ties aside
+    assert np.array_equal(pred, want)
 
 
 def test_folded_models_read_back_and_pickle():

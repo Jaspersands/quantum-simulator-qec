@@ -109,12 +109,11 @@ def test_predictions_are_sinters(tmp_path):
     a = ours.predict_observables_bit_packed(dem=sq.DetectorErrorModel(str(dem)), dets_bit_packed=dets, decoder="pymatching")
     b = theirs.predict_observables_bit_packed(dem=dem, dets_bit_packed=dets, decoder="pymatching")
     unpacked = np.unpackbits(dets, axis=1, bitorder="little", count=c.num_detectors).astype(bool)
-    # Shots may differ only where two matchings tie, PyMatching's and ours equally light.
+    # PyMatching's sparse blossom, transliterated: its predictions and weights, ties included.
     _, wa = sq.Matching(sq.DetectorErrorModel(str(dem))).decode_batch(unpacked, return_weights=True)
     _, wb = pymatching.Matching(dem).decode_batch(unpacked, return_weights=True)
     assert np.array_equal(wa, wb)
-    differ = (a != b).any(axis=1)
-    assert differ.sum() <= 5
+    assert np.array_equal(a, b)
     c_ = ours.predict_observables(dem=sq.DetectorErrorModel(str(dem)), dets=unpacked, decoder="pymatching")
     assert np.array_equal(np.packbits(c_, axis=1, bitorder="little"), a)
 

@@ -1,7 +1,8 @@
 """PyMatching's graph API against PyMatching 2.4 itself: random graphs built by hand (signed,
 integer and float weights, boundary nodes, merges, more than 64 fault ids), check matrices with
-repetitions, networkx round trips and models. Predictions and weights must be identical; edge
-and matched-detector sets too wherever the weights make the matching unique."""
+repetitions, networkx round trips and models. Predictions, weights, edge lists and matched pairs
+must be identical, in PyMatching's order, ties included: the graph API decodes on a
+transliteration of PyMatching's sparse blossom (src/pm_exact/)."""
 
 from __future__ import annotations
 
@@ -68,10 +69,9 @@ def same_edges(ours, theirs):
         assert close(d1["weight"], d2["weight"]) and close(d1["error_probability"], d2["error_probability"]), (d1, d2)
 
 
-def same_decodes(ours, theirs, rng, shots=12, edges=False, predictions=True):
-    """Weights always agree; predictions (and edges) only where the matching is unique, which
-    integer weights rarely make it (equally good matchings: PyMatching and this package may
-    each pick a different one)."""
+def same_decodes(ours, theirs, rng, shots=12):
+    """The same predictions and weights, the same edges and matched pairs in the same order, and
+    the same refusals."""
     assert (ours.num_nodes, ours.num_edges, ours.num_fault_ids, ours.num_detectors, ours.boundary) == (theirs.num_nodes, theirs.num_edges, theirs.num_fault_ids, theirs.num_detectors, theirs.boundary)
     same_edges(ours, theirs)
     nd = theirs.num_detectors
@@ -80,29 +80,24 @@ def same_decodes(ours, theirs, rng, shots=12, edges=False, predictions=True):
         a = outcome(lambda: ours.decode(syndrome, return_weight=True))
         b = outcome(lambda: theirs.decode(syndrome, return_weight=True))
         if isinstance(b, Failed):
-            assert isinstance(a, Failed), (a, b)
+            assert a == b, (syndrome, a, b)
             continue
         assert not isinstance(a, Failed), (syndrome, a, b)
         assert close(a[1], b[1]), (syndrome, a, b)
-        if predictions:
-            assert np.array_equal(a[0], b[0]), (syndrome, a, b)
-        if edges:
-            ea = {tuple(sorted(e)) for e in ours.decode_to_edges_array(syndrome).tolist()}
-            eb = {tuple(sorted(e)) for e in theirs.decode_to_edges_array(syndrome).tolist()}
-            assert ea == eb, syndrome
+        assert np.array_equal(a[0], b[0]), (syndrome, a, b)
+        assert outcome(lambda: ours.decode_to_edges_array(syndrome).tolist()) == outcome(lambda: theirs.decode_to_edges_array(syndrome).tolist()), syndrome
+        assert outcome(lambda: ours.decode_to_matched_dets_array(syndrome).tolist()) == outcome(lambda: theirs.decode_to_matched_dets_array(syndrome).tolist()), syndrome
 
 
 @pytest.mark.parametrize("seed", range(150))
 def test_random_graphs(seed):
     rng = random.Random(seed)
-    integral = seed % 2 == 0
-    ours, theirs = random_graph(rng, signed=seed % 3 == 0, integral=integral, wide=seed % 5 == 0)
-    same_decodes(ours, theirs, rng, predictions=not integral)
+    ours, theirs = random_graph(rng, signed=seed % 3 == 0, integral=seed % 2 == 0, wide=seed % 5 == 0)
+    same_decodes(ours, theirs, rng)
 
 
 @pytest.mark.parametrize("seed", range(60))
-def test_unique_matchings_give_the_same_edges_and_pairs(seed):
-    # Float weights spread widely make ties (and so different but equally good answers) rare.
+def test_dense_graphs_give_the_same_edges_and_pairs(seed):
     rng = random.Random(1000 + seed)
     ours, theirs = sq.Matching(), pymatching.Matching()
     n = rng.randint(3, 12)
@@ -115,15 +110,14 @@ def test_unique_matchings_give_the_same_edges_and_pairs(seed):
         w = rng.uniform(0.1, 10)
         ours.add_boundary_edge(u, fault_ids={4}, weight=w)
         theirs.add_boundary_edge(u, fault_ids={4}, weight=w)
-    same_decodes(ours, theirs, rng, edges=True)
+    same_decodes(ours, theirs, rng)
     for _ in range(10):
         syndrome = np.array([rng.random() < 0.4 for _ in range(n)], dtype=np.uint8)
         a = ours.decode_to_matched_dets_dict(syndrome)
         b = theirs.decode_to_matched_dets_dict(syndrome)
         assert a == b
-        pa = {tuple(sorted(p)) for p in ours.decode_to_matched_dets_array(syndrome).tolist()}
-        pb = {tuple(sorted(p)) for p in theirs.decode_to_matched_dets_array(syndrome).tolist()}
-        assert pa == pb
+        assert ours.decode_to_matched_dets_array(syndrome).tolist() == theirs.decode_to_matched_dets_array(syndrome).tolist()
+        assert ours.decode_to_edges_array(syndrome).tolist() == theirs.decode_to_edges_array(syndrome).tolist()
 
 
 @pytest.mark.parametrize("seed", range(40))

@@ -166,6 +166,9 @@ pub struct Scratch {
     /// the pool never holds more than one shot's worth.
     pub(crate) spare_u32: Vec<Vec<u32>>,
     pub(crate) spare_cycles: Vec<Vec<(u32, CEdge)>>,
+    /// Only for `UserDecoder`'s deprecated 2.1 methods, which take this scratch: the `pm_exact`
+    /// decoder they run on, kept here so each thread keeps its own.
+    pub(crate) user_graph_mwpm: Option<Box<crate::pm_exact::Mwpm>>,
 }
 
 impl Scratch {
@@ -222,6 +225,7 @@ impl Scratch {
             under_stack: Vec::new(),
             spare_u32: Vec::new(),
             spare_cycles: Vec::new(),
+            user_graph_mwpm: None,
         }
     }
 

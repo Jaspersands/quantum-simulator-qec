@@ -42,10 +42,8 @@ def test_matching_agrees_with_pymatching(d5):
     ours, w = sq.Matching(dem).decode_batch(dets, return_weights=True, threads=0)
     pm = pymatching.Matching.from_detector_error_model(stim.DetectorErrorModel(str(dem)))
     theirs, tw = pm.decode_batch(dets, return_weights=True)
-    differ = np.flatnonzero((ours != theirs).any(axis=1))
-    # Two exact matchers disagree only where two corrections tie in weight.
-    assert len(differ) < 20
-    assert np.allclose(w[differ], tw[differ], rtol=1e-6, atol=1e-6)
+    # PyMatching's sparse blossom, transliterated: its predictions and weights, ties included.
+    assert np.array_equal(ours, theirs) and np.array_equal(w, tw)
 
 
 def test_correlated_matching_is_no_worse(d5):

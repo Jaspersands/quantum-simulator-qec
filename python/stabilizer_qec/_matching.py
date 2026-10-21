@@ -2,8 +2,9 @@
 boundary edges, boundary nodes, fault ids, merge strategies), from a check matrix (with
 repetitions, timelike weights and a faults matrix), from networkx or rustworkx, or from a
 detector error model or circuit; queried; decoded to fault ids and weights, to edges, or to
-matched detection events, on this package's sparse blossom built with PyMatching's own weight
-discretisation (``src/user_graph.rs``)."""
+matched detection events, on PyMatching's own sparse blossom transliterated (``src/pm_exact/``,
+the graph built as PyMatching 2.4 builds it, ``src/user_graph.rs``): its answers, ties and
+orders included. ``enable_correlations`` decodes on this package's correlated matcher."""
 
 from __future__ import annotations
 
@@ -90,7 +91,9 @@ class Matching:
     2^24 − 1 and rounded; negative weights allowed. A model's pieces become edges of weight
     ln((1 − p)/p), parallel ones merged as independent mechanisms. ``enable_correlations`` at
     construction (from a model) makes correlated matching (PyMatching 2.4's second pass)
-    available; ask for it at decode time with ``enable_correlations=True``.
+    available; ask for it at decode time with ``enable_correlations=True``. The graph is then
+    PyMatching's correlated load (each edge's ends in order, and the weights edges imply for each
+    other counted in the weight scale), so decoding it plainly gives PyMatching's answers too.
 
     >>> import stabilizer_qec as sq
     >>> m = sq.Matching()
@@ -166,7 +169,9 @@ class Matching:
         from ._circuit import DetectorErrorModel
 
         dem = model if isinstance(model, DetectorErrorModel) else DetectorErrorModel(str(model))
-        self._g = call(_core.UserGraph.from_dem, str(dem))
+        # PyMatching's correlated load orders each edge's ends and counts the weights edges imply
+        # for each other in its weight scale, so plain decodes on it differ from a plain load's.
+        self._g = call(_core.UserGraph.from_dem, str(dem), bool(enable_correlations))
         self._dem_text = str(dem)
         self._corr = call(_core.Matcher, dem._d, True) if enable_correlations else None
 
@@ -662,10 +667,13 @@ class Matching:
         return f"<stabilizer_qec.Matching object with {m} detector{'s' if m != 1 else ''}, {b} boundary node{'s' if b != 1 else ''}, and {e} edge{'s' if e != 1 else ''}>"
 
     def __reduce__(self) -> tuple:
-        return (_rebuild, (self.num_nodes, self.num_fault_ids, sorted(self.boundary), self._g.edges(), self._dem_text if self._corr is not None else None))
+        dem = self._dem_text if self._corr is not None else None
+        state = (self.num_nodes, self.num_fault_ids, sorted(self.boundary), self._g.edges(), dem)
+        implied = self._g.implied_weights() if dem is None else []
+        return (_rebuild, state + (implied,) if implied else state)
 
 
-def _rebuild(num_nodes: int, num_fault_ids: int, boundary: list, edges: list, correlated_dem: Optional[str]) -> Matching:
+def _rebuild(num_nodes: int, num_fault_ids: int, boundary: list, edges: list, correlated_dem: Optional[str], implied: Any = ()) -> Matching:
     if correlated_dem is not None:
         return Matching.from_detector_error_model(correlated_dem, enable_correlations=True)
     m = Matching()
@@ -676,6 +684,12 @@ def _rebuild(num_nodes: int, num_fault_ids: int, boundary: list, edges: list, co
             g.add_boundary_edge(u, f, w, p, "disallow")
         else:
             g.add_edge(u, v, f, w, p, "disallow")
+    # The weights a correlated load implied (kept by a graph changed since), which its scale counts.
+    by_edge: Dict[int, list] = {}
+    for e, u, v, w in implied:
+        by_edge.setdefault(e, []).append((u, v, w))
+    for e, rules in by_edge.items():
+        g.set_implied_weights(e, rules)
     m._g = g
     return m
 

@@ -88,7 +88,7 @@ Stim's six formats (`01`, `b8`, `r8`, `hits`, `dets`, `ptb64`) are read and writ
 On a detector error model, each with `decode` and `decode_batch` (any thread count) and
 pickling:
 
-- `Matching` (sparse blossom, PyMatching's results), with `enable_correlations`;
+- `Matching` (PyMatching's sparse blossom, transliterated: its results, ties included), with `enable_correlations`;
   `UnionFind`, `CollisionClustering` and `LocalClustering` (Riverlane's hardware union-finds,
   the second with its leakage-adaptive pre-growth); `BeliefMatching`; `WindowMatching`
   (sliding or parallel windows): for models whose faults set off at most two detectors, or

@@ -156,7 +156,12 @@ Copyright 2022 Oscar Higgott. Licensed under the Apache License, Version 2.0
 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/oscarhiggott/PyMatching
 
 The matching graph built by hand (`src/user_graph.rs`), its weight discretisation and the
-`pymatching` command line follow PyMatching 2.4, modified to fit this crate.
+`pymatching` command line follow PyMatching 2.4, modified to fit this crate. `src/pm_exact/`
+transliterates PyMatching 2.4.0's sparse blossom (`src/pymatching/sparse_blossom/`: its
+tracker, flooder, matcher, search flooder and decoding driver) to Rust, and builds its matching
+graph in PyMatching 2.4.0's and 2.2.2's neighbour orders (their `driver/user_graph.cc`, and
+2.2.2's `driver/io.h`); "Copyright 2022 PyMatching Contributors", its notice in
+`src/pm_exact/LICENSE`, each file marked as modified.
 
 ## Tesseract
 
