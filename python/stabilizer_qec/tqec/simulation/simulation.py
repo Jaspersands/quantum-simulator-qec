@@ -56,8 +56,9 @@ def start_simulation_using_sinter(
     of that observable, and sinter samples until the observable likeliest to be short of errors
     has ``max_errors`` (:func:`heuristic_custom_error_key`); otherwise it is ``[stats]``.
 
-    The detectors are the surgery engine's: ``manhattan_radius`` only leaves them out when
-    negative, and ``detector_database`` and ``database_path`` are taken for tqec's signature."""
+    The detectors are tqec's, found within ``manhattan_radius`` of each plaquette and kept in
+    ``detector_database`` (in memory: ``database_path`` is taken for tqec's signature, and no
+    file is read or written)."""
     if observables is None:
         observables = block_graph.find_correlation_surfaces()
     custom_error_count_key: Optional[str] = None

@@ -1,11 +1,22 @@
-"""Block graphs compiled to circuits on this package's lattice-surgery engine.
+"""Block graphs compiled to circuits, two ways.
 
-A block graph whose cubes are all logical patches of one orientation, joined by time pipes
-(memory rounds) and spatial pipes (merges and splits), is a *surgery program* (``src/surgery.rs``):
-each run of cubes on a tile joined by time pipes is one patch, prepared in the first cube's
-temporal basis and read out in the last's, and a tile can hold several such patches one after
-another (two CNOTs in a row reuse the ancilla's tile); each time slice runs ``rounds`` rounds of
-syndrome extraction, with the slice's spatial pipes merged for ``merged`` rounds and split; each
+tqec's way, its compile pipeline ported (``_compile``: tqec 0.2.0's plaquettes, templates, blocks,
+layer tree, detector search and observables, with tqecd 0.2.1): ``compile_block_graph(graph,
+convention=..., observables=..., block_temporal_height=...)`` is a
+``TopologicalComputationGraph``, whose ``generate_stim_circuit(k, noise_model=...)`` is tqec's
+circuit at distance 2k + 1, byte for byte, Hadamard pipes and spatial junctions included. Each
+compilation starts from fresh plaquette caches: tqec reschedules the measurements of the
+plaquettes it caches in place, so its circuit for a graph can depend on what the process compiled
+before; here it is always the circuit of a fresh process.
+
+This package's lattice-surgery engine: ``compile_block_graph(graph, distance, p=...)``,
+``TopologicalComputationGraph.compile(distance)`` and ``BlockGraph.compile(distance)``. A block
+graph whose cubes are all logical patches of one orientation, joined by time pipes (memory
+rounds) and spatial pipes (merges and splits), is a *surgery program* (``src/surgery.rs``): each
+run of cubes on a tile joined by time pipes is one patch, prepared in the first cube's temporal
+basis and read out in the last's, and a tile can hold several such patches one after another (two
+CNOTs in a row reuse the ancilla's tile); each time slice runs ``rounds`` rounds of syndrome
+extraction, with the slice's spatial pipes merged for ``merged`` rounds and split; each
 correlation surface of the graph is an observable, its records the final logicals it touches,
 the outcomes of the merges it passes along and the seam readouts it crosses. The engine keeps
 one patch per tile, so a program that reuses a tile is written by the engine's writer in Python
@@ -15,12 +26,14 @@ The graph's shadowed faces are fixed first, as tqec does. The engine's patches f
 horizontal neighbours with X-type walls (a horizontal merge measures Z⊗Z) and their vertical
 neighbours with Z-type walls (X⊗X), so a graph's cubes must all be of one of the two kinds
 ``?X?``/``?Z?`` patterns with the X walls along one axis, which becomes the engine's column
-axis. What the engine cannot express is refused with tqec named: Hadamard pipes (CZ), spatial
-cubes (junctions of two spatial directions and one-basis walls: the stability experiment, the
-three CNOTs, move and rotation, the Steane encoding), Y half cubes and open ports."""
+axis. What the engine cannot express is refused with tqec's way named: Hadamard pipes (CZ),
+spatial cubes (junctions of two spatial directions and one-basis walls: the stability
+experiment, the three CNOTs, move and rotation, the Steane encoding), Y half cubes and open
+ports."""
 
 from __future__ import annotations
 
+import operator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Sequence, Union
 
@@ -33,7 +46,7 @@ if TYPE_CHECKING:
     from .block_graph import BlockGraph
     from .correlation import CorrelationSurface
 
-_REFUSED = "tqec (pip install tqec) compiles it"
+_REFUSED = "compile_block_graph(graph).generate_stim_circuit(k) compiles it as tqec does"
 
 
 @dataclass
@@ -338,11 +351,10 @@ def _compile(graph: "BlockGraph", distance: int, *, p: float = 0.0, rounds: Opti
 class Convention:
     """tqec's conventions for laying blocks out in plaquettes: ``fixed_bulk`` (the bulk's
     stabilizers fixed, each cube's boundaries by its kind; tqec's default) and
-    ``fixed_boundary``. The surgery engine has one layout (the bulk's checks fixed across the
-    grid, each patch's boundaries by its tile) and compiles only graphs of one patch orientation,
-    where every cube has the same boundaries: there the two conventions make the same choice,
-    and both compile to the engine's layout. Where tqec's conventions part (temporal Hadamard
-    pipes, whose observables only the fixed-bulk convention follows), the engine refuses."""
+    ``fixed_boundary``. ``generate_stim_circuit`` lays them out as tqec does. The surgery engine
+    has one layout (the bulk's checks fixed across the grid, each patch's boundaries by its tile)
+    and compiles only graphs of one patch orientation, where every cube has the same boundaries:
+    there it takes either convention for its layout."""
 
     name: str
 
@@ -363,14 +375,36 @@ def _convention(convention: object) -> Convention:
     """A convention from ours, tqec's (by its name) or a name."""
     name = convention if isinstance(convention, str) else getattr(convention, "name", None)
     if name not in ALL_CONVENTIONS:
-        raise TQECError(f"the convention {convention!r} is not one of tqec's ({', '.join(ALL_CONVENTIONS)}), the two the surgery engine's layout stands for")
+        raise TQECError(f"the convention {convention!r} is not one of tqec's ({', '.join(ALL_CONVENTIONS)})")
     return ALL_CONVENTIONS[name]
 
 
 def _scale(k: object) -> int:
-    if isinstance(k, bool) or not isinstance(k, int) or k < 1:
-        raise TQECError(f"k must be a positive integer (the distance is 2k + 1, and the surgery engine needs at least 3), not {k!r}")
-    return k
+    """``k`` as an ``int`` (a NumPy integer too); tqec takes others and writes nonsense or fails
+    in its layers, so they are refused here."""
+    if not isinstance(k, bool):
+        try:
+            value = operator.index(k)
+        except TypeError:
+            pass
+        else:
+            if value >= 1:
+                return value
+    raise TQECError(f"k must be a positive integer (the distance is 2k + 1), not {k!r}")
+
+
+def _linear_height(height: object):
+    """``block_temporal_height`` as tqec's compile takes it: a ``LinearFunction`` (ours, or
+    tqec's by its slope and offset); a number is the constant function, which tqec refuses."""
+    from .scale import LinearFunction
+
+    if height is None or isinstance(height, LinearFunction):
+        return height
+    if hasattr(height, "slope") and hasattr(height, "offset"):
+        return LinearFunction(height.slope, height.offset)
+    if isinstance(height, (int, float)) and not isinstance(height, bool):
+        return LinearFunction(0, height)
+    raise TQECError(f"block_temporal_height must be a LinearFunction (slope * k + offset; tqec's default is LinearFunction(2, -1)), not {height!r}")
 
 
 def _noisy(noise_model, circuit):
@@ -394,32 +428,73 @@ def _noisy(noise_model, circuit):
 
 
 class TopologicalComputationGraph:
-    """A block graph compiled as tqec's ``compile_block_graph`` returns it, ready to be written
-    at any scale: ``generate_stim_circuit(k, noise_model=...)`` is the circuit at distance
-    2k + 1 on the surgery engine, noiseless or with a ``NoiseModel`` laid over it, and
-    ``compile(distance, p=...)`` the program and circuit under the engine's own SD6 noise.
+    """A block graph compiled as tqec's ``compile_block_graph`` compiles it, ready to be written
+    at any scale: ``generate_stim_circuit(k, noise_model=...)`` is tqec's circuit at distance
+    2k + 1 (its plaquettes, its detectors, its observables), noiseless or with a noise model laid
+    over it, and ``compile(distance, p=...)`` the program and circuit of this package's surgery
+    engine under its own SD6 noise.
 
-    Every check is made when the graph is compiled (open ports, validity, what the engine
-    cannot express, the observables), as tqec makes its own; each time slice has
-    ``block_temporal_height(k) + 2`` rounds (tqec's layers: an initialisation layer, the
-    repeated rounds and a measurement layer), ``2k + 1`` by default as in tqec."""
+    tqec's checks are made when the graph is compiled, with tqec's errors (open ports, validity,
+    a Y half cube's ``NotImplementedError``, a constant ``block_temporal_height``); the engine's
+    when ``compile`` is called. ``surfaces`` are the correlation surfaces compiled into
+    observables and ``stabilizers`` the Pauli string each measures on the graph's ports (or leaf
+    cubes)."""
 
-    def __init__(self, block_graph: "BlockGraph", *, convention: object = FIXED_BULK_CONVENTION, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto", block_temporal_height: object = None, rounds: Optional[int] = None, merged: Optional[int] = None) -> None:
+    def __init__(self, block_graph: "BlockGraph", *, convention: object = FIXED_BULK_CONVENTION, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto", block_temporal_height: object = None, rounds: Optional[int] = None, merged: Optional[int] = None, _engine_only: bool = False) -> None:
         self.convention = _convention(convention)
         if block_temporal_height is not None and (rounds is not None or merged is not None):
             raise TQECError("give block_temporal_height (tqec's) or rounds and merged (the engine's), not both")
+        if isinstance(observables, str) and observables != "auto":
+            raise TQECError(f"observables must be 'auto', None or a list of correlation surfaces, not {observables!r}")
         self._graph = block_graph
         self._observables = observables
         self._height = block_temporal_height
         self._rounds = rounds
         self._merged = merged
-        first = _compile(block_graph, 3, rounds=self._rounds_at(1), merged=merged, observables=observables, write=False)
-        self.surfaces: list["CorrelationSurface"] = first.surfaces
-        self.stabilizers: list[str] = first.stabilizers
+        self._surfaces: Optional[list["CorrelationSurface"]] = None
+        self._tqec = None
+        if not _engine_only:
+            self._tqec_graph()
+
+    def _tqec_graph(self):
+        """tqec's ``TopologicalComputationGraph`` of the graph (the port's), compiled once."""
+        if self._tqec is None:
+            from ._compile.compile import compile_block_graph as tqec_compile_block_graph
+            from ._compile.convention import ALL_CONVENTIONS as TQEC_CONVENTIONS
+
+            kwargs = {}
+            height = _linear_height(self._height)
+            if height is not None:
+                kwargs["block_temporal_height"] = height
+            observables = self._observables
+            if observables is not None and not isinstance(observables, str):
+                observables = list(observables)
+            self._tqec = tqec_compile_block_graph(self._graph, convention=TQEC_CONVENTIONS[self.convention.name], observables=observables, **kwargs)
+        return self._tqec
 
     @property
     def block_graph(self) -> "BlockGraph":
         return self._graph
+
+    @property
+    def surfaces(self) -> list["CorrelationSurface"]:
+        """The correlation surfaces compiled into observables (``"auto"``: all of the graph's, as
+        ``find_correlation_surfaces`` orders them on the graph with its shadowed faces fixed)."""
+        if self._surfaces is None:
+            if self._observables is None:
+                self._surfaces = []
+            elif isinstance(self._observables, str):
+                self._surfaces = self._graph.fix_shadowed_faces().find_correlation_surfaces()
+            else:
+                self._surfaces = list(self._observables)
+        return self._surfaces
+
+    @property
+    def stabilizers(self) -> list[str]:
+        """The Pauli string each observable's surface measures on the graph's ports (in label
+        order), or on its leaf cubes when it has none."""
+        graph = self._graph.fix_shadowed_faces()
+        return [s.external_stabilizer_on_graph(graph) for s in self.surfaces]
 
     @property
     def num_observables(self) -> int:
@@ -436,25 +511,31 @@ class TopologicalComputationGraph:
         return height + 2
 
     def compile(self, distance: int, *, p: float = 0.0) -> CompiledBlockGraph:
-        """The program and circuit at ``distance`` under the engine's SD6 noise ``p``."""
+        """The surgery engine's program and circuit at ``distance`` under its SD6 noise ``p``:
+        each time slice ``block_temporal_height(k) + 2`` rounds (tqec's layers: an
+        initialisation layer, the repeated rounds and a measurement layer; ``2k + 1`` by
+        default), or ``rounds`` and ``merged`` as given."""
         rounds = self._rounds_at((distance - 1) // 2) if isinstance(distance, int) and distance >= 3 else self._rounds
         compiled = _compile(self._graph, distance, p=p, rounds=rounds, merged=self._merged, observables=self._observables)
         compiled.computation = self
         return compiled
 
     def generate_stim_circuit(self, k: int, noise_model=None, manhattan_radius: int = 2, detector_database=None, database_path=None, do_not_use_database: bool = False, only_use_database: bool = False, reschedule_measurements: bool = True):
-        """The circuit at scale ``k`` (distance 2k + 1), with ``noise_model`` (a ``NoiseModel``)
-        laid over the noiseless circuit, as tqec lays its own. The detectors are the engine's,
-        written with the circuit, so tqec's detector search and its database
-        (``detector_database``, ``database_path``, ``do_not_use_database``,
-        ``only_use_database``) have nothing to do; a negative ``manhattan_radius`` leaves the
-        detectors out, as it does in tqec. ``reschedule_measurements`` is tqec's: the engine
-        measures every check of a round at once already."""
-        circuit = self.compile(2 * _scale(k) + 1).circuit
-        if manhattan_radius < 0:
-            from .._circuit import Circuit
+        """tqec's circuit at scale ``k`` (distance 2k + 1), with ``noise_model`` (ours, or
+        tqec's own) laid over the noiseless circuit, as tqec lays it.
 
-            circuit = Circuit("\n".join(line for line in str(circuit).splitlines() if not line.startswith("DETECTOR")))
+        The detectors are found as tqec finds them, within ``manhattan_radius`` plaquettes (none
+        when it is not positive), and ``reschedule_measurements`` is tqec's. tqec keeps the
+        detectors it finds in a database file; here a database lives in memory only:
+        ``detector_database`` (one from an earlier call's, else an empty one, or none with
+        ``do_not_use_database``), and ``database_path`` is taken for tqec's signature and not
+        used. With ``only_use_database`` a situation missing from a database that has entries is
+        an error, as in tqec; an empty database (or none) is filled, as tqec fills it."""
+        from ._compile.detectors.database import DetectorDatabase
+
+        if detector_database is not None and not isinstance(detector_database, DetectorDatabase):
+            raise TQECError(f"detector_database must be None or this package's DetectorDatabase (stabilizer_qec.tqec._compile.detectors.database), not {type(detector_database).__name__}: tqec's is kept in files, which this package does not read")
+        circuit = self._tqec_graph().generate_stim_circuit(_scale(k), None, manhattan_radius, detector_database, database_path, do_not_use_database, only_use_database, reschedule_measurements)
         if noise_model is not None:
             circuit = _noisy(noise_model, circuit)
         return circuit
@@ -464,31 +545,35 @@ class TopologicalComputationGraph:
 
 
 def compile_block_graph(graph: "BlockGraph", distance=None, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto", block_temporal_height: object = None, *, convention: object = FIXED_BULK_CONVENTION, p: float = 0.0, rounds: Optional[int] = None, merged: Optional[int] = None):
-    """A block graph compiled to circuits on this package's lattice-surgery engine, in either of
-    two shapes.
+    """A block graph compiled to circuits, in either of two shapes.
 
     tqec's: ``compile_block_graph(graph, convention=..., observables=...,
     block_temporal_height=...)`` (the second argument may be the convention, as tqec places it)
-    is a ``TopologicalComputationGraph``, whose ``generate_stim_circuit(k=..., noise_model=...)``
-    writes the circuit at distance 2k + 1.
+    is a ``TopologicalComputationGraph``, compiled by tqec's pipeline (with tqec's errors), whose
+    ``generate_stim_circuit(k, noise_model=...)`` is tqec's circuit at distance 2k + 1.
+    ``block_temporal_height`` is a ``LinearFunction`` of ``k``, the rounds between a block's
+    initialisation and measurement layers (default ``LinearFunction(2, -1)``).
 
-    This package's: ``compile_block_graph(graph, distance, p=..., rounds=..., merged=...)`` is
-    the ``CompiledBlockGraph`` at that distance under SD6 noise ``p`` (the engine's noise model),
-    with ``rounds`` rounds per time slice (default ``distance``) and ``merged`` rounds per merge
-    (default ``rounds``): its circuit, tiles, steps and observables' terms.
+    This package's engine: ``compile_block_graph(graph, distance, p=..., rounds=...,
+    merged=...)`` is the ``CompiledBlockGraph`` at that distance under SD6 noise ``p`` (the
+    engine's noise model), with ``rounds`` rounds per time slice (default ``distance``) and
+    ``merged`` rounds per merge (default ``rounds``): its circuit, tiles, steps and observables'
+    terms.
 
     ``observables`` are the correlation surfaces to include, as in tqec: ``"auto"`` (the
     default) all the graph has, as ``find_correlation_surfaces`` orders them, ``None`` none, or a
-    list (each must be a surface of this graph). The graph's shadowed faces are fixed first
-    (``fix_shadowed_faces``), as tqec does, so a pass-through drawn as a spatial cube compiles as
-    the patch it is. A surface that runs one patch's logical along two of its lines (it passes
-    two seams of that patch) is refused: the surgery engine's observables take one line, and
-    the difference of two lines is a band of checks whose signs are random."""
+    list. The graph's shadowed faces are fixed first (``fix_shadowed_faces``), as tqec does, so
+    a pass-through drawn as a spatial cube compiles as the patch it is. On the engine, a list's
+    surfaces must be the graph's, and a surface that runs one patch's logical along two of its
+    lines (it passes two seams of that patch) is refused: the surgery engine's observables take
+    one line, and the difference of two lines is a band of checks whose signs are random."""
     if distance is not None and _is_convention(distance):
         convention, distance = distance, None
-    computation = TopologicalComputationGraph(graph, convention=convention, observables=observables, block_temporal_height=block_temporal_height, rounds=rounds, merged=merged)
     if distance is None:
         if p:
             raise TQECError("p is the engine's noise at a distance: give the distance, or a NoiseModel to generate_stim_circuit")
-        return computation
+        if (rounds is not None or merged is not None) and block_temporal_height is None:
+            raise TQECError("rounds and merged are the engine's: give the distance too")
+        return TopologicalComputationGraph(graph, convention=convention, observables=observables, block_temporal_height=block_temporal_height, rounds=rounds, merged=merged)
+    computation = TopologicalComputationGraph(graph, convention=convention, observables=observables, block_temporal_height=block_temporal_height, rounds=rounds, merged=merged, _engine_only=True)
     return computation.compile(distance, p=p)

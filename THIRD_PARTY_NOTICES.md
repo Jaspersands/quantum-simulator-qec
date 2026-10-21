@@ -270,8 +270,11 @@ pipes, correlation surfaces, port filling), its `utils` (positions, enums, rotat
 `simulation` package (on this package's sinter) and its `interop.pyzx` package (positioned ZX
 graphs, block synthesis, plots; PyZX optional) (tqec/tqec 0.2.0,
 https://github.com/tqec/tqec), rewritten on the standard library without networkx, PyZX,
-pycollada or numpy, with tqec's Steane-encoding Collada file packaged as data. tqec is the
-TQEC community's, licensed under the Apache License, Version 2.0; the licence is in
+pycollada or numpy, with tqec's Steane-encoding Collada file packaged as data.
+`python/stabilizer_qec/tqec/_compile/` is a port of tqec's compile pipeline (its `circuit`,
+`plaquette`, `templates` and `compile` packages and the `utils` modules they use), on this
+package's Stim, with the detector database kept in memory. tqec is the TQEC community's,
+licensed under the Apache License, Version 2.0; the licence is in
 `python/stabilizer_qec/tqec/LICENSE`.
 
 `python/stabilizer_qec/tqec/noise_model.py` is a port of tqec's `utils/noise_model.py`, which
@@ -281,6 +284,14 @@ International licence (https://creativecommons.org/licenses/by/4.0/legalcode). t
 (formatting, typing, no depolarizing error after measurements in `uniform_depolarizing` and
 `si1000`, no two-body measurement noise, TICKs around REPEAT blocks). This port also changes it,
 writing this package's circuits in place of Stim's.
+
+## tqecd
+
+Copyright the TQEC community. Licensed under the Apache License, Version 2.0
+(`python/stabilizer_qec/tqec/_compile/tqecd/LICENSE`). Source: https://github.com/tqec/tqecd
+
+`python/stabilizer_qec/tqec/_compile/tqecd/` is tqecd 0.2.1's package (without its
+`construction` module, whose work tqec's compile pipeline does itself), on this package's Stim.
 
 ## Loom
 

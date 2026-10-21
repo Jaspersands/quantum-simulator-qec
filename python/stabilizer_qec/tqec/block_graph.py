@@ -304,7 +304,8 @@ class BlockGraph:
         a list, as tqec takes them). The size is ``distance`` or tqec's ``k`` (distance 2k + 1);
         the noise the engine's SD6 noise ``p``, or a ``NoiseModel`` laid over the noiseless
         circuit as tqec lays it. Graphs the engine cannot express (Hadamard pipes, spatial cubes,
-        Y cubes, open ports) are refused with tqec named."""
+        Y cubes, open ports) are refused: ``compile_block_graph(graph).generate_stim_circuit(k)``
+        compiles them as tqec does."""
         from .compile import TopologicalComputationGraph, _noisy, _scale
 
         if (distance is None) == (k is None):
@@ -313,7 +314,7 @@ class BlockGraph:
             distance = 2 * _scale(k) + 1
         if noise_model is not None and p:
             raise TQECError("give the engine's noise p or a noise_model, not both")
-        computation = TopologicalComputationGraph(self, convention=convention, observables=observables, block_temporal_height=block_temporal_height, rounds=rounds, merged=merged)
+        computation = TopologicalComputationGraph(self, convention=convention, observables=observables, block_temporal_height=block_temporal_height, rounds=rounds, merged=merged, _engine_only=True)
         circuit = computation.compile(distance, p=p).circuit
         return circuit if noise_model is None else _noisy(noise_model, circuit)
 
