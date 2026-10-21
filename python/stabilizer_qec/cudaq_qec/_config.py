@@ -19,9 +19,12 @@ registered for this package's decoders: ``single_error_lut``, ``multi_error_lut`
 their documented parameters. ``trt_decoder`` has none, as in a CUDA-Q built without TensorRT.
 
 A DEM is described flat (``block_size``, ``syndrome_size``, ``H_sparse``, ``O_sparse``,
-``D_sparse``) or by a Stim model file (``stim_dem_path`` and ``D_sparse``). CUDA-Q's third form,
-``dem_chunks`` (the DEM as repeated phases, expanded by ``expand_dem_chunks``), is refused: it
-needs CUDA-Q's extended-DEM machinery, which this package does not port."""
+``D_sparse``), by a Stim model file (``stim_dem_path`` and ``D_sparse``), or as repeated phases,
+``dem_chunks`` (a ``DemChunksSpec``: named per-round phases, the graph connecting them and the
+round count, which ``expand_dem_chunks`` expands to the flat form, returning the closed model; see
+``._extended_dem``). The YAML reads and writes all three. As in CUDA-Q, whose ``dem_chunks`` holds
+only the hashes of its seam and phase names, those names are written empty (``''``): a chunk-form
+document written here re-parses in chunk form, but with every seam and phase named ``''``."""
 
 from __future__ import annotations
 
@@ -34,6 +37,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from . import _yaml
+from ._extended_dem import DemChunksSpec, DemSeamSpec, DemChunkSpec, PhaseConnection, PhaseSpecEntry, SeamId, SeamSpecEntry, _register_name
 
 _U64 = 2**64
 _I64 = (-(2**63), 2**63 - 1)
@@ -635,17 +639,12 @@ class transport_config:
         return f"transport_config(provider={self._provider!r}, args={self._args!r}, device_graph={self._device_graph!r})"
 
 
-_NO_DEM_CHUNKS = (
-    "dem_chunks is not supported by this package (it needs CUDA-Q's extended detector-error-model machinery, which is not ported); "
-    "describe the DEM flat (block_size, syndrome_size, H_sparse, O_sparse, D_sparse) or name a Stim model with stim_dem_path"
-)
-
-
 class decoder_config:
     """One decoder of a real-time decoding configuration: its ``id`` and ``type``, its DEM
     (flat: ``block_size``, ``syndrome_size``, ``H_sparse``, ``O_sparse`` and ``D_sparse``, each
-    matrix as ``pcm_to_sparse_vec`` writes it; or a Stim model file, ``stim_dem_path``, with
-    ``D_sparse``), and its parameters, ``decoder_custom_args`` (a dict, set after ``type``)."""
+    matrix as ``pcm_to_sparse_vec`` writes it; or phases, ``dem_chunks``, with the flat fields
+    derived by ``expand_dem_chunks``; or a Stim model file, ``stim_dem_path``, with ``D_sparse``),
+    and its parameters, ``decoder_custom_args`` (a dict, set after ``type``)."""
 
     def __init__(self) -> None:
         self._id = 0
@@ -658,6 +657,7 @@ class decoder_config:
         self._H: List[int] = []
         self._O: List[int] = []
         self._D: List[int] = []
+        self._dem_chunks: Optional[DemChunksSpec] = None
         self._args: Dict[str, _V] = {}
 
     id = property(lambda self: self._id, lambda self, v: setattr(self, "_id", _int_value(v, _I64[0], _I64[1], "id")))
@@ -688,14 +688,18 @@ class decoder_config:
         self._cuda_device_id = None if value is None else _int_value(value, _I32[0], _I32[1], "cuda_device_id")
 
     @property
-    def dem_chunks(self) -> None:
-        """Always None here: the chunk form is not supported (see the module notes)."""
-        return None
+    def dem_chunks(self) -> Optional[DemChunksSpec]:
+        """Optional DemChunksSpec describing the DEM as named phases. ``num_rounds`` lives inside
+        the DemChunksSpec. Leave block_size, syndrome_size, H_sparse, O_sparse and D_sparse unset;
+        ``expand_dem_chunks()`` derives those. (The spec itself, not a copy: assigning a spec
+        copies it in.)"""
+        return self._dem_chunks
 
     @dem_chunks.setter
-    def dem_chunks(self, value: Any) -> None:
-        if value is not None:
-            raise RuntimeError(_NO_DEM_CHUNKS)
+    def dem_chunks(self, value: Optional[DemChunksSpec]) -> None:
+        if value is not None and not isinstance(value, DemChunksSpec):
+            raise TypeError(f"dem_chunks must be a DemChunksSpec or None, not {type(value).__name__}")
+        self._dem_chunks = None if value is None else value._copy()
 
     @property
     def decoder_custom_args(self) -> dict:
@@ -717,6 +721,12 @@ class decoder_config:
         wrong kind, missing required keys and the schema's own checks. Raises RuntimeError."""
         _validate_named(self._type, self._args)
 
+    def expand_dem_chunks(self) -> Optional[Any]:
+        """``expand_dem_chunks(self)``: this configuration rewritten in place from its
+        ``dem_chunks`` to the flat form, returning the closed ``DetectorErrorModel`` (None if it
+        is already flat or has no ``dem_chunks``). A method here as well as CUDA-Q's function."""
+        return expand_dem_chunks(self)
+
     def _args_for_decoder(self) -> Dict[str, _V]:
         # decoder_custom_args_to_heterogeneous_map: non-schema keys dropped, defaults filled in.
         args = _copy_map(self._args)
@@ -733,19 +743,20 @@ class decoder_config:
     @staticmethod
     def from_yaml_str(yaml_str: str) -> "decoder_config":
         """A decoder from a YAML document."""
-        return _from_yaml(yaml_str, _read_decoder)
+        return _from_yaml(yaml_str, _read_decoder, lambda cfg: [cfg])
 
     def _fields(self) -> tuple:
         return (self._id, self._type, self._dispatch, self._cuda_device_id, self._block_size, self._syndrome_size, self._stim_dem_path, self._H, self._O, self._D)
 
     def __eq__(self, other: object) -> bool:
-        return isinstance(other, decoder_config) and self._fields() == other._fields() and _maps_equal(self._args, other._args)
+        return isinstance(other, decoder_config) and self._fields() == other._fields() and _chunks_equal(self._dem_chunks, other._dem_chunks) and _maps_equal(self._args, other._args)
 
     __hash__ = None  # type: ignore[assignment]
 
     def _copy(self) -> "decoder_config":
         out = decoder_config()
         out.__dict__.update({k: (list(v) if isinstance(v, list) else v) for k, v in self.__dict__.items()})
+        out._dem_chunks = None if self._dem_chunks is None else self._dem_chunks._copy()
         out._args = _copy_map(self._args)
         return out
 
@@ -757,6 +768,10 @@ class decoder_config:
 
     def __repr__(self) -> str:
         return f"decoder_config(id={self._id}, type={self._type!r}, block_size={self._block_size}, syndrome_size={self._syndrome_size})"
+
+
+def _chunks_equal(a: Optional[DemChunksSpec], b: Optional[DemChunksSpec]) -> bool:
+    return a is None and b is None or (a is not None and b is not None and a._same(b))
 
 
 class multi_decoder_config:
@@ -805,7 +820,7 @@ class multi_decoder_config:
     @staticmethod
     def from_yaml_str(yaml_str: str) -> "multi_decoder_config":
         """A configuration from a YAML document."""
-        return _from_yaml(yaml_str, _read_multi)
+        return _from_yaml(yaml_str, _read_multi, lambda multi: multi._decoders)
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, multi_decoder_config) and self._decoders == other._decoders and self._transport == other._transport
@@ -822,12 +837,43 @@ class multi_decoder_config:
         return f"multi_decoder_config(decoders={self._decoders!r})"
 
 
-def expand_dem_chunks(config: decoder_config) -> None:
-    """CUDA-Q's chunk-form expansion: a no-op on a flat configuration (the only kind here),
-    returning None."""
+def expand_dem_chunks(config: decoder_config) -> Optional[Any]:
+    """Rewrite a chunk-form configuration into the equivalent flat form.
+
+    Fills ``block_size``, ``syndrome_size``, ``H_sparse``, ``O_sparse`` and ``D_sparse`` on
+    ``config`` in place from ``dem_chunks`` (which carries ``num_rounds`` inside the
+    ``DemChunksSpec``), so that a chunk-form configuration can be handed to anything that
+    understands only the flat form. Does nothing to a configuration that is already flat (one
+    with an ``H_sparse``, as this leaves behind), so it is safe to call unconditionally.
+
+    Returns the closed ``DetectorErrorModel`` the flat fields came from (its ``error_rates``
+    the per-fault priors the phases declared), or None if the configuration was already flat or
+    has no ``dem_chunks``. A spec that cannot be expanded or closed raises RuntimeError naming
+    the decoder."""
+    from ._extended_dem import dem_chunks_from_spec, dem_chunks_to_d_sparse, dem_close_all
+    from ._pcm import pcm_to_sparse_vec
+
     if not isinstance(config, decoder_config):
         raise TypeError("expand_dem_chunks(): config must be a decoder_config")
-    return None
+    if config._dem_chunks is None or config._H:
+        return None
+    spec = config._dem_chunks
+    from_seam, to_seam = spec.seam.from_seam, spec.seam.to_seam
+    try:
+        chunks = dem_chunks_from_spec(spec)
+    except ValueError as e:
+        raise RuntimeError(f"Cannot expand dem_chunks for decoder {config._id}: {e}") from None
+    try:
+        closed = dem_close_all(chunks, from_seam, to_seam)
+        d_sparse = dem_chunks_to_d_sparse(chunks, from_seam, to_seam)
+    except Exception as e:
+        raise RuntimeError(f"Cannot close dem_chunks for decoder {config._id}: {e}") from None
+    config._block_size = closed.num_error_mechanisms()
+    config._syndrome_size = closed.num_detectors()
+    config._H = pcm_to_sparse_vec(closed.detector_error_matrix)
+    config._O = pcm_to_sparse_vec(closed.observables_flips_matrix)
+    config._D = [c for row in d_sparse for c in (*row, -1)]
+    return closed
 
 
 # -- The configuration's checks (CUDA-Q runs them on reading and on writing) --------------------------
@@ -835,14 +881,43 @@ def expand_dem_chunks(config: decoder_config) -> None:
 _FLAT_FIELDS = ("block_size", "syndrome_size", "H_sparse", "O_sparse", "D_sparse")
 
 
+def _reject_derived(did: int, key: str, present: bool, source: str) -> None:
+    # (The form named by ``source`` derives this field: accepting it would let a config disagree with itself.)
+    if present:
+        raise RuntimeError(f"{key} must not be set for decoder {did} because it is derived from {source}. Remove it, or describe the whole experiment with H_sparse instead of {source}.")
+
+
 def _check(cfg: decoder_config, document_keys: Optional[List[str]]) -> None:
     """The checks of CUDA-Q's decoder_config mapping; ``document_keys`` when reading."""
     reading = document_keys is not None
     did = cfg._id
-    if cfg._stim_dem_path:
-        for key, present in (("block_size", cfg._block_size != 0), ("syndrome_size", cfg._syndrome_size != 0), ("H_sparse", bool(cfg._H)), ("O_sparse", bool(cfg._O))):
-            if present:
-                raise RuntimeError(f"{key} must not be set for decoder {did} because it is derived from stim_dem_path. Remove it, or describe the whole experiment with H_sparse instead of stim_dem_path.")
+    # Chunk form when dem_chunks is set and H_sparse is empty: a non-empty H_sparse makes the config
+    # flat, the matrix winning, which is also what expand_dem_chunks() leaves behind. DEM form when a
+    # Stim model file is named.
+    chunk_form = cfg._dem_chunks is not None and not cfg._H
+    from_dem = bool(cfg._stim_dem_path)
+    if reading and cfg._dem_chunks is not None and cfg._H:
+        _warn(
+            f"decoder {did} sets both H_sparse and dem_chunks. The flat H_sparse matrix is what decoders are built from, and dem_chunks is ignored, including its num_rounds. "
+            "This is expected for a config already expanded by expand_dem_chunks(); otherwise drop H_sparse to decode from dem_chunks."
+        )
+    # (Each of dem_chunks and stim_dem_path describes the whole DEM on its own, with no precedence
+    # between them to fall back on.)
+    if chunk_form and from_dem:
+        raise RuntimeError(f"dem_chunks and stim_dem_path must not both be set for decoder {did}; each describes the whole DEM on its own.")
+    if chunk_form:
+        rounds = cfg._dem_chunks.num_rounds
+        if rounds is not None and rounds < 2:
+            raise RuntimeError(f"dem_chunks.num_rounds must be at least 2 for decoder {did}; got {rounds}.")
+        _reject_derived(did, "block_size", cfg._block_size != 0, "dem_chunks")
+        _reject_derived(did, "syndrome_size", cfg._syndrome_size != 0, "dem_chunks")
+        _reject_derived(did, "O_sparse", bool(cfg._O), "dem_chunks")
+        _reject_derived(did, "D_sparse", bool(cfg._D), "dem_chunks")
+    elif from_dem:
+        _reject_derived(did, "block_size", cfg._block_size != 0, "stim_dem_path")
+        _reject_derived(did, "syndrome_size", cfg._syndrome_size != 0, "stim_dem_path")
+        _reject_derived(did, "H_sparse", bool(cfg._H), "stim_dem_path")
+        _reject_derived(did, "O_sparse", bool(cfg._O), "stim_dem_path")
         if reading and not cfg._D:
             raise RuntimeError(f"D_sparse is required for decoder {did} alongside stim_dem_path, which describes the DEM but not the detectors this decoder is sent.")
     else:
@@ -866,7 +941,7 @@ def _check(cfg: decoder_config, document_keys: Optional[List[str]]) -> None:
                 raise RuntimeError(f"Value in {name} vector is out of range: {value}")
     if cfg._D:
         rows = cfg._D.count(-1)
-        if not cfg._stim_dem_path and rows != cfg._syndrome_size:
+        if not from_dem and rows != cfg._syndrome_size:
             raise RuntimeError(f"Number of rows in D_sparse vector is not equal to syndrome_size: {rows} != {cfg._syndrome_size}")
         for a, b in zip(cfg._D, cfg._D[1:]):
             if a == -1 and b == -1:
@@ -911,6 +986,53 @@ def _emit_args(args: Dict[str, _V], schema: _Schema) -> List[Tuple[str, Any]]:
     return items
 
 
+# (CUDA-Q's spec holds a seam's or phase's id, the FNV-1a hash of its name, and not the name. Its
+# MappingTraits for seam_connection, phase_connection, seam_spec_entry and phase_spec_entry read the
+# name into a local string and set the id from it only when reading, so on output that string is empty
+# and every name is written ''; its own comment calls the seam_specs form input-only. The names are
+# written '' here too: the bytes are CUDA-Q's, and depend only on the configuration written, never on
+# which names this process has registered.)
+_UNNAMED = _yaml.quote("")
+
+
+def _emit_seam_connection() -> List[Tuple[str, Any]]:
+    return [("from", ("scalar", _UNNAMED)), ("to", ("scalar", _UNNAMED))]
+
+
+def _emit_dem_chunk_spec(spec: DemChunkSpec) -> List[Tuple[str, Any]]:
+    flow = lambda vec: ("flow", [str(v) for v in vec])  # noqa: E731
+    items: List[Tuple[str, Any]] = [("num_faults", ("scalar", str(spec._num_faults)))]
+    # (An empty optional list is left out, as LLVM leaves it, here where it is not a map's first key.)
+    if spec._H:
+        items.append(("H_sparse", flow(spec._H)))
+    if spec._seam_specs:
+        entries = []
+        for e in spec._seam_specs:
+            inner: List[Tuple[str, Any]] = []
+            if e._spec._H:
+                inner.append(("H_sparse", flow(e._spec._H)))
+            if e._spec._O:
+                inner.append(("O_sparse", flow(e._spec._O)))
+            entries.append(("map", [("name", ("scalar", _UNNAMED)), ("spec", ("map", inner))]))
+        items.append(("seam_specs", ("seq", entries)))
+    if spec._O:
+        items.append(("O_sparse", flow(spec._O)))
+    items.append(("error_rates", ("flow", [_yaml.fmt_double(v) for v in spec._rates])))
+    return items
+
+
+def _emit_dem_chunks(spec: DemChunksSpec) -> List[Tuple[str, Any]]:
+    # (The names written '', as CUDA-Q writes them; see _UNNAMED.)
+    items: List[Tuple[str, Any]] = [
+        ("seam", ("map", _emit_seam_connection())),
+        ("connections", ("seq", [("map", _emit_seam_connection()) for _ in spec._connections])),
+    ]
+    if spec._num_rounds is not None:
+        items.append(("num_rounds", ("scalar", str(spec._num_rounds))))
+    items.append(("phases", ("seq", [("map", [("name", ("scalar", _UNNAMED)), ("spec", ("map", _emit_dem_chunk_spec(e.spec)))]) for e in spec._phases])))
+    return items
+
+
 def _emit_decoder(cfg: decoder_config) -> List[Tuple[str, Any]]:
     flow = lambda vec: ("flow", [str(v) for v in vec])  # noqa: E731
     items: List[Tuple[str, Any]] = [("id", ("scalar", str(cfg._id))), ("type", ("scalar", _yaml.quote(cfg._type)))]
@@ -918,12 +1040,16 @@ def _emit_decoder(cfg: decoder_config) -> List[Tuple[str, Any]]:
         items.append(("dispatch", ("scalar", cfg._dispatch.name)))
     if cfg._cuda_device_id is not None:
         items.append(("cuda_device_id", ("scalar", str(cfg._cuda_device_id))))
-    if not (cfg._stim_dem_path and not cfg._H):
-        # (A flat configuration names all five, even empty ones.)
+    if not ((cfg._dem_chunks is not None or cfg._stim_dem_path) and not cfg._H):
+        # (A flat configuration names all five, even empty ones; a chunk-form or DEM-sourced one
+        # leaves the fields it derives out, which is what makes its document re-parse in the form
+        # it was written in.)
         items += [("block_size", ("scalar", str(cfg._block_size))), ("syndrome_size", ("scalar", str(cfg._syndrome_size))), ("H_sparse", flow(cfg._H)), ("O_sparse", flow(cfg._O)), ("D_sparse", flow(cfg._D))]
     else:
         items += [(k, ("scalar", str(v))) for k, v in (("block_size", cfg._block_size), ("syndrome_size", cfg._syndrome_size)) if v]
         items += [(k, flow(v)) for k, v in (("H_sparse", cfg._H), ("O_sparse", cfg._O), ("D_sparse", cfg._D)) if v]
+    if cfg._dem_chunks is not None:
+        items.append(("dem_chunks", ("map", _emit_dem_chunks(cfg._dem_chunks))))
     if cfg._stim_dem_path:
         items.append(("stim_dem_path", ("scalar", _yaml.quote(cfg._stim_dem_path))))
     _check(cfg, None)
@@ -1184,6 +1310,130 @@ def _read_custom(io: _In, node: _yaml.Node, schema: _Schema, out: Dict[str, _V])
         out[key] = _V(_STORED[k], value)
 
 
+def _is_none(node: _yaml.Node) -> bool:
+    # (llvm::yaml's optional keys read the plain scalar "<none>" as no value.)
+    return node.kind == "scalar" and node.style == "plain" and node.value.rstrip(" ") == "<none>"
+
+
+def _read_name(io: _In, node: Optional[_yaml.Node], valid: List[str], key: str) -> str:
+    v = io.key(node, valid, key, True)
+    return (io.scalar(v) or "") if isinstance(v, _yaml.Node) else ""
+
+
+def _read_connection(io: _In, node: _yaml.Node) -> Tuple[SeamId, SeamId]:
+    """CUDA-Q's seam_connection and phase_connection mappings: ``{from: name, to: name}``."""
+    valid: List[str] = []
+    from_name = _read_name(io, node, valid, "from")
+    to_name = _read_name(io, node, valid, "to")
+    io.end(node, valid)
+    if io.ec:
+        return SeamId(), SeamId()
+    ids = SeamId(from_name), SeamId(to_name)
+    _register_name(ids[0], from_name)
+    _register_name(ids[1], to_name)
+    return ids
+
+
+def _read_seam_spec(io: _In, node: _yaml.Node) -> DemSeamSpec:
+    spec = DemSeamSpec()
+    valid: List[str] = []
+    v = io.key(node, valid, "H_sparse", False)
+    if isinstance(v, _yaml.Node):
+        spec._H = io.int_seq(v)
+    v = io.key(node, valid, "O_sparse", False)
+    if isinstance(v, _yaml.Node):
+        spec._O = io.int_seq(v)
+    io.end(node, valid)
+    return spec
+
+
+def _read_named(io: _In, node: _yaml.Node, read_spec: Callable[[_In, _yaml.Node], Any]) -> Tuple[SeamId, Any]:
+    """CUDA-Q's seam_spec_entry and phase_spec_entry mappings: ``{name: string, spec: ...}``."""
+    valid: List[str] = []
+    name = _read_name(io, node, valid, "name")
+    spec = None
+    v = io.key(node, valid, "spec", True)
+    if isinstance(v, _yaml.Node):
+        spec = read_spec(io, v)
+    io.end(node, valid)
+    if io.ec:
+        return SeamId(), spec
+    sid = SeamId(name)
+    _register_name(sid, name)
+    return sid, spec
+
+
+def _read_dem_chunk_spec(io: _In, node: _yaml.Node) -> DemChunkSpec:
+    spec = DemChunkSpec()
+    valid: List[str] = []
+    v = io.key(node, valid, "num_faults", True)
+    if isinstance(v, _yaml.Node):
+        x = io.integer(v, 0, _U64 - 1)
+        spec._num_faults = 0 if x is None else x
+    v = io.key(node, valid, "H_sparse", False)
+    if isinstance(v, _yaml.Node):
+        spec._H = io.int_seq(v)
+    v = io.key(node, valid, "seam_specs", False)
+    if isinstance(v, _yaml.Node):
+        for item in io.seq(v):
+            if io.ec:
+                break
+            entry = SeamSpecEntry()
+            entry._id, parsed = _read_named(io, item, _read_seam_spec)
+            if parsed is not None:
+                entry._spec = parsed
+            spec._seam_specs.append(entry)
+    v = io.key(node, valid, "O_sparse", False)
+    if isinstance(v, _yaml.Node):
+        spec._O = io.int_seq(v)
+    v = io.key(node, valid, "error_rates", True)
+    if isinstance(v, _yaml.Node):
+        spec._rates = io.double_seq(v)
+    io.end(node, valid)
+    return spec
+
+
+def _read_dem_chunks(io: _In, node: _yaml.Node) -> Optional[DemChunksSpec]:
+    """CUDA-Q's dem_chunks_spec mapping:
+
+        seam: {from: next_round, to: prev_round}
+        connections: [{from: init, to: bulk}, {from: bulk, to: bulk}, {from: bulk, to: final}]
+        num_rounds: 5
+        phases: [{name: init, spec: {num_faults: 3, H_sparse: [...], O_sparse: [...], error_rates: [...]}}, ...]
+
+    ``seam``, ``connections`` and ``phases`` are required, ``num_rounds`` is not."""
+    if _is_none(node):
+        return None
+    spec = DemChunksSpec()
+    valid: List[str] = []
+    v = io.key(node, valid, "seam", True)
+    if isinstance(v, _yaml.Node):
+        spec._seam._from, spec._seam._to = _read_connection(io, v)
+    v = io.key(node, valid, "connections", True)
+    if isinstance(v, _yaml.Node):
+        for item in io.seq(v):
+            if io.ec:
+                break
+            connection = PhaseConnection()
+            connection._from, connection._to = _read_connection(io, item)
+            spec._connections.append(connection)
+    v = io.key(node, valid, "num_rounds", False)
+    if isinstance(v, _yaml.Node) and not _is_none(v):
+        spec._num_rounds = io.integer(v, 0, _U64 - 1)
+    v = io.key(node, valid, "phases", True)
+    if isinstance(v, _yaml.Node):
+        for item in io.seq(v):
+            if io.ec:
+                break
+            entry = PhaseSpecEntry()
+            entry._id, parsed = _read_named(io, item, _read_dem_chunk_spec)
+            if parsed is not None:
+                entry._spec = parsed
+            spec._phases.append(entry)
+    io.end(node, valid)
+    return spec
+
+
 def _read_decoder(io: _In, node: Optional[_yaml.Node]) -> decoder_config:
     cfg = decoder_config()
     valid: List[str] = []
@@ -1218,7 +1468,7 @@ def _read_decoder(io: _In, node: Optional[_yaml.Node]) -> decoder_config:
             setattr(cfg, attr, io.int_seq(v))
     v = io.key(node, valid, "dem_chunks", False)
     if isinstance(v, _yaml.Node):
-        raise RuntimeError(_NO_DEM_CHUNKS)
+        cfg._dem_chunks = _read_dem_chunks(io, v)
     v = io.key(node, valid, "stim_dem_path", False)
     if isinstance(v, _yaml.Node):
         cfg._stim_dem_path = io.scalar(v) or ""
@@ -1281,7 +1531,18 @@ def _read_multi(io: _In, node: Optional[_yaml.Node]) -> multi_decoder_config:
     return cfg
 
 
-def _from_yaml(yaml_str: str, read: Callable[[_In, Optional[_yaml.Node]], Any]) -> Any:
+def _validate_dem_chunks(cfg: decoder_config) -> None:
+    """The cross-phase checks of ``dem_chunks``, run after a successful parse and presented as the
+    one error type every configuration error out of ``from_yaml_str`` has."""
+    if cfg._dem_chunks is None:
+        return
+    try:
+        cfg._dem_chunks.validate()
+    except ValueError as e:
+        raise RuntimeError(f"Invalid dem_chunks for decoder {cfg._id}: {e}") from None
+
+
+def _from_yaml(yaml_str: str, read: Callable[[_In, Optional[_yaml.Node]], Any], decoders: Callable[[Any], List[decoder_config]]) -> Any:
     if not isinstance(yaml_str, str):
         raise TypeError(f"from_yaml_str(): yaml_str must be a str, not {type(yaml_str).__name__}")
     io = _In()
@@ -1292,6 +1553,8 @@ def _from_yaml(yaml_str: str, read: Callable[[_In, Optional[_yaml.Node]], Any]) 
     out = read(io, root)
     if io.ec:
         raise RuntimeError(f"Invalid decoder configuration YAML: Invalid argument ({io.message})")
+    for cfg in decoders(out):
+        _validate_dem_chunks(cfg)
     return out
 
 

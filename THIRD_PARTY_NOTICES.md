@@ -213,7 +213,15 @@ Its codes (`stabilizer_grid`, the surface code's orientations, Steane, repetitio
 and memory experiments (`python/stabilizer_qec/cudaq_qec/_codes.py`) are ported from its C++
 sources. Its real-time decoding configuration (`_config.py`, with YAML read and written by
 `_yaml.py`), its host decoding library (`_realtime.py`) and its deprecated typed configurations
-(`_compat.py`) are ported from `lib/realtime/`, `lib/decoder.cpp` and its Python bindings.
+(`_compat.py`) are ported from `lib/realtime/`, `lib/decoder.cpp` and its Python bindings. Its
+extended detector error model and `dem_chunks` (`_extended_dem.py`) and the DEM of CSS code
+matrices (`_css.py`) are ported from `include/cudaq/qec/extended_dem.h`,
+`include/cudaq/qec/dem_chunks_memory.h`, `include/cudaq/qec/code_matrices.h`,
+`include/cudaq/qec/sparse_binary_matrix.h`, `include/cudaq/qec/dem_construction_code.h`,
+`lib/extended_dem.cpp`, `lib/dem_chunks_memory.cpp`, `lib/sparse_binary_matrix.cpp`,
+`lib/dem_construction.cpp`, `lib/dem_construction_code.cpp`, `lib/dem_construction_utils.cpp`,
+`python/bindings/py_extended_dem.cpp`, `python/bindings/py_dem_construction.cpp` and
+`python/bindings/sparse_matrix_casters.h`.
 `tests/cudaq_qec_port/` holds CUDA-Q QEC's decoder, code and configuration tests (the C++ code
 tests in Python) with their import pointed at this package.
 

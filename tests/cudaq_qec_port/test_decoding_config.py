@@ -444,12 +444,17 @@ def test_stim_dem_path_form():
         qec.decoder_config.from_yaml_str("id: 2\ntype: chromobius\nstim_dem_path: m.dem\n")
 
 
-def test_dem_chunks_is_refused_and_expand_dem_chunks_is_a_no_op():
-    with pytest.raises(RuntimeError, match="dem_chunks is not supported"):
+def test_dem_chunks_is_accepted_and_expand_dem_chunks_is_a_no_op_on_a_flat_config():
+    # (The chunk form itself is in test_decoders_yaml_chunks.py.)
+    with pytest.raises(RuntimeError, match=r"YAML:4:3: missing required key 'seam'"):
         qec.decoder_config.from_yaml_str("id: 0\ntype: single_error_lut\ndem_chunks:\n  num_rounds: 3\n")
     dc = pymatching_dc()
-    with pytest.raises(RuntimeError, match="dem_chunks is not supported"):
+    with pytest.raises(TypeError, match="dem_chunks must be a DemChunksSpec or None"):
         dc.dem_chunks = {}
+    assert dc.dem_chunks is None
+    dc.dem_chunks = qec.DemChunksSpec()
+    assert dc.dem_chunks.is_empty()
+    dc.dem_chunks = None
     assert dc.dem_chunks is None
     before = dc.H_sparse
     assert qec.expand_dem_chunks(dc) is None and qec.qecrt.config.expand_dem_chunks(dc) is None
