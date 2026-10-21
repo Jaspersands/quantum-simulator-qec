@@ -38,9 +38,10 @@ def test_api_surface():
         if isinstance(a, type) and name != "PyMut":
             assert {m for m in dir(a) if not m.startswith("__")} == {m for m in dir(b) if not m.startswith("__")}, name
     for name in dir(ref.helper):
-        if not name.startswith("_") and callable(getattr(ref.helper, name)) and name not in ("bottle",):
+        if not name.startswith("_") and callable(getattr(ref.helper, name)):
             assert callable(getattr(fb.helper, name, None)), name
     assert set(ref.helper.visualizer_website) == set(fb.helper.visualizer_website)
+    assert hasattr(fb.helper, "bottle")
 
 
 @pytest.mark.parametrize("name", PLAIN + TIMED)
@@ -218,9 +219,14 @@ def test_sinter_decoder(monkeypatch):
     circuit = stim.Circuit.generated("surface_code:rotated_memory_x", distance=5, rounds=5, after_clifford_depolarization=0.01)
     dem = circuit.detector_error_model(decompose_errors=True)
     dets, _ = circuit.compile_detector_sampler(seed=5).sample(300, separate_observables=True, bit_packed=True)
-    ours = decoding.FusionBlossomDecoder().compile_decoder_for_dem(dem=dem).decode_shots_bit_packed(bit_packed_detection_event_data=dets)
-    monkeypatch.setattr(decoding, "fusion_blossom", ref)
-    theirs = decoding.FusionBlossomDecoder().compile_decoder_for_dem(dem=dem).decode_shots_bit_packed(bit_packed_detection_event_data=dets)
+    compiled = decoding.FusionBlossomDecoder().compile_decoder_for_dem(dem=dem)
+    assert type(compiled.solver) is fb.SolverSerial
+    ours = compiled.decode_shots_bit_packed(bit_packed_detection_event_data=dets)
+    # The decoder imports fusion_blossom when it runs, as sinter's does: from the package, here fusion_blossom's.
+    monkeypatch.setattr(stim, "fusion_blossom", ref)
+    compiled = decoding.FusionBlossomDecoder().compile_decoder_for_dem(dem=dem)
+    assert type(compiled.solver) is ref.SolverSerial
+    theirs = compiled.decode_shots_bit_packed(bit_packed_detection_event_data=dets)
     assert np.array_equal(ours, theirs)
 
 
@@ -234,4 +240,4 @@ def test_weight_of_p_and_names():
     for module in (ref, fb):
         with pytest.raises(BaseException):
             module.SyndromePattern([1], syndrome_vertices=[2])
-    assert os.path.basename(fb.helper.__file__) == "helper.py"
+    assert fb.helper.__file__.endswith(os.path.join("helper", "__init__.py"))
