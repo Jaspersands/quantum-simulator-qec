@@ -349,9 +349,10 @@ impl PyCircuit {
     }
 
     /// The coherent sampler: the twirl, reweighted by the interference it leaves out.
-    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, max_complete=crate::coherent::kernel::MAX_COMPLETE))]
-    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, max_complete: usize) -> PyResult<PyCoherentSampler> {
-        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete };
+    #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, max_complete=crate::coherent::kernel::MAX_COMPLETE, max_contraction=crate::coherent::kernel::MAX_CONTRACTION))]
+    #[allow(clippy::too_many_arguments)]
+    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, max_complete: usize, max_contraction: usize) -> PyResult<PyCoherentSampler> {
+        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete, max_contraction };
         let inner = &self.circuit.inner;
         let sampler = py.detach(|| crate::coherent::sampler::CoherentSampler::new(inner, options)).map_err(err)?;
         Ok(PyCoherentSampler { sampler, seed, next: 0.into() })
@@ -360,7 +361,7 @@ impl PyCircuit {
     /// The joint sampler: non-Clifford gates exact, coherent errors twirled and reweighted.
     #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, pairs=false, max_complete=crate::coherent::kernel::MAX_COMPLETE))]
     fn joint_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, pairs: bool, max_complete: usize) -> PyResult<PyJointSampler> {
-        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete };
+        let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete, ..Default::default() };
         let inner = &self.circuit.inner;
         let sampler = py.detach(|| crate::coherent::joint::JointSampler::new(inner, options).map(|s| s.with_pairs(pairs))).map_err(err)?;
         Ok(PyJointSampler { sampler, seed, next: 0.into() })
@@ -546,6 +547,11 @@ impl PyCoherentSampler {
     #[getter]
     fn exact_weights(&self) -> bool {
         self.sampler.kernel.is_whole()
+    }
+
+    #[getter]
+    fn contraction_width(&self) -> Option<usize> {
+        self.sampler.kernel.contraction_width()
     }
 
     fn sample<'py>(&self, py: Python<'py>, shots: usize, threads: usize) -> (Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<f64>) {

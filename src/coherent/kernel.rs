@@ -23,9 +23,12 @@
 //! one elimination over the locations' residues and is done up to `max_complete` locations;
 //! past it the kernel is the local one and `complete` is false.
 //!
-//! With the whole kernel spanned by at most `SMALL_KERNEL` generators (and the groups), a shot
-//! sums every product of them: the class sum of `Program::weight`, exact. Otherwise its weight
-//! is truncated. The local generators go by clusters as before 2.1: those holding a fault that
+//! With the whole kernel spanned, a shot sums every product of the generators (and the groups):
+//! the class sum of `Program::weight`, exact. The sum is contracted (`contract`), at a cost
+//! exponential in the width of the generators' interactions rather than in their number; with
+//! the contraction past `max_contraction` table entries, and at most `SMALL_KERNEL` generators,
+//! every product is listed once and summed. Otherwise the weight is truncated, as in 2.1. The
+//! local generators go by clusters as before 2.1: those holding a fault that
 //! fired and their neighbours, joined when they share a location, each cluster's sum over the
 //! products of up to `order` of its generators, each other generator's 1 + r on its own, the
 //! weight |Π S|² / Π N of the sums S and their squared sizes N. A non-local generator holding a
@@ -37,6 +40,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use super::contract::{ContractionPlan, ShotFactors};
 use super::{Element, GaugeSolver, Program, Shot, Slot};
 use crate::statevec::C;
 
@@ -55,11 +59,14 @@ pub struct CoherentOptions {
     /// The most locations whose kernel is completed past the local generators (one Gaussian
     /// elimination over their residues); 0 never completes it.
     pub max_complete: usize,
+    /// The most table entries, in all, of the contraction that sums a shot's whole class; 0
+    /// never contracts.
+    pub max_contraction: usize,
 }
 
 impl Default for CoherentOptions {
     fn default() -> Self {
-        CoherentOptions { order: 3, max_cluster: 12, quads: true, hops: 1, max_complete: MAX_COMPLETE }
+        CoherentOptions { order: 3, max_cluster: 12, quads: true, hops: 1, max_complete: MAX_COMPLETE, max_contraction: MAX_CONTRACTION }
     }
 }
 
@@ -67,8 +74,13 @@ impl Default for CoherentOptions {
 /// (about 9,000 locations) completes in about a second.
 pub const MAX_COMPLETE: usize = 50_000;
 
-/// With the kernel complete and this many generators or fewer, a shot sums every product of
-/// them (2^12 elements at most): exact, and the same set from every shot.
+/// The default `max_contraction`: 2^16 entries (a d = 7 surface memory over seven rounds, of
+/// width 9, takes about 4,700).
+pub const MAX_CONTRACTION: usize = 1 << 16;
+
+/// With the kernel complete, not contracted and this many generators or fewer, a shot sums
+/// every product of them, listed once (2^12 elements at most): exact, and the same set from
+/// every shot. The joint sampler's limit too.
 pub const SMALL_KERNEL: usize = 12;
 
 /// The kernel's generators (the local ones first, then those completing them to a basis of the
@@ -81,8 +93,10 @@ pub struct Kernel {
     /// locations: interference between distant faults, a logical error at one time with one at
     /// another, is then left out).
     pub complete: bool,
-    /// With a complete kernel of at most `SMALL_KERNEL` generators: every nonzero product of
-    /// them, which each shot sums.
+    /// With a complete kernel: the contraction of its class sums, within `max_contraction`.
+    plan: Option<ContractionPlan>,
+    /// With a complete kernel not contracted, of at most `SMALL_KERNEL` generators: every
+    /// nonzero product of them, which each shot sums.
     span: Option<Vec<Element>>,
     /// Groups of locations that flip exactly the same outcomes: the same fault in different
     /// places. Their class sums have a closed form.
@@ -333,25 +347,6 @@ impl Kernel {
                 }
             }
         }
-        // A small kernel, whole: every product of the generators, once for every shot.
-        let span = (complete && generators.len() <= SMALL_KERNEL).then(|| {
-            let n = generators.len();
-            let mut out = Vec::with_capacity((1usize << n) - 1);
-            for mask in 1u32..(1u32 << n) {
-                if mask.count_ones() == 1 {
-                    out.push(generators[mask.trailing_zeros() as usize].clone());
-                    continue;
-                }
-                let mut members: Vec<usize> = Vec::new();
-                for (g, e) in generators.iter().enumerate() {
-                    if mask >> g & 1 == 1 {
-                        members = symmetric_difference(&members, &e.members);
-                    }
-                }
-                out.extend(p.element(&members, solver));
-            }
-            out
-        });
         let mut by_location = vec![Vec::new(); nl];
         for (i, g) in generators.iter().enumerate() {
             for &l in &g.members {
@@ -366,13 +361,34 @@ impl Kernel {
         }
         let zobrist = (0..nl as u64).map(|l| crate::batch_sampler::splitmix64(l.wrapping_add(0x9e37_79b9_7f4a_7c15))).collect();
         let num_nonlocal = generators.len() - num_local;
-        Kernel { generators, num_nonlocal, complete, span, groups, rep_of, zobrist, by_location, options }
+        let mut kernel = Kernel { generators, num_nonlocal, complete, plan: None, span: None, groups, rep_of, zobrist, by_location, options };
+        // The whole kernel: contracted, or (a small one past the budget) every product of the
+        // generators, once for every shot.
+        if complete {
+            kernel.plan = ContractionPlan::build(p, solver, &kernel, options.max_contraction);
+            if kernel.plan.is_none() && kernel.generators.len() <= SMALL_KERNEL {
+                kernel.span = Some(whole_span(p, solver, &kernel.generators));
+            }
+        }
+        kernel
     }
 
-    /// Whether every shot sums the whole kernel (complete, and at most `SMALL_KERNEL`
-    /// generators): the weights are then exact.
+    /// Whether every shot sums the whole kernel (complete, and contracted or of at most
+    /// `SMALL_KERNEL` generators): the weights are then exact.
     pub fn is_whole(&self) -> bool {
-        self.span.is_some()
+        self.plan.is_some() || self.span.is_some()
+    }
+
+    /// With the class sums contracted, the most generators a table holds besides the one it
+    /// sums out.
+    pub fn contraction_width(&self) -> Option<usize> {
+        self.plan.as_ref().map(ContractionPlan::width)
+    }
+
+    /// The contraction of the class sums, if any.
+    #[cfg(test)]
+    pub(crate) fn plan(&self) -> Option<&ContractionPlan> {
+        self.plan.as_ref()
     }
 
     /// The whole kernel's dimension: locations less the rank of their residues.
@@ -425,13 +441,47 @@ impl Kernel {
         self.groups.iter().map(|g| (g.members.clone(), g.mu.clone())).collect()
     }
 
-    /// A shot's weight: with a small whole kernel, its class sum over every product of the
+    /// A shot's weight: with the whole kernel, its class sum over every product of the
     /// generators; otherwise by clusters of the generators its faults touch. `cache` holds the
     /// products already carried through the circuit (by their locations).
     pub fn weight(&self, p: &Program, shot: &Shot, solver: &GaugeSolver, cache: &mut HashMap<u64, Option<Element>>) -> f64 {
-        // Each group as one location: its sums over the even and the odd sets of its members to
-        // toggle, in closed form. The even sum is the group's own factor; in any element holding
-        // the group's first member, odd over even takes that member's place.
+        let (w, eff) = self.groups_of(p, shot);
+        if let Some(plan) = &self.plan {
+            let (sum, norm) = plan.class_sums(&self.factors(p, shot, &eff));
+            return w * sum.norm2() / norm;
+        }
+        self.listed_or_truncated(p, shot, solver, cache, w, &eff)
+    }
+
+    /// A shot's factors for the contraction, as `weight` reads them: (the groups' own factor of
+    /// the weight, the factors).
+    #[cfg(test)]
+    pub(crate) fn shot_factors(&self, p: &Program, shot: &Shot) -> (f64, ShotFactors) {
+        let (w, eff) = self.groups_of(p, shot);
+        (w, self.factors(p, shot, &eff))
+    }
+
+    fn factors(&self, p: &Program, shot: &Shot, eff: &[Option<(C, f64)>]) -> ShotFactors {
+        let (toggle, size) = eff
+            .iter()
+            .enumerate()
+            .map(|(l, e)| match *e {
+                Some(f) => f,
+                None => {
+                    let t = p.toggle(shot, l);
+                    (t, t.norm2())
+                }
+            })
+            .unzip();
+        let sign = self.generators.iter().map(|g| g.z.iter().fold(false, |a, &s| a ^ shot.branch[s])).collect();
+        ShotFactors { toggle, size, sign }
+    }
+
+    /// Each group as one location: its sums over the even and the odd sets of its members to
+    /// toggle, in closed form. The even sum is the group's own factor of the weight (the first
+    /// value); in any element holding the group's first member, odd over even takes that
+    /// member's place (the second, by location).
+    fn groups_of(&self, p: &Program, shot: &Shot) -> (f64, Vec<Option<(C, f64)>>) {
         let mut w = 1.0;
         let mut eff: Vec<Option<(C, f64)>> = vec![None; self.rep_of.len()];
         for g in &self.groups {
@@ -467,6 +517,12 @@ impl Kernel {
             let inv = even.conj().scale(1.0 / even.norm2());
             eff[g.members[0]] = Some((odd * inv, nodd / neven));
         }
+        (w, eff)
+    }
+
+    /// The weight past the contraction: every product of a small kernel's generators, listed;
+    /// otherwise truncated.
+    fn listed_or_truncated(&self, p: &Program, shot: &Shot, solver: &GaugeSolver, cache: &mut HashMap<u64, Option<Element>>, w: f64, eff: &[Option<(C, f64)>]) -> f64 {
         // An element's ratio and its squared size, groups standing in for their first members.
         let term = |e: &Element| -> (C, f64) {
             let (mut r, mut n) = (p.prefactor(shot, e), 1.0);
@@ -804,6 +860,26 @@ impl Kernel {
     }
 }
 
+/// Every nonzero product of the generators (2^n − 1 of them), each once.
+fn whole_span(p: &Program, solver: &GaugeSolver, generators: &[Element]) -> Vec<Element> {
+    let n = generators.len();
+    let mut out = Vec::with_capacity((1usize << n) - 1);
+    for mask in 1u32..(1u32 << n) {
+        if mask.count_ones() == 1 {
+            out.push(generators[mask.trailing_zeros() as usize].clone());
+            continue;
+        }
+        let mut members: Vec<usize> = Vec::new();
+        for (g, e) in generators.iter().enumerate() {
+            if mask >> g & 1 == 1 {
+                members = symmetric_difference(&members, &e.members);
+            }
+        }
+        out.extend(p.element(&members, solver));
+    }
+    out
+}
+
 /// The null space of `items` (each a residue and the sorted locations it stands for): every
 /// combination of items whose residues sum to zero, as the symmetric difference of their
 /// locations, a basis of them. Forward elimination in the items' order (rows in echelon form,
@@ -896,13 +972,13 @@ pub(crate) fn symmetric_difference(a: &[usize], b: &[usize]) -> Vec<usize> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::circuit::Circuit;
 
-    /// The truncated kernel's exact distribution against the state vector's: the bias, with no
-    /// sampling noise.
-    fn bias(text: &str, options: CoherentOptions) -> f64 {
+    /// The kernel's exact distribution against the state vector's: the bias, with no sampling
+    /// noise.
+    pub(crate) fn bias(text: &str, options: CoherentOptions) -> f64 {
         let c = Circuit::parse(text).unwrap();
         let p = Program::new(&c).unwrap();
         let solver = GaugeSolver::new(&p);
@@ -1146,23 +1222,23 @@ pub(crate) mod nonlocal {
         }
     }
 
-    /// Past `SMALL_KERNEL` a shot whose faults reach a non-local generator sums its elements in
-    /// its frame: on the audit's circuit (one generator) that is the whole kernel, and with
-    /// three rounds (a logical in round 1, 2 or 3 with the same logical in the others) it is
-    /// the whole kernel for every shot with a fault. With none, the untouched generators'
-    /// product leaves out that the two overlap: a term of order tan⁶ θ.
+    /// Truncated (neither contracted nor listed), a shot whose faults reach a non-local
+    /// generator sums its elements in its frame: on the audit's circuit (one generator) that is
+    /// the whole kernel, and with three rounds (a logical in round 1, 2 or 3 with the same
+    /// logical in the others) it is the whole kernel for every shot with a fault. With none, the
+    /// untouched generators' product leaves out that the two overlap: a term of order tan⁶ θ.
     #[test]
     fn truncated_sums_take_the_nonlocal_generators() {
         let (p, solver, mut k) = kernel(&repetition(3, 2, 0.6), CoherentOptions::default());
-        k.span = None;
+        (k.plan, k.span) = (None, None);
         let worst = against_whole(&k, &p, &solver, 3000);
         assert!(worst < 1e-9, "worst {worst:.3e}");
         let (p, solver, mut k) = kernel(&repetition(3, 3, 0.6), CoherentOptions::default());
-        k.span = None;
+        (k.plan, k.span) = (None, None);
         let worst = against_whole_if(&k, &p, &solver, 3000, &|shot| shot.fired.iter().any(|&f| f));
         assert!(worst < 1e-9, "worst {worst:.3e}");
         let (p, solver, mut k) = kernel(&repetition(3, 3, 0.2), CoherentOptions::default());
-        k.span = None;
+        (k.plan, k.span) = (None, None);
         let worst = against_whole(&k, &p, &solver, 3000);
         assert!(worst < 1e-3, "worst {worst:.3e}");
     }

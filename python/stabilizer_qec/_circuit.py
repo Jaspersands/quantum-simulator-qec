@@ -909,7 +909,7 @@ class Circuit:
         trajectories. Its ``sample`` has the detector sampler's signature."""
         return ExactSampler(self, seed)
 
-    def compile_coherent_sampler(self, *, order: int = 3, seed: Union[int, None] = None, pairs: bool = False, max_complete: int = 50_000) -> "CoherentSampler":
+    def compile_coherent_sampler(self, *, order: int = 3, seed: Union[int, None] = None, pairs: bool = False, max_complete: int = 50_000, max_contraction: int = 65536) -> "CoherentSampler":
         """A sampler for circuits with coherent errors (``I_ERROR[R_Z(theta=0.02)] 0``,
         ``II_ERROR[R_ZZ(theta=0.01)] 0 1``, any Pauli rotation) at any size: shots of the
         Pauli-twirled circuit, as the detector sampler draws them, each with a weight that puts
@@ -922,13 +922,18 @@ class Circuit:
         by one elimination over the rotations' effects: the completion holds what no local
         search finds, above all a logical error at one time with the same logical at another,
         whose amplitudes add (coherent logical errors accumulate across rounds).
-        ``num_nonlocal_generators`` counts them. With at most twelve generators (besides groups
-        of rotations that are one fault in several places) every shot sums the whole kernel and
-        the weights are exact (``exact_weights``); past that a shot sums the products of up to
-        ``order`` generators its faults touch, a truncation. ``max_complete`` is the most
-        rotations whose kernel is completed; past it the generators are the local ones only,
-        interference between distant faults is left out, ``kernel_complete`` is False and the
-        sampler warns.
+        ``num_nonlocal_generators`` counts them. Every shot then sums its whole class, every
+        product of the generators (and of the groups of rotations that are one fault in several
+        places), exactly (``exact_weights``), at any number of generators: the sum is a product
+        of small factors (each rotation's, a phase that is a quadratic form in the generators,
+        the shot's signs), contracted one generator at a time in O(k·2^w) per shot, w the
+        ``contraction_width`` (3 on a d = 3 surface memory over three rounds, 9 at d = 7 over
+        seven). ``max_contraction`` caps the contraction's tables (entries in all, 2^16 by
+        default; 0 turns it off): past it, and with more than twelve generators, a shot sums
+        the products of up to ``order`` generators its faults touch, a truncation, and the
+        sampler warns. ``max_complete`` is the most rotations whose kernel is completed; past it
+        the generators are the local ones only, interference between distant faults is left
+        out, ``kernel_complete`` is False and the sampler warns.
 
         A circuit with non-Clifford *gates* too (``I[T] 0``, ``I[R_Z(theta=…)] 0``,
         ``I[U3(…)] 0``: Clifford+T circuits, magic-state injection, a cultivation check) gets
@@ -942,7 +947,7 @@ class Circuit:
         on small circuits; the coherent sampler of a Clifford circuit ignores it). A coherent error at a Clifford angle
         (``I_ERROR[R_Z(theta=0.7853981633974483)] 0``, a fixed S) is run as the gate it is, not
         drawn as a twirl: such a circuit gets the joint sampler too."""
-        return CoherentSampler(self, order, seed, pairs=pairs, max_complete=max_complete)
+        return CoherentSampler(self, order, seed, pairs=pairs, max_complete=max_complete, max_contraction=max_contraction)
 
     def compile_leakage_sampler(self, *, leaked_reads_one: bool = True, seed: Union[int, None] = None) -> "LeakageSampler":
         """A frame sampler that runs leakage, written as Stim-readable tags:
@@ -2225,22 +2230,31 @@ class CoherentSampler:
 
     __slots__ = ("_s",)
 
-    def __init__(self, circuit: Circuit, order: int = 3, seed: Union[int, None] = None, *, pairs: bool = False, max_complete: int = 50_000) -> None:
+    def __init__(self, circuit: Circuit, order: int = 3, seed: Union[int, None] = None, *, pairs: bool = False, max_complete: int = 50_000, max_contraction: int = 65536) -> None:
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
         limit = count(max_complete, "max_complete")
+        entries = count(max_contraction, "max_contraction")
         # Non-Clifford gates, or coherent errors at Clifford angles (fixed Cliffords): the joint
         # sampler, which runs them exactly and twirls the other errors.
-        if circuit.num_non_clifford_gates() or call(circuit._c.num_clifford_angle_errors):
+        joint = bool(circuit.num_non_clifford_gates() or call(circuit._c.num_clifford_angle_errors))
+        if joint:
             self._s = call(circuit._c.joint_sampler, seed_of(seed), count(order, "order"), 12, True, 1, bool(pairs), limit)
         else:
-            self._s = call(circuit._c.coherent_sampler, seed_of(seed), count(order, "order"), 12, True, 1, limit)
+            self._s = call(circuit._c.coherent_sampler, seed_of(seed), count(order, "order"), 12, True, 1, limit, entries)
         if not self._s.kernel_complete:
             warnings.warn(
                 f"the circuit's {self.num_locations} coherent rotations are past max_complete={limit}: the sampler's interference "
                 "generators are the local ones only, so interference between distant faults (a logical error at one time with the "
                 "same logical at another, whose amplitudes add) is left out and the weights are truncated; raise max_complete to "
                 "complete the kernel",
+                stacklevel=3,
+            )
+        elif not joint and not self._s.exact_weights:
+            warnings.warn(
+                f"the circuit's {self.num_generators} interference generators contract past max_contraction={entries} table "
+                f"entries: each shot sums the products of up to order={order} generators its faults touch, not its whole class, "
+                "so the weights are truncated (exact_weights is False); raise max_contraction to sum the whole class",
                 stacklevel=3,
             )
 
@@ -2290,10 +2304,20 @@ class CoherentSampler:
 
     @property
     def exact_weights(self) -> bool:
-        """Whether every shot sums every element of the kernel (complete, at most twelve
-        generators): the weighted shots are then distributed exactly as the coherent circuit's.
-        Otherwise a shot sums the products of up to ``order`` generators its faults touch."""
+        """Whether every shot sums every element of the kernel (complete, and contracted within
+        ``max_contraction`` or of at most twelve generators): the weighted shots are then
+        distributed exactly as the coherent circuit's. Otherwise a shot sums the products of up
+        to ``order`` generators its faults touch. The joint sampler sums the whole kernel at
+        most twelve generators only (its cross terms are overlaps of the exact engine's states,
+        not products of factors)."""
         return self._s.exact_weights
+
+    @property
+    def contraction_width(self) -> Union[int, None]:
+        """With the class sums contracted, the most generators any of the contraction's tables
+        holds besides the one it sums out: a shot's work is about ``num_generators`` · 2^(width
+        + 1). None when not contracted (the joint sampler, or past ``max_contraction``)."""
+        return getattr(self._s, "contraction_width", None)
 
     def sample(self, shots: int, *, bit_packed: bool = False, threads: int = 1) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """``(detection events, observable flips, weights)`` for ``shots`` shots, the first two

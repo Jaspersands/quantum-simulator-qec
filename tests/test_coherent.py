@@ -3,6 +3,8 @@ the coherent circuit's. Checked against the exact distribution of the state vect
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -280,6 +282,11 @@ def silent_exact(c: sq.Circuit, rounds: int, theta: float) -> tuple[float, float
     return float(p[~flipped].sum()), float(p[flipped].sum())
 
 
+# Enough shots for a standard error of 0.0001 on the d = 3, three-round silent logical rate
+# (0.000092 or so at 2,000,000; about 0.000082 here).
+SILENT_SHOTS = 2_500_000
+
+
 def silent_rates(c: sq.Circuit, shots: int, seed: int = 9):
     """The coherent sampler's P(no detection event, kept) and P(no detection event, flipped),
     with their standard errors, and the sampler."""
@@ -338,21 +345,49 @@ def test_surface_code_memory_with_one_rotation_per_round():
     assert abs(flipped - exact_flipped) < 5 * se_flipped, (flipped, exact_flipped, se_flipped)
 
 
-def test_surface_code_memory_past_the_whole_sum_is_truncated():
-    """Three rounds: fourteen generators, past the whole sum. The truncated sum takes the
-    logical at other times for the faults that reach it, and its estimate of a silent logical
-    error moves from 2.0's 0.00100 ± 0.00007 (below even the twirl's 0.00123) towards the
-    exact 0.00258, to 0.00161 ± 0.00013: part of the interference between rounds is still left
-    out (README, Limits). What is not a logical error stays exact within its error."""
+def test_surface_d3_r3_silent_rate_is_exact():
+    """Three rounds: fourteen generators, past the twelve 2.1 summed whole (its truncation read
+    a silent logical error at 0.00161 ± 0.00013, 2.0's at 0.00100 ± 0.00007, the twirl's at
+    0.00123). The class sums are contracted, three generators at a time besides the one summed
+    out, and every shot sums its whole class: the rate is the exact 0.00258."""
     theta = 0.25
     c = surface_memory(3, theta)
     exact_kept, exact_flipped = silent_exact(c, 3, theta)
-    twirl_flipped = 0.001233  # the twirl's classical chain (ref_values in the 2.1 audit)
-    (kept, se_kept), (flipped, se_flipped), s = silent_rates(c, 300_000)
-    assert s.kernel_complete and not s.exact_weights and s.num_nonlocal_generators >= 2
+    assert exact_flipped == pytest.approx(0.00258, abs=5e-6)
+    (kept, se_kept), (flipped, se_flipped), s = silent_rates(c, SILENT_SHOTS)
+    assert s.kernel_complete and s.exact_weights and s.contraction_width == 3 and s.num_generators == 14
+    assert se_flipped <= 0.0001, se_flipped
     assert abs(kept - exact_kept) < 5 * se_kept, (kept, exact_kept, se_kept)
-    assert flipped > twirl_flipped + 2 * se_flipped, (flipped, twirl_flipped, se_flipped)
-    assert flipped < exact_flipped + 5 * se_flipped, (flipped, exact_flipped, se_flipped)
+    assert abs(flipped - exact_flipped) < 5 * se_flipped, (flipped, exact_flipped, se_flipped)
+
+
+def test_max_contraction_zero_keeps_truncation():
+    """With the contraction off, fourteen generators are truncated as in 2.1, and the sampler
+    says so; its weights are 2.1's (seed 9's first 20,000 shots, from the 2.1.0 wheel). A kernel
+    of twelve generators or fewer is still summed whole."""
+    c = surface_memory(3, 0.25)
+    with pytest.warns(UserWarning, match="max_contraction=0"):
+        s = c.compile_coherent_sampler(seed=9, max_contraction=0)
+    assert s.kernel_complete and not s.exact_weights and s.contraction_width is None
+    _, _, w = s.sample(20_000, threads=1)
+    assert w.sum() == pytest.approx(20213.884915594033, rel=1e-12)
+    assert np.allclose(w[:6], [1.0974372803964274, 2.255544504808714, 1.0509262125690255, 0.19754302237313576, 2.077504971231143, 2.4156493000859047], rtol=1e-12, atol=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        small = repetition_memory(3, 2, 0.3).compile_coherent_sampler(seed=1, max_contraction=0)
+    assert small.exact_weights and small.contraction_width is None
+
+
+def test_weights_independent_of_threads():
+    """The contraction's weights are a function of the shot alone: the same on any number of
+    threads, bit for bit."""
+    c = surface_memory(3, 0.25)
+    a = c.compile_coherent_sampler(seed=4).sample(20_000, threads=1)
+    b = c.compile_coherent_sampler(seed=4).sample(20_000, threads=4)
+    assert c.compile_coherent_sampler(seed=4).contraction_width == 3
+    for x, y in zip(a, b):
+        assert np.array_equal(x, y)
+    assert len(np.unique(a[2])) > 100
 
 
 def test_past_the_completion_limit_the_sampler_says_so():

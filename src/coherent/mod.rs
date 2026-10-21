@@ -25,11 +25,14 @@
 //! the low-weight ones locally and completes them to a basis of the whole kernel by one
 //! elimination over the locations' residues (a logical error at one time with the same logical
 //! at another is the element no local search finds, and the one interference between rounds
-//! runs through). With a complete kernel of at most `kernel::SMALL_KERNEL` generators every shot
-//! sums the whole class, exactly; past that the sum is truncated to the products of a few
-//! generators the shot's faults touch, and past `CoherentOptions::max_complete` locations the
-//! kernel is the local one alone.
+//! runs through). With a complete kernel every shot sums the whole class, exactly: `contract`
+//! eliminates the generators one at a time along an order whose largest table stays within
+//! `CoherentOptions::max_contraction` entries, and a kernel of at most `kernel::SMALL_KERNEL`
+//! generators past that budget lists its span. Past both the sum is truncated to the products
+//! of a few generators the shot's faults touch, and past `CoherentOptions::max_complete`
+//! locations the kernel is the local one alone.
 
+pub mod contract;
 pub mod exact;
 pub mod joint;
 pub mod kernel;
