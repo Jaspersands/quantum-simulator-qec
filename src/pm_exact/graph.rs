@@ -244,16 +244,32 @@ impl Builder {
     }
 }
 
-/// `UserGraph::get_edge_weight_normalising_constant` (PyMatching 2.4), before doubling.
+/// `UserGraph::get_edge_weight_normalising_constant` (PyMatching 2.4), before doubling: the
+/// weights a correlated load implied count too, and each must name an edge and keep its sign.
 pub fn normalising_constant_v2_4(g: &UserGraph, num_distinct_weights: u32) -> Result<f64, String> {
     let mut max_abs_weight = 0f64;
     let mut all_integral_weight = true;
-    for e in &g.edges {
+    for (id, e) in g.edges.iter().enumerate() {
         if e.weight.abs() > max_abs_weight {
             max_abs_weight = e.weight.abs();
         }
         if e.weight.round() != e.weight {
             all_integral_weight = false;
+        }
+        for implied in g.implied_weights(id) {
+            if implied.weight.abs() > max_abs_weight {
+                max_abs_weight = implied.weight.abs();
+            }
+            if implied.weight.round() != implied.weight {
+                all_integral_weight = false;
+            }
+            let Some(other) = g.find(implied.node1, implied.node2) else {
+                return Err(format!("Edge rewrite rule refers to non-existent edge ({}, {})", implied.node1, implied.node2.unwrap_or(usize::MAX)));
+            };
+            let same_sign = g.edges[other].weight * implied.weight >= 0.0;
+            if !same_sign {
+                return Err("Edge weight rewrite rules that change the sign of an edge weight are not currently supported.".into());
+            }
         }
     }
     if max_abs_weight > MAX_USER_EDGE_WEIGHT {
@@ -306,6 +322,8 @@ impl Graph {
         }
         let bnd = |x: Option<usize>| x.is_none_or(|v| g.boundary().contains(&v));
         let mut b = Builder::new(n, g.num_fault_ids());
+        // The user edges that became edges of the graph, whose implied weights PyMatching converts.
+        let mut in_graph: Vec<usize> = Vec::new();
         let c = match order {
             NeighbourOrder::V2_4 => {
                 let c = normalising_constant_v2_4(g, num_distinct_weights)?;
@@ -321,7 +339,11 @@ impl Graph {
                         e.node2
                     } else {
                         if !b1 {
-                            b.add_edge(e.node1, e.node2.expect("both ends are nodes"), w, &e.fault_ids);
+                            let v = e.node2.expect("both ends are nodes");
+                            b.add_edge(e.node1, v, w, &e.fault_ids);
+                            if v != e.node1 {
+                                in_graph.push(id);
+                            }
                         }
                         None
                     };
@@ -334,6 +356,7 @@ impl Graph {
                 for (u, h) in held.iter().enumerate() {
                     if let Some((w, id)) = *h {
                         b.add_boundary_edge(u, w, &g.edges[id].fault_ids)?;
+                        in_graph.push(id);
                     }
                 }
                 c
@@ -381,7 +404,19 @@ impl Graph {
                 c
             }
         };
-        Ok(b.finish(n, 2.0 * c, num_distinct_weights, order, is_boundary))
+        let graph = b.finish(n, 2.0 * c, num_distinct_weights, order, is_boundary);
+        // `convert_implied_weights`: each implied weight of an edge in the graph must name an edge
+        // in the graph (not a self-loop, nor an edge to a boundary node), or PyMatching refuses
+        // to build its decoder.
+        for id in in_graph {
+            for r in g.implied_weights(id) {
+                let target = r.node2.map_or(NONE, |v| v as u32);
+                if r.node1 >= n || r.node2.is_some_and(|v| v >= n) || graph.index_of_neighbor(r.node1 as u32, target).is_none() {
+                    return Err("Failed to find neighbor.".into());
+                }
+            }
+        }
+        Ok(graph)
     }
 
     /// A node's neighbours (`NONE`: the boundary, only ever first).

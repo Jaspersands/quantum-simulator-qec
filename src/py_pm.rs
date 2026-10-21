@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crate::pm_exact::Mwpm;
-use crate::user_graph::{Merge, UserDecoder, UserGraph};
+use crate::user_graph::{ImpliedWeight, Merge, UserDecoder, UserGraph};
 
 fn err(e: String) -> PyErr {
     PyValueError::new_err(e)
@@ -62,11 +62,14 @@ impl PyUserGraph {
         PyUserGraph { g: UserGraph::new(num_nodes, num_fault_ids), engine: Mutex::new(None) }
     }
 
-    /// PyMatching's graph of a model (see `UserGraph::from_dem`).
+    /// PyMatching's graph of a model (see `UserGraph::from_dem`), or with `enable_correlations`
+    /// its correlated load (`UserGraph::from_dem_with_correlations`).
     #[staticmethod]
-    fn from_dem(text: &str) -> PyResult<Self> {
+    #[pyo3(signature = (text, enable_correlations=false))]
+    fn from_dem(text: &str, enable_correlations: bool) -> PyResult<Self> {
         let dem = crate::dem_program::DemProgram::parse(text).map_err(err)?;
-        Ok(PyUserGraph { g: UserGraph::from_dem(&dem).map_err(err)?, engine: Mutex::new(None) })
+        let g = if enable_correlations { UserGraph::from_dem_with_correlations(&dem) } else { UserGraph::from_dem(&dem) };
+        Ok(PyUserGraph { g: g.map_err(err)?, engine: Mutex::new(None) })
     }
 
     fn copy(&self) -> Self {
@@ -138,6 +141,19 @@ impl PyUserGraph {
         self.g.edges.iter().map(|e| (e.node1, e.node2, e.fault_ids.clone(), e.weight, e.error_probability)).collect()
     }
 
+    /// Every weight a correlated load implied, by edge: (edge id, node1, node2 or None, weight).
+    fn implied_weights(&self) -> Vec<(usize, usize, Option<usize>, f64)> {
+        (0..self.g.num_edges()).flat_map(|id| self.g.implied_weights(id).iter().map(move |r| (id, r.node1, r.node2, r.weight))).collect()
+    }
+
+    /// Sets the weights edge `edge` implies for others: (node1, node2 or None, weight) each.
+    fn set_implied_weights(&mut self, edge: usize, rules: Vec<(usize, Option<usize>, f64)>) -> PyResult<()> {
+        let rules = rules.into_iter().map(|(node1, node2, weight)| ImpliedWeight { node1, node2, weight }).collect();
+        self.g.set_implied_weights(edge, rules).map_err(err)?;
+        self.changed();
+        Ok(())
+    }
+
     /// One shot (detection events as node indices): (flipped fault ids as one byte each,
     /// weight).
     fn decode<'py>(&self, py: Python<'py>, events: Vec<u64>) -> PyResult<(Bound<'py, PyBytes>, f64)> {
@@ -195,7 +211,7 @@ impl PyUserGraph {
                                         }
                                     }
                                     let o = &mut pout[i * stride..i * stride + out_bytes];
-                                    *w = decoder.decode_packed(mwpm, &events, o).map_err(|e| format!("shot {shot}: {e}"))?;
+                                    *w = decoder.decode_packed_with(mwpm, &events, o).map_err(|e| format!("shot {shot}: {e}"))?;
                                 }
                                 Ok(())
                             })

@@ -5,8 +5,10 @@ path search and its edge cancellation), so ``decode_to_edges_array`` gives PyMat
 PyMatching's order, ``decode_to_matched_dets_array`` its pairs in its order, and ``decode`` /
 ``decode_batch`` its predictions and weights. The cases: surface-code memories, colour codes'
 Möbius matching graphs (Chromobius's), boundary-heavy repetition codes, negative weights, weights
-all zero, a disconnected graph (shots refused, with PyMatching's message), and graphs built by
-hand with merges, boundary nodes, integer weights (ties everywhere) and more than 64 fault ids."""
+all zero, a disconnected graph (shots refused, with PyMatching's message), graphs built by hand
+with merges, boundary nodes, integer weights (ties everywhere) and more than 64 fault ids, and
+models loaded with ``enable_correlations=True`` and decoded plainly (PyMatching's correlated load
+orders each edge's ends and counts the weights edges imply for each other in its weight scale)."""
 
 from __future__ import annotations
 
@@ -150,6 +152,54 @@ def disconnected(shots: int = 500):
     return ours, theirs, (rng.random((shots, theirs.num_detectors)) < 0.15).astype(np.uint8)
 
 
+def rare_correlations_text(seed: int, *, high_first: bool = False) -> str:
+    # A line of common faults beside rare correlated ones, D_k D_k+1 ^ D_k+2 D_k+3 at 1e-9 to
+    # 1e-4: the weights those imply are the graph's heaviest. `high_first` writes every piece's
+    # higher detector first: a correlated load puts the ends in order, a plain load keeps them.
+    rng = random.Random(seed)
+    pair = lambda a, b: f"D{b} D{a}" if high_first else f"D{a} D{b}"  # noqa: E731
+    lines = []
+    n = rng.randint(8, 20)
+    for k in range(n - 1):
+        lines.append(f"error({rng.choice([0.3, 0.3, 0.35, rng.uniform(0.25, 0.45)]):.6f}) {pair(k, k + 1)} L{k % 2}")
+    for k in range(n - 2):
+        if rng.random() < 0.5:
+            lines.append(f"error({rng.choice([0.3, 0.35, rng.uniform(0.25, 0.45)]):.6f}) {pair(k, k + 2)}")
+    for k in range(n):
+        if rng.random() < 0.6:
+            lines.append(f"error({rng.choice([0.3, 0.35, rng.uniform(0.25, 0.45)]):.6f}) D{k}")
+    for k in range(n - 3):
+        if rng.random() < 0.4:
+            lines.append(f"error({rng.choice([1e-9, 1e-6, 1e-4]):g}) {pair(k, k + 1)} ^ {pair(k + 2, k + 3)}")
+    return "\n".join(lines)
+
+
+def correlated_load(text: str):
+    return (
+        sq.Matching.from_detector_error_model(sq.DetectorErrorModel(text), enable_correlations=True),
+        pymatching.Matching.from_detector_error_model(stim.DetectorErrorModel(text), enable_correlations=True),
+    )
+
+
+def correlated_rare(seed: int, shots: int = 400, *, high_first: bool = False, changed: bool = False):
+    # Plain decodes on a model loaded with correlations: PyMatching's correlated load orders each
+    # edge's ends and counts the implied weights in its weight scale, so these differ from a plain
+    # load's. `changed`: edges added afterwards, which keep the implied weights.
+    ours, theirs = correlated_load(rare_correlations_text(seed, high_first=high_first))
+    if changed:
+        n = theirs.num_detectors
+        for m in (ours, theirs):
+            m.add_edge(n - 1, 0, fault_ids={1}, weight=0.75, merge_strategy="independent")
+            m.add_edge(1, 0, fault_ids={0}, weight=0.4, error_probability=0.4, merge_strategy="independent")
+    dets = (np.random.default_rng(seed).random((shots, theirs.num_detectors)) < 0.4).astype(np.uint8)
+    return ours, theirs, dets
+
+
+def correlated_surface(d: int, p: float, shots: int = 1000):
+    c = stim.Circuit.generated("surface_code:rotated_memory_x", distance=d, rounds=d, after_clifford_depolarization=p, before_measure_flip_probability=p)
+    return (*correlated_load(str(c.detector_error_model(decompose_errors=True))), c.compile_detector_sampler(seed=77 * d).sample(shots).astype(np.uint8))
+
+
 BUILDERS = {}
 for _d in (3, 5, 7):
     for _p in (0.001, 0.005, 0.01):
@@ -163,6 +213,13 @@ BUILDERS["zero_weights"] = zero_weights
 BUILDERS["disconnected"] = disconnected
 for _s in range(12):
     BUILDERS[f"by_hand_{_s}"] = functools.partial(by_hand, 500 + _s, integral=_s % 2 == 0, signed=_s % 3 == 0, wide=_s % 4 == 1)
+# Seeds whose plain decodes on a plain load's scale differ from PyMatching's: predictions (20,
+# 26), edges and pairs (all).
+for _s in (3, 13, 19, 20, 23, 26):
+    BUILDERS[f"correlated_rare_{_s}"] = functools.partial(correlated_rare, _s, high_first=_s % 2 == 1)
+BUILDERS["correlated_rare_changed"] = functools.partial(correlated_rare, 20, high_first=True, changed=True)
+BUILDERS["correlated_surface_d5_p0.01"] = functools.partial(correlated_surface, 5, 0.01)
+CORRELATED = sorted(k for k in BUILDERS if k.startswith("correlated"))
 
 
 @functools.lru_cache(maxsize=None)
@@ -252,3 +309,75 @@ def test_threads_do_not_change_answers():
     for threads in (1, 2, 4, 0):
         with pytest.raises(ValueError, match=r"^shot 7: No perfect matching could be found"):
             m.decode_batch(shots, threads=threads)
+
+
+def rows(m):
+    return [(u, v, d["fault_ids"], d["weight"], d["error_probability"]) for u, v, d in m.edges()]
+
+
+def close(a: float, b: float) -> bool:
+    # PyMatching's arm64 build fuses multiply-adds in its merge arithmetic: a last-bit difference
+    # in a merged edge's weight or probability (as tests/test_pymatching_differential.py).
+    return a == b or abs(a - b) <= 1e-12 * max(1.0, abs(a), abs(b))
+
+
+def same_rows(a, b) -> bool:
+    """The same edges in the same order, ends and fault ids exactly."""
+    return len(a) == len(b) and all(x[:3] == y[:3] and close(x[3], y[3]) and close(x[4], y[4]) for x, y in zip(a, b))
+
+
+@pytest.mark.parametrize("name", CORRELATED)
+def test_edges_of_a_correlated_load_equal_pymatching(name):
+    # Each edge's ends in order (node1 < node2), as PyMatching's correlated load writes them.
+    ours, theirs, _ = case(name)
+    a, b = rows(ours), rows(theirs)
+    assert [r[:3] for r in a] == [r[:3] for r in b]
+    assert same_rows(a, b), [(x, y) for x, y in zip(a, b) if x != y][:3]
+    assert ours.num_edges == theirs.num_edges and ours.num_fault_ids == theirs.num_fault_ids
+
+
+def test_a_correlated_load_differs_from_a_plain_one():
+    # The cases above are not vacuous: the same model loaded plainly has its ends as written, a
+    # different weight scale, and other answers on some shots.
+    text = rare_correlations_text(20, high_first=True)
+    plain, correlated = sq.Matching(sq.DetectorErrorModel(text)), sq.Matching(sq.DetectorErrorModel(text), enable_correlations=True)
+    assert [r[:2] for r in rows(plain)] != [r[:2] for r in rows(correlated)]
+    assert [(min(u, v), max(u, v)) if v is not None else (u, v) for u, v, *_ in rows(plain)] == [r[:2] for r in rows(correlated)]
+    dets = (np.random.default_rng(1).random((300, plain.num_detectors)) < 0.4).astype(np.uint8)
+    assert not np.array_equal(plain.decode_batch(dets, return_weights=True)[1], correlated.decode_batch(dets, return_weights=True)[1])
+
+
+def test_a_correlated_load_refuses_as_pymatching():
+    for text in (
+        "error(0.6) D0 D1",
+        "error(0.1) D0 D1 D2",
+        "error(0.1) D0 D1 ^ D2 D3 D4",
+        "error(0.1) L0 ^ D1",
+        "error(0.1) D0 ^ L0",
+        "error(0.6) D0\nerror(0.1) D0 D1 D2",
+        "error(0.1) D0 D1 D2\nerror(0.6) D0",
+    ):
+        a = outcome(lambda: rows(sq.Matching.from_detector_error_model(sq.DetectorErrorModel(text), enable_correlations=True)))
+        b = outcome(lambda: rows(pymatching.Matching.from_detector_error_model(stim.DetectorErrorModel(text), enable_correlations=True)))
+        assert a == b and a[0] == "error", (text, a, b)
+    # Undetectable alone, or impossible: ignored, as PyMatching.
+    text = "error(0.1) L0\nerror(0) D0 D1 D2\nerror(0.5) D1 D0"
+    ours, theirs = correlated_load(text)
+    assert rows(ours) == rows(theirs) == [(0, 1, set(), 0.0, 0.5)]
+    # Loaded, but a weight implied for a self-loop (not an edge of the matching graph) stops
+    # PyMatching building its decoder: every decode is refused, with its message.
+    ours, theirs = correlated_load("error(0.1) D0 D0 ^ D1\nerror(0.2) D0\nerror(0.2) D1 D2")
+    s = np.array([1, 0, 1], dtype=np.uint8)
+    for f in (lambda m: m.decode(s).tolist(), lambda m: m.decode_to_edges_array(s).tolist(), lambda m: m.decode_batch(s[None]).tolist()):
+        assert outcome(lambda: f(ours)) == outcome(lambda: f(theirs)) == ("error", "Failed to find neighbor.")
+
+
+def test_a_changed_correlated_load_pickles_with_its_implied_weights():
+    import pickle
+
+    ours, theirs, dets = case("correlated_rare_changed")
+    again = pickle.loads(pickle.dumps(ours))
+    assert rows(again) == rows(ours) and same_rows(rows(again), rows(theirs))
+    want = theirs.decode_batch(dets, return_weights=True)
+    got = again.decode_batch(dets, return_weights=True)
+    assert np.array_equal(got[0], want[0]) and np.array_equal(got[1], want[1])
