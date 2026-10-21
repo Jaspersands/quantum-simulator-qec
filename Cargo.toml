@@ -19,7 +19,7 @@ name = "stabilizer_qec"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-rand = { version = "0.8", optional = true }
+rand = { version = "0.10", optional = true }
 # The GPU sampler (`gpu` feature): wgpu over Metal, Vulkan and DX12, WGSL shaders only.
 wgpu = { version = "30", optional = true, default-features = false, features = ["wgsl", "metal", "vulkan", "dx12"] }
 pollster = { version = "1", optional = true }
