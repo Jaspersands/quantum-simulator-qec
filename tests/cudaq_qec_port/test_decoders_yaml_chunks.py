@@ -353,6 +353,41 @@ def parse_one(yaml):
     return config.decoders[0]
 
 
+# (CUDA-Q's dem_chunks holds the hashes of its seam and phase names, not the names, so it writes every one of them ''. A document it, or
+# this package, wrote reads back with each of those ids the hash of the empty name.)
+UNNAMED = qec.SeamId("")
+
+
+def _ids(spec):
+    """Every seam and phase id a DemChunksSpec holds: the seam's, the connections', the phases' and their seam_specs'."""
+    ids = [spec.seam.from_seam, spec.seam.to_seam]
+    for c in spec.connections:
+        ids += [c.from_phase, c.to_phase]
+    for e in spec.phases:
+        ids.append(e.id)
+        ids += [s.id for s in e.spec.seam_specs]
+    return ids
+
+
+def _renamed_like(config, named):
+    """config with the seam and phase ids of named's dem_chunks put back: what a YAML write loses, and all it loses when this equals named."""
+    spec, ref = config.dem_chunks, named.dem_chunks
+    spec.seam = ref.seam
+    spec.connections = ref.connections
+    phases = spec.phases
+    for e, r in zip(phases, ref.phases):
+        e.id = r.id
+        chunk = e.spec
+        seam_specs = chunk.seam_specs
+        for s, rs in zip(seam_specs, r.spec.seam_specs):
+            s.id = rs.id
+        chunk.seam_specs = seam_specs
+        e.spec = chunk
+    spec.phases = phases
+    config.dem_chunks = spec
+    return config
+
+
 def test_parses_all_phases():
     config = qec.multi_decoder_config.from_yaml_str(dem_chunks_yaml(3))
     assert len(config.decoders) == 1
@@ -445,10 +480,14 @@ def test_expanded_config_is_itself_a_valid_flat_config():
     emitted = wrapper.to_yaml_str(200)
     assert "H_sparse" in emitted
     assert "dem_chunks" in emitted
-    # (And it reads back as it was: flat, with its spec still there, which it says.)
+    # (And it reads back flat, as it was, with its spec still there, which it says. The spec's seam and phase names come back empty, as
+    # CUDA-Q writes them, and that is all that changes.)
     with pytest.warns(RuntimeWarning, match="both H_sparse and dem_chunks"):
         back = qec.multi_decoder_config.from_yaml_str(emitted)
-    assert back == wrapper
+    assert back != wrapper
+    assert set(_ids(back.decoders[0].dem_chunks)) == {UNNAMED}
+    assert _renamed_like(back.decoders[0], config) == config
+    assert back.to_yaml_str(200) == emitted
 
 
 def test_both_forms_warn_and_flat_form_wins_cpp():
@@ -744,50 +783,126 @@ def test_configure_from_str_and_status_of_a_bad_spec():
         assert qec.configure_decoders_from_str(uneven) == 4
 
 
-# -- YAML round trips ------------------------------------------------------------------------------------------------------------------------------
+# -- YAML writes: CUDA-Q's bytes, the seam and phase names empty -------------------------------------------------------------------------------
+
+CHUNK_FORM_WRITTEN = """---
+decoders:
+  - id:              0
+    type:            single_error_lut
+    dem_chunks:
+      seam:
+        from:            ''
+        to:              ''
+      connections:
+        - from:            ''
+          to:              ''
+        - from:            ''
+          to:              ''
+        - from:            ''
+          to:              ''
+{rounds}      phases:
+        - name:            ''
+          spec:
+            num_faults:      9
+            H_sparse:        [ 0, 1, 5, -1, 1, 2, 6, -1, 2, 3, 7, -1, 3, 4, 8, -1 ]
+            O_sparse:        [ 0, -1 ]
+            error_rates:     [ 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02 ]
+        - name:            ''
+          spec:
+            num_faults:      9
+            H_sparse:        [ 0, 1, 5, -1, 1, 2, 6, -1, 2, 3, 7, -1, 3, 4, 8, -1 ]
+            O_sparse:        [ 0, -1 ]
+            error_rates:     [ 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02 ]
+        - name:            ''
+          spec:
+            num_faults:      5
+            H_sparse:        [ 0, 1, -1, 1, 2, -1, 2, 3, -1, 3, 4, -1 ]
+            O_sparse:        [ 0, -1 ]
+            error_rates:     [ 0.02, 0.02, 0.02, 0.02, 0.02 ]
+...
+"""
 
 
-def test_chunk_form_round_trips_through_yaml():
+def chunk_form_written(num_rounds):
+    """chunk_form_yaml(num_rounds) in a multi_decoder_config, as to_yaml_str(200) writes it."""
+    return CHUNK_FORM_WRITTEN.format(rounds="" if num_rounds is None else f"      num_rounds:      {num_rounds}\n")
+
+
+def test_chunk_form_is_written_as_cuda_q_writes_it_with_the_names_empty():
     multi = qec.multi_decoder_config()
     multi.decoders = [qec.decoder_config.from_yaml_str(chunk_form_yaml(5))]
     text = multi.to_yaml_str(200)
-    assert "H_sparse:        [ 0, 1, 5, -1" in text and "num_rounds:      5" in text
-    # (The derived fields stay absent, which is what makes the document re-parse in the form it was written in.)
+    # (CUDA-Q's seam_connection, phase_connection and phase_spec_entry traits set the ids from the names only when reading, so every name
+    # is written ''. The derived fields stay absent, which is what makes the document re-parse in the form it was written in.)
+    assert text == chunk_form_written(5)
     assert "block_size" not in text and "syndrome_size" not in text and "D_sparse" not in text
     back = qec.multi_decoder_config.from_yaml_str(text)
-    assert back == multi and back.to_yaml_str(200) == text
-    assert text.splitlines()[:4] == ["---", "decoders:", "  - id:              0", "    type:            single_error_lut"]
+    # (It reads back in chunk form with every id the hash of the empty name; the rest is as it was, and writes the same bytes again.)
+    assert back != multi
+    assert set(_ids(back.decoders[0].dem_chunks)) == {UNNAMED}
+    assert _renamed_like(back.decoders[0], multi.decoders[0]) == multi.decoders[0]
+    assert back.to_yaml_str(200) == text
+    # (One name for every phase makes all three connections self-loops, so the written form does not expand: CUDA-Q calls it input-only.)
+    with pytest.raises(RuntimeError, match="^Cannot expand dem_chunks for decoder 0: dem_chunks_spec::phase_sequence: multiple self-loops$"):
+        qec.expand_dem_chunks(back.decoders[0])
 
 
-def test_streaming_form_round_trips_without_num_rounds():
+def test_streaming_form_is_written_without_num_rounds():
     multi = qec.multi_decoder_config()
     multi.decoders = [qec.decoder_config.from_yaml_str(chunk_form_yaml(None))]
-    text = multi.to_yaml_str()
+    text = multi.to_yaml_str(200)
     assert "num_rounds" not in text
+    assert text == chunk_form_written(None)
     back = qec.multi_decoder_config.from_yaml_str(text)
-    assert back == multi and back.decoders[0].dem_chunks.num_rounds is None
+    assert back.decoders[0].dem_chunks.num_rounds is None
+    assert set(_ids(back.decoders[0].dem_chunks)) == {UNNAMED}
+    assert _renamed_like(back.decoders[0], multi.decoders[0]) == multi.decoders[0]
+    assert back.to_yaml_str(200) == text
 
 
-def test_programmatic_chunk_form_round_trips_with_the_standard_names():
+def test_programmatic_chunk_form_writes_even_the_standard_names_empty():
+    # (init, bulk, final, next_round and prev_round are registered when the package loads, as CUDA-Q registers them; they are written ''
+    # all the same, and a configuration built in code writes the bytes the same configuration read from a document writes.)
     config = programmatic_config(6)
-    text = config.to_yaml_str()
+    text = config.to_yaml_str(200)
+    assert text == qec.decoder_config.from_yaml_str(chunk_form_yaml(6)).to_yaml_str(200)
+    assert re.findall(r"(?:name|from|to): +(.*)\n", text) == ["''"] * (2 + 2 * 3 + 3)
+    for name in ("init", "bulk", "final", "next_round", "prev_round"):
+        assert name not in text
     back = qec.decoder_config.from_yaml_str(text)
-    assert back == config
-    assert back.dem_chunks.seam.from_seam == NEXT and back.dem_chunks.seam.to_seam == PREV
-    assert [e.id for e in back.dem_chunks.phases] == [qec.phase_name.init, qec.phase_name.bulk, qec.phase_name.final]
+    assert set(_ids(back.dem_chunks)) == {UNNAMED}
+    assert [e.id for e in config.dem_chunks.phases] == [qec.phase_name.init, qec.phase_name.bulk, qec.phase_name.final]
+    assert _renamed_like(back, config) == config
 
 
-def test_names_other_than_the_registered_are_written_empty_as_cuda_q_writes_them():
-    # (CUDA-Q has only the hashes when it writes, so every name is empty there; here a name registered for the hash, as the standard ones
-    # and those a document has read are, is written. A name made only through SeamId(...) is not registered.)
-    config = programmatic_config(3)
+def test_written_bytes_do_not_depend_on_the_names_this_process_has_read():
+    # (Every name a document reads is registered for this process's messages. The writer must not consult that registry: the same
+    # configuration has to write the same bytes before and after an unrelated document names its phases.)
+    import uuid
+
+    names = [f"{n}_{uuid.uuid4().hex}" for n in ("start", "middle", "end")]
+    config = programmatic_config(4)
     spec = config.dem_chunks
-    odd = _phase_entry("never_read_from_a_document", 9, [0, 1, -1])
-    spec.phases = spec.phases + [odd]
+    phases = spec.phases
+    for entry, name in zip(phases, names):
+        entry.id = qec.SeamId(name)
+    spec.phases = phases
+    spec.connections = [_connection(names[0], names[1]), _connection(names[1], names[1]), _connection(names[1], names[2])]
     config.dem_chunks = spec
-    text = config.to_yaml_str()
-    assert re.search(r"- name:            ''\n", text)
-    assert "name:            init" in text
+    empty = qec.DemChunksSpec()
+    with pytest.raises(ValueError, match=f"^dem_chunks_spec::get_phase: phase seam:{qec.SeamId(names[0]).value:08x} not found$"):
+        empty.get_phase(qec.SeamId(names[0]))
+    before = config.to_yaml_str(200)
+
+    qec.decoder_config.from_yaml_str(chunk_form_yaml(4).replace("init", names[0]).replace("bulk", names[1]).replace("final", names[2]))
+    # (The names are registered now, as the messages show.)
+    with pytest.raises(ValueError, match=f"^dem_chunks_spec::get_phase: phase {names[0]} not found$"):
+        empty.get_phase(qec.SeamId(names[0]))
+    after = config.to_yaml_str(200)
+
+    assert after == before
+    assert before == qec.decoder_config.from_yaml_str(chunk_form_yaml(4)).to_yaml_str(200)
+    assert not any(name in before for name in names)
 
 
 def test_seam_specs_form_reads_writes_and_expands():
@@ -821,8 +936,14 @@ dem_chunks:
     entry = config.dem_chunks.phases[0].spec.seam_specs
     assert [e.id for e in entry] == [PREV, NEXT]
     assert entry[0].spec.H_sparse == [0, 1, -1, 1, 2, -1]
-    back = qec.decoder_config.from_yaml_str(config.to_yaml_str())
-    assert back == config
+    # (The seam_specs entries' names are written '' with the rest: CUDA-Q's comment calls this form input-only, the hash not giving back the
+    # name. Two phases and two seam_specs entries.)
+    text = config.to_yaml_str()
+    assert re.findall(r"- name: +(.*)\n", text) == ["''"] * 4
+    back = qec.decoder_config.from_yaml_str(text)
+    assert set(_ids(back.dem_chunks)) == {UNNAMED}
+    assert _renamed_like(back, config) == config
+    assert back.to_yaml_str() == text
     closed = qec.expand_dem_chunks(config)
     assert closed.detector_error_matrix.shape == (4, 6)
     assert config.syndrome_size == 4 and config.block_size == 6

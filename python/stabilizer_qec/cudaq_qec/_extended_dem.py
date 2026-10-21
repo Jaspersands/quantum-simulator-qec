@@ -70,10 +70,6 @@ def _name_of(sid: "SeamId") -> str:
     return _NAMES.get(sid.value, "seam:%08x" % sid.value)
 
 
-def _registered_name(sid: "SeamId") -> str:
-    return _NAMES.get(sid.value, "")
-
-
 class SeamId:
     """Identifier for a named seam or phase. Constructed from a string name; two SeamIds are
     equal iff constructed from the same string."""

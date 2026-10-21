@@ -22,7 +22,9 @@ A DEM is described flat (``block_size``, ``syndrome_size``, ``H_sparse``, ``O_sp
 ``D_sparse``), by a Stim model file (``stim_dem_path`` and ``D_sparse``), or as repeated phases,
 ``dem_chunks`` (a ``DemChunksSpec``: named per-round phases, the graph connecting them and the
 round count, which ``expand_dem_chunks`` expands to the flat form, returning the closed model; see
-``._extended_dem``). The YAML reads and writes all three."""
+``._extended_dem``). The YAML reads and writes all three. As in CUDA-Q, whose ``dem_chunks`` holds
+only the hashes of its seam and phase names, those names are written empty (``''``): a chunk-form
+document written here re-parses in chunk form, but with every seam and phase named ``''``."""
 
 from __future__ import annotations
 
@@ -35,7 +37,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 
 from . import _yaml
-from ._extended_dem import DemChunksSpec, DemSeamSpec, DemChunkSpec, PhaseConnection, PhaseSpecEntry, SeamConnection, SeamId, SeamSpecEntry, _register_name, _registered_name
+from ._extended_dem import DemChunksSpec, DemSeamSpec, DemChunkSpec, PhaseConnection, PhaseSpecEntry, SeamId, SeamSpecEntry, _register_name
 
 _U64 = 2**64
 _I64 = (-(2**63), 2**63 - 1)
@@ -984,8 +986,17 @@ def _emit_args(args: Dict[str, _V], schema: _Schema) -> List[Tuple[str, Any]]:
     return items
 
 
-def _emit_seam_connection(from_name: str, to_name: str) -> List[Tuple[str, Any]]:
-    return [("from", ("scalar", _yaml.quote(from_name))), ("to", ("scalar", _yaml.quote(to_name)))]
+# (CUDA-Q's spec holds a seam's or phase's id, the FNV-1a hash of its name, and not the name. Its
+# MappingTraits for seam_connection, phase_connection, seam_spec_entry and phase_spec_entry read the
+# name into a local string and set the id from it only when reading, so on output that string is empty
+# and every name is written ''; its own comment calls the seam_specs form input-only. The names are
+# written '' here too: the bytes are CUDA-Q's, and depend only on the configuration written, never on
+# which names this process has registered.)
+_UNNAMED = _yaml.quote("")
+
+
+def _emit_seam_connection() -> List[Tuple[str, Any]]:
+    return [("from", ("scalar", _UNNAMED)), ("to", ("scalar", _UNNAMED))]
 
 
 def _emit_dem_chunk_spec(spec: DemChunkSpec) -> List[Tuple[str, Any]]:
@@ -995,8 +1006,6 @@ def _emit_dem_chunk_spec(spec: DemChunkSpec) -> List[Tuple[str, Any]]:
     if spec._H:
         items.append(("H_sparse", flow(spec._H)))
     if spec._seam_specs:
-        # (CUDA-Q writes the names of these entries empty, having only the hash; here a name
-        # registered for the hash, as the standard ones and those a YAML document has read are, is written.)
         entries = []
         for e in spec._seam_specs:
             inner: List[Tuple[str, Any]] = []
@@ -1004,7 +1013,7 @@ def _emit_dem_chunk_spec(spec: DemChunkSpec) -> List[Tuple[str, Any]]:
                 inner.append(("H_sparse", flow(e._spec._H)))
             if e._spec._O:
                 inner.append(("O_sparse", flow(e._spec._O)))
-            entries.append(("map", [("name", ("scalar", _yaml.quote(_registered_name(e._id)))), ("spec", ("map", inner))]))
+            entries.append(("map", [("name", ("scalar", _UNNAMED)), ("spec", ("map", inner))]))
         items.append(("seam_specs", ("seq", entries)))
     if spec._O:
         items.append(("O_sparse", flow(spec._O)))
@@ -1013,16 +1022,14 @@ def _emit_dem_chunk_spec(spec: DemChunkSpec) -> List[Tuple[str, Any]]:
 
 
 def _emit_dem_chunks(spec: DemChunksSpec) -> List[Tuple[str, Any]]:
-    # (CUDA-Q writes the names of the seam, the connections and the phases empty, having only their
-    # hashes; here the names registered for the hashes, as the standard ones and those a YAML
-    # document has read are, are written.)
+    # (The names written '', as CUDA-Q writes them; see _UNNAMED.)
     items: List[Tuple[str, Any]] = [
-        ("seam", ("map", _emit_seam_connection(_registered_name(spec._seam.from_seam), _registered_name(spec._seam.to_seam)))),
-        ("connections", ("seq", [("map", _emit_seam_connection(_registered_name(c.from_phase), _registered_name(c.to_phase))) for c in spec._connections])),
+        ("seam", ("map", _emit_seam_connection())),
+        ("connections", ("seq", [("map", _emit_seam_connection()) for _ in spec._connections])),
     ]
     if spec._num_rounds is not None:
         items.append(("num_rounds", ("scalar", str(spec._num_rounds))))
-    items.append(("phases", ("seq", [("map", [("name", ("scalar", _yaml.quote(_registered_name(e.id)))), ("spec", ("map", _emit_dem_chunk_spec(e.spec)))]) for e in spec._phases])))
+    items.append(("phases", ("seq", [("map", [("name", ("scalar", _UNNAMED)), ("spec", ("map", _emit_dem_chunk_spec(e.spec)))]) for e in spec._phases])))
     return items
 
 
