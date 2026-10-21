@@ -237,13 +237,24 @@ _NATIVE_TAG = re.compile(r"^\s*(\w+)\s*(?:\((.*)\))?\s*$")
 
 
 def _native_args(body: str) -> dict[str, str] | None:
+    """A tag's ``key=value`` arguments (``theta=0.1, pauli=XZ``), as the core reads them
+    (``nonpauli::split``): spaces around each part and around the ``=`` skipped, and an empty
+    part (``theta=0.1,``) too; ``None`` if a part is not ``key=value``."""
     out: dict[str, str] = {}
     for part in body.split(","):
+        if not part.strip():
+            continue
         key, eq, value = part.partition("=")
         if not eq:
             return None
         out[key.strip()] = value.strip()
     return out
+
+
+def _no_args(body: str | None) -> bool:
+    """Whether a tag has no arguments: no parentheses (``T``) or only empty ones (``T()``, ``T( , )``),
+    which the core reads alike."""
+    return body is None or _native_args(body) == {}
 
 
 def _turns(radians: float, scale: float) -> str:
@@ -345,12 +356,13 @@ def _product_rotation(args: dict, qubits: list) -> tuple | None:
     """Tsim's instruction of this package's ``I[R_PAULI(theta=t, pauli=L)] q1 q2 ...`` (``args`` its tag's
     arguments): ``(dagger, turns, factors)``, the instruction ``SPP_DAG`` when ``dagger`` else ``SPP``,
     its tag ``T`` when ``turns`` is ``None`` else ``R_PAULI(theta=<turns>*pi)``, its product's
-    ``factors`` ``(inverted, letter, qubit)`` (``!`` on the inverted ones; ``I`` letters dropped).
-    ``None`` if the letters are not one of I, X, Y, Z for each qubit."""
+    ``factors`` ``(inverted, letter, qubit)`` (``!`` on the inverted ones; ``I``, ``i`` and ``_``
+    letters dropped, identities as the core reads them in ``nonpauli::parse``). ``None`` if the
+    letters are not one of these, X, Y, Z (either case) for each qubit."""
     letters = args["pauli"]
-    if len(letters) != len(qubits) or not set(letters.upper()) <= set("IXYZ"):
+    if len(letters) != len(qubits) or not set(letters) <= set("IXYZixyz_"):
         return None
-    factors = [(p.islower(), p.upper(), q) for p, q in zip(letters, qubits) if p.upper() != "I"]
+    factors = [(p.islower(), p.upper(), q) for p, q in zip(letters, qubits) if p not in "Ii_"]
     flipped = sum(inverted for inverted, _, _ in factors) % 2 == 1
     theta = args["theta"]
     if _is_tpp_radians(theta):
@@ -375,7 +387,7 @@ def _native_to_shorthand_line(line: str) -> str | None:
         return None
     name, body = t.group(1), t.group(2)
     targets = rest.split()
-    if gate == "I" and body is None and name in ("T", "T_DAG") and targets:
+    if gate == "I" and _no_args(body) and name in ("T", "T_DAG") and targets:
         return f"{indent}{name} {' '.join(targets)}"
     args = _native_args(body) if body else None
     if args is None or not targets:

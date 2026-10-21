@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from stabilizer_qec import _stim
 from stabilizer_qec.tsim.core.tags import is_t_tag
-from stabilizer_qec.tsim.utils.program_text import _NATIVE_TAG, _is_tpp_radians, _native_args, _product_rotation, _read_turns
+from stabilizer_qec.tsim.utils.program_text import _NATIVE_TAG, _is_tpp_radians, _native_args, _no_args, _product_rotation, _read_turns
 from stabilizer_qec.tsim.zx.graph import ZXGraph
 from stabilizer_qec.tsim.zx.instructions import (
     GATE_TABLE,
@@ -196,7 +196,7 @@ def _tsim_form(name: str, tag: str, args: List[float], targets: List[int]) -> Op
     if not m:
         return None
     gate, body = m.group(1), m.group(2)
-    if name == "I" and body is None and gate in ("T", "T_DAG"):
+    if name == "I" and _no_args(body) and gate in ("T", "T_DAG"):
         return [TsimInstruction("S" if gate == "T" else "S_DAG", "T", args, targets)]
     params = _native_args(body) if body else None
     if params is None:

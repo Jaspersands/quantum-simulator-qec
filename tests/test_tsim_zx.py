@@ -123,9 +123,9 @@ def assert_matrix_is_tsims(mine, ref) -> None:
     want = np.asarray(ref.to_matrix())
     original, used_zx = tsim.Circuit._zx_matrix, []
 
-    def spy(self, endian):
+    def spy(self, endian, *built):
         used_zx.append(endian)
-        return original(self, endian)
+        return original(self, endian, *built)
 
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(tsim.Circuit, "_zx_matrix", spy)
@@ -1356,3 +1356,308 @@ def test_random_product_rotations_against_tsim(seed):
         assert outcome(lambda: record(ref_inverse.get_graph())) == outcome(lambda: record(inverse.get_graph(backend="own"))), text
         if outcome(lambda: ref_inverse.to_matrix())[0] == "ok":
             assert_matrix_is_tsims(inverse, ref_inverse)
+
+
+# The stored forms the core reads (src/nonpauli.rs ``parse``) and the spelling this package writes of
+# each: an ``R_PAULI``'s ``_`` letter is an identity, as ``I`` is; empty arguments (``theta=0.1,``) are
+# skipped; spaces around the name, the brackets, the commas and the ``=`` are read past; ``T()`` is T.
+STORED_SPELLINGS = {
+    "I[R_PAULI(theta=0.1, pauli=X_Z)] 0 1 2": "I[R_PAULI(theta=0.1, pauli=XIZ)] 0 1 2",
+    "I[R_PAULI(theta=0.1, pauli=x_Z)] 0 1 2": "I[R_PAULI(theta=0.1, pauli=xIZ)] 0 1 2",
+    "I[R_PAULI(pauli=_Y_, theta=-0.3)] 0 1 2": "I[R_PAULI(pauli=IYI, theta=-0.3)] 0 1 2",
+    "I[R_PAULI(theta=0.39269908169872414, pauli=_X)] 0 1": "I[R_PAULI(theta=0.39269908169872414, pauli=IX)] 0 1",
+    "I[R_PAULI(theta=-0.39269908169872414, pauli=Z_y)] 2 0 1": "I[R_PAULI(theta=-0.39269908169872414, pauli=ZIy)] 2 0 1",
+    "I[R_PAULI(theta=0.1, pauli=XZ,)] 0 1": "I[R_PAULI(theta=0.1, pauli=XZ)] 0 1",
+    "I[R_PAULI(,pauli=XZ,, theta=0.1)] 0 1": "I[R_PAULI(pauli=XZ, theta=0.1)] 0 1",
+    "I[ R_PAULI ( theta = +.1 , pauli = Xz ) ] 0 1": "I[R_PAULI(theta=+.1, pauli=Xz)] 0 1",
+    "I[R_PAULI(theta=0.1, pauli=__)] 0 1": "I[R_PAULI(theta=0.1, pauli=II)] 0 1",
+    "I[R_PAULI(theta=0.1, pauli=X_)] 0 0": "I[R_PAULI(theta=0.1, pauli=XI)] 0 0",
+    "I[R_X(theta=0.1,)] 0": "I[R_X(theta=0.1)] 0",
+    "I[U3(theta=0.1, phi=0.2, lambda=0.3,)] 1": "I[U3(theta=0.1, phi=0.2, lambda=0.3)] 1",
+    "II[R_ZZ( theta=0.1 ,)] 0 1": "II[R_ZZ(theta=0.1)] 0 1",
+    "I[T()] 0": "I[T] 0",
+    "I[ T_DAG ( , ) ] 1": "I[T_DAG] 1",
+}
+
+
+def stored_circuits(line: str) -> tuple:
+    """A stored line in an unmeasured circuit (for ``to_matrix`` and the inverse) and in a measured one
+    with noise and detectors (for the model)."""
+    unmeasured = f"H 0 1 2\n{line}\nS 0"
+    measured = f"R 0 1 2\nH 1\nX_ERROR(0.1) 2\n{line}\nH 0\nM 0 1 2\nDETECTOR rec[-3]\nDETECTOR rec[-2]\nDETECTOR rec[-1]"
+    return unmeasured, measured
+
+
+def assert_read_as_spelled(stored: str, spelled: str) -> None:
+    """Every reader reads ``stored`` (a circuit in this package's text) as ``spelled``: printing, Stim's
+    reading for the model, the graphs, the T-count, ``to_matrix`` (bit for bit), the model and the
+    inverse (its printing, graph and matrix)."""
+    from stabilizer_qec.tsim._native import stim_reading
+
+    def same_matrix(a, b) -> None:
+        a, b = outcome(a.to_matrix), outcome(b.to_matrix)
+        assert a[0] == b[0] and (np.array_equal(a[1], b[1]) if a[0] == "ok" else a == b), stored
+
+    def same_print(a, b) -> None:
+        # The core fuses a line with the next of the same tag text, so the spelling's lines can be fused
+        # where the stored ones (``I[ T ] 0`` then ``I[T] 0``) are not: then they print alike once read back.
+        assert str(a) == str(b) if len(a) == len(b) else str(tsim.Circuit(str(a))) == str(b), stored
+
+    mine, theirs = tsim.Circuit(sq.Circuit(stored)), tsim.Circuit(sq.Circuit(spelled))
+    printed = "I[R_PAULI" not in str(theirs)  # an all-identity product prints as stored
+    if printed:
+        same_print(mine, theirs)
+    # Stim's reading, as the model reads it (a circuit, consecutive lines of one gate fused).
+    assert str(sq.Circuit(stim_reading(mine._stim_exact_text()))) == str(sq.Circuit(stim_reading(theirs._stim_exact_text()))), stored
+    for backend in ["own"] + (["pyzx_param"] if HAS_PYZX_PARAM else []):
+        assert outcome(lambda: record(mine.get_graph(backend=backend))) == outcome(lambda: record(theirs.get_graph(backend=backend))), (backend, stored)
+    assert outcome(mine.tcount) == outcome(theirs.tcount), stored
+    same_matrix(mine, theirs)
+    model = outcome(lambda: str(mine.detector_error_model(allow_gauge_detectors=True)))
+    assert model == outcome(lambda: str(theirs.detector_error_model(allow_gauge_detectors=True))), stored
+    a, b = outcome(mine.inverse), outcome(theirs.inverse)
+    assert a[0] == b[0] and (a[0] == "ok" or a == b), stored
+    if a[0] == "ok" and len(mine) == len(theirs):
+        if printed:
+            same_print(a[1], b[1])
+        assert outcome(lambda: record(a[1].get_graph(backend="own"))) == outcome(lambda: record(b[1].get_graph(backend="own"))), stored
+        same_matrix(a[1], b[1])
+    elif a[0] == "ok":  # the core inverts lines it did not fuse in another order (``T_DAG 0 1``, not ``1 0``)
+        assert np.allclose(a[1].to_matrix(), b[1].to_matrix(), atol=1e-12, rtol=0), stored
+
+
+@pytest.mark.parametrize("stored", list(STORED_SPELLINGS))
+def test_a_stored_form_the_core_reads_is_read_as_its_spelling(stored):
+    """Each stored form is read as the core reads it: as the spelling this package writes of it, and
+    (Tsim reading this package's printing of it) as Tsim's instruction."""
+    for mine, theirs in zip(stored_circuits(stored), stored_circuits(STORED_SPELLINGS[stored])):
+        assert_read_as_spelled(mine, theirs)
+        if importlib.util.find_spec("tsim") is not None and "pauli=__" not in stored:
+            import tsim as real
+
+            c = tsim.Circuit(sq.Circuit(mine))
+            ref = real.Circuit(str(c))
+            assert outcome(lambda: record(ref.get_graph())) == outcome(lambda: record(c.get_graph(backend="own"))), stored
+            assert str(c.detector_error_model(allow_gauge_detectors=True)) == str(ref.detector_error_model(allow_gauge_detectors=True)), stored
+            if outcome(ref.to_matrix)[0] == "ok":
+                assert_matrix_is_tsims(c, ref)
+
+
+def test_an_underscore_is_an_identity_letter_as_in_the_core():
+    """The review's example: ``pauli=X_Z`` is ``pauli=XIZ`` (the core reads ``_`` as ``I``), whose model
+    and matrix are those of Tsim's ``R_PAULI(...) X0*Z2``: Stim's reading of it is ``SPP X0*Z2``, not
+    the identity, and ``to_matrix`` is Tsim's ZX tensor, not a parse error."""
+    from stabilizer_qec.tsim._native import stim_reading
+
+    measured = "R 0 1 2\nX_ERROR(0.1) 2\nI[R_PAULI(theta=0.1, pauli=X{}Z)] 0 1 2\nM 0 1 2\nDETECTOR rec[-3]\nDETECTOR rec[-1]"
+    unmeasured = "H 0\nI[R_PAULI(theta=0.1, pauli=X{}Z)] 0 1 2"
+    underscore, identity = (tsim.Circuit(sq.Circuit(measured.format(mid))) for mid in "_I")
+    assert stim_reading(underscore._stim_exact_text()) == stim_reading(identity._stim_exact_text())
+    assert "SPP X0*Z2" in stim_reading(underscore._stim_exact_text()).split("\n")
+    model = str(underscore.detector_error_model(allow_gauge_detectors=True))
+    assert model == str(identity.detector_error_model(allow_gauge_detectors=True)) == "error(0.5) D0\nerror(0.1) D0 D1"
+    a, b = (tsim.Circuit(sq.Circuit(unmeasured.format(mid))) for mid in "_I")
+    assert str(a) == str(b) == "H 0\nR_PAULI(0.06366197723675814) X0*Z2"
+    assert a.to_matrix().shape == (4, 4) and np.array_equal(a.to_matrix(), b.to_matrix())
+    assert record(a.get_graph(backend="own")) == record(b.get_graph(backend="own")) and a.tcount() == b.tcount() == 1
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        ref = real.Circuit("R 0 1 2\nX_ERROR(0.1) 2\nR_PAULI(0.06366197723675814) X0*Z2\nM 0 1 2\nDETECTOR rec[-3]\nDETECTOR rec[-1]")
+        assert model == str(ref.detector_error_model(allow_gauge_detectors=True))
+        ref = real.Circuit("H 0\nR_PAULI(0.06366197723675814) X0*Z2")
+        assert record(a.get_graph(backend="own")) == record(ref.get_graph())
+        assert_matrix_is_tsims(a, ref)
+
+
+STORED_THETAS = ["0.1", "+.1", "1.e-1", "1E-1", "-0.25", "0", "-0", "2", "0.39269908169872414", "-0.39269908169872414", "3.9269908169872414e-1", "0.392699081698724139", "0.47123889803846897", "-0.47123889803846897"]
+
+
+def random_stored_form(rng, n: int) -> tuple:
+    """A stored line as the core reads it, spelled at random (``_``, ``I``, ``i`` and case in the
+    letters, the arguments' order, spaces, empty arguments, the angle's literal), and this package's
+    spelling of it."""
+
+    def ws() -> str:
+        return str(rng.choice(["", "", " ", "  ", "\t"]))
+
+    def tag(name: str, args: list, spelled_args: list) -> tuple:
+        parts = [f"{ws()}{k}{ws()}={ws()}{v}{ws()}" for k, v in args]
+        for _ in range(int(rng.integers(0, 3))):  # empty arguments, which the core skips
+            parts.insert(int(rng.integers(0, len(parts) + 1)), ws())
+        spelled = f"{name}({', '.join(f'{k}={v}' for k, v in spelled_args)})" if args else name
+        if not args and rng.random() < 0.5:
+            return f"{ws()}{name}{ws()}", spelled
+        return f"{ws()}{name}{ws()}({','.join(parts)}){ws()}", spelled
+
+    u, q = rng.random(), int(rng.integers(n))
+    theta = str(rng.choice(STORED_THETAS))
+    if u < 0.6:
+        k = int(rng.integers(1, min(n, 4) + 1))
+        qubits = [int(x) for x in rng.choice(n, k, replace=False)] if rng.random() < 0.85 else [int(rng.integers(n)) for _ in range(k)]
+        letters = "".join(str(rng.choice(list("XYZxyzXYZ_I_i"))) for _ in qubits)
+        args = [("theta", theta), ("pauli", letters)]
+        if rng.random() < 0.5:
+            args.reverse()
+        stored, spelled = tag("R_PAULI", args, [(k, v.replace("_", "I") if k == "pauli" else v) for k, v in args])
+        targets = " ".join(map(str, qubits))
+        return f"I[{stored}] {targets}", f"I[{spelled}] {targets}"
+    if u < 0.7:
+        args = [("theta", theta)]
+        stored, spelled = tag(str(rng.choice(["R_X", "R_Y", "R_Z"])), args, args)
+        return f"I[{stored}] {q}", f"I[{spelled}] {q}"
+    if u < 0.8:
+        args = [("theta", theta), ("phi", str(rng.choice(STORED_THETAS))), ("lambda", str(rng.choice(STORED_THETAS)))]
+        args = [args[i] for i in rng.permutation(3)]
+        stored, spelled = tag("U3", args, args)
+        return f"I[{stored}] {q}", f"I[{spelled}] {q}"
+    if u < 0.9 and n > 1:
+        q0, q1 = (int(x) for x in rng.choice(n, 2, replace=False))
+        args = [("theta", theta)]
+        stored, spelled = tag(str(rng.choice(["R_XX", "R_YY", "R_ZZ"])), args, args)
+        return f"II[{stored}] {q0} {q1}", f"II[{spelled}] {q0} {q1}"
+    stored, spelled = tag(str(rng.choice(["T", "T_DAG"])), [], [])
+    return f"I[{stored}] {q}", f"I[{spelled}] {q}"
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_random_stored_forms_are_read_as_the_core_reads_them(seed):
+    """Random stored forms the core accepts: ``_product_rotation`` reads each product rotation's
+    factors, ``!``s and angle as ``nonpauli::parse`` does (``_`` and ``I`` letters dropped, the others'
+    case the ``!``s, the signed angle the stored radians'), and every reader reads the circuit as this
+    package's spelling of it (and, Tsim reading this package's printing of it, as Tsim's circuit)."""
+    import math
+
+    from stabilizer_qec.tsim.utils.program_text import _NATIVE_LINE, _NATIVE_TAG, _native_args, _product_rotation, _read_turns
+
+    rng = np.random.default_rng(9000 + seed)
+    n, accepted = int(rng.integers(1, 5)), 0
+    for _ in range(6):
+        lines = [random_stored_form(rng, n) for _ in range(int(rng.integers(1, 4)))]
+        stored = "\n".join(s for s, _ in lines)
+        try:
+            sq.Circuit(stored)
+        except ValueError:
+            continue
+        accepted += 1
+        for line, _ in lines:
+            m = _NATIVE_LINE.match(line)
+            t = _NATIVE_TAG.match(m.group(3))
+            if t.group(1) != "R_PAULI":
+                continue
+            args, targets = _native_args(t.group(2)), m.group(4).split()
+            found = _product_rotation(args, targets)
+            assert found is not None, line
+            dagger, turns, factors = found
+            letters = args["pauli"]
+            assert factors == [(p.islower(), p.upper(), q) for p, q in zip(letters, targets) if p.upper() not in "I_"], line
+            sign = (-1) ** (dagger + sum(inverted for inverted, _, _ in factors))
+            if turns is None:
+                assert abs(float(args["theta"])) == math.pi / 8 and sign * math.pi / 8 == float(args["theta"]), line
+            else:
+                assert sign * float(turns) == float(_read_turns(args["theta"], 0.5)), line
+        prefix = "H " + " ".join(map(str, range(n))) + "\n"
+        spelled = "\n".join(s for _, s in lines)
+        assert_read_as_spelled(prefix + stored, prefix + spelled)
+        measured = f"R {' '.join(map(str, range(n)))}\nX_ERROR(0.1) 0\n{prefix}{{}}\nM {' '.join(map(str, range(n)))}\nDETECTOR rec[-1]"
+        assert_read_as_spelled(measured.format(stored), measured.format(spelled))
+        if importlib.util.find_spec("tsim") is not None and "I[R_PAULI" not in str(tsim.Circuit(sq.Circuit(prefix + spelled))):
+            import tsim as real
+
+            for text in (prefix + stored, measured.format(stored)):
+                c = tsim.Circuit(sq.Circuit(text))
+                ref = real.Circuit(str(c))
+                assert outcome(lambda: record(ref.get_graph())) == outcome(lambda: record(c.get_graph(backend="own"))), text
+                built = outcome(ref.to_matrix)
+                if built[0] == "ok":
+                    assert_matrix_is_tsims(c, ref)
+                else:
+                    assert outcome(c.to_matrix) == built, text
+                theirs, ours = outcome(lambda: str(ref.detector_error_model(allow_gauge_detectors=True))), outcome(lambda: str(c.detector_error_model(allow_gauge_detectors=True)))
+                assert ours[0] == theirs[0] and (ours == theirs or "anti-Hermitian" in theirs[1]), text
+    assert accepted >= 2
+
+
+# Not Pauli products or sweep bits: ``to_matrix`` does not build the graph first (a tag naming
+# ``SPP`` or ``R_PAULI`` on another gate, a coherent error, an inert ``II`` tag).
+NO_GRAPH_FIRST = [
+    "H[SPP] 0\nX[R_PAULI] 1",
+    "H 0\nI_ERROR[R_PAULI(theta=0.1, pauli=XZ)] 0 1",
+    "H 0\nI_ERROR[R_PAULI(theta=0.1, pauli=X_Z)] 0 1 2",
+    "H 0\nII_ERROR[R_ZZ(theta=0.1)] 0 1",
+    "H 0\nII[foo] 0 1",
+    "H 0\nT 1\nR_X(0.3) 0\nCX 0 1",
+]
+GRAPH_FIRST = ["SPP X0*Z1", "SPP_DAG X0", "H 0\nR_PAULI(0.3) X0*Z1", "R_ZZ(0.3) 0 1", "TPP X0*Y1", "TPP Z0*Z0\nH 1", "H 0\nI[R_PAULI(theta=0.1, pauli=X_Z)] 0 1 2", "MPP X0*Z1"]
+
+
+def test_to_matrix_builds_the_graph_first_only_for_products_and_sweep_bits(monkeypatch):
+    """The graph is built before the engine runs only for what Tsim's builders can refuse (Pauli
+    products, sweep bits), read from the instructions rather than the text, and then once."""
+    built = []
+    original = zx.parse_stim_circuit
+
+    def spy(*args, **kwargs):
+        built.append(1)
+        return original(*args, **kwargs)
+
+    for text in NO_GRAPH_FIRST + GRAPH_FIRST:
+        c = tsim.Circuit(text)
+        with monkeypatch.context() as patch:
+            patch.setattr(zx, "parse_stim_circuit", spy)
+            built.clear()
+            got = c.to_matrix()
+        assert len(built) == (0 if text in NO_GRAPH_FIRST else 1), text
+        want = c._zx_matrix("big")
+        i = np.argmax(np.abs(want))
+        phase = got.flat[i] / want.flat[i]
+        assert got.shape == want.shape and abs(abs(phase) - 1) < 1e-9 and np.allclose(got, phase * want, atol=1e-9, rtol=0), text
+    with monkeypatch.context() as patch:
+        patch.setattr(zx, "parse_stim_circuit", spy)
+        built.clear()
+        with pytest.raises(NotImplementedError, match="Sweep bit targets"):
+            tsim.Circuit("H 0\nCX sweep[0] 0").to_matrix()
+    assert len(built) == 1
+
+
+# A circuit with products and an instruction Tsim's builders cannot read (a tag the core leaves inert,
+# which Tsim's ``parse_parametric_tag`` refuses): ``to_matrix`` is the engine's, as without the products
+# (and as before the graph was built first); the graph is Tsim's error.
+UNREAD_WITH_PRODUCTS = {
+    "H 0\nR_PAULI(0.3) X0*Z1\nI[foo(bar)] 1": "H 0\nR_PAULI(0.3) X0*Z1\nI 1",
+    "H 0\nR_PAULI(0.3) X0*Z1\nI[R_PAULIX(theta=0.1)] 1": "H 0\nR_PAULI(0.3) X0*Z1\nI 1",
+    "SPP[foo(bar)] X0*Z1\nH 0": "SPP X0*Z1\nH 0",
+    "H 0\nR_ZZ(0.3) 0 1\nH[x] 1\nI[my_tag(x=1)] 0": "H 0\nR_ZZ(0.3) 0 1\nH 1\nI 0",
+}
+
+
+@pytest.mark.parametrize("text", list(UNREAD_WITH_PRODUCTS))
+def test_to_matrix_of_products_with_an_instruction_tsims_builders_cannot_read(text):
+    c, plain = tsim.Circuit(text), tsim.Circuit(UNREAD_WITH_PRODUCTS[text])
+    assert np.array_equal(c.to_matrix(), plain.to_matrix())
+    with pytest.raises(ValueError, match="^Could not parse instruction "):
+        c.get_graph(backend="own")
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        with pytest.raises(ValueError) as theirs:
+            real.Circuit(text).get_graph()
+        with pytest.raises(ValueError) as ours:
+            c.get_graph(backend="own")
+        assert str(ours.value) == str(theirs.value)
+
+
+def test_a_products_refusal_before_an_instruction_tsims_builders_cannot_read_is_raised():
+    """The builders read the circuit in order: a product they refuse before the instruction they cannot
+    read is still Tsim's error (Tsim's ``to_matrix`` raises it too)."""
+    text = "H 0\nR_PAULI(0.3) X0*X0\nI[foo(bar)] 1"
+    message = "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.3*pi)] X0*X0'."
+    with pytest.raises(ValueError) as info:
+        tsim.Circuit(text).to_matrix()
+    assert str(info.value) == message
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        with pytest.raises(ValueError) as theirs:
+            real.Circuit(text).to_matrix()
+        assert str(theirs.value) == message

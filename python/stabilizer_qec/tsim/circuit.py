@@ -9,7 +9,6 @@ Tsim's sampling conventions."""
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterable
 from typing import Any, Union
 
@@ -79,15 +78,13 @@ def _of_native_text(cls: type, text: str) -> "Circuit":
     return cls._of_native(text)
 
 
-# What a circuit's text has when Tsim's graph builders can refuse it where the unitary engine does not:
-# products (SPP, MPP, TPP's and R_PAULI's I[R_PAULI], the pair rotations' II[...]) and sweep bits.
-_REFUSED_BY_TSIMS_BUILDERS = ("SPP", "MPP", "R_PAULI", "II[", "sweep[")
-_ROTATION_TARGETS = re.compile(r"^[ \t]*I\[[ \t]*R_PAULI\b[^\]\n]*\][ \t]+([^\n]*)$", re.M)
-
-
-def _a_rotation_repeats_a_qubit(text: str) -> bool:
-    """Whether a Pauli-product rotation (``I[R_PAULI(...)] 0 0 1``) names a qubit twice."""
-    return any(len(set(targets.split())) < len(targets.split()) for targets in _ROTATION_TARGETS.findall(text))
+# The gates of Pauli products, which Tsim's graph builders can refuse where the unitary engine does not
+# (with TPP's and R_PAULI's I[R_PAULI(...)] and the pair rotations' II[R_ZZ(...)], ``_lane_scan``).
+_PRODUCT_GATES = frozenset({"SPP", "SPP_DAG", "MPP"})
+_PAIR_ROTATIONS = frozenset({"R_XX", "R_YY", "R_ZZ"})
+# The builders' messages for an instruction they cannot read (Tsim's ``parse_parametric_tag`` and gate
+# dispatch), as opposed to their refusals of products and sweep bits.
+_UNREAD_BY_TSIMS_BUILDERS = ("Could not parse instruction ", "Unknown gate: ")
 
 # A rotation's tag renamed so that the core's inverse leaves it alone (an unknown tag on I is inert),
 # the inverse's tag written by ``_rotations_inverted`` instead.
@@ -161,18 +158,25 @@ def _qubits_named(circuit: Any) -> set:
 
 
 def _lane_scan(circuit: Any) -> tuple:
-    """``(needs_zx, pair_identity_qubits)``: whether a measurement-free circuit's matrix still needs
-    Tsim's ZX tensor, and the qubits an ``II`` names (which the unitary engine does not see). It
-    does when a reset follows the first instruction that names a qubit and that instruction is not
-    a reset (an operation, noise, an identity or coordinates: Tsim's graph gives the qubit an input,
-    where the engine counts only an operation as one), or when there is a ``DETECTOR`` or an
-    ``OBSERVABLE_INCLUDE`` (an X spider of Tsim's graph, standing alone when it XORs no measurement:
-    a factor of 2 the engine has no part for; one of Pauli targets is Tsim's error). A loop's body
-    is read twice (its second pass shows a reset after the first pass's operations)."""
+    """``(needs_zx, pair_identity_qubits, products, repeated)``: whether a measurement-free circuit's
+    matrix still needs Tsim's ZX tensor, the qubits an ``II`` names (which the unitary engine does not
+    see), whether it has what Tsim's graph builders can refuse where the engine does not, and whether a
+    product rotation names a qubit twice.
+
+    It needs the ZX tensor when a reset follows the first instruction that names a qubit and that
+    instruction is not a reset (an operation, noise, an identity or coordinates: Tsim's graph gives the
+    qubit an input, where the engine counts only an operation as one), or when there is a ``DETECTOR``
+    or an ``OBSERVABLE_INCLUDE`` (an X spider of Tsim's graph, standing alone when it XORs no
+    measurement: a factor of 2 the engine has no part for; one of Pauli targets is Tsim's error). What
+    the builders can refuse is read from the instructions: a Pauli product (``SPP``, ``SPP_DAG``,
+    ``MPP``, a product rotation ``I[R_PAULI(...)]``, a pair rotation ``II[R_ZZ(...)]``) or a sweep
+    bit; a tag that only names one (``H[SPP]``, the coherent error ``I_ERROR[R_PAULI(...)]``) is not
+    one. A loop's body is read twice (its second pass shows a reset after the first pass's
+    operations)."""
     first_is_reset: dict = {}
     flags: dict = {}
     pair_identity: set = set()
-    found = [False]
+    found = [False, False, False]  # needs_zx, products, repeated
 
     def visit(items: list) -> None:
         for item in items:
@@ -180,14 +184,25 @@ def _lane_scan(circuit: Any) -> tuple:
                 for _ in range(min(item[1], 2)):
                     visit(item[3])
                 continue
-            name, targets = item[1], item[4]
+            name, tag, targets = item[1], item[2], item[4]
             if name in ("DETECTOR", "OBSERVABLE_INCLUDE"):
                 found[0] = True
                 continue
+            if name in _PRODUCT_GATES:
+                found[1] = True
+            elif tag and name in ("I", "II"):
+                t = _NATIVE_TAG.match(tag)
+                if t and t.group(1) == "R_PAULI" and name == "I":
+                    found[1] = True
+                    found[2] = found[2] or len(set(targets)) < len(targets)
+                elif t and t.group(1) in _PAIR_ROTATIONS and name == "II":
+                    found[1] = True
             if name not in flags:
                 flags[name] = bool(_stim.GateData(name).is_reset)
             reset = flags[name]
             for v in targets:
+                if v & _stim._TARGET_SWEEP:
+                    found[1] = True
                 q = _stim.GateTarget._raw(v).qubit_value
                 if q is None:
                     continue
@@ -199,7 +214,7 @@ def _lane_scan(circuit: Any) -> tuple:
                     found[0] = True
 
     visit(circuit._items())
-    return found[0], pair_identity
+    return found[0], pair_identity, found[1], found[2]
 
 
 class Circuit(_Base):
@@ -588,25 +603,39 @@ class Circuit(_Base):
 
         Tsim's graph builders refuse what the unitary engine would run (an ``R_PAULI`` naming a
         qubit twice or more than 64, an anti-Hermitian product, a sweep bit): a circuit with Pauli
-        products or sweep bits has its graph built first, so it raises Tsim's error."""
+        products (``SPP``, ``MPP``, ``TPP``, ``R_PAULI``, ``R_XX``, ...) or sweep bits has its graph
+        built first, so it raises Tsim's error. That graph is built in Python over the circuit with
+        its loops unrolled, one step per instruction, before the engine runs: it costs seconds where
+        the engine takes milliseconds for tens of thousands of instructions (``REPEAT 20000`` of
+        ``SPP X0*Z1`` and ``H 0``). Tsim's own ``to_matrix`` builds and contracts that graph, and takes
+        far longer. A circuit without products or sweep bits does not build it, and one with an
+        instruction the builders cannot read (a tag the core leaves inert, ``I[foo(x)] 0``) is the
+        engine's matrix, as without products (Tsim's raises its parse error)."""
         if endian not in ("big", "little"):
             raise ValueError(f"endian must be 'big' or 'little', got {endian!r}")
-        needs_zx, pair_identity = _lane_scan(self)
+        needs_zx, pair_identity, products, repeated = _lane_scan(self)
         if needs_zx:
             return self._zx_matrix(endian)
-        text = self._stim_exact_text()
-        if any(word in text for word in _REFUSED_BY_TSIMS_BUILDERS):
+        built = None
+        if products:
             # Tsim's matrix is of its ZX graph, whose builders refuse what the unitary engine runs: an
             # R_PAULI's repeated qubit or more than 64, an anti-Hermitian product, a sweep bit. Built for
             # those errors, Tsim's, raised first as in Tsim. A product that cancels on a qubit no other
-            # instruction names (``TPP Z0*Z0``) leaves it out of the graph, so out of Tsim's matrix, and
-            # one that names a qubit twice (``TPP X0*Y0*X0``, -Y) is a sign the engine does not keep:
-            # both are the ZX tensor.
+            # instruction names (``TPP Z0*Z0``, or an identity letter's qubit, ``pauli=X_Z``) leaves it
+            # out of the graph, so out of Tsim's matrix, and one that names a qubit twice
+            # (``TPP X0*Y0*X0``, -Y) is a sign the engine does not keep: both are the ZX tensor.
             from stabilizer_qec.tsim.zx import parse_stim_circuit
 
-            built = parse_stim_circuit(self, backend="own")
-            if set(built.first_vertex) != _qubits_named(self) or _a_rotation_repeats_a_qubit(text):
-                return self._zx_matrix(endian)
+            try:
+                built = parse_stim_circuit(self, backend="own")
+            except ValueError as exc:
+                # An instruction the builders cannot read (a tag of someone else's, ``I[foo(x)]``, which
+                # the core leaves inert) is left to the engine, as in a circuit without products.
+                if not str(exc).startswith(_UNREAD_BY_TSIMS_BUILDERS):
+                    raise
+            else:
+                if set(built.first_vertex) != _qubits_named(self) or repeated:
+                    return self._zx_matrix(endian, built)
         ideal = self.without_noise()
         # A qubit only noise names (or an II) stays, as an input the circuit leaves alone (Tsim's identity).
         lanes = sorted((_qubits_named(self) - _qubits_named(ideal)) | pair_identity)
@@ -617,13 +646,17 @@ class Circuit(_Base):
         except ValueError as exc:
             if "has no matrix" not in str(exc):
                 raise
-            return self._zx_matrix(endian)
+            return self._zx_matrix(endian, built)
         return np.frombuffer(data, dtype="<c16").reshape(1 << n, 1 << k).copy()
 
-    def _zx_matrix(self, endian: str) -> np.ndarray:
+    def _zx_matrix(self, endian: str, built: Any = None) -> np.ndarray:
+        """Tsim's ZX tensor of the circuit, of its graph ``built`` (``parse_stim_circuit``'s, built
+        here if ``None``)."""
         from stabilizer_qec.tsim.zx import parse_stim_circuit, tensorfy
 
-        g = parse_stim_circuit(self, backend="own").graph.copy()
+        if built is None:
+            built = parse_stim_circuit(self, backend="own")
+        g = built.graph.copy()
         g.normalize()
         n_out, n_in = g.num_outputs(), g.num_inputs()
         if n_out + n_in > 22:

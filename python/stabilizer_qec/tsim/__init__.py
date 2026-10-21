@@ -78,7 +78,9 @@ Where it differs from Tsim:
   ``circuit[i]``, ``stim_circuit``, ``to_file`` and this package's own errors show. Read back, the
   instruction is Tsim's: it prints as Tsim's (``SPP_DAG[R_PAULI(theta=0.3*pi)] X0``,
   ``TPP !X0``), and it fuses with its neighbours, counts towards ``R_PAULI``'s 64 qubits and is
-  quoted in errors as in Tsim.
+  quoted in errors as in Tsim. Text in this form is read as the core reads it: ``_`` and ``I`` are
+  identity letters (``I[R_PAULI(theta=0.1, pauli=X_Z)] 0 1 2`` is Tsim's ``R_PAULI(...) X0*Z2``),
+  spaces and empty arguments in a tag are skipped, and ``I[T()]`` is ``I[T]``.
 - Two product rotations with the same angle in a row stay two lines (Tsim's Stim text fuses
   them into one, which its shorthand misprints), and a product naming one qubit twice prints as
   ``R_PAULI(0.3) X0*X0`` (Tsim's shorthand ``R_XX(0.3) 0 0`` does not read back). They are one
@@ -101,6 +103,10 @@ Where it differs from Tsim:
   (``zx.instructions.CorrelatedChainProbs``): an entry each, and ``ValueError`` read as an array.
 - ``circuit[i]`` is this package's instruction (``I[T] 0``), not a ``stim.CircuitInstruction``
   in Tsim's tagged form (``S[T] 0``).
+- ``to_matrix`` of a circuit with an instruction Tsim's graph builders cannot read (a tag the core
+  leaves inert, ``I[foo(x)] 0``, which ``get_graph`` refuses as Tsim does) is the unitary engine's
+  matrix, where Tsim's ``to_matrix`` raises that error (and a refusal of a Pauli product after
+  that instruction is not raised either).
 """
 
 from . import sampler, zx

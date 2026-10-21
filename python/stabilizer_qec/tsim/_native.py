@@ -72,7 +72,7 @@ def stim_reading(text: str) -> str:
     its product (``SPP[R_PAULI(theta=a*pi)] !X0`` is ``SPP !X0``, ``SPP_DAG[T] X0`` ``SPP_DAG X0``),
     a pair rotation (``II[R_ZZ(theta=t)] 0 1``) ``SPP Z0*Z1``. Tsim builds its detector error model
     of that reading; every other line is as it is."""
-    from stabilizer_qec.tsim.utils.program_text import _NATIVE_LINE, _NATIVE_TAG, _native_args, _product_text
+    from stabilizer_qec.tsim.utils.program_text import _NATIVE_LINE, _NATIVE_TAG, _native_args, _no_args, _product_text
 
     lines = []
     for line in text.split("\n"):
@@ -86,7 +86,7 @@ def stim_reading(text: str) -> str:
         targets = rest.split()
         args = _native_args(body) if body else {}
         product = _product_rotation_or_none(args, targets) if gate == "I" and name == "R_PAULI" and args and set(args) == {"theta", "pauli"} else None
-        if gate == "I" and body is None and name in ("T", "T_DAG"):
+        if gate == "I" and _no_args(body) and name in ("T", "T_DAG"):
             lines.append(f"{indent}{'S' if name == 'T' else 'S_DAG'} {' '.join(targets)}")
         elif gate == "I" and name in ("R_X", "R_Y", "R_Z", "U3") and args:
             lines.append(f"{indent}I {' '.join(targets)}")
