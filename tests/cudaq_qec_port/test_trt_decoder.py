@@ -558,10 +558,22 @@ def test_engine_io_limit_at_its_edge(tmp_path, monkeypatch):
         qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), onnx_load_path=path, batch_size=3, use_cuda_graph=False)
     assert str(e.value.__cause__) == "input 'input' of shape (3, 3) at batch_size 3 has 9 elements: dimension 1 (3) takes it past 6, the most CUDA-Q's int input_size holds"
     # At batch_size 1, the dry run at batch 2 that tells which output dimensions follow the batch
-    # would pass the limit: it is not run, and the output is the one at batch 1.
+    # is made while it fits the limit; past it, it is not made, and the output is the one at batch 1.
+    runs = []
+    run = OnnxModel.run
+    monkeypatch.setattr(OnnxModel, "run", lambda self, x: runs.append(np.shape(x)) or run(self, x))
+    qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), onnx_load_path=path, batch_size=1, use_cuda_graph=False)
+    assert runs == [(1, 3), (2, 3)]
+    runs.clear()
     monkeypatch.setattr(_trt, "_MAX_VOLUME", 5)
     d = qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), onnx_load_path=path, batch_size=1, use_cuda_graph=False)
+    assert runs == [(1, 3)]
     assert d.decode_batch([[1.0, 0.5, 0.0], [0.0, 1.0, 0.25]]).result.tolist() == [[1.0, 0.5, 0.0], [0.0, 1.0, 0.25]]
+    # (A static input past the limit is not run either.)
+    runs.clear()
+    with pytest.raises(RuntimeError):
+        qec.get_decoder("trt_decoder", H, onnx_load_path=identity_of(tmp_path, [6]))
+    assert runs == []
 
 
 def test_uint8_identity_model_binarizes_input_and_output():
