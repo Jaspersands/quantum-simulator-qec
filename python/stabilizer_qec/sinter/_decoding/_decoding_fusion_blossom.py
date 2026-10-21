@@ -3,7 +3,7 @@
 # not needed.
 import math
 import pathlib
-from typing import Callable, List, Tuple
+from typing import Callable, List, TYPE_CHECKING, Tuple
 
 import numpy as np
 import stabilizer_qec as stim
@@ -11,7 +11,8 @@ from stabilizer_qec._util import ours
 
 from stabilizer_qec.sinter._decoding._decoding_decoder_class import Decoder, CompiledDecoder
 
-from stabilizer_qec import fusion_blossom
+if TYPE_CHECKING:
+    from stabilizer_qec import fusion_blossom
 
 
 class FusionBlossomCompiledDecoder(CompiledDecoder):
@@ -28,6 +29,7 @@ class FusionBlossomCompiledDecoder(CompiledDecoder):
     ) -> 'np.ndarray':
         num_shots = bit_packed_detection_event_data.shape[0]
         predictions = np.zeros(shape=(num_shots, (self.num_obs + 7) // 8), dtype=np.uint8)
+        from stabilizer_qec import fusion_blossom
         for shot in range(num_shots):
             dets_sparse = np.flatnonzero(np.unpackbits(bit_packed_detection_event_data[shot], count=self.num_dets, bitorder='little'))
             syndrome = fusion_blossom.SyndromePattern(syndrome_vertices=dets_sparse)
@@ -59,6 +61,8 @@ class FusionBlossomDecoder(Decoder):
                          obs_predictions_b8_out_path: pathlib.Path,
                          tmp_dir: pathlib.Path,
                        ) -> None:
+        from stabilizer_qec import fusion_blossom
+
         error_model = stim.DetectorErrorModel.from_file(dem_path)
         solver, fault_masks = detector_error_model_to_fusion_blossom_solver_and_fault_masks(error_model)
         num_det_bytes = math.ceil(num_dets / 8)
@@ -128,6 +132,8 @@ def iter_flatten_model(model: stim.DetectorErrorModel,
 
 def detector_error_model_to_fusion_blossom_solver_and_fault_masks(model: stim.DetectorErrorModel) -> Tuple['fusion_blossom.SolverSerial', np.ndarray]:
     """Convert a stim error model into a NetworkX graph."""
+
+    from stabilizer_qec import fusion_blossom
 
     def handle_error(p: float, dets: List[int], frame_changes: List[int]):
         if p == 0:

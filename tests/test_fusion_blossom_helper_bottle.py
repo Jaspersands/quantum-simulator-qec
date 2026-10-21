@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import http.client
+import importlib.util
 import json
 import os
 import pathlib
@@ -116,6 +117,26 @@ def test_bottle_is_imported_with_the_package():
     env = {**os.environ, "PYTHONPATH": str(pathlib.Path(fb.__file__).parent.parent.parent)}
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
     assert (out.returncode, out.stdout) == (0, "True True\n"), out.stderr
+
+
+@pytest.mark.parametrize("package", ["stabilizer_qec.", ""], ids=["ours", "sinter"])
+def test_sinter_imports_fusion_blossom_when_it_decodes(package):
+    # sinter imports fusion_blossom inside its decoder's methods (and for annotations only under TYPE_CHECKING), so
+    # ``import sinter`` loads neither fusion_blossom nor its Bottle and appends no import hook; nor does
+    # ``import stabilizer_qec.sinter``, whose decoder then imports this package's fusion_blossom, and Bottle, to decode.
+    if not package and importlib.util.find_spec("sinter") is None:
+        pytest.skip("sinter is not installed")
+    code = (f"import sys; hooks = list(sys.meta_path); import {package}sinter as sinter; "
+            f"print(sorted(m for m in sys.modules if m.split('.')[-1] == 'bottle' or (m + '.').startswith('{package}fusion_blossom.')), "
+            "[type(h).__name__ for h in sys.meta_path if h not in hooks])")
+    if package:
+        code += ("; import numpy as np, stabilizer_qec as stim; "
+                 "decoder = sinter.BUILT_IN_DECODERS['fusion_blossom'].compile_decoder_for_dem(dem=stim.DetectorErrorModel('error(0.1) D0 L0')); "
+                 "print(decoder.decode_shots_bit_packed(bit_packed_detection_event_data=np.array([[1], [0]], dtype=np.uint8)).tolist(), "
+                 "'stabilizer_qec.fusion_blossom.helper.bottle' in sys.modules)")
+    env = {**os.environ, "PYTHONPATH": str(pathlib.Path(fb.__file__).parent.parent.parent)}
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
+    assert (out.returncode, out.stdout) == (0, "[] []\n" + ("[[1], [0]] True\n" if package else "")), out.stderr
 
 
 def test_running_fails_at_once_when_the_server_thread_dies(tmp_path):
