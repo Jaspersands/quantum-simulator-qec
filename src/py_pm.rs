@@ -244,9 +244,14 @@ impl PyUserGraph {
                                     let o = &mut pout[i * stride..i * stride + out_bytes];
                                     // A padding bit past `num_nodes` is refused before any region is
                                     // made (`Mwpm::begin`), so the next decode works. Deliberately not
-                                    // PyMatching's: it makes the regions before the bad event, then
-                                    // throws, and every later decode on that mwpm raises
-                                    // "!mwpm.flooder.queue.empty()".
+                                    // PyMatching's: it makes a region at each of the shot's earlier
+                                    // detection events, then throws. When the shot has earlier
+                                    // (non-boundary) detection events, every later decode on that mwpm
+                                    // raises "!mwpm.flooder.queue.empty()" until a rebuild; with none,
+                                    // its next decode works, as ours. (An event at a node a negative
+                                    // edge marked only unmarks it, making no region; a region at a node
+                                    // with no edges queues nothing, so only its next decode fails, with
+                                    // "No perfect matching ...", and resets it.)
                                     *w = decoder.decode_packed_with(mwpm, &events, o).map_err(|e| format!("shot {shot}: {e}"))?;
                                 }
                                 Ok(())

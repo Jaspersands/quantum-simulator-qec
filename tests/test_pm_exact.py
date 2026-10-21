@@ -311,6 +311,52 @@ def test_threads_do_not_change_answers():
             m.decode_batch(shots, threads=threads)
 
 
+@pytest.mark.parametrize(
+    "graph,bits,recovers",
+    [
+        ("line", 0b100000, True), ("boundary", 0b100001, True), ("negative", 0b100001, True),
+        ("line", 0b100101, False), ("line", 0b100010, False), ("boundary", 0b100101, False),
+        ("negative", 0b100100, False), ("isolated", 0b100010, False),
+    ],
+)  # fmt: skip
+def test_a_failed_bit_packed_batch_leaves_the_decoder_working(graph, bits, recovers):
+    # A padding bit past the last node (bit 5 of 3 nodes) fails the batch with PyMatching's
+    # message, after "shot 0: ". PyMatching first makes a region at each of the shot's earlier
+    # detection events and then throws, so it recovers only when it made none: no earlier event,
+    # one at a boundary node, or one at a node a negative edge marked (it only unmarks it). Ours
+    # refuses before making any (deliberately), so its later decodes are always a fresh decoder's;
+    # where PyMatching recovers, they are also that same PyMatching decoder's.
+    def build(mod):
+        m = mod.Matching()
+        if graph == "isolated":  # node 1 has no edges
+            m.add_edge(0, 2, fault_ids={0})
+        else:
+            m.add_edge(0, 1, fault_ids={0}, weight=-1.0 if graph == "negative" else 1.0)
+            m.add_edge(1, 2, fault_ids={1})
+        m.add_boundary_edge(0, fault_ids={2})
+        m.add_boundary_edge(2, fault_ids={3})
+        if graph == "boundary":
+            m.set_boundary_nodes({0})
+        return m
+
+    def after(m):
+        return [
+            outcome(lambda: plain_value(m.decode(s, return_weight=True)))
+            for s in ([1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 0, 0], [1, 1, 0])
+        ] + [outcome(lambda: plain_value(m.decode_batch(np.array([[0b001], [0b100], [0b101]], dtype=np.uint8), bit_packed_shots=True, return_weights=True)))]
+
+    # The bad shot first, so at every thread count it falls to the decoder kept for later decodes.
+    bad = np.array([[bits], [0b001], [0b100], [0b000]], dtype=np.uint8)
+    ours, theirs, fresh = build(sq), build(pymatching), build(pymatching)
+    want_error = outcome(lambda: theirs.decode_batch(bad, bit_packed_shots=True))
+    assert want_error[0] == "error" and "index" in want_error[1] and "5" in want_error[1], want_error
+    for threads in (1, 4):
+        assert outcome(lambda: ours.decode_batch(bad, bit_packed_shots=True, threads=threads)) == ("error", "shot 0: " + want_error[1]), threads
+        assert after(ours) == after(fresh), threads
+    if recovers:
+        assert after(theirs) == after(fresh)
+
+
 def rows(m):
     return [(u, v, d["fault_ids"], d["weight"], d["error_probability"]) for u, v, d in m.edges()]
 
