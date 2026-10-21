@@ -138,6 +138,11 @@ arguments, defaults and properties, so that their results are ldpc's bit for bit
 `python/stabilizer_qec/ldpc/` is ldpc's Python package ported (each file marked as modified;
 `mod2/_mod2.py` reimplements its Cython and C++ linear algebra), and `tests/ldpc_port/` is its
 test suite (`python_test/`, with the code matrices in `tests/ldpc_port/pcms/`), run on the port.
+`tests/ldpc_lsd_merge/captured.json` (written by `tools/lsd_merge_capture.py`) records outputs
+of ldpc 2.4.1's `BpLsdDecoder` the tests compare against: its answers over 50 decodes in one
+process, on the window decodes of QUITS 1.2.0's BP+LSD sweep where they vary or differ from
+this package's, with the window check matrices built from QUITS's HGP n=12 code
+(`n=12_dv=3_dc=4_dist=6`).
 
 ## relay_bp
 

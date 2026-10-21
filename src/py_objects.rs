@@ -2347,6 +2347,31 @@ impl PyBpLsd {
         let w = &mut self.work;
         Ok((bits(&w.correction), out.converged, out.iterations, out.solved, w.ties, std::mem::take(&mut w.cluster_bits), bits(&w.bp.hard), w.bp.llr.clone()))
     }
+
+    /// (Every correction a decode of `syndrome` reaches over at most `max_paths` of the merge
+    /// orders `ldpc` can take, `decode`'s first, stopping at `target` when given, and none when
+    /// no correction explains the syndrome; paths walked; the departures from `decode`'s order
+    /// up to which every path was walked; whether every path was): `BpLsd::merge_order_outcomes`.
+    /// The serial schedule and statistics are left as they were.
+    #[pyo3(signature = (syndrome, max_paths, target=None))]
+    #[allow(clippy::type_complexity)]
+    fn merge_order_outcomes(&mut self, syndrome: Vec<u8>, max_paths: usize, target: Option<Vec<u8>>) -> PyResult<(Vec<Vec<u32>>, usize, usize, bool)> {
+        checked_syndrome(&syndrome, self.num_checks)?;
+        if let Some(t) = &target {
+            if t.len() != self.dec.bp.num_vars {
+                return Err(err(format!("{} target bits for {} bits", t.len(), self.dec.bp.num_vars)));
+            }
+        }
+        let serial = self.work.serial.clone();
+        let stats = std::mem::take(&mut self.work.stats);
+        let do_stats = std::mem::replace(&mut self.work.do_stats, false);
+        self.work.record = false;
+        let found = self.dec.merge_order_outcomes(&syndrome, max_paths, target.as_deref(), &mut self.work);
+        self.work.serial = serial;
+        self.work.stats = stats;
+        self.work.do_stats = do_stats;
+        Ok((found.corrections.iter().map(|c| bits(c)).collect(), found.paths, found.departures, found.complete))
+    }
 }
 
 /// Bit flipping on a check matrix given by its columns, as `ldpc`'s `FlipDecoder`.

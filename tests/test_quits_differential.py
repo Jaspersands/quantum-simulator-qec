@@ -5,6 +5,7 @@ BP+LSD, circuit-level and phenomenological) of the same detection events, equal 
 """
 
 import pathlib
+import platform
 
 import numpy as np
 import pytest
@@ -96,37 +97,102 @@ def _memory(code_factory, rounds, p, shots, seed):
     return code, circuit, dets, obs
 
 
+def _bplsd_replayed(run_mine, run_ref, label, capsys):
+    """Both sliding windows' predictions with BP+LSD, ours taking ldpc's answer to each window
+    where ldpc merged clusters in another order than ours: ldpc merges the clusters a step meets
+    in the order of their hashed heap addresses (a tsl::robin_set of pointers), so its answer can
+    vary from decode to decode. Every answer of ldpc's must be one ours reaches over some merge
+    order (`_merge_order_outcomes`, stopping at ldpc's answer); with them, the predictions must be
+    equal."""
+    import quits.decoder.bplsd as theirs
+    import stabilizer_qec.quits.decoder.bplsd as mine
+
+    calls, at, others = [], [0], []
+    Ldpc, Ours = theirs.BpLsdDecoder, mine.BpLsdDecoder
+
+    class Recorded:
+        def __init__(self, H, **kw):
+            self.d = Ldpc(H, **kw)
+
+        def decode(self, s):
+            out = self.d.decode(s)
+            calls.append((np.asarray(s) % 2, np.array(out, dtype=np.uint8)))
+            return out
+
+    class Replayed:
+        def __init__(self, H, **kw):
+            self.d = Ours(H, **kw)
+
+        def decode(self, s):
+            want_s, answer = calls[at[0]]
+            at[0] += 1
+            np.testing.assert_array_equal(np.asarray(s) % 2, want_s)
+            out = self.d.decode(s)
+            if np.array_equal(out, answer):
+                return out
+            # (The search stops at ldpc's answer: each order is a whole LSD decode, and walking
+            # all 4,096 has taken over 100 s on one of the HGP n=12 circuit windows.)
+            assert answer.tobytes() in self.d._merge_order_outcomes(s, target=answer), (label, at[0] - 1)
+            others.append(at[0] - 1)
+            return answer.astype(np.asarray(out).dtype)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(theirs, "BpLsdDecoder", Recorded)
+        b = run_ref()
+        mp.setattr(mine, "BpLsdDecoder", Replayed)
+        a = run_mine()
+    assert at[0] == len(calls)
+    if platform.system() != "Darwin":
+        # ldpc's pointer hash scatters its merge order on macOS (libc++'s CityHash) and Windows
+        # (FNV-1a); on Linux it may be the order met, as ours (libstdc++ hashes a pointer to
+        # itself, and glibc aligns to 16 bytes, so a small set's pointers share bucket 0). Say
+        # whether ldpc's answers were ours.
+        with capsys.disabled():
+            print(f"\n{platform.system()}-{platform.machine()}: ldpc's BP+LSD ({label}) equal to ours on {len(calls) - len(others)} of {len(calls)} window decodes")
+    return a, b
+
+
 @pytest.mark.parametrize("decoder", ["bposd", "bplsd"])
 @pytest.mark.parametrize("name", ["HGP n=12", "BPC 6", "BB 15,3"])
-def test_circuit_window_decodes_equal(name, decoder):
+def test_circuit_window_decodes_equal(name, decoder, capsys):
     code, circuit, dets, obs = _memory(_codes(ours)[name][0], rounds=4, p=3e-3, shots=60, seed=5)
     order = "osd_order" if decoder == "bposd" else "lsd_order"
     mine = getattr(ours, f"sliding_window_{decoder}_circuit_mem")
     ref = getattr(quits, f"sliding_window_{decoder}_circuit_mem")
-    a = mine(dets, circuit, code.hz, code.lz, 3, 1, max_iter=10, **{order: 2})
-    b = ref(dets, stim.Circuit(str(circuit)), code.hz, code.lz, 3, 1, max_iter=10, **{order: 2})
-    # Equal shot for shot but for ties: OSD's higher-order search ranks candidates by sums the
-    # reference forms in numpy, whose last bit moves between numpy builds (one shot of sixty
-    # has flipped on one CI platform at a time: Windows 3.11 once, macOS 3.12 and 3.14 once).
-    mismatched = int((a != b).any(axis=1).sum())
-    assert mismatched <= 1, (name, decoder, mismatched, np.flatnonzero((a != b).any(axis=1)))
+    run_mine = lambda: mine(dets, circuit, code.hz, code.lz, 3, 1, max_iter=10, **{order: 2})  # noqa: E731
+    run_ref = lambda: ref(dets, stim.Circuit(str(circuit)), code.hz, code.lz, 3, 1, max_iter=10, **{order: 2})  # noqa: E731
+    if decoder == "bposd":
+        a, b = run_mine(), run_ref()
+        # Equal shot for shot but for ties: OSD's higher-order search ranks candidates by sums the
+        # reference forms in numpy, whose last bit moves between numpy builds (one shot of sixty
+        # has flipped on one CI platform at a time: Windows 3.11 once, macOS 3.12 and 3.14 once).
+        mismatched = int((a != b).any(axis=1).sum())
+        assert mismatched <= 1, (name, decoder, mismatched, np.flatnonzero((a != b).any(axis=1)))
+    else:
+        a, b = _bplsd_replayed(run_mine, run_ref, f"{name}, circuit windows", capsys)
+        np.testing.assert_array_equal(a, b)
     assert np.mean((obs != a).any(axis=1)) < 0.5
 
 
 @pytest.mark.parametrize("decoder", ["bposd", "bplsd"])
 @pytest.mark.parametrize("name", ["HGP n=12", "BPC 6", "LCS 5,3"])
-def test_phenomenological_window_decodes_equal(name, decoder):
+def test_phenomenological_window_decodes_equal(name, decoder, capsys):
     code, circuit, dets, obs = _memory(_codes(ours)[name][0], rounds=6, p=1e-3, shots=200, seed=7)
     order = "osd_order" if decoder == "bposd" else "lsd_order"
     rate = 1e-3 * (code.depth + 3)
     mine = getattr(ours, f"sliding_window_{decoder}_phenom_mem")
     ref = getattr(quits, f"sliding_window_{decoder}_phenom_mem")
-    a = mine(dets, code.hz, code.lz, 4, 2, eff_error_rate_per_fault=rate, max_iter=10, **{order: 1})
-    b = ref(dets, code.hz, code.lz, 4, 2, eff_error_rate_per_fault=rate, max_iter=10, **{order: 1})
-    # Equal shot for shot but for ties, as the circuit windows above (two entries of 1800 have
-    # differed on Windows 3.13).
-    mismatched = int((a != b).any(axis=1).sum())
-    assert mismatched <= 2, (name, decoder, mismatched, np.flatnonzero((a != b).any(axis=1)))
+    run_mine = lambda: mine(dets, code.hz, code.lz, 4, 2, eff_error_rate_per_fault=rate, max_iter=10, **{order: 1})  # noqa: E731
+    run_ref = lambda: ref(dets, code.hz, code.lz, 4, 2, eff_error_rate_per_fault=rate, max_iter=10, **{order: 1})  # noqa: E731
+    if decoder == "bposd":
+        a, b = run_mine(), run_ref()
+        # Equal shot for shot but for ties, as the circuit windows above (two entries of 1800 have
+        # differed on Windows 3.13).
+        mismatched = int((a != b).any(axis=1).sum())
+        assert mismatched <= 2, (name, decoder, mismatched, np.flatnonzero((a != b).any(axis=1)))
+    else:
+        a, b = _bplsd_replayed(run_mine, run_ref, f"{name}, phenomenological windows", capsys)
+        np.testing.assert_array_equal(a, b)
 
 
 def test_detector_error_model_matrices_and_spacetime_distance_equal():
