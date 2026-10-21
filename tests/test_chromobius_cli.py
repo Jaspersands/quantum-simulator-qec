@@ -23,6 +23,7 @@ import sys
 import tempfile
 
 import numpy as np
+import pytest
 
 import stabilizer_qec as sq
 import stabilizer_qec.chromobius as chromobius
@@ -190,11 +191,32 @@ def test_missing_flags_messages(tmp_path):
     assert mismatches(names, tmp_path, compare) == []
 
 
+NO_PERFECT_MATCHING = "No perfect matching could be found. This likely means that the syndrome has odd parity in the support of a connected component without a boundary."
+
+
+def test_unmatchable_shot_message(tmp_path):
+    """A shot the Möbius matching cannot match (a detector no fault touches fired, or a
+    component without a boundary has odd parity) gets PyMatching's message, which Chromobius's
+    matcher throws, after the predictions of the shots before it: not Chromobius's message for
+    a matching it cannot lift."""
+    names = [n for n in CASES if "unmatchable" in n or "odd component" in n]
+    assert len(names) == 5
+    assert all(CASES[n]["returncode"] == 1 and CASES[n]["stderr"] == NO_PERFECT_MATCHING + "\n" for n in names)
+    assert mismatches(names, tmp_path, lambda name, got, want: got == want) == []
+    # The Python API names the shot, with the same message.
+    shots = np.array([[0, 0], [0, 1], [1, 0], [0, 1]], dtype=np.uint8)
+    decoder = sq.ColorMatching(sq.DetectorErrorModel(FILES["unmatchable.dem"].decode()))
+    for threads in (1, 0):
+        with pytest.raises(ValueError, match="^shot 2: " + re.escape(NO_PERFECT_MATCHING) + "$"):
+            decoder.decode_batch(shots, threads=threads)
+    assert decoder.decode_batch(shots[[0, 1, 3]]).tolist() == [[0], [1], [1]]
+
+
 def test_runs_as_a_module(tmp_path):
     """``python -m stabilizer_qec.chromobius``, as a program: its exit status and output."""
     for name, data in FILES.items():
         (tmp_path / name).write_bytes(data)
-    for name in ("help -h", "predict to a file", "predict from stdin", "predict unknown flag", "describe empty"):
+    for name in ("help -h", "predict to a file", "predict from stdin", "predict unknown flag", "describe empty", "predict unmatchable"):
         case = CASES[name]
         stdin = FILES[case["stdin"]] if case["stdin"] else b""
         r = subprocess.run([sys.executable, "-m", "stabilizer_qec.chromobius", *case["args"]], cwd=tmp_path, input=stdin, capture_output=True, timeout=300)

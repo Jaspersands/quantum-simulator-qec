@@ -39,7 +39,7 @@ use std::collections::BTreeMap;
 use crate::dem::Dem;
 use crate::dem_program::{DemInstr, DemProgram};
 
-pub use decode::{ColorDecoder, ColorWork};
+pub use decode::{ColorDecoder, ColorError, ColorWork};
 
 pub(crate) const BOUNDARY: u32 = u32::MAX;
 

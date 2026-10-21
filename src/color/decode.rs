@@ -56,7 +56,11 @@ impl EulerNode {
 /// How a decode failed.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ColorError {
-    /// The Möbius matching found no matching (a detection event with no partner).
+    /// The Möbius matcher found no perfect matching: some component of the Möbius graph
+    /// without a boundary holds an odd number of detection events (a detector no fault
+    /// touches fired, say). Chromobius's matcher then throws PyMatching's
+    /// [`NO_PERFECT_MATCHING`](crate::pm_exact::NO_PERFECT_MATCHING), the only refusal a
+    /// shot can meet here (its events are always nodes of the graph).
     Unmatchable,
     /// The matched edges did not fall into closed tours.
     NotEulerian,
@@ -147,7 +151,12 @@ impl ColorDecoder {
         if w.events.is_empty() && self.graph.negative_weight_edges.is_empty() {
             return Ok((0, 0.0));
         }
-        let listed = w.mwpm.try_decode_to_edges(&w.events).map_err(|_| ColorError::Unmatchable)?;
+        // (The matcher's only refusal here is PyMatching's "No perfect matching": every Möbius
+        // event is a node of the graph, and every match is joined by a path.)
+        let listed = w.mwpm.try_decode_to_edges(&w.events).map_err(|e| {
+            debug_assert_eq!(e, crate::pm_exact::NO_PERFECT_MATCHING);
+            ColorError::Unmatchable
+        })?;
         let n = self.graph.num_nodes as u32;
         let mut edges = std::mem::take(&mut w.edges);
         edges.clear();

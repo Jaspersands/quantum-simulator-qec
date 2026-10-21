@@ -3,7 +3,7 @@
 
 use crate::ambiguity::{AcOutcome, AmbiguityClustering};
 use crate::belief::BeliefMatching;
-use crate::color::ColorDecoder;
+use crate::color::{ColorDecoder, ColorError};
 use crate::lsd::BpLsd;
 use crate::osd::BpOsd;
 use crate::relay::Relay;
@@ -257,8 +257,10 @@ pub(crate) fn shot_seed(seed: u64, s: u64) -> u64 {
 }
 
 /// Colour-code matching of b8 shots: per shot (observables, the Möbius matching's weight,
-/// 0 decoded / 1 decoded through an ambiguous table entry / 2 failed). Each thread has 64 MiB
-/// of stack for PyMatching's recursive blossom shattering.
+/// a status: 0 decoded / 1 decoded through an ambiguous table entry / 2 no lifting of the
+/// matching explains the shot (Chromobius's "Failed to lift") / 3 the matcher found no perfect
+/// matching (PyMatching's [`NO_PERFECT_MATCHING`](crate::pm_exact::NO_PERFECT_MATCHING))).
+/// Each thread has 64 MiB of stack for PyMatching's recursive blossom shattering.
 pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, f64, u8)> {
     let stride = nd.div_ceil(8);
     crate::parallel::parallel_with_stack(num_shots, threads, 64 << 20, |range| {
@@ -272,7 +274,8 @@ pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usiz
                 let fired = |d: u32| (row[d as usize / 8] >> (d % 8)) & 1 == 1;
                 match dec.decode(&defects, &fired, &mut work) {
                     Ok((o, w)) => (o, w, u8::from(work.tied)),
-                    Err(_) => (u64::MAX, f64::NAN, 2),
+                    Err(ColorError::Unmatchable) => (u64::MAX, f64::NAN, 3),
+                    Err(ColorError::NotEulerian | ColorError::Unliftable(_)) => (u64::MAX, f64::NAN, 2),
                 }
             })
             .collect()

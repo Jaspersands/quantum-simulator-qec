@@ -102,6 +102,19 @@ fn matching_decodes_batches_and_shots() {
 }
 
 #[test]
+fn color_matching_names_a_shot_with_no_perfect_matching() {
+    // Shot 2 fires a detector no fault touches: the Möbius matcher refuses it with PyMatching's
+    // message (Chromobius's), not as a lifting failure.
+    let dem: DetectorErrorModel = "error(0.1) D1 L0\ndetector(0, 0, 0, 0) D0\ndetector(1, 0, 0, 1) D1".parse().unwrap();
+    let decoder = ColorMatching::new(&dem).unwrap();
+    let shots = BitTable::from_rows(2, &[[false, false], [false, true], [true, false], [false, true]]).unwrap();
+    for threads in [1, 0] {
+        assert_eq!(decoder.decode_batch(&shots, threads).unwrap_err().message(), format!("shot 2: {}", stabilizer_qec::pm_exact::NO_PERFECT_MATCHING));
+    }
+    assert!(decoder.decode(&[1]).unwrap().flips(0));
+}
+
+#[test]
 fn belief_matching_bposd_and_windows() {
     let c = memory_circuit(SurfaceCode::Rotated, 3, 30, Noise::Sd6 { p: 0.005 }, Basis::Z).unwrap();
     let dem = c.detector_error_model(&DemOptions::new().decompose_errors(true)).unwrap();

@@ -121,6 +121,13 @@ def inputs():
     )
     files["ignored.01"] = b"0000\n1000\n1100\n1110\n0001\n1111\n0010\n"
     files["small.01"] = b"000000\n100000\n111000\n001100\n000111\n110011\n011110\n"
+    # Shots the Möbius matching cannot match (PyMatching's "No perfect matching"): a detector no
+    # fault touches fires (the third record), or a component without a boundary has odd parity.
+    files["unmatchable.dem"] = b"error(0.1) D1 L0\ndetector(0, 0, 0, 0) D0\ndetector(1, 0, 0, 1) D1\n"
+    files["unmatchable.01"] = b"00\n01\n10\n01\n"
+    files["unmatchable_obs.01"] = b"000\n011\n100\n011\n"
+    files["odd_component.dem"] = b"error(0.1) D0 D1 D2 L0\ndetector(0, 0, 0, 0) D0\ndetector(1, 0, 0, 1) D1\ndetector(2, 0, 0, 2) D2\n"
+    files["odd_component.01"] = b"000\n111\n100\n"
     return files
 
 
@@ -241,6 +248,12 @@ def cases():
     case("predict sevenfold", ["predict", "--dem", "sevenfold.dem", "--in", "empty"])
     case("describe in is a directory", ["describe_decoder", "--in", "."])
     case("describe circuit is a directory", ["describe_decoder", "--circuit", "."])
+    # Shots with no perfect matching: PyMatching's message, after the predictions before them.
+    case("predict unmatchable", ["predict", "--dem", "unmatchable.dem", "--in", "unmatchable.01", "--in_format", "01"])
+    case("predict unmatchable to a file", ["predict", "--dem", "unmatchable.dem", "--in", "unmatchable.01", "--in_format", "01", "--out", "part.01"], outputs=["part.01"])
+    case("predict odd component", ["predict", "--dem", "odd_component.dem", "--in", "odd_component.01", "--in_format", "01"])
+    case("benchmark unmatchable", ["benchmark", "--dem", "unmatchable.dem", "--in", "unmatchable_obs.01", "--in_includes_appended_observables"])
+    case("benchmark unmatchable obs file", ["benchmark", "--dem", "unmatchable.dem", "--in", "unmatchable.01", "--obs_in", "obs.01"])
     return out
 
 

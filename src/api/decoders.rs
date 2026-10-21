@@ -597,13 +597,17 @@ impl ColorMatching {
         Ok(self.decode_batch(&row, 1)?.remove(0))
     }
 
-    /// A batch of shots across `threads` threads (`0` is every core). A shot no lifting of
-    /// the matching explains (wrong annotations, or a model Chromobius cannot decode either)
-    /// is an error naming it.
+    /// A batch of shots across `threads` threads (`0` is every core). A shot the Möbius
+    /// matcher finds no perfect matching for (a component without a boundary holding an odd
+    /// number of detection events), or that no lifting of the matching explains (wrong
+    /// annotations, or a model Chromobius cannot decode either), is an error naming it.
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
         let out = crate::batch::color_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
-        if let Some(s) = out.iter().position(|x| x.2 == 2) {
+        if let Some(s) = out.iter().position(|x| x.2 >= 2) {
+            if out[s].2 == 3 {
+                return Err(Error::new(format!("shot {s}: {}", crate::pm_exact::NO_PERFECT_MATCHING)));
+            }
             return Err(Error::new(format!("shot {s}: no lifting of the matching explains its detection events (are the colour annotations right?)")));
         }
         Ok(out.into_iter().map(|(o, w, _)| Prediction { observables: o, weight: Some(w), bp_converged: None }).collect())

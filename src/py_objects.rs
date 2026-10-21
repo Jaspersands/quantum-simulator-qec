@@ -2733,17 +2733,19 @@ impl PyDemColorMatcher {
         self.dec.describe().map_err(err)
     }
 
-    /// (observables as u64 per shot, weights as f64, one byte per shot 1 where the lifting
-    /// used an ambiguous table entry, the shots that failed).
+    /// (observables as u64 per shot, weights as f64, one status byte per shot as
+    /// `color_shots` gives it: 0 decoded, 1 decoded through an ambiguous table entry, 2 no
+    /// lifting explains the shot, 3 the matcher found no perfect matching; the shots that
+    /// failed, 2 or 3).
     #[allow(clippy::type_complexity)]
     fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<usize>)> {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
         let dec = &self.dec;
         let out = py.detach(|| crate::batch::color_shots(dec, packed, nd, shots, threads));
-        let failed = out.iter().enumerate().filter(|(_, x)| x.2 == 2).map(|(s, _)| s).collect();
-        let tied: Vec<u8> = out.iter().map(|x| u8::from(x.2 == 1)).collect();
-        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &tied), failed))
+        let failed = out.iter().enumerate().filter(|(_, x)| x.2 >= 2).map(|(s, _)| s).collect();
+        let status: Vec<u8> = out.iter().map(|x| x.2).collect();
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &status), failed))
     }
 
     /// One shot's lifting of a Möbius matching given as its edges, in a matcher's order (the

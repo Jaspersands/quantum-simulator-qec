@@ -457,6 +457,8 @@ def _decode(decoder: Any, rows: _np.ndarray, nd: int, threads: int) -> Tuple[_np
     """Decode records whose first ``nd`` bits are detectors, as Chromobius's loop decodes them one
     by one: the predictions (u64 masks) of the records before the first that fails, and that
     failure (None if none fails)."""
+    from .._decoders import _COLOR_UNMATCHABLE, _NO_PERFECT_MATCHING
+
     nb = (nd + 7) // 8
     stop, err = len(rows), None
     # A bit set past the last detector (a b8 record's padding, an observable not cleared) reaches
@@ -470,11 +472,14 @@ def _decode(decoder: Any, rows: _np.ndarray, nd: int, threads: int) -> Tuple[_np
             d = int(_np.flatnonzero(_np.unpackbits(extra[stop], bitorder="little"))[0])
             err = _Fail(f"The detection event with index {2 * d} does not correspond to a node in the graph, which only has {2 * nd} nodes.")
     dets = _np.ascontiguousarray(rows[:stop, :nb])
-    preds, _weights, _tied, failed = decoder._x.decode_batch(dets.tobytes(), stop, threads)
+    preds, _weights, status, failed = decoder._x.decode_batch(dets.tobytes(), stop, threads)
     preds = _np.frombuffer(preds, dtype="<u8")
     if failed:
         stop = int(failed[0])
-        err = _Fail(_unliftable(decoder, dets[stop], nd))
+        # PyMatching throws its message where the Möbius matching has no perfect matching (a
+        # detector no fault touches fired, or a component without a boundary has odd parity);
+        # Chromobius's own message is for a matching it then cannot lift.
+        err = _Fail(_NO_PERFECT_MATCHING if status[stop] == _COLOR_UNMATCHABLE else _unliftable(decoder, dets[stop], nd))
     return preds[:stop], err
 
 
