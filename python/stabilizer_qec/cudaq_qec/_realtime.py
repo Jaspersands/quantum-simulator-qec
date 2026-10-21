@@ -189,9 +189,16 @@ def _create(cfg: decoder_config) -> _RealtimeDecoder:
     did = cfg.id
     if not 0 <= did <= 2**32 - 1:
         raise ValueError(f"Decoder ID is outside the uint32_t range: {did}")
-    H, O, D = cfg.H_sparse, cfg.O_sparse, cfg.D_sparse
-    if cfg.stim_dem_path and O:
+    # (The parser rejects a config describing two forms, but a programmatically built one never
+    # passes through it. These two are what corrupt: chunk priors over an unrelated model, and an
+    # O_sparse that overwrites the mapping a DEM-native decoder installed for itself.)
+    if cfg.stim_dem_path and (cfg.dem_chunks is not None or cfg.O_sparse):
         raise RuntimeError(f"dem_chunks and O_sparse must not be set with stim_dem_path for decoder {did}")
+    # A chunk-form configuration names its DEM one round at a time. Expand it here (on a copy) so
+    # that everything below is written against the flat form only.
+    cfg = cfg._copy()
+    closed_dem = _config.expand_dem_chunks(cfg)
+    H, O, D = cfg.H_sparse, cfg.O_sparse, cfg.D_sparse
     if not D:
         raise RuntimeError("D_sparse must be provided in decoder configuration")
     if not H and not cfg.stim_dem_path:
@@ -209,6 +216,11 @@ def _create(cfg: decoder_config) -> _RealtimeDecoder:
     pymatching_obs = cfg.type == "pymatching" and bool(O) and num_obs > 0
     if pymatching_obs:
         params["O"] = pcm_from_sparse_vec(O, num_obs, cfg.block_size)
+    # The phases carry a prior per fault, which the derived matrices do not. A hand-written flat
+    # configuration would have had to pass these through decoder_custom_args, so supply them here
+    # for the ones that did not.
+    if closed_dem is not None and "error_rate_vec" not in params:
+        params["error_rate_vec"] = np.array(closed_dem.error_rates, dtype=np.float64)
 
     rates: List[float] = []
     if text:

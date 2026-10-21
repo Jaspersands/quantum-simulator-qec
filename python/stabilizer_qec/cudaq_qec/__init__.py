@@ -4,7 +4,9 @@
 interface (``get_decoder``, ``Decoder``, ``DecoderResult``, ``BatchDecoderResult``, the
 ``@decoder`` registry), its decoders (single- and multi-error lookup tables, PyMatching, the sliding
 window, nv-qldpc-decoder, Chromobius, nv-fusion-decoder, the tensor-network decoder, the
-examples), its detector error model, ``dem_sampling`` and its parity-check-matrix tools; its codes
+examples), its detector error model (and the extended one: chunks with named seams, stitched and closed, the
+``dem_chunks`` of a repeated-round experiment, and the DEM of CSS code matrices), ``dem_sampling`` and its
+parity-check-matrix tools; its codes
 (``get_code``: the surface code in its orientations XV, XH, ZV and ZH, with its
 ``stabilizer_grid`` and CNOT schedules, Steane's and the repetition code, ``@code`` for Python
 ones) and its experiments on them (memory circuits sampled or made detector error models, under
@@ -64,7 +66,40 @@ from ._codes import (
     z_dem_from_memory_circuit,
     z_sample_memory_circuit,
 )
+from ._css import CssCodes, CssNoise, css_matrices_from_code, dem_from_css_matrices
 from ._dem import DetectorErrorModel, dem_from_stim_text
+from ._extended_dem import (
+    DemChunkSpec,
+    DemChunksSpec,
+    DemSeamSpec,
+    ExtendedDem,
+    ExtendedDemSeam,
+    PhaseConnection,
+    PhaseSpecEntry,
+    PriorCombineMode,
+    SeamConnection,
+    SeamId,
+    SeamSpecEntry,
+    are_dem_columns_unique,
+    assert_dem_columns_unique,
+    dem_chunk_from_spec,
+    dem_chunk_rounds,
+    dem_chunks_from_spec,
+    dem_chunks_to_d_sparse,
+    dem_chunks_to_detector_round,
+    dem_chunks_to_o_sparse,
+    dem_chunks_to_pcm,
+    dem_chunks_to_rounds,
+    dem_close,
+    dem_close_all,
+    dem_merge_duplicate_columns,
+    dem_stitch,
+    dem_stitch_all,
+    dem_stitch_merged,
+    extended_dem_from_css_matrices,
+    phase_name,
+    seam_name,
+)
 from ._pcm import (
     dump_pcm,
     generate_random_pcm,
@@ -235,6 +270,11 @@ __all__ = [
     "generate_random_pcm", "get_decoder", "get_pcm_for_rounds", "get_sorted_pcm_column_indices", "pcm_extend_to_n_rounds", "pcm_is_sorted",
     "pcm_to_sparse_vec", "reorder_pcm_columns", "shuffle_pcm_columns", "simplify_pcm", "sort_pcm_columns",
     "KernelNotRunWarning", "dem_sampling", "patch", "relay_solutions", "pcm_from_sparse_vec", "generate_timelike_sparse_detector_matrix",
+    "CssCodes", "CssNoise", "css_matrices_from_code", "dem_from_css_matrices",
+    "DemChunkSpec", "DemChunksSpec", "DemSeamSpec", "ExtendedDem", "ExtendedDemSeam", "PhaseConnection", "PhaseSpecEntry", "PriorCombineMode", "SeamConnection",
+    "SeamId", "SeamSpecEntry", "are_dem_columns_unique", "assert_dem_columns_unique", "dem_chunk_from_spec", "dem_chunk_rounds", "dem_chunks_from_spec",
+    "dem_chunks_to_d_sparse", "dem_chunks_to_detector_round", "dem_chunks_to_o_sparse", "dem_chunks_to_pcm", "dem_chunks_to_rounds", "dem_close", "dem_close_all",
+    "dem_merge_duplicate_columns", "dem_stitch", "dem_stitch_all", "dem_stitch_merged", "extended_dem_from_css_matrices", "phase_name", "seam_name",
 ]
 
 from .plugins.decoders import example as _example  # noqa: E402,F401  (registers "example_byod")
