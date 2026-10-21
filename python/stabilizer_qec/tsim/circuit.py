@@ -18,6 +18,9 @@ from stabilizer_qec import _circuit, _core, _stim
 from stabilizer_qec._util import call, open_file
 from stabilizer_qec.tsim._native import tsim_to_native
 from stabilizer_qec.tsim.utils.program_text import (
+    _NATIVE_LINE,
+    _NATIVE_TAG,
+    _native_args,
     controlled_gate_decomposition_lines,
     enriched_stim_error,
     shorthand_to_stim,
@@ -72,6 +75,53 @@ def _bare_qubit_targets(gate_name: str, targets: Any) -> list:
 
 def _of_native_text(cls: type, text: str) -> "Circuit":
     return cls._of_native(text)
+
+
+# A rotation's tag renamed so that the core's inverse leaves it alone (an unknown tag on I is inert),
+# the inverse's tag written by ``_rotations_inverted`` instead.
+_AS_INVERTED = "~stabilizer_qec_inverted"
+
+
+def _negated(number: str) -> str:
+    """``-number`` as written (its digits kept); a zero is ``0.0``, as Tsim's ``float(-Fraction)``."""
+    number = number.strip()
+    if float(number) == 0:
+        return "0.0"
+    if number.startswith("-"):
+        return number[1:]
+    return "-" + (number[1:] if number.startswith("+") else number)
+
+
+def _rotations_inverted(text: str) -> Union[str, None]:
+    """This package's text of a circuit with each rotation's tag (``I[R_Z(theta=t)]``,
+    ``I[R_PAULI(theta=t, pauli=XZ)]``, ``II[R_ZZ(theta=t)]``, ``I[U3(...)]``) replaced by its
+    inverse's, the angles negated as written (their further digits kept, so the half-turns read back
+    are the negated ones, and ``R_PAULI(0.25)`` stays apart from ``TPP``), an ``R_PAULI``'s letters
+    reversed (the inverse reverses the targets) and ``U3(θ, φ, λ)`` as ``U3(−θ, −λ, −φ)``, under names the
+    core's inverse leaves alone; ``None`` if the text already has such a name."""
+    if _AS_INVERTED in text:
+        return None
+    out = []
+    for line in text.split("\n"):
+        m = _NATIVE_LINE.match(line)
+        t = _NATIVE_TAG.match(m.group(3)) if m else None
+        args = _native_args(t.group(2)) if t and t.group(2) else None
+        if not args:
+            out.append(line)
+            continue
+        indent, gate, _, rest = m.groups()
+        name = t.group(1)
+        if gate == "I" and name in ("R_X", "R_Y", "R_Z") and set(args) == {"theta"} or gate == "II" and name in ("R_XX", "R_YY", "R_ZZ") and set(args) == {"theta"}:
+            tag = f"theta={_negated(args['theta'])}"
+        elif gate == "I" and name == "R_PAULI" and set(args) == {"theta", "pauli"}:
+            tag = f"theta={_negated(args['theta'])}, pauli={args['pauli'][::-1]}"
+        elif gate == "I" and name == "U3" and set(args) == {"theta", "phi", "lambda"}:
+            tag = f"theta={_negated(args['theta'])}, phi={_negated(args['lambda'])}, lambda={_negated(args['phi'])}"
+        else:
+            out.append(line)
+            continue
+        out.append(f"{indent}{gate}[{name}{_AS_INVERTED}({tag})]{rest}")
+    return "\n".join(out)
 
 
 def _qubits_named(circuit: Any) -> set:
@@ -242,7 +292,15 @@ class Circuit(_Base):
         return (_of_native_text, (type(self), self._stim_exact_text()))
 
     def _transformed(self, which: str) -> "Circuit":
-        return type(self)._of_native(call(_core.circuit_transform, self._stim_exact_text(), which))
+        text = self._stim_exact_text()
+        if which == "inverse":
+            # The rotations are inverted here, keeping the half-turns they were written in (the core
+            # would write each negated angle's shortest digits); the core reverses the order.
+            inverted = _rotations_inverted(text)
+            if inverted is not None:
+                out = call(_core.circuit_transform, inverted, which)
+                return type(self)._of_native(out.replace(f"{_AS_INVERTED}(", "("))
+        return type(self)._of_native(call(_core.circuit_transform, text, which))
 
     @property
     def stim_circuit(self) -> _Base:

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-from stabilizer_qec.tsim.zx.parse import new_graph, parse_stim_circuit, pyzx_param_available, require_pyzx_param
+from stabilizer_qec.tsim.zx.parse import parse_stim_circuit, pyzx_param_available, require_pyzx_param
 from stabilizer_qec.tsim.zx.sampling import build_sampling_graph, scale_horizontally, squash_graph, transform_error_basis
 
 PYZX_DIAGRAM_TYPES = ("pyzx", "pyzx-dets", "pyzx-meas")

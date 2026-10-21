@@ -17,6 +17,7 @@ import gzip
 import importlib.util
 import json
 import sys
+import types
 import warnings
 from fractions import Fraction
 from pathlib import Path
@@ -36,6 +37,14 @@ MATRIX_NAMES = [n for n in NAMES if "matrix" in CIRCUITS[n]]
 
 HAS_PYZX_PARAM = importlib.util.find_spec("pyzx_param") is not None
 needs_pyzx_param = pytest.mark.skipif(not HAS_PYZX_PARAM, reason="pyzx_param is not installed")
+
+
+@pytest.fixture(autouse=True)
+def _numpy_print_options():
+    """Importing pyzx_param (the default backend does) sets numpy's ``suppress=True`` for the process:
+    kept from the tests that follow."""
+    with np.printoptions():
+        yield
 
 
 def record(g) -> dict:
@@ -104,6 +113,31 @@ def check_circuit_on_backend(name: str, backend: str) -> None:
     assert_graph_equals(c.get_sampling_graph(backend=backend), entry["sampling"])
     assert_graph_equals(c.get_sampling_graph(sample_detectors=True, backend=backend), entry["sampling_dets"])
     assert_built_equals(zx.parse_stim_circuit(c, backend=backend), entry["built"])
+
+
+def assert_matrix_is_tsims(mine, ref) -> None:
+    """``to_matrix`` is Tsim's: equal to it when it is the ZX tensor (a circuit with a measurement, a
+    detector or observable, a reset after a qubit's first operation, feedback or a gate the engine
+    has no matrix for), up to a global phase only when the unitary engine gives it; the ZX tensor
+    (``_zx_matrix``) equal to Tsim's either way."""
+    want = np.asarray(ref.to_matrix())
+    original, used_zx = tsim.Circuit._zx_matrix, []
+
+    def spy(self, endian):
+        used_zx.append(endian)
+        return original(self, endian)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(tsim.Circuit, "_zx_matrix", spy)
+        got = mine.to_matrix()
+    assert got.shape == want.shape, str(mine)
+    assert np.allclose(mine._zx_matrix("big"), want, atol=1e-9, rtol=0), str(mine)
+    if used_zx:
+        assert np.allclose(got, want, atol=1e-9, rtol=0), str(mine)
+    else:
+        i = np.argmax(np.abs(want))
+        phase = got.flat[i] / want.flat[i]
+        assert abs(abs(phase) - 1) < 1e-9 and np.allclose(got, phase * want, atol=1e-9, rtol=0), str(mine)
 
 
 def test_the_corpus_is_forty_circuits_and_twelve_matrices():
@@ -271,6 +305,50 @@ def test_diagram_pyzx_draws_with_pyzx_when_pyzx_param_is_missing(monkeypatch):
     assert g.num_vertices() == base.num_vertices() + 2
     assert any(int(g.type(v)) in (int(VertexType.Z_BOLD), int(VertexType.X_BOLD)) for v in g.vertices())
     plt.close("all")
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_diagram_pyzx_on_this_packages_graph_equals_tsim(name, monkeypatch):
+    """Without pyzx_param, ``diagram("pyzx")`` builds Tsim's diagram on this package's graph, vertex
+    for vertex (the bold classical wires, a boundary beside each detector and observable, the last
+    vertices lined up), and draws it with pyzx (stubbed here: the drawing is pyzx's)."""
+    from stabilizer_qec.tsim.zx import diagram as diagrams
+
+    monkeypatch.setitem(sys.modules, "pyzx_param", None)
+    monkeypatch.setitem(sys.modules, "pyzx", types.ModuleType("pyzx"))
+    drawn = []
+    monkeypatch.setattr(diagrams, "draw", lambda g, **kwargs: drawn.append((g, kwargs)))
+    g = tsim.Circuit(CIRCUITS[name]["text"]).diagram("pyzx")
+    assert type(g) is ZXGraph
+    assert len(drawn) == (1 if g.num_vertices() else 0) and all(d is g and kwargs == {} for d, kwargs in drawn)
+    assert_graph_equals(g, CIRCUITS[name]["diagrams"]["pyzx"])
+
+
+def test_a_pyzx_param_that_does_not_import_is_not_used(monkeypatch, tmp_path):
+    """An installed pyzx_param that fails to import (here with the AttributeError of a numpy it
+    predates) is as if it were not installed: the graphs are this package's, and what needs it says
+    why it does not import."""
+    broken = tmp_path / "pyzx_param"
+    broken.mkdir()
+    (broken / "__init__.py").write_text("raise AttributeError(\"module 'numpy' has no attribute 'float_'\")\n")
+    for module in [m for m in sys.modules if m == "pyzx_param" or m.startswith("pyzx_param.")]:
+        monkeypatch.delitem(sys.modules, module)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    c = tsim.Circuit("R 0\nH 0\nT 0\nM 0\nDETECTOR rec[-1]")
+    assert not zx.pyzx_param_available()
+    assert type(c.get_graph()) is ZXGraph and type(c.get_sampling_graph(True)) is ZXGraph
+    assert type(zx.parse_stim_circuit(c).graph) is ZXGraph
+    with pytest.raises(ImportError) as info:
+        c.get_graph(backend="pyzx_param")
+    assert str(info.value) == "The pyzx_param backend needs pyzx_param (pip install pyzx-param), which is installed but does not import: AttributeError(\"module 'numpy' has no attribute 'float_'\")"
+    assert isinstance(info.value.__cause__, AttributeError)
+    with pytest.raises(ImportError, match="pyzx-dets.*which is installed but does not import: AttributeError"):
+        c.diagram("pyzx-dets")
+    # Not installed (or blocked): said so.
+    monkeypatch.setitem(sys.modules, "pyzx_param", None)
+    with pytest.raises(ImportError) as info:
+        c.get_graph(backend="pyzx_param")
+    assert str(info.value) == "The pyzx_param backend needs pyzx_param (pip install pyzx-param), which is not installed"
 
 
 def test_diagram_pyzx_needs_a_drawing_library(monkeypatch):
@@ -541,6 +619,34 @@ def test_to_matrix_size_limits():
         g.add_edge((hub, leaf))
     with pytest.raises(ValueError, match="2\\^30 entries"):
         g.to_tensor()
+    # The tensor of the inputs is held before any spider: 14 wires (2^28 entries) are refused, as is
+    # any intermediate tensor of more than 2^26 (1 GiB of complex128, which tensordot copies).
+    wires = ZXGraph()
+    ins, outs = [], []
+    for q in range(14):
+        i, o = wires.add_vertex(VertexType.BOUNDARY, qubit=q, row=0), wires.add_vertex(VertexType.BOUNDARY, qubit=q, row=2)
+        z = wires.add_vertex(VertexType.Z, qubit=q, row=1)
+        wires.add_edge((i, z))
+        wires.add_edge((z, o))
+        ins.append(i)
+        outs.append(o)
+    wires.set_inputs(ins)
+    wires.set_outputs(outs)
+    with pytest.raises(ValueError, match="^the contraction needs a tensor of more than 2\\^26 entries$"):
+        zx.tensorfy(wires)
+    # Three wires (2^6 entries for the inputs) contract to the identity.
+    small = ZXGraph()
+    ins, outs = [], []
+    for q in range(3):
+        i, o = small.add_vertex(VertexType.BOUNDARY, qubit=q, row=0), small.add_vertex(VertexType.BOUNDARY, qubit=q, row=2)
+        z = small.add_vertex(VertexType.Z, qubit=q, row=1)
+        small.add_edge((i, z))
+        small.add_edge((z, o))
+        ins.append(i)
+        outs.append(o)
+    small.set_inputs(ins)
+    small.set_outputs(outs)
+    assert np.allclose(zx.tensor_to_matrix(zx.tensorfy(small), 3, 3), np.eye(8))
 
 
 def test_parser_errors_are_tsims():
@@ -553,10 +659,70 @@ def test_parser_errors_are_tsims():
         with pytest.raises(IndexError, match=r"reads rec\[-\d\], but only") as info:
             tsim.Circuit(text).get_graph()
         assert isinstance(info.value, ValueError)
-    # Correlated errors are chains of at most 24 branches here (2^k probabilities).
-    long_chain = "E(0.1) X0\n" + "ELSE_CORRELATED_ERROR(0.1) X0\n" * 30
-    with pytest.raises(ValueError, match="correlated errors has 2\\^31 outcomes"):
-        tsim.Circuit(long_chain).get_graph()
+
+
+def chain_probabilities(probabilities: list) -> dict:
+    """Tsim's ``correlated_error_probs`` entries that are not 0: index 0 (no branch fires) and 1 << i."""
+    out, no_error_so_far = {}, 1.0
+    for i, p in enumerate(probabilities):
+        out[1 << i] = no_error_so_far * p
+        no_error_so_far *= 1 - p
+    out[0] = no_error_so_far
+    return out
+
+
+def test_a_long_chain_of_correlated_errors_builds_as_in_tsim():
+    """A chain of k correlated errors is k error bits, as in Tsim; its 2^k probabilities (Tsim's
+    ``channel_probs`` entry, an array) are kept as the chain's k for k over 24, an entry each."""
+    from stabilizer_qec.tsim.zx.instructions import CorrelatedChainProbs, correlated_error_probs
+
+    ps = [0.1 + 0.01 * i for i in range(31)]
+    text = "H 0\nE(0.1) X0\n" + "".join(f"ELSE_CORRELATED_ERROR({p}) X0\n" for p in ps[1:]) + "M 0\nDETECTOR rec[-1]"
+    c = tsim.Circuit(text)
+    built = zx.parse_stim_circuit(c, backend="own")
+    assert built.num_error_bits == 31
+    assert sorted(set().union(*(c.get_graph(backend="own")._phaseVars.values()))) == sorted([f"e{i}" for i in range(31)] + ["det[0]", "rec[0]"])
+    probs = built.channel_probs[-1]
+    assert type(probs) is CorrelatedChainProbs and len(probs) == 2**31
+    want = chain_probabilities(ps)
+    for i, p in want.items():
+        assert probs[i] == p and type(probs[i]) is np.float64
+    assert probs[3] == probs[2**31 - 1] == probs[5 << 20] == 0.0 and probs[-(2**31)] == want[0] and probs[-1] == 0.0
+    # The first 24 branches' entries are those of a chain of 24.
+    short = correlated_error_probs(ps[:24])
+    assert all(probs[1 << i] == short[1 << i] for i in range(24))
+    for index in (2**31, -(2**31) - 1):
+        with pytest.raises(IndexError, match="out of bounds"):
+            probs[index]
+    for read in (np.asarray, list, lambda p: p[0:2], lambda p: p[1.0]):
+        with pytest.raises(ValueError, match="A chain of 31 correlated errors has 2\\^31 outcomes; their probabilities are held as an array for at most 24"):
+            read(probs)
+    # The matrix needs no probability: each error bit is read as 0, so it is the chain-free circuit's.
+    assert np.allclose(c.to_matrix(), tsim.Circuit("H 0\nM 0\nDETECTOR rec[-1]").to_matrix(), atol=1e-12, rtol=0)
+    assert np.allclose(c.to_matrix(), np.array([[1, 1], [0, 0]]) / np.sqrt(2), atol=1e-12, rtol=0)
+    # A chain of 24 keeps Tsim's array.
+    assert type(zx.parse_stim_circuit("E(0.1) X0\n" + "ELSE_CORRELATED_ERROR(0.1) X0\n" * 23, backend="own").channel_probs[-1]) is np.ndarray
+
+
+@pytest.mark.parametrize("k", [25, 26])
+def test_a_long_chain_of_correlated_errors_against_tsim(k):
+    """Tsim builds a chain of more than 24 too (its array of 2^k probabilities allocated, not read):
+    the same graph, entries and matrix."""
+    real = pytest.importorskip("tsim")
+    from tsim.core.parse import parse_stim_circuit as tsims_parse
+
+    chain = "H 0\nE(0.1) X0\n" + "ELSE_CORRELATED_ERROR(0.2) Z0\n" * (k - 1)
+    for text in (chain + "DETECTOR", chain + "M 0\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]"):
+        ref, mine = real.Circuit(text), tsim.Circuit(text)
+        assert record(ref.get_graph()) == record(mine.get_graph(backend="own"))
+        theirs = tsims_parse(ref._stim_circ).channel_probs[-1]
+        ours = zx.parse_stim_circuit(mine, backend="own").channel_probs[-1]
+        assert len(ours) == len(theirs) == 2**k
+        for i in [0, 3, 2**k - 1] + [1 << j for j in range(k)]:
+            assert ours[i] == theirs[i], i
+        assert np.allclose(mine.to_matrix(), np.asarray(ref.to_matrix()), atol=1e-12, rtol=0)
+    # DETECTOR, an X spider alone, is a factor of 2: twice H.
+    assert np.allclose(tsim.Circuit(chain + "DETECTOR").to_matrix(), np.sqrt(2) * np.array([[1, 1], [1, -1]]), atol=1e-12, rtol=0)
 
 
 def test_instructions_are_read_back_as_tsims_half_turns():
@@ -574,18 +740,223 @@ def test_instructions_are_read_back_as_tsims_half_turns():
         "SPP[R_PAULI(theta=0.3*pi)] Z2*X0",
         "SPP_DAG[T] X0*Y1",
         "SPP[R_PAULI(theta=0.7*pi)] Z0*Z1",
-        "SPP[T] X1*X2",
+        "SPP[R_PAULI(theta=0.25*pi)] X1*X2",
         "H[] 0",
     ]
 
 
-def test_a_pi_over_eight_product_rotation_is_tpp():
-    # One gate here: Tsim's graph for TPP (no scalar phase), not R_PAULI(0.25)'s (a scalar phase of -1/8).
-    same_gate = {"R_PAULI(0.25) X0*Y1": "TPP X0*Y1", "R_XX(0.25) 0 1": "TPP X0*X1", "R_PAULI(-0.25) Z0": "TPP_DAG Z0"}
-    for rotation, tpp in same_gate.items():
-        graph = record(tsim.Circuit(rotation + "\nM 0").get_graph(backend="own"))
-        assert graph == record(tsim.Circuit(tpp + "\nM 0").get_graph(backend="own")), rotation
-        assert graph["scalar"][1] == 0
+PI_OVER_EIGHT = {  # a product rotation by +-pi/8: the TPP whose spiders it has, and its scalar phase
+    "R_PAULI(0.25) X0*Y1": ("TPP X0*Y1", Fraction(15, 8)),
+    "R_PAULI(-0.25) X0*Y1": ("TPP_DAG X0*Y1", Fraction(1, 8)),
+    "R_XX(0.25) 0 1": ("TPP X0*X1", Fraction(15, 8)),
+    "R_XX(-0.25) 0 1": ("TPP_DAG X0*X1", Fraction(1, 8)),
+    "R_ZZ(0.25) 1 0": ("TPP Z1*Z0", Fraction(15, 8)),
+    "R_PAULI(-0.25) Z0": ("TPP_DAG Z0", Fraction(1, 8)),
+}
+
+
+def test_a_pi_over_eight_product_rotation_is_r_pauli_not_tpp():
+    """``R_PAULI(+-0.25)`` and ``R_XX/YY/ZZ(+-0.25)`` are Tsim's ``R_PAULI``: ``TPP``'s spiders with the
+    scalar phase -+1/8 that ``TPP``'s graph has not (so the matrix is exp(-+i pi/8 P), not ``TPP``'s);
+    printed and read back as written."""
+    from stabilizer_qec.tsim.zx.parse import tsim_instructions
+
+    for rotation, (tpp, scalar) in PI_OVER_EIGHT.items():
+        c, t = tsim.Circuit(rotation + "\nM 0"), tsim.Circuit(tpp + "\nM 0")
+        g, h = record(c.get_graph(backend="own")), record(t.get_graph(backend="own"))
+        assert g["scalar"] == [h["scalar"][0], scalar] and h["scalar"][1] == 0, rotation
+        assert g["vertices"] == h["vertices"] and g["edges"] == h["edges"], rotation
+        assert str(c) == rotation + "\nM 0" and str(t) == tpp + "\nM 0"
+        assert str(c.copy()) == str(c[0:1] + c[1:]) == str(c * 1) == rotation + "\nM 0"
+        assert np.allclose(c.to_matrix(), np.exp(1j * np.pi * float(scalar)) * t.to_matrix(), atol=1e-12, rtol=0)
+        assert c.tcount() == t.tcount() == 1
+        [rot, _] = tsim_instructions(c)
+        assert (rot.name, rot.tag) == ("SPP", f"R_PAULI(theta={'-' if '-' in rotation else ''}0.25*pi)")
+    # Unmeasured, the engine's unitary is the rotation's: exp(-i pi/8 X X).
+    xx = np.kron(np.array([[0, 1], [1, 0]]), np.array([[0, 1], [1, 0]]))
+    want = np.cos(np.pi / 8) * np.eye(4) - 1j * np.sin(np.pi / 8) * xx
+    assert np.allclose(tsim.Circuit("R_XX(0.25) 0 1").to_matrix(), want, atol=1e-12, rtol=0)
+    assert np.allclose(tsim.Circuit("R_XX(0.25) 0 1").to_matrix(), tsim.Circuit("R_XX(0.25) 0 1\nDETECTOR").to_matrix() / 2, atol=1e-12, rtol=0)
+    assert np.allclose(tsim.Circuit("R_PAULI(-0.25) X0*X1").to_matrix(), want.conj(), atol=1e-12, rtol=0)
+
+
+PI_OVER_EIGHT_ERRORS = {
+    "R_PAULI(0.25) Z0*Z0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.25*pi)] Z0*Z0'.",
+    "R_PAULI(-0.25) Z0*Z0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=-0.25*pi)] Z0*Z0'.",
+    "R_PAULI(0.25) Z0*X0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.25*pi)] Z0*X0'.",
+    "R_PAULI(0.25) " + "*".join(f"Z{i}" for i in range(65)): "R_PAULI supports at most 64 qubits per instruction, got 65.",
+}
+
+# Consecutive instructions of the same name, tag and arguments are one instruction to Tsim (Stim fuses
+# them, across a loop's unrolling and SHIFT_COORDS but not TICK): R_PAULI's 64 qubits are counted per
+# fused instruction and its message quotes the fused one.
+FUSED_ERRORS = {
+    "\n".join(f"R_ZZ(0.3) {2 * i} {2 * i + 1}" for i in range(33)): "R_PAULI supports at most 64 qubits per instruction, got 66.",
+    "\n".join(f"R_XX(0.25) {2 * i} {2 * i + 1}" for i in range(33)): "R_PAULI supports at most 64 qubits per instruction, got 66.",
+    "R_PAULI(0.3) " + " ".join(f"X{2 * i}*Z{2 * i + 1}" for i in range(33)): "R_PAULI supports at most 64 qubits per instruction, got 66.",
+    "REPEAT 33 {\n    R_ZZ(0.3) 0 1\n}": "R_PAULI supports at most 64 qubits per instruction, got 66.",
+    "R_ZZ(0.3) 0 1\nSHIFT_COORDS(1)\nR_ZZ(0.3) 0 1\nR_PAULI(0.3) X0*X0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.3*pi)] Z0*Z1 Z0*Z1 X0*X0'.",
+    "R_ZZ(0.3) 0 1\nTICK\nR_PAULI(0.3) X0*X0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.3*pi)] X0*X0'.",
+    "TPP X0*X1\nTPP Z0*X0": "SPP[T] X0*X1 Z0*X0 acted on an anti-Hermitian operator",
+}
+
+
+@pytest.mark.parametrize("text", list(PI_OVER_EIGHT_ERRORS) + list(FUSED_ERRORS))
+def test_r_pauli_errors_are_tsims(text):
+    message = {**PI_OVER_EIGHT_ERRORS, **FUSED_ERRORS}[text]
+    c = tsim.Circuit(text)
+    for backend in ["own"] + (["pyzx_param"] if HAS_PYZX_PARAM else []):
+        with pytest.raises(ValueError) as info:
+            c.get_graph(backend=backend)
+        assert str(info.value) == message
+        with pytest.raises(ValueError) as info:
+            zx.parse_stim_circuit(c, backend=backend)
+        assert str(info.value) == message
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        with pytest.raises(type(info.value)) as theirs:
+            real.Circuit(text).get_graph()
+        assert str(theirs.value) == message
+
+
+def test_fused_instructions_within_the_limit_build():
+    """Thirty-two ``R_ZZ`` lines are one instruction of 64 qubits: they build, as Tsim's do, and the
+    fused instruction is read back as one."""
+    from stabilizer_qec.tsim.zx.parse import tsim_instructions
+
+    text = "\n".join(f"R_ZZ(0.3) {2 * i} {2 * i + 1}" for i in range(32))
+    c = tsim.Circuit(text)
+    products = [f"Z{2 * i}*Z{2 * i + 1}" for i in range(32)]
+    assert [str(i) for i in tsim_instructions(c)] == ["SPP[R_PAULI(theta=0.3*pi)] " + " ".join(products)]
+    assert c.get_graph(backend="own").num_vertices() == 288
+    split = tsim.Circuit(text.replace("\nR_ZZ(0.3) 2 3", "\nTICK\nR_ZZ(0.3) 2 3"))
+    assert [str(i) for i in tsim_instructions(split)] == ["SPP[R_PAULI(theta=0.3*pi)] Z0*Z1", "TICK", "SPP[R_PAULI(theta=0.3*pi)] " + " ".join(products[1:])]
+    # R_ZZ and R_PAULI of one angle are one instruction; another angle (one float apart) is another.
+    other = "R_ZZ(0.3) 0 1\nR_PAULI(0.3) X0*Z1\nR_ZZ(0.30000000000000004) 0 1"
+    assert [str(i) for i in tsim_instructions(tsim.Circuit(other))] == ["SPP[R_PAULI(theta=0.3*pi)] Z0*Z1 X0*Z1", "SPP[R_PAULI(theta=0.30000000000000004*pi)] Z0*Z1"]
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        assert record(real.Circuit(text).get_graph()) == record(c.get_graph(backend="own"))
+        assert record(real.Circuit(other).get_graph()) == record(tsim.Circuit(other).get_graph(backend="own"))
+        assert [str(i) for i in real.Circuit(other)._stim_circ] == [str(i) for i in tsim_instructions(tsim.Circuit(other))]
+
+
+# Printed here as written where Tsim's shorthand differs (the module's "Where it differs"): a tagged
+# SPP_DAG is the negated angle, and same-angle product rotations in a row stay lines of their own.
+PRINTED_HERE = {
+    "SPP_DAG[R_PAULI(theta=0.25*pi)] X0\nM 0": "R_PAULI(-0.25) X0\nM 0",
+    "H 0 1\nR_PAULI(0.25) X0*Z1 Y1\nR_PAULI(0.25) Z0\nMPP X0*X1\nDETECTOR rec[-1]": "H 0 1\nR_PAULI(0.25) X0*Z1\nR_PAULI(0.25) Y1\nR_PAULI(0.25) Z0\nMPP X0*X1\nDETECTOR rec[-1]",
+    "R_ZZ(0.3) 0 1\nR_ZZ(0.3) 1 2\nM 0": "R_ZZ(0.3) 0 1\nR_ZZ(0.3) 1 2\nM 0",
+}
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "R_PAULI(0.25) X0*Z1\nM 0",
+        "H 0\nR_PAULI(0.25) X0*Z1\nM 0",
+        "H 0\nR_XX(0.25) 0 1\nM 0 1",
+        "R_PAULI(-0.25) Z0\nM 0",
+        "TPP X0*Z1\nM 0",
+        "TPP_DAG X0\nR_PAULI(-0.25) X1\nM 0",
+        "R_PAULI(0.25) X0*Y1",
+        "R_YY(-0.25) 0 1\nR_ZZ(0.25) 1 2\nTPP X0*Z2",
+        "R_PAULI(-0.25) X0*Z1\nR_Z(0.25) 1\nDETECTOR",
+    ]
+    + list(PRINTED_HERE),
+)
+def test_pi_over_eight_product_rotations_against_tsim(text):
+    """Tsim's graphs, sampling graphs, matrix, T-count, printing and inverse."""
+    real = pytest.importorskip("tsim")
+    ref, mine = real.Circuit(text), tsim.Circuit(text)
+    assert str(mine) == PRINTED_HERE.get(text, str(ref))
+    for backend in ["own"] + (["pyzx_param"] if HAS_PYZX_PARAM else []):
+        assert record(ref.get_graph()) == record(mine.get_graph(backend=backend)), backend
+        for sample in (False, True):
+            assert record(ref.get_sampling_graph(sample)) == record(mine.get_sampling_graph(sample, backend=backend)), (backend, sample)
+    assert ref.tcount() == mine.tcount()
+    assert_matrix_is_tsims(mine, ref)
+    if "M" not in text and "DETECTOR" not in text:  # Tsim has no inverse of either
+        assert record(ref.inverse().get_graph()) == record(mine.inverse().get_graph(backend="own"))
+        assert_matrix_is_tsims(mine.inverse(), ref.inverse())
+
+
+INVERSES = {
+    "R_PAULI(0.25) X0*Z1": "R_PAULI(-0.25) Z1*X0",
+    "R_XX(0.25) 0 1\nR_Z(1.9967044602602857) 0": "R_Z(-1.9967044602602857) 0\nR_XX(-0.25) 1 0",
+    "U3(0.1, 0.2, 0.3) 0\nTPP X0*Z1\nR_PAULI(-0.25) Y1": "R_PAULI(0.25) Y1\nTPP_DAG Z1*X0\nU3(-0.1, -0.3, -0.2) 0",
+    "REPEAT 2 {\n    R_PAULI(0.3) X0*Z1*Y2\n    T 0\n}": "REPEAT 2 {\n    T_DAG 0\n    R_PAULI(-0.3) Y2*Z1*X0\n}",
+    "R_ZZ(0.3) 0 1\nR_Y(-0.7) 2\nU3(0.25, 0.5, -0.125) 1": "U3(-0.25, 0.125, -0.5) 1\nR_Y(0.7) 2\nR_ZZ(-0.3) 1 0",
+    "R_X(0.10044109572818205) 0\nR_PAULI(-1.4074629084552872) X0*Y1": "R_PAULI(1.4074629084552872) Y1*X0\nR_X(-0.10044109572818205) 0",
+    # A zero is 0.0, as Tsim's float(-Fraction(0)).
+    "R_Z(0.0) 0\nU3(0, -0.0, 0.5) 1\nR_X(-0.0) 2": "R_X(0.0) 2\nU3(0.0, -0.5, 0.0) 1\nR_Z(0.0) 0",
+}
+INVERTED_TWICE = {"R_Z(0.0) 0\nU3(0, -0.0, 0.5) 1\nR_X(-0.0) 2": "R_Z(0.0) 0\nU3(0.0, 0.0, 0.5) 1\nR_X(0.0) 2"}
+
+
+@pytest.mark.parametrize("text", list(INVERSES))
+def test_inverse_of_rotations_is_tsims(text):
+    """The inverse negates each rotation's half-turns as written (a ``U3``'s are -theta, -lambda, -phi)
+    and keeps ``R_PAULI(+-0.25)`` an ``R_PAULI``: Tsim's graph of its inverse, and the matrix's adjoint."""
+    c = tsim.Circuit(text)
+    inverse = c.inverse()
+    assert str(inverse) == INVERSES[text]
+    assert str(inverse.inverse()) == INVERTED_TWICE.get(text, text)
+    assert np.allclose(inverse.to_matrix(), c.to_matrix().conj().T, atol=1e-12, rtol=0)
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        theirs = real.Circuit(text).inverse()
+        assert record(theirs.get_graph()) == record(inverse.get_graph(backend="own"))
+        assert_matrix_is_tsims(inverse, theirs)
+
+
+# Literals whose radians are the float of a neighbouring number of half-turns: read back as written.
+NEIGHBOURED_LITERALS = ["1.9967044602602857", "1.4074629084552872", "0.10044109572818205", "-0.17214200890901177"]
+
+
+def test_angle_literals_are_kept_as_written():
+    """A rotation's half-turns are the literal as written (``repr`` of its float), as in Tsim: printed,
+    read back and in the graph (its phase the literal's Fraction), where several half-turns give the
+    same radians."""
+    from stabilizer_qec.tsim.zx.parse import tsim_instructions
+
+    rng = np.random.default_rng(3)
+    literals = NEIGHBOURED_LITERALS + [repr(float(rng.uniform(-3, 3))) for _ in range(150)] + [repr(float(10 ** rng.uniform(-12, 12))) for _ in range(50)]
+    for x in literals:
+        text = f"R_Z({x}) 0\nR_PAULI({x}) X0*Z1\nU3({x}, 0.5, {x}) 1\nR_YY({x}) 0 1"
+        c = tsim.Circuit(text)
+        assert str(c) == text and str(c.copy()) == text and str(tsim.Circuit(str(c))) == text
+        assert [i.tag for i in tsim_instructions(c)] == [f"R_Z(theta={x}*pi)", f"R_PAULI(theta={x}*pi)", f"U3(theta={x}*pi, phi=0.5*pi, lambda={x}*pi)", f"R_PAULI(theta={x}*pi)"]
+        g = record(tsim.Circuit(f"R_Z({x}) 0").get_graph(backend="own"))
+        assert [v[2] for v in g["vertices"]] == [0, Fraction(x) % 2, 0] and g["scalar"][1] == (-Fraction(x) / 2) % 2, x
+    # The review's example: Tsim's 19967044602602857/10^16, not 998352230130143/(5*10^14).
+    g = tsim.Circuit("R_Z(1.9967044602602857) 0").get_graph(backend="own")
+    assert record(g)["vertices"][1][2] == Fraction(19967044602602857, 10**16)
+
+
+@pytest.mark.parametrize("seed", range(8))
+def test_angle_literals_against_tsim(seed):
+    real = pytest.importorskip("tsim")
+    rng = np.random.default_rng(2000 + seed)
+
+    def literal():
+        if rng.random() < 0.7:
+            return repr(float(rng.uniform(-3, 3)))
+        return repr(float(10 ** rng.uniform(-12, 12)) * (1 if rng.random() < 0.5 else -1))
+
+    for _ in range(25):
+        x, y, z = literal(), literal(), literal()
+        for text in (f"R_Z({x}) 0", f"R_X({x}) 1\nR_Y({y}) 0", f"U3({x}, {y}, {z}) 0", f"R_PAULI({x}) X0*Z1*Y2", f"R_YY({x}) 0 1\nR_XX({y}) 1 2\nR_ZZ({z}) 2 0", f"R_PAULI({x}) X0*Z1 Y2"):
+            ref, mine = real.Circuit(text), tsim.Circuit(text)
+            if not text.endswith(" Y2"):  # two products, two lines here (PRINTED_HERE)
+                assert str(ref) == str(mine), text
+            assert record(ref.get_graph()) == record(mine.get_graph(backend="own")), text
+            assert record(ref.inverse().get_graph()) == record(mine.inverse().get_graph(backend="own")), text
+            if "R_PAULI" not in text and "R_YY" not in text:  # Tsim prints an inverted product as SPP_DAG[...]
+                assert str(ref.inverse()) == str(mine.inverse()), text
 
 
 def test_zx_graph_phases_are_exact_fractions():
@@ -615,7 +986,7 @@ def random_circuit(rng, n: int, length: int) -> str:
         elif u < 0.52:
             lines.append(f"U3({round(float(rng.uniform(0, 2)), 3)}, {round(float(rng.uniform(0, 2)), 3)}, {round(float(rng.uniform(0, 2)), 3)}) {q}")
         elif u < 0.58 and n > 1:
-            lines.append(f"{rng.choice(['TPP', 'TPP_DAG', 'SPP', 'SPP_DAG'])} {rng.choice(list('XYZ'))}{a}*{rng.choice(list('XYZ'))}{b}")
+            lines.append(f"{rng.choice(['TPP', 'TPP_DAG', 'SPP', 'SPP_DAG', 'R_PAULI(0.25)', 'R_PAULI(-0.25)'])} {rng.choice(list('XYZ'))}{a}*{rng.choice(list('XYZ'))}{b}")
         elif u < 0.62 and n > 1:
             lines.append(f"R_{rng.choice(list('XYZ')) * 2}({round(float(rng.uniform(-1, 1)), 3)}) {a} {b}")
         elif u < 0.72:
@@ -662,20 +1033,12 @@ def test_random_circuits_against_tsim(seed):
                 a, b = ref.get_sampling_graph(sample), mine.get_sampling_graph(sample, backend=backend)
             assert record(a) == record(b), (backend, sample, text)
     assert ref.tcount() == mine.tcount(), text
-    want = np.asarray(ref.to_matrix())
-    got = mine.to_matrix()
-    assert got.shape == want.shape, text
-    if np.allclose(got, want, atol=1e-9):
-        return
-    # A circuit the unitary engine runs: Tsim's matrix up to a global phase.
-    i = np.argmax(np.abs(want))
-    phase = got.flat[i] / want.flat[i]
-    assert abs(abs(phase) - 1) < 1e-6 and np.allclose(got, phase * want, atol=1e-6), text
+    assert_matrix_is_tsims(mine, ref)
 
 
 def random_unmeasured_annotated_circuit(rng, n: int, length: int) -> str:
-    """A circuit of gates, rotations, noise and resets, no measurement, with at least one detector or
-    observable that XORs nothing (none of the ±0.25 product rotations whose graph is ``TPP``'s here)."""
+    """A circuit of gates, rotations (``TPP`` and the ±0.25 ``R_PAULI`` among them), noise and resets,
+    no measurement, with at least one detector or observable that XORs nothing."""
     one = ["H", "S", "S_DAG", "X", "SQRT_X", "C_XYZ", "H_YZ", "T", "T_DAG"]
     two = ["CX", "CY", "CZ", "SWAP", "ISWAP", "SQRT_XX", "XCZ"]
     annotations = ["DETECTOR", "DETECTOR(1, 2)", "OBSERVABLE_INCLUDE(0)", "OBSERVABLE_INCLUDE(1)"]
@@ -690,7 +1053,9 @@ def random_unmeasured_annotated_circuit(rng, n: int, length: int) -> str:
         elif u < 0.55:
             lines.append(f"R_{rng.choice(list('XYZ'))}({round(float(rng.uniform(-2, 2)), 4)}) {q}")
         elif u < 0.6 and n > 1:
-            lines.append(f"{rng.choice(['TPP', 'SPP_DAG'])} {rng.choice(list('XYZ'))}{a}*{rng.choice(list('XYZ'))}{b}")
+            lines.append(f"{rng.choice(['TPP', 'SPP_DAG', 'R_PAULI(0.25)', 'R_PAULI(-0.25)'])} {rng.choice(list('XYZ'))}{a}*{rng.choice(list('XYZ'))}{b}")
+        elif u < 0.62 and n > 1:
+            lines.append(f"R_{rng.choice(list('XYZ')) * 2}({rng.choice(['0.25', '-0.25'])}) {a} {b}")
         elif u < 0.68:
             lines.append(f"{rng.choice(['R', 'RX', 'RY'])} {q}")
         elif u < 0.76:

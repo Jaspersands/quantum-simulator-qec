@@ -22,9 +22,14 @@
   ``"pyzx-dets"`` and ``"pyzx-meas"``.
 - ``Circuit.get_graph`` and ``Circuit.get_sampling_graph`` (``stabilizer_qec.tsim.zx``): Tsim's
   ZX graphs, equal to Tsim's vertex for vertex (numbers, types, phases as Fractions, phase
-  variables, positions, edges, scalar). They are pyzx_param's ``GraphS`` when pyzx_param is
-  installed, else this package's ``ZXGraph`` (``backend="own"`` or ``"pyzx_param"`` chooses;
-  ``ZXGraph.to_pyzx()`` gives a pyzx graph). ``zx.tensorfy`` contracts a graph in numpy.
+  variables, positions, edges, scalar). They are pyzx_param's ``GraphS`` when pyzx_param imports,
+  else this package's ``ZXGraph`` (``backend="own"`` or ``"pyzx_param"`` chooses;
+  ``ZXGraph.to_pyzx()`` gives a pyzx graph). ``zx.tensorfy`` contracts a graph in numpy. Choosing
+  the default backend (and ``zx.pyzx_param_available()``) imports pyzx_param when it is installed,
+  and importing pyzx_param calls ``numpy.set_printoptions(suppress=True)`` for the whole process, as
+  importing Tsim does; ``backend="own"`` imports nothing. A record entry from before the circuit's
+  first measurement (``M 0`` then ``DETECTOR rec[-2]``) raises ``zx.parse.MeasurementRecordError``,
+  an ``IndexError`` as Tsim's is and a ``ValueError`` that names the instruction.
 - ``CompiledDetectorSampler`` (``Circuit.compile_detector_sampler``): Tsim's convention, each
   detector's and observable's *value*, the parity of its measurements (``X 0``, ``M 0``,
   ``DETECTOR rec[-1]`` reads True), not Stim's flip from a reference run;
@@ -54,24 +59,30 @@ Where it differs from Tsim:
 
 - Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
   JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.
-- ``R_PAULI(0.25)`` and ``R_XX(0.25)`` (any ±π/8 product rotation) print as ``TPP`` or
-  ``TPP_DAG``, the same gate; an angle appended as an int prints as a float (``R_Z(1.0)``,
-  Tsim ``R_Z(1)``); a tag on an appended ``T``, ``T_DAG``, ``TPP`` or ``TPP_DAG`` is not kept.
+- An angle appended as an int prints as a float (``R_Z(1.0)``, Tsim ``R_Z(1)``); a tag on an
+  appended ``T``, ``T_DAG``, ``TPP`` or ``TPP_DAG`` is not kept. A tagged ``SPP_DAG`` of a rotation
+  (``SPP_DAG[R_PAULI(theta=0.3*pi)] X0``, which ``inverse`` gives in Tsim) is stored as the negated
+  angle, so it prints as ``R_PAULI(-0.3) X0`` and an error quotes it as
+  ``SPP[R_PAULI(theta=-0.3*pi)] X0``; the same graph.
 - Two product rotations with the same angle in a row stay two lines (Tsim's Stim text fuses
-  them into one, which its shorthand misprints).
+  them into one, which its shorthand misprints). They are one instruction to the ZX graph, as in
+  Tsim, so ``R_PAULI``'s limit of 64 qubits is counted over them (33 ``R_ZZ(0.3)`` lines in a row
+  are Tsim's error, "got 66").
 - ``tcount`` is the graph's, as Tsim's: a coherent error (``I_ERROR[R_Z(...)]``) is not a gate
   (``stabilizer_qec.Circuit.tcount`` counts its phase).
-- A product rotation by ±0.25 half-turns (``R_PAULI(0.25)``, ``R_XX(0.25)``) is the same gate as
-  ``TPP`` here, and its ZX graph is ``TPP``'s: Tsim's graph for ``R_PAULI(0.25)`` carries the
-  rotation's scalar phase of -1/8 that ``TPP``'s does not, so the graph's scalar (and, through
-  the ZX path, ``to_matrix``) differs from Tsim's for ``R_PAULI(0.25)`` by that global phase and
-  equals Tsim's for ``TPP``. An angle is read back from the radians this package stores as the
-  shortest decimal number of half-turns that gives them, so ``R_Z(0.3)`` is the phase 3/10 of
-  Tsim's graph.
+- An angle is kept as it was written, as Tsim keeps it (the radians this package stores carry
+  the digits that give the literal back), so ``R_Z(0.3)`` is the phase 3/10 of Tsim's graph and
+  ``R_PAULI(0.25)`` is Tsim's ``R_PAULI``, not ``TPP``: its graph has the scalar phase -1/8 (+1/8
+  for -0.25) that ``TPP``'s has not, and its errors are ``R_PAULI``'s. An angle whose radians are
+  past a float's range (from about 5.7e307 half-turns) is refused; Tsim takes it.
 - ``diagram("pyzx")`` needs pyzx or pyzx_param to draw; ``"pyzx-dets"`` and ``"pyzx-meas"`` need
-  pyzx_param (their graphs are reduced by its ``full_reduce``). ``to_matrix`` of a circuit
-  with measurements is at most 2^22 entries, its spiders at most 24 legs, a chain of correlated
-  errors at most 24 branches.
+  pyzx_param (their graphs are reduced by its ``full_reduce``). ``to_matrix`` is at most 2^22
+  entries and, through the ZX tensor (a circuit with measurements, detectors or observables, ...),
+  its spiders at most 24 legs and the tensors of its contraction at most 2^26 entries (1 GiB of
+  complex128, which numpy's ``tensordot`` copies). A
+  chain of more than 24 correlated errors builds, its graph and matrix Tsim's, but its 2^k
+  probabilities (Tsim's ``channel_probs`` entry, an array) are kept as the chain
+  (``zx.instructions.CorrelatedChainProbs``): an entry each, and ``ValueError`` read as an array.
 - ``circuit[i]`` is this package's instruction (``I[T] 0``), not a ``stim.CircuitInstruction``
   in Tsim's tagged form (``S[T] 0``).
 """

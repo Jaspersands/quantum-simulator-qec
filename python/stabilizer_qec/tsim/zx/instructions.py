@@ -1,8 +1,8 @@
 # Ported from Tsim (QuEraComputing/tsim, bloqade-tsim 0.1.5, src/tsim/core/instructions.py; Apache License 2.0;
 # see LICENSE in this directory), modified for stabilizer_qec: the builders write to any graph with the
 # interface of pyzx_param's GraphS, this package's ZXGraph or pyzx_param's own, taking the vertex and edge
-# types from the graph's backend; annotations postponed and ``zip(strict=True)`` dropped (Python 3.9); a
-# chain of correlated errors long enough to need 2^k probabilities refused.
+# types from the graph's backend; annotations postponed and ``zip(strict=True)`` dropped (Python 3.9); the
+# 2^k probabilities of a chain of more than 24 correlated errors kept as the chain's k (CorrelatedChainProbs).
 """ZX graph representations of quantum gates and instructions."""
 
 from __future__ import annotations
@@ -24,6 +24,48 @@ from stabilizer_qec.tsim.noise.channels import (
 from stabilizer_qec.tsim.zx.graph import EdgeType, VertexType, ZXGraph
 
 _MAX_CORRELATED_CHAIN = 24  # a chain of k correlated errors has 2^k probabilities
+
+
+class CorrelatedChainProbs:
+    """The probabilities of the 2^k outcomes of a chain of k correlated errors (``E`` and its
+    ``ELSE_CORRELATED_ERROR``s) for k over 24, where Tsim's ``channel_probs`` entry is an array of 2^k
+    floats: kept as the chain's k conditional probabilities. ``len`` is 2^k and an entry (``probs[i]``)
+    is Tsim's value; read as a whole (``numpy.asarray``, iteration) it raises ``ValueError`` instead
+    of allocating 2^k floats. Nothing that builds or contracts the graph reads it."""
+
+    __slots__ = ("probabilities",)
+
+    def __init__(self, probabilities: List[float]) -> None:
+        self.probabilities = list(probabilities)
+
+    def __len__(self) -> int:
+        return 1 << len(self.probabilities)
+
+    def __repr__(self) -> str:
+        return f"CorrelatedChainProbs({self.probabilities!r})"
+
+    def __getitem__(self, index: Any) -> np.float64:
+        if not isinstance(index, (int, np.integer)) or isinstance(index, bool):
+            self._refuse()
+        i = int(index) + len(self) if index < 0 else int(index)
+        if not 0 <= i < len(self):
+            raise IndexError(f"index {index} is out of bounds for {len(self)} outcomes")
+        no_error_so_far = 1.0
+        for k, p in enumerate(self.probabilities):
+            if i == 1 << k:
+                return np.float64(no_error_so_far * p)
+            no_error_so_far *= 1 - p
+        return np.float64(no_error_so_far if i == 0 else 0.0)
+
+    def __iter__(self) -> Any:
+        self._refuse()
+
+    def __array__(self, dtype: Any = None, copy: Any = None) -> np.ndarray:
+        self._refuse()
+
+    def _refuse(self) -> Any:
+        k = len(self.probabilities)
+        raise ValueError(f"A chain of {k} correlated errors has 2^{k} outcomes; their probabilities are held as an array for at most {_MAX_CORRELATED_CHAIN}.")
 
 
 class _EdgeTypeBold(IntEnum):
@@ -780,7 +822,8 @@ def finalize_correlated_error(b: GraphRepresentation) -> None:
     """Finalize the current correlated error channel.
 
     1. Rename all "c{i}" phases to "e{num_error_bits + i}" in the graph
-    2. Compute and append the 2^k probability array to channel_probs
+    2. Compute and append the 2^k probability array to channel_probs (for k over 24, the chain's
+       probabilities, which give an entry but not the array: ``CorrelatedChainProbs``)
     3. Increment num_error_bits by k
     4. Reset num_correlated_error_bits to 0 and correlated_error_probs to []
     """
@@ -788,8 +831,6 @@ def finalize_correlated_error(b: GraphRepresentation) -> None:
 
     if k == 0:
         return
-    if k > _MAX_CORRELATED_CHAIN:
-        raise ValueError(f"A chain of {k} correlated errors has 2^{k} outcomes; at most {_MAX_CORRELATED_CHAIN} are supported.")
 
     # Rename "c{i}" phases to "e{num_error_bits + i}" in the graph
     for v in b.graph.vertices():
@@ -805,7 +846,10 @@ def finalize_correlated_error(b: GraphRepresentation) -> None:
         b.graph._phaseVars[v] = new_phase_vars
 
     # Compute probability array from conditional probabilities
-    probs = correlated_error_probs(b.correlated_error_probs)
+    if k > _MAX_CORRELATED_CHAIN:
+        probs = CorrelatedChainProbs(b.correlated_error_probs)
+    else:
+        probs = correlated_error_probs(b.correlated_error_probs)
     b.channel_probs.append(probs)
 
     b.num_error_bits += k

@@ -2,21 +2,20 @@
 # see LICENSE in this directory), modified for stabilizer_qec: the circuit is a tsim.Circuit of this
 # package's operations, which ``tsim_instructions`` reads back as Tsim's tagged Stim (``I[T]`` as ``S[T]``,
 # a rotation in radians as ``I[R_Z(theta=a*pi)]`` in half-turns, a Pauli-product rotation as
-# ``SPP[R_PAULI(theta=a*pi)]`` or ``SPP[T]``) and parses with Tsim's own code; the graph is built on a
-# chosen backend (this package's ZXGraph, or pyzx_param's GraphS).
+# ``SPP[R_PAULI(theta=a*pi)]`` or ``SPP[T]``, consecutive instructions Stim would fuse fused) and parses
+# with Tsim's own code; the graph is built on a chosen backend (this package's ZXGraph, or pyzx_param's
+# GraphS, when it imports).
 """Parser for converting circuits to ZX graph representations."""
 
 from __future__ import annotations
 
-import importlib.util
-import math
 import re
 from fractions import Fraction
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from stabilizer_qec import _stim
 from stabilizer_qec.tsim.core.tags import is_t_tag
-from stabilizer_qec.tsim.utils.program_text import _NATIVE_TAG, _native_args, _turns
+from stabilizer_qec.tsim.utils.program_text import _NATIVE_TAG, _is_tpp_radians, _native_args, _read_turns
 from stabilizer_qec.tsim.zx.graph import ZXGraph
 from stabilizer_qec.tsim.zx.instructions import (
     GATE_TABLE,
@@ -50,24 +49,39 @@ R_PAULI_MAX_QUBITS = 64
 BACKENDS = ("own", "pyzx_param")
 
 
-def pyzx_param_available() -> bool:
-    """Whether pyzx_param can be imported (not blocked by a ``None`` in ``sys.modules``)."""
+def _import_pyzx_param() -> Optional[BaseException]:
+    """Import the parts of pyzx_param the graphs use; the exception if they do not import (pyzx_param
+    not installed, blocked by a ``None`` in ``sys.modules``, or installed without a dependency such
+    as sympy or lark), else ``None``."""
     try:
-        return importlib.util.find_spec("pyzx_param") is not None
-    except (ImportError, ValueError):
-        return False
+        import pyzx_param  # noqa: F401
+        import pyzx_param.graph.graph_s  # noqa: F401
+        import pyzx_param.utils  # noqa: F401
+    except Exception as exc:  # an installed pyzx_param can fail with more than ImportError
+        return exc
+    return None
+
+
+def pyzx_param_available() -> bool:
+    """Whether pyzx_param imports (it is installed, with its dependencies, and not blocked by a
+    ``None`` in ``sys.modules``)."""
+    return _import_pyzx_param() is None
 
 
 def require_pyzx_param(what: str) -> None:
-    """Raise ``ImportError`` naming ``what`` if pyzx_param is not installed."""
-    if not pyzx_param_available():
-        raise ImportError(f"{what} needs pyzx_param (pip install pyzx-param), which is not installed")
+    """Raise ``ImportError`` naming ``what`` if pyzx_param does not import."""
+    exc = _import_pyzx_param()
+    if exc is None:
+        return
+    if isinstance(exc, ModuleNotFoundError) and exc.name == "pyzx_param":
+        raise ImportError(f"{what} needs pyzx_param (pip install pyzx-param), which is not installed") from exc
+    raise ImportError(f"{what} needs pyzx_param (pip install pyzx-param), which is installed but does not import: {exc!r}") from exc
 
 
 def new_graph(backend: Optional[str] = None) -> Any:
     """An empty graph of a backend: ``"own"`` (this package's ``ZXGraph``) or ``"pyzx_param"``
-    (pyzx_param's ``GraphS``, ``ImportError`` if it is not installed); ``None`` is pyzx_param's when
-    installed, else this package's."""
+    (pyzx_param's ``GraphS``, ``ImportError`` if it does not import); ``None`` is pyzx_param's when it
+    imports, else this package's."""
     if backend is None:
         backend = "pyzx_param" if pyzx_param_available() else "own"
     if backend == "own":
@@ -101,6 +115,16 @@ class TsimInstruction:
     def gate_args_copy(self) -> List[float]:
         return list(self._args)
 
+    def fuse(self, other: "TsimInstruction") -> bool:
+        """Append ``other``'s targets, as Stim fuses two consecutive instructions of one gate, tag and
+        arguments into one (``SPP[R_PAULI(theta=0.3*pi)] Z0*Z1`` and ``... Z2*Z3`` are
+        ``... Z0*Z1 Z2*Z3``), and say so; ``False``, nothing changed, if they differ."""
+        if (self.name, self.tag, self._args) != (other.name, other.tag, other._args):
+            return False
+        self._raw += other._raw
+        self._targets = None
+        return True
+
     def __str__(self) -> str:
         from stabilizer_qec import _core
 
@@ -118,16 +142,13 @@ def _pauli_targets(factors: List[Tuple[str, int]]) -> List[int]:
     return raw
 
 
-def _half_turns(radians: str, scale: float) -> str:
-    return _turns(float(radians), scale)
-
-
-def _spp_of_rotation(theta: float, factors: List[Tuple[str, int]]) -> TsimInstruction:
-    """A product rotation exp(-i theta P) as Tsim's ``SPP[T]`` (theta = +-pi/8, the same gate as
-    ``R_PAULI(+-0.25)``, which this package prints as ``TPP``) or ``SPP[R_PAULI(theta=a*pi)]``."""
-    if abs(theta) == math.pi / 8:
-        return TsimInstruction("SPP" if theta > 0 else "SPP_DAG", "T", [], _pauli_targets(factors))
-    return TsimInstruction("SPP", f"R_PAULI(theta={_turns(theta, 0.5)}*pi)", [], _pauli_targets(factors))
+def _spp_of_rotation(theta: str, factors: List[Tuple[str, int]]) -> TsimInstruction:
+    """A product rotation exp(-i theta P), ``theta`` its stored radians, as Tsim's ``SPP[T]`` (+-pi/8
+    as ``repr`` writes it, ``TPP``) or ``SPP[R_PAULI(theta=a*pi)]`` (any other, ``R_PAULI(+-0.25)``
+    among them: +-pi/8 with further digits)."""
+    if _is_tpp_radians(theta):
+        return TsimInstruction("SPP" if float(theta) > 0 else "SPP_DAG", "T", [], _pauli_targets(factors))
+    return TsimInstruction("SPP", f"R_PAULI(theta={_read_turns(theta, 0.5)}*pi)", [], _pauli_targets(factors))
 
 
 def tsim_instructions(circuit: Any) -> Iterator[Any]:
@@ -136,20 +157,33 @@ def tsim_instructions(circuit: Any) -> Iterator[Any]:
 
     This package writes Tsim's gates as its own operations: ``I[T]`` and ``I[T_DAG]`` for T and its
     inverse, ``I[R_Z(theta=t)]`` (and R_X, R_Y) for exp(-i t Z), ``I[U3(...)]`` in radians,
-    ``I[R_PAULI(theta=t, pauli=XY)] 0 1`` and ``II[R_ZZ(theta=t)] 0 1``. They are read back as the
-    half-turns they were written in: the shortest decimal number of half-turns that gives the stored
-    radians, which is the number written when it was a short decimal (``R_Z(0.3)``), so the phases
-    are Tsim's exact fractions. Every other instruction is as it is.
+    ``I[R_PAULI(theta=t, pauli=XY)] 0 1`` for each product and ``II[R_ZZ(theta=t)] 0 1``. They are
+    read back as the half-turns they were written in (the shortest decimal number of half-turns that
+    gives the stored radians, or the one their further digits give), so the phases are Tsim's exact
+    fractions, and a product rotation by +-pi/8 as ``SPP[T]`` or ``SPP[R_PAULI(theta=0.25*pi)]`` as
+    it was written. Consecutive instructions read back with one gate, tag and arguments are fused,
+    as Stim fuses them when Tsim builds its circuit (Tsim's ``R_PAULI`` limit of 64 qubits is per
+    fused instruction). Every other instruction is as it is.
     """
     flat = circuit.flattened()
+    pending: Optional[TsimInstruction] = None
     for kind, name, tag, args, targets in flat._items():
         if kind != "op":  # pragma: no cover - flattened has no loops
             raise ValueError("a flattened circuit has a REPEAT block")
         converted = _tsim_form(name, tag, args, targets)
         if converted is None:
+            if pending is not None:
+                yield pending
+                pending = None
             yield _stim.CircuitInstruction._make(name, tag, args, targets)
-        else:
-            yield from converted
+            continue
+        for instruction in converted:
+            if pending is None or not pending.fuse(instruction):
+                if pending is not None:
+                    yield pending
+                pending = instruction
+    if pending is not None:
+        yield pending
 
 
 def _tsim_form(name: str, tag: str, args: List[float], targets: List[int]) -> Optional[List[TsimInstruction]]:
@@ -166,9 +200,9 @@ def _tsim_form(name: str, tag: str, args: List[float], targets: List[int]) -> Op
         return None
     try:
         if name == "I" and gate in ("R_X", "R_Y", "R_Z") and set(params) == {"theta"}:
-            return [TsimInstruction("I", f"{gate}(theta={_half_turns(params['theta'], 0.5)}*pi)", args, targets)]
+            return [TsimInstruction("I", f"{gate}(theta={_read_turns(params['theta'], 0.5)}*pi)", args, targets)]
         if name == "I" and gate == "U3" and set(params) == {"theta", "phi", "lambda"}:
-            a, b, c = (_half_turns(params[k], 1.0) for k in ("theta", "phi", "lambda"))
+            a, b, c = (_read_turns(params[k], 1.0) for k in ("theta", "phi", "lambda"))
             return [TsimInstruction("I", f"U3(theta={a}*pi, phi={b}*pi, lambda={c}*pi)", args, targets)]
         if name == "I" and gate == "R_PAULI" and set(params) == {"theta", "pauli"}:
             pauli = params["pauli"].upper()
@@ -176,11 +210,11 @@ def _tsim_form(name: str, tag: str, args: List[float], targets: List[int]) -> Op
             if len(pauli) != len(qubits) or not set(pauli) <= set("IXYZ"):
                 return None
             factors = [(p, q) for p, q in zip(pauli, qubits) if p != "I"]
-            return [_spp_of_rotation(float(params["theta"]), factors)] if factors else []
+            return [_spp_of_rotation(params["theta"], factors)] if factors else []
         if name == "II" and gate in ("R_XX", "R_YY", "R_ZZ") and set(params) == {"theta"} and len(targets) % 2 == 0:
             qubits = [_stim.GateTarget._raw(v).value for v in targets]
             p = gate[2]
-            return [_spp_of_rotation(float(params["theta"]), [(p, qubits[i]), (p, qubits[i + 1])]) for i in range(0, len(qubits), 2)]
+            return [_spp_of_rotation(params["theta"], [(p, qubits[i]), (p, qubits[i + 1])]) for i in range(0, len(qubits), 2)]
     except ValueError:
         return None
     return None

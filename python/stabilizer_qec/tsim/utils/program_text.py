@@ -8,6 +8,8 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Callable
+from decimal import ROUND_HALF_EVEN, Decimal, localcontext
+from fractions import Fraction
 
 from stabilizer_qec.tsim.core.tags import decode_t_user_tag, encode_t_tag
 
@@ -255,6 +257,79 @@ def _turns(radians: float, scale: float) -> str:
     return repr(h)
 
 
+# A rotation written in half-turns (Tsim's ``R_Z(a)``, ``I[R_Z(theta=a*pi)]``) is stored in radians,
+# ``a * pi * scale`` as a float, where several half-turns can give the same float. Its radians are
+# written as ``repr`` when ``_turns`` reads them back as the half-turns written, and otherwise with the
+# further digits of the exact product ``a * pi * scale`` that give them back (``_read_turns``): the
+# number is the same float, so the engines run the same rotation, and the half-turns are Tsim's, the
+# literal as written (as ``repr`` of its float). A product rotation by +-pi/8 is ``TPP`` when stored as
+# ``repr`` and Tsim's ``R_PAULI(+-0.25)`` (a different ZX graph, its scalar phase -+1/8) when stored with
+# the further digits.
+
+
+def _significant_digits(text: str) -> int:
+    """The number of significant digits a decimal number is written with (``-0.3927e-1`` has 4)."""
+    mantissa = text.strip().lstrip("+-").lower().split("e", 1)[0]
+    return len(mantissa.replace(".", "").strip("0"))
+
+
+def _has_further_digits(text: str) -> bool:
+    """Whether a number is written with more digits than ``repr`` of its float."""
+    return _significant_digits(text) > _significant_digits(repr(float(text)))
+
+
+def _turns_of_digits(text: str, scale: float) -> float | None:
+    """The half-turns whose radians a number written with further digits is: the float nearest to
+    ``text / (pi * scale)``, if its radians are the float of ``text``; else ``None``."""
+    try:
+        turns = float(Fraction(text.strip()) / (Fraction(math.pi) * Fraction(scale)))
+    except (ValueError, ZeroDivisionError, OverflowError):
+        return None
+    return turns if turns * math.pi * scale == float(text) else None
+
+
+def _decimal_text(value: Fraction, digits: int) -> str:
+    """``value`` rounded to ``digits`` significant digits (half to even), in decimal."""
+    with localcontext() as ctx:
+        ctx.prec = digits
+        ctx.rounding = ROUND_HALF_EVEN
+        d = Decimal(value.numerator) / Decimal(value.denominator)
+    return format(d, "f") if -5 <= d.adjusted() < 16 else format(d, "e")
+
+
+def _stored_radians(turns: float, scale: float, product: bool = False) -> str:
+    """The radians this package stores for a rotation of ``turns`` half-turns (``scale`` 1/2 for a
+    rotation's exp(−iθP), 1 for U3): ``repr`` of ``turns * pi * scale`` when ``_read_turns`` gives
+    ``turns`` back from it (and, for a Pauli product, it is not +-pi/8, which is ``TPP``), else the
+    exact product's decimal to the fewest further digits that give ``turns`` back."""
+    radians = turns * math.pi * scale
+    short = repr(radians)
+    if not (product and abs(radians) == math.pi / 8) and _turns(radians, scale) == repr(turns):
+        return short
+    exact = Fraction(turns) * Fraction(math.pi) * Fraction(scale)
+    for digits in list(range(_significant_digits(short) + 1, 40)) + [2000]:
+        text = _decimal_text(exact, digits)
+        if _has_further_digits(text) and float(text) == radians and repr(_turns_of_digits(text, scale)) == repr(turns):
+            return text
+    return short  # pragma: no cover - the exact product, written in full, has been the answer for every angle tried
+
+
+def _read_turns(text: str, scale: float) -> str:
+    """The half-turns of stored radians (``repr`` of the float, as Tsim writes them): those its further
+    digits give, or else ``_turns``'s."""
+    if _has_further_digits(text):
+        turns = _turns_of_digits(text, scale)
+        if turns is not None:
+            return repr(turns)
+    return _turns(float(text), scale)
+
+
+def _is_tpp_radians(text: str) -> bool:
+    """Whether a Pauli product's stored radians are ``TPP``'s (+-pi/8 as ``repr`` writes it) rather
+    than ``R_PAULI(+-0.25)``'s (+-pi/8 with further digits)."""
+    return abs(float(text)) == math.pi / 8 and not _has_further_digits(text)
+
+
 def _native_to_shorthand_line(line: str) -> str | None:
     m = _NATIVE_LINE.match(line)
     if not m:
@@ -272,12 +347,12 @@ def _native_to_shorthand_line(line: str) -> str | None:
         return None
     try:
         if gate == "I" and name in ("R_X", "R_Y", "R_Z") and set(args) == {"theta"}:
-            return f"{indent}{name}({_turns(float(args['theta']), 0.5)}) {' '.join(targets)}"
+            return f"{indent}{name}({_read_turns(args['theta'], 0.5)}) {' '.join(targets)}"
         if gate == "I" and name == "U3" and set(args) == {"theta", "phi", "lambda"}:
-            a, b, c = (_turns(float(args[k]), 1.0) for k in ("theta", "phi", "lambda"))
+            a, b, c = (_read_turns(args[k], 1.0) for k in ("theta", "phi", "lambda"))
             return f"{indent}U3({a}, {b}, {c}) {' '.join(targets)}"
         if gate == "II" and name in ("R_XX", "R_YY", "R_ZZ") and set(args) == {"theta"} and len(targets) % 2 == 0:
-            angle = _turns(float(args["theta"]), 0.5)
+            angle = _read_turns(args["theta"], 0.5)
             return "\n".join(f"{indent}{name}({angle}) {targets[i]} {targets[i + 1]}" for i in range(0, len(targets), 2))
         if gate == "I" and name == "R_PAULI" and set(args) == {"theta", "pauli"}:
             theta, pauli = float(args["theta"]), args["pauli"].upper()
@@ -287,9 +362,9 @@ def _native_to_shorthand_line(line: str) -> str | None:
             if not factors:
                 return None
             product = "*".join(f"{p}{q}" for p, q in factors)
-            if abs(theta) == math.pi / 8:
+            if _is_tpp_radians(args["theta"]):
                 return f"{indent}{'TPP' if theta > 0 else 'TPP_DAG'} {product}"
-            angle = _turns(theta, 0.5)
+            angle = _read_turns(args["theta"], 0.5)
             if len(factors) == 2 and factors[0][0] == factors[1][0] and factors[0][1] != factors[1][1]:
                 p = factors[0][0]
                 return f"{indent}R_{p}{p}({angle}) {factors[0][1]} {factors[1][1]}"
@@ -323,12 +398,13 @@ def stim_to_shorthand(text: str) -> str:
     - S_DAG[T] → T_DAG
 
     and this package's tagged forms (stabilizer_qec's addition), angles in radians of
-    exp(−iθP) written back in half-turns:
+    exp(−iθP) written back in the half-turns they were written in (the shortest decimal number
+    that gives the radians, or the one their further digits give):
     - I[T] / I[T_DAG] → T / T_DAG
     - I[R_X(theta=t)] → R_X(2t/π), and R_Y, R_Z
     - I[U3(theta=a, phi=b, lambda=c)] → U3(a/π, b/π, c/π)
-    - I[R_PAULI(theta=±π/8, pauli=XY)] 0 1 → TPP / TPP_DAG X0*Y1 (the same gate as
-      R_PAULI(±0.25), which prints so)
+    - I[R_PAULI(theta=±π/8, pauli=XY)] 0 1 → TPP / TPP_DAG X0*Y1 (±π/8 as ``repr`` writes it;
+      written with further digits it is R_PAULI(±0.25) X0*Y1)
     - I[R_PAULI(theta=t, pauli=ZZ)] 0 1 → R_ZZ(2t/π) 0 1; any other product
       R_PAULI(2t/π) X0*Y1
     - II[R_XX(theta=t)] 0 1 2 3 → R_XX(2t/π) 0 1 and R_XX(2t/π) 2 3, a line a pair

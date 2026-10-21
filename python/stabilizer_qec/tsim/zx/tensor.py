@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import heapq
 import math
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Tuple
 
 import numpy as np
 
@@ -29,7 +29,7 @@ __all__ = ["tensor_to_matrix", "tensorfy"]
 _BOUNDARY, _Z, _X = 0, 1, 2
 _HADAMARD, _HADAMARD_BOLD = 2, 5
 _MAX_ARITY = 24  # a spider's tensor has 2^arity entries
-_MAX_ENTRIES = 1 << 28  # complex128: 4 GiB
+_MAX_ENTRIES = 1 << 26  # complex128: 1 GiB, and numpy's tensordot holds the operands' copies besides
 
 
 def _parity_table(arity: int) -> np.ndarray:
@@ -67,8 +67,9 @@ def tensorfy(g: Any, preserve_scalar: bool = True) -> np.ndarray:
     ``preserve_scalar``.
 
     Raises ``ValueError`` for a vertex that is not a Z or X spider or a boundary, a boundary that is
-    not an input or output, an output that is not a leaf, and a spider or intermediate tensor of more
-    than 2^24 or 2^28 entries.
+    not an input or output, an output that is not a leaf, and a spider of more than 2^24 entries (24
+    legs) or an intermediate tensor of more than 2^26 (1 GiB of complex128, which ``tensordot``
+    copies), instead of allocating it.
     """
     rows = g.rows()
     phases = g.phases()
@@ -93,6 +94,8 @@ def tensorfy(g: Any, preserve_scalar: bool = True) -> np.ndarray:
         neighbors = list(g.neighbors(u))
         if len(neighbors) != 1:
             raise ValueError("Weird input")
+        if tensor.size * 4 > _MAX_ENTRIES:
+            raise ValueError("the contraction needs a tensor of more than 2^26 entries")
         tensor = np.tensordot(tensor, id2, axes=0)
         legs += [("in", i), (u, neighbors[0])]
     done = set(inputs)
@@ -148,7 +151,7 @@ def tensorfy(g: Any, preserve_scalar: bool = True) -> np.ndarray:
             join_t.append(k)
             join_tensor.append(legs.index((n, v)))
         if tensor.size * t.size // 4 ** len(join_t) > _MAX_ENTRIES:
-            raise ValueError("the contraction needs a tensor of more than 2^28 entries")
+            raise ValueError("the contraction needs a tensor of more than 2^26 entries")
         tensor = np.tensordot(tensor, t, axes=(join_tensor, join_t))
         legs = [leg for i, leg in enumerate(legs) if i not in set(join_tensor)] + [leg for k, leg in enumerate(t_legs) if k not in set(join_t)]
         done.add(v)

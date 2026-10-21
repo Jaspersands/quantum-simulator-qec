@@ -8,7 +8,8 @@ diagrams.
 record, the detectors and observables, the noise channels' probabilities) with Tsim's builders
 (``instructions``) on one of two backends: this package's ``ZXGraph`` (``"own"``, nothing to install)
 or pyzx_param's ``GraphS`` (``"pyzx_param"``, the graph Tsim builds, which pyzx_param's simplifier
-reduces); by default pyzx_param's when it is installed. The two graphs are equal vertex for vertex,
+reduces); by default pyzx_param's when it imports (importing pyzx_param sets numpy's print option
+``suppress=True`` for the process, as importing Tsim does). The two graphs are equal vertex for vertex,
 edge for edge, with phases as Fractions of pi, phase variables (``rec[i]`` a measurement outcome,
 ``e{k}`` an error bit, ``det[i]``, ``obs[i]``) as sets of names, and the same scalar.
 """

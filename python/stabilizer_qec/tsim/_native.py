@@ -3,7 +3,13 @@ half-turns (``I[R_Z(theta=a*pi)]`` is exp(-i a pi Z / 2), ``SPP[R_PAULI(theta=a*
 exp(-i a pi P / 2), ``SPP[T] P`` exp(-i pi P / 8), ``I[U3(theta=a*pi, phi=b*pi, lambda=c*pi)]``
 OpenQASM's U3 in half-turns); this package writes them ``I[T]``, ``I[R_Z(theta=t)]`` for
 exp(-i t Z), ``I[R_PAULI(theta=t, pauli=...)]`` and ``I[U3(...)]`` in radians. Engines that read
-Tsim's form as Stim does would run S for T; these are honoured as the operations they are."""
+Tsim's form as Stim does would run S for T; these are honoured as the operations they are.
+
+The radians keep the half-turns written: ``repr`` of the float when its shortest decimal number of
+half-turns is the one written, else the exact radians to the further digits that give it back
+(``program_text._stored_radians``); a Pauli product's ``SPP[T]`` is +-pi/8 as ``repr`` writes it,
+its ``SPP[R_PAULI(theta=0.25*pi)]`` +-pi/8 with further digits, so the two stay Tsim's two
+instructions."""
 
 from __future__ import annotations
 
@@ -11,12 +17,15 @@ import math
 import re
 from typing import List
 
+from stabilizer_qec.tsim.utils.program_text import _stored_radians
+
 _LINE = re.compile(r"^(\s*)(S|S_DAG|SPP|SPP_DAG|I)\[([^\]\n]*)\]\s+(.*?)\s*$")
 _ARG = re.compile(r"(\w+)\s*=\s*([^,()]+?)\s*\*\s*pi")
 
 
-def _half_turns(tag: str) -> dict:
-    return {k: float(v) * math.pi for k, v in _ARG.findall(tag)}
+def _literals(tag: str) -> dict:
+    """A tag's angles in half-turns, as floats (``theta=0.3*pi`` is 0.3)."""
+    return {k: float(v) for k, v in _ARG.findall(tag)}
 
 
 def _is_t(tag: str) -> bool:
@@ -89,16 +98,19 @@ def tsim_to_native(text: str) -> str:
         if gate in ("S", "S_DAG") and _is_t(tag):
             lines.append(f"{indent}I[{'T' if gate == 'S' else 'T_DAG'}] {targets}")
         elif gate == "I" and name in ("R_X", "R_Y", "R_Z") and "*pi" in tag:
-            lines.append(f"{indent}I[{name}(theta={_half_turns(tag)['theta'] / 2!r})] {targets}")
+            lines.append(f"{indent}I[{name}(theta={_stored_radians(_literals(tag)['theta'], 0.5)})] {targets}")
         elif gate == "I" and name == "U3" and "*pi" in tag:
-            a = _half_turns(tag)
-            lines.append(f"{indent}I[U3(theta={a['theta']!r}, phi={a['phi']!r}, lambda={a['lambda']!r})] {targets}")
+            a = {k: _stored_radians(v, 1.0) for k, v in _literals(tag).items()}
+            lines.append(f"{indent}I[U3(theta={a['theta']}, phi={a['phi']}, lambda={a['lambda']})] {targets}")
         elif gate in ("SPP", "SPP_DAG") and (_is_t(tag) or name == "R_PAULI"):
-            theta = math.pi / 8 if _is_t(tag) else _half_turns(tag)["theta"] / 2
-            if gate == "SPP_DAG":
-                theta = -theta
+            dagger = -1.0 if gate == "SPP_DAG" else 1.0
+            turns = None if _is_t(tag) else _literals(tag)["theta"]
             for sign, pauli, qubits in _products(targets):
-                lines.append(f"{indent}I[R_PAULI(theta={sign * theta!r}, pauli={pauli})] {' '.join(qubits)}")
+                if turns is None:
+                    theta = repr(sign * dagger * math.pi / 8)
+                else:
+                    theta = _stored_radians(sign * dagger * turns, 0.5, product=True)
+                lines.append(f"{indent}I[R_PAULI(theta={theta}, pauli={pauli})] {' '.join(qubits)}")
         else:
             lines.append(line)
             continue
