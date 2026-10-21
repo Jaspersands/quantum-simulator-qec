@@ -442,7 +442,7 @@ pub fn inverse(c: &ir::Circuit, allow_weak_inverse: bool) -> Result<ir::Circuit,
         // A tagged identity's operation (`I[T]`, `I[R_Z(theta=…)]`) inverts with its tag.
         let mut tag = op.tag.to_string();
         if matches!(op.gate.name, "I" | "II" | "I_ERROR" | "II_ERROR") && !tag.is_empty() {
-            if let Some(t) = crate::nonpauli::inverse_tag(&tag)? {
+            if let Some(t) = crate::nonpauli::inverse_tag(&tag, pairs)? {
                 tag = t;
             }
         }
@@ -892,4 +892,42 @@ pub fn with_inlined_feedback(c: &ir::Circuit) -> Result<ir::Circuit, String> {
     let reversed = std::mem::take(&mut h.out);
     let out = h.build(&reversed);
     Ok(fuse_identical_adjacent_loops(&out))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `c` then its inverse, as the unitary engine runs it: the identity up to a global phase.
+    fn undone(text: &str) -> bool {
+        let inv = inverse(&ir::Circuit::parse(text).unwrap(), false).unwrap();
+        let both = format!("{text}\n{}", inv.exact_text());
+        let (n, m) = crate::statevec::unitary_matrix(&crate::circuit::Circuit::parse(&both).unwrap(), false).unwrap();
+        let dim = 1usize << n;
+        let phase = m[0];
+        (phase.norm2() - 1.0).abs() < 1e-12 && (0..dim).all(|r| (0..dim).all(|c| (m[r * dim + c] - if r == c { phase } else { crate::statevec::C::ZERO }).norm2() < 1e-24))
+    }
+
+    #[test]
+    fn a_product_rotation_on_ii_inverts_with_its_letters_on_their_qubits() {
+        // II's targets are reversed pair by pair, and its R_PAULI's letters with them: Y2*Y3*X0*Z1,
+        // the product X0*Z1*Y2*Y3 negated (the letters reversed whole, Z0*X1*Y2*Y3, is another).
+        let inv = inverse(&ir::Circuit::parse("II[R_PAULI(theta=0.1, pauli=XZYY)] 0 1 2 3").unwrap(), false).unwrap();
+        assert_eq!(inv.exact_text(), "II[R_PAULI(theta=-0.1, pauli=YYXZ)] 2 3 0 1");
+        let inv = inverse(&ir::Circuit::parse("I[R_PAULI(theta=0.1, pauli=XZYY)] 0 1 2 3").unwrap(), false).unwrap();
+        assert_eq!(inv.exact_text(), "I[R_PAULI(theta=-0.1, pauli=YYZX)] 3 2 1 0");
+        for text in [
+            "H 0 1 2 3\nII[R_PAULI(theta=0.1, pauli=XZYY)] 0 1 2 3",
+            "H 0 1 2 3\nII[R_PAULI(pauli=X_zY, theta=0.3)] 0 1 2 3",
+            "H 0 1 2 3\nII[R_PAULI(theta=0.1, pauli=XIZI)] 0 1 2 0",
+            "H 0 1 2 3\nII[R_PAULI(theta=0.39269908169872414, pauli=XZYx)] 3 1 0 2\nS 1",
+            "H 0 1 2 3\nII[R_PAULI(theta=0.1, pauli=XZ)] 0 1\nII[R_PAULI(theta=0.1, pauli=XZ)] 2 3",
+            "H 0 1 2 3\nI[R_PAULI(theta=0.1, pauli=XZYY)] 0 1 2 3",
+            "H 0 1 2\nI[R_PAULI(theta=0.2, pauli=Y_x)] 2 0 1",
+            "H 0 1 2 3\nII[R_ZZ(theta=0.1)] 0 1 2 3",
+            "H 0 1 2 3\nII[R_XX(theta=0.1)] 0 1 1 2",
+        ] {
+            assert!(undone(text), "{text}");
+        }
+    }
 }

@@ -359,9 +359,14 @@ def test_to_matrix_states_and_dropped_qubits():
     assert tsim.Circuit("R " + " ".join(map(str, range(15)))).to_matrix().shape == (1 << 15, 1)
     assert tsim.Circuit("R 0 1\nX 1").to_matrix(endian="little")[2, 0] == 1
     assert tsim.Circuit("R 0 1\nX 1").to_tensor().shape == (2, 2)
-    for text in ("H 0\nR 0", "R 0\nM 0", "M 0\nCX rec[-1] 1", "MR 0", "R 0\nR 0"):
-        with pytest.raises(ValueError, match="no matrix"):
-            tsim.Circuit(text).to_matrix()
+    # A measurement, a reset after a qubit's first operation or feedback is Tsim's ZX tensor of the
+    # circuit (tests/test_tsim_zx.py), its values here as Tsim gives them.
+    g = np.sqrt(0.5)
+    assert np.allclose(tsim.Circuit("H 0\nR 0").to_matrix(), [[1, 0], [0, 0]])
+    assert np.allclose(tsim.Circuit("R 0\nM 0").to_matrix(), [[g], [0]])
+    assert np.allclose(tsim.Circuit("M 0\nCX rec[-1] 1").to_matrix(), g * np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]]))
+    assert np.allclose(tsim.Circuit("MR 0").to_matrix(), [[0.5, 0.5], [0, 0]])
+    assert np.allclose(tsim.Circuit("R 0\nR 0").to_matrix(), [[g], [0]])
     with pytest.raises(ValueError, match="at most"):
         tsim.Circuit("R " + " ".join(map(str, range(23)))).to_matrix()
     # This package's circuits keep their unitary's rules.
@@ -382,8 +387,7 @@ def test_diagram_labels_tagged_gates_and_keeps_stims_drawing():
     assert "T" in text and "R_X" in text and "R_ZZ" in text and "SPP" not in text
     svg = str(tsim.Circuit("T 0\nT_DAG 1\nU3(0.1, 0.2, 0.3) 2").diagram("timeline-svg"))
     assert svg.startswith("<svg") and ">T<" in svg
-    with pytest.raises(NotImplementedError, match="pyzx"):
-        tsim.Circuit("T 0").diagram("pyzx")
+    # (The ZX-graph diagram types are tests/test_tsim_zx.py's.)
 
 
 def test_diagram_html_sizes():

@@ -283,11 +283,12 @@ pub fn parse(gate: &str, tag: &str, targets: &[u32]) -> Result<Option<Vec<NonPau
 }
 
 /// The tag of the inverse of a tagged `I`/`II` gate: T ↔ T_DAG, a rotation's angle negated
-/// (an `R_PAULI`'s letters reversed, as the inverse writes the targets in reverse),
-/// U3(θ, φ, λ)⁻¹ = U3(−θ, −λ, −φ). `None` for a tag that is not one of this module's
-/// operations (inert, its own inverse); an error for an operation with no inverse (damping,
-/// leakage).
-pub fn inverse_tag(tag: &str) -> Result<Option<String>, String> {
+/// (an `R_PAULI`'s letters reversed as the inverse writes its targets: in reverse, or on a gate
+/// of pairs (`pairs`: `II`, `II_ERROR`) pair by pair, each pair's order kept, so each letter
+/// stays on its qubit), U3(θ, φ, λ)⁻¹ = U3(−θ, −λ, −φ). `None` for a tag that is not one of this
+/// module's operations (inert, its own inverse); an error for an operation with no inverse
+/// (damping, leakage).
+pub fn inverse_tag(tag: &str, pairs: bool) -> Result<Option<String>, String> {
     let Ok((name, args)) = split(tag) else {
         return Ok(None);
     };
@@ -308,7 +309,8 @@ pub fn inverse_tag(tag: &str) -> Result<Option<String>, String> {
                 if k == "theta" {
                     *v = neg(v)?;
                 } else if k == "pauli" {
-                    *v = v.chars().rev().collect();
+                    let letters: Vec<char> = v.chars().collect();
+                    *v = if pairs { letters.chunks(2).rev().flatten().collect() } else { letters.into_iter().rev().collect() };
                 }
             }
             joined(&a)
@@ -425,13 +427,17 @@ mod tests {
 
     #[test]
     fn inverse_tags() {
-        assert_eq!(inverse_tag("T").unwrap().unwrap(), "T_DAG");
-        assert_eq!(inverse_tag("T_DAG").unwrap().unwrap(), "T");
-        assert_eq!(inverse_tag("R_Z(theta=0.25)").unwrap().unwrap(), "R_Z(theta=-0.25)");
-        assert_eq!(inverse_tag("R_PAULI(theta=-0.5, pauli=XZY)").unwrap().unwrap(), "R_PAULI(theta=0.5, pauli=YZX)");
-        assert_eq!(inverse_tag("U3(theta=1.0, phi=2.0, lambda=3.0)").unwrap().unwrap(), "U3(theta=-1.0, phi=-3.0, lambda=-2.0)");
-        assert_eq!(inverse_tag("mine").unwrap(), None);
-        assert!(inverse_tag("LEAK(p=0.1)").unwrap_err().contains("not unitary"));
+        assert_eq!(inverse_tag("T", false).unwrap().unwrap(), "T_DAG");
+        assert_eq!(inverse_tag("T_DAG", false).unwrap().unwrap(), "T");
+        assert_eq!(inverse_tag("R_Z(theta=0.25)", false).unwrap().unwrap(), "R_Z(theta=-0.25)");
+        assert_eq!(inverse_tag("R_PAULI(theta=-0.5, pauli=XZY)", false).unwrap().unwrap(), "R_PAULI(theta=0.5, pauli=YZX)");
+        // On II the targets are reversed pair by pair (0 1 2 3 is 2 3 0 1), and so are the letters.
+        assert_eq!(inverse_tag("R_PAULI(theta=0.1, pauli=XZYy)", true).unwrap().unwrap(), "R_PAULI(theta=-0.1, pauli=YyXZ)");
+        assert_eq!(inverse_tag("R_PAULI(pauli=X_Z_Yx, theta=0.1)", true).unwrap().unwrap(), "R_PAULI(pauli=YxZ_X_, theta=-0.1)");
+        assert_eq!(inverse_tag("R_ZZ(theta=0.1)", true).unwrap().unwrap(), "R_ZZ(theta=-0.1)");
+        assert_eq!(inverse_tag("U3(theta=1.0, phi=2.0, lambda=3.0)", false).unwrap().unwrap(), "U3(theta=-1.0, phi=-3.0, lambda=-2.0)");
+        assert_eq!(inverse_tag("mine", false).unwrap(), None);
+        assert!(inverse_tag("LEAK(p=0.1)", false).unwrap_err().contains("not unitary"));
     }
 
     #[test]
