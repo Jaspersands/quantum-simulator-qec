@@ -38,9 +38,10 @@ def test_api_surface():
         if isinstance(a, type) and name != "PyMut":
             assert {m for m in dir(a) if not m.startswith("__")} == {m for m in dir(b) if not m.startswith("__")}, name
     for name in dir(ref.helper):
-        if not name.startswith("_") and callable(getattr(ref.helper, name)) and name not in ("bottle",):
+        if not name.startswith("_") and callable(getattr(ref.helper, name)):
             assert callable(getattr(fb.helper, name, None)), name
     assert set(ref.helper.visualizer_website) == set(fb.helper.visualizer_website)
+    assert hasattr(fb.helper, "bottle")
 
 
 @pytest.mark.parametrize("name", PLAIN + TIMED)

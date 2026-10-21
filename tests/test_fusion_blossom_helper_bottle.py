@@ -10,8 +10,10 @@ from __future__ import annotations
 import hashlib
 import http.client
 import json
+import os
 import pathlib
 import platform
+import subprocess
 import sys
 import threading
 import time
@@ -52,6 +54,7 @@ def running(server, run_server):
     thread.start()
     deadline = time.monotonic() + 30
     while not hasattr(server, "srv"):
+        assert thread.is_alive(), "the server thread died"
         assert time.monotonic() < deadline, "the server did not start"
         time.sleep(0.01)
     return thread
@@ -102,6 +105,33 @@ def test_bottle_is_verbatim():
     assert (bottle.__version__, bottle.__name__) == ("0.14-dev", "stabilizer_qec.fusion_blossom.helper.bottle")
     # fusion_blossom also installs its copies as the modules `bottle` and `helper`; this package does not.
     assert sys.modules.get("bottle") is not bottle and sys.modules.get("helper") is not fb.helper
+
+
+def test_bottle_is_imported_with_the_package():
+    # fusion_blossom runs its Bottle when the package is imported (lib.rs:59-63), and so does this package's
+    # fusion_blossom, with no warning; ``import stabilizer_qec`` alone imports neither.
+    code = ("import sys, warnings, stabilizer_qec; assert 'stabilizer_qec.fusion_blossom.helper.bottle' not in sys.modules; "
+            "warnings.simplefilter('error'); import stabilizer_qec.fusion_blossom as fb; "
+            "print('bottle' in vars(fb.helper), fb.helper.bottle is sys.modules['stabilizer_qec.fusion_blossom.helper.bottle'])")
+    env = {**os.environ, "PYTHONPATH": str(pathlib.Path(fb.__file__).parent.parent.parent)}
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
+    assert (out.returncode, out.stdout) == (0, "True True\n"), out.stderr
+
+
+def test_running_fails_at_once_when_the_server_thread_dies(tmp_path):
+    """A server that cannot bind ends its thread, and ``running`` fails then, not at its deadline."""
+    server, run_server = fb.helper.serve("localhost", 65536, str(tmp_path), return_server=True)
+    errors = []
+
+    def run_server_keeping_its_error():
+        try:
+            run_server()
+        except OverflowError as e:  # bind(): port must be 0-65535
+            errors.append(e)
+
+    with pytest.raises(AssertionError, match="the server thread died"):
+        running(server, run_server_keeping_its_error)
+    assert len(errors) == 1 and not hasattr(server, "srv")
 
 
 def test_return_server_is_bottle_wsgiref(tmp_path):
@@ -158,8 +188,10 @@ def test_serve_responses_equal_recorded(tmp_path):
 def test_serve_responses_equal_reference(tmp_path):
     ref = reference("fusion_blossom")
     write_data(tmp_path)
-    started = [start(module, tmp_path) for module in (ref, fb)]
+    started = []
     try:
+        for module in (ref, fb):
+            started.append(start(module, tmp_path))
         theirs, ours = (answers(server.srv.server_port) for server, _ in started)
     finally:
         for server, thread in started:

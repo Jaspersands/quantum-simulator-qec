@@ -14,6 +14,9 @@ import threading
 import time
 import webbrowser
 
+# As fusion_blossom's helper module, this one gets its Bottle when the package is imported.
+from . import bottle  # noqa: F401
+
 fb = None
 
 _WEBSITE_FOLDER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "visualizer")
@@ -36,20 +39,6 @@ def register(module):
     """called by fusion_blossom package at import, to set up global variables"""
     global fb
     fb = module
-
-
-def __getattr__(name):
-    # fusion_blossom imports its Bottle with the package; here it is imported on first use, as it
-    # brings in the standard library's HTTP client and adds an import hook for ``bottle.ext``.
-    if name == "bottle":
-        import importlib
-
-        return importlib.import_module(__name__ + ".bottle")
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
-def __dir__():
-    return sorted(set(globals()) | {"bottle"})
 
 
 def serve(host='localhost', port=51665, data_folder=".", return_server=False, quiet=True):
