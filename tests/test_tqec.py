@@ -620,8 +620,10 @@ def test_tqecs_call_shape():
         compile_block_graph(m, block_temporal_height=lambda k: 2 * k - 1)
     # A number or a callable, which 2.1 took on this route (its engine ran height + 2 rounds in
     # every time slice): the error (tqec's for the constant LinearFunction a number is), then a
-    # hint. A LinearFunction and anything else get no hint. The engine still takes them, at a
-    # distance, and still runs height + 2 rounds.
+    # hint when the engine takes the value (a callable, or a whole number at least 0, a NumPy
+    # integer too), so the hint is true. A LinearFunction, a number the engine refuses (2.5, -1)
+    # and anything else get no hint. The engine takes them at a distance and runs height + 2
+    # rounds.
     def refusal(height) -> str:
         with pytest.raises(TQECError) as info:
             compile_block_graph(m, block_temporal_height=height)
@@ -632,15 +634,24 @@ def test_tqecs_call_shape():
     assert constant == "Cannot add the block as a cube. The provided block(<Block object>) has at least one non-scalable dimension."
     hint = "2.1 took a number or a callable of k here, and its engine ran height + 2 rounds in every time slice (height 5: 7 rounds); the engine still takes them, at a distance: compile_block_graph(graph, distance, block_temporal_height=...)."
     assert refusal(LinearFunction(0, 5)) == constant
-    for height in (5, 2.5, np.int64(5)):
+    seven = str(compile_block_graph(m, 3, rounds=7).circuit)
+    for height in (5, 5.0, np.int64(5)):
         assert refusal(height) == f"{constant} block_temporal_height={height!r} is a constant height, and tqec's is a LinearFunction of k (slope * k + offset, the rounds between a block's initialisation and measurement layers; LinearFunction(2, -1) by default). {hint}"
+        assert str(compile_block_graph(m, 3, block_temporal_height=height).circuit) == seven
+    assert refusal(0).endswith(f" {hint}")
+    assert str(compile_block_graph(m, 3, block_temporal_height=0).circuit) == str(compile_block_graph(m, 3, rounds=2).circuit)
+    for height in (2.5, -1):
+        assert refusal(height) == f"{constant} block_temporal_height={height!r} is a constant height, and tqec's is a LinearFunction of k (slope * k + offset, the rounds between a block's initialisation and measurement layers; LinearFunction(2, -1) by default)."
+        with pytest.raises(TQECError) as info:
+            compile_block_graph(m, 3, block_temporal_height=height)
+        assert str(info.value) == f"block_temporal_height at k = 1 is {height!r}; it must be a whole number of rounds, at least 0"
     def height(k):
         return 2 * k - 1
 
     assert refusal(height) == f"block_temporal_height must be a LinearFunction (slope * k + offset; tqec's default is LinearFunction(2, -1)), not {height!r}. {hint}"
     assert refusal("5") == "block_temporal_height must be a LinearFunction (slope * k + offset; tqec's default is LinearFunction(2, -1)), not '5'"
-    assert str(compile_block_graph(m, 3, block_temporal_height=5).circuit) == str(compile_block_graph(m, 3, rounds=7).circuit)
     assert str(compile_block_graph(m, 5, block_temporal_height=height).circuit) == str(compile_block_graph(m, 5, rounds=5).circuit)
+    assert str(compile_block_graph(m, 5, block_temporal_height=lambda k: np.int64(2 * k - 1)).circuit) == str(compile_block_graph(m, 5, rounds=5).circuit)
     with pytest.raises(TQECError, match="not both"):
         compile_block_graph(m, block_temporal_height=3, rounds=4)
     with pytest.raises(TQECError, match="give the distance too"):
@@ -724,6 +735,8 @@ def test_compiled_block_graph_writes_tqecs_layout():
         compile_block_graph(cnot, 3, rounds=3, merged=2).generate_stim_circuit()
     with pytest.raises(ValueError, match=r"^this program was compiled with block_temporal_height=5, so at k = 1 each time slice runs 7 rounds; "):
         compile_block_graph(m, 3, block_temporal_height=5).generate_stim_circuit()
+    with pytest.raises(ValueError, match=rf"^this program was compiled with block_temporal_height={re.escape(repr(np.int64(5)))}, so at k = 1 each time slice runs 7 rounds; "):
+        compile_block_graph(m, 3, block_temporal_height=np.int64(5)).generate_stim_circuit()
     with pytest.raises(ValueError, match=r"block_temporal_height=<function .*, so at k = 2 each time slice runs 3 rounds; "):
         compile_block_graph(m, 3, block_temporal_height=lambda k: 1).generate_stim_circuit(2)
     # ...and rounds it can honour are written: tqec's own height, or tqec's rounds at k however
@@ -732,6 +745,7 @@ def test_compiled_block_graph_writes_tqecs_layout():
     assert str(compile_block_graph(m, 3, merged=2).generate_stim_circuit()) == noiseless
     assert str(compile_block_graph(m, 3, block_temporal_height=1).generate_stim_circuit()) == noiseless
     assert str(compile_block_graph(m, 3, block_temporal_height=lambda k: 2 * k - 1).generate_stim_circuit()) == noiseless
+    assert str(compile_block_graph(m, 3, block_temporal_height=np.int64(1)).generate_stim_circuit()) == noiseless
     assert str(compile_block_graph(m, 3, block_temporal_height=LinearFunction(2, 1)).generate_stim_circuit()) == _tqec_fixture("memory_Z_fixed_bulk_k1_height2k1")
     with pytest.raises(TQECError, match="non-scalable dimension"):  # tqec's own height, which tqec refuses
         compile_block_graph(m, 3, block_temporal_height=LinearFunction(0, 1)).generate_stim_circuit()

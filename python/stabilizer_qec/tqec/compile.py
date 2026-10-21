@@ -462,14 +462,27 @@ def _is_number(height: object) -> bool:
     return isinstance(height, numbers.Real) and not isinstance(height, bool)
 
 
-# Appended to the refusal of a number or a callable as tqec's block_temporal_height.
+def _whole_rounds(height: object) -> Optional[int]:
+    """``height`` as an ``int`` when it is a whole number at least 0 (an ``int``, a NumPy
+    integer, or a float with no fractional part), the heights the engine takes; else None."""
+    if isinstance(height, numbers.Integral) and not isinstance(height, bool):
+        value = int(height)
+    elif isinstance(height, float) and height.is_integer():
+        value = int(height)
+    else:
+        return None
+    return value if value >= 0 else None
+
+
+# Appended to the refusal of a number or a callable as tqec's block_temporal_height, when the
+# engine takes it (a callable, or a whole number at least 0: _whole_rounds).
 _HEIGHT_HINT = "2.1 took a number or a callable of k here, and its engine ran height + 2 rounds in every time slice (height 5: 7 rounds); the engine still takes them, at a distance: compile_block_graph(graph, distance, block_temporal_height=...)"
 
 
 def _linear_height(height: object):
     """``block_temporal_height`` as tqec's compile takes it: a ``LinearFunction`` (ours, or
     tqec's by its slope and offset); a number is the constant function, which tqec refuses
-    (``TopologicalComputationGraph`` appends a hint to tqec's error)."""
+    (``TopologicalComputationGraph`` adds to tqec's error)."""
     from .scale import LinearFunction
 
     if height is None or isinstance(height, LinearFunction):
@@ -549,9 +562,11 @@ class TopologicalComputationGraph:
             try:
                 self._tqec = tqec_compile_block_graph(self._graph, convention=TQEC_CONVENTIONS[self.convention.name], observables=observables, **kwargs)
             except TQECError as error:
-                # A number is the constant height, whose cubes tqec refuses with this message.
+                # A number is the constant height, whose cubes tqec refuses with this message; the
+                # hint follows when the engine takes the number.
                 if _is_number(self._height) and str(error).startswith("Cannot add the block as a cube."):
-                    error.args = (f"{error} block_temporal_height={self._height!r} is a constant height, and tqec's is a LinearFunction of k (slope * k + offset, the rounds between a block's initialisation and measurement layers; LinearFunction(2, -1) by default). {_HEIGHT_HINT}.",)
+                    hint = f" {_HEIGHT_HINT}." if _whole_rounds(self._height) is not None else ""
+                    error.args = (f"{error} block_temporal_height={self._height!r} is a constant height, and tqec's is a LinearFunction of k (slope * k + offset, the rounds between a block's initialisation and measurement layers; LinearFunction(2, -1) by default).{hint}",)
                 raise
         return self._tqec
 
@@ -587,17 +602,17 @@ class TopologicalComputationGraph:
         if self._height is None:
             return self._rounds
         height = self._height(k) if callable(self._height) else self._height
-        if isinstance(height, float) and height.is_integer():
-            height = int(height)
-        if isinstance(height, bool) or not isinstance(height, int) or height < 0:
+        rounds = _whole_rounds(height)
+        if rounds is None:
             raise TQECError(f"block_temporal_height at k = {k} is {height!r}; it must be a whole number of rounds, at least 0")
-        return height + 2
+        return rounds + 2
 
     def compile(self, distance: int, *, p: float = 0.0) -> CompiledBlockGraph:
         """The surgery engine's program and circuit at ``distance`` under its SD6 noise ``p``:
         each time slice ``block_temporal_height(k) + 2`` rounds (tqec's layers: an
         initialisation layer, the repeated rounds and a measurement layer; ``2k + 1`` by
-        default), or ``rounds`` and ``merged`` as given."""
+        default), or ``rounds`` and ``merged`` as given. Here ``block_temporal_height`` may also
+        be a whole number at least 0 (a NumPy integer too) or a callable of ``k`` giving one."""
         rounds = self._rounds_at((distance - 1) // 2) if isinstance(distance, int) and distance >= 3 else self._rounds
         compiled = _compile(self._graph, distance, p=p, rounds=rounds, merged=self._merged, observables=self._observables)
         compiled.computation = self

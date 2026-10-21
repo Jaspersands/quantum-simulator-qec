@@ -17,7 +17,8 @@ from typing import Final
 def _user_data_path(appname: str) -> Path:
     """``platformdirs.user_data_path(appname=appname)``, from which tqec takes its path:
     platformdirs' own when it is installed (tqec requires it, so with tqec installed this is
-    tqec's path), else platformdirs' rule for the platform without its overrides:
+    tqec's path), else recent platformdirs' rule (4.13 and later; 4.4.0, the last for Python
+    3.9, ignores ``$XDG_DATA_HOME`` on macOS) for the platform without its overrides:
     ``%LOCALAPPDATA%\\<appname>\\<appname>`` on Windows, else ``$XDG_DATA_HOME/<appname>`` when
     that is absolute, else ``~/Library/Application Support/<appname>`` on macOS and
     ``~/.local/share/<appname>`` elsewhere."""
