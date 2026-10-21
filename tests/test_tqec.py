@@ -618,9 +618,10 @@ def test_tqecs_call_shape():
         compile_block_graph(m, block_temporal_height=5)
     with pytest.raises(TQECError, match="must be a LinearFunction"):
         compile_block_graph(m, block_temporal_height=lambda k: 2 * k - 1)
-    # A number or a callable, which 2.1 took on this route as the engine's rounds: the error
-    # (tqec's for the constant LinearFunction a number is), then a hint. A LinearFunction and
-    # anything else get no hint. The engine still takes them, at a distance.
+    # A number or a callable, which 2.1 took on this route (its engine ran height + 2 rounds in
+    # every time slice): the error (tqec's for the constant LinearFunction a number is), then a
+    # hint. A LinearFunction and anything else get no hint. The engine still takes them, at a
+    # distance, and still runs height + 2 rounds.
     def refusal(height) -> str:
         with pytest.raises(TQECError) as info:
             compile_block_graph(m, block_temporal_height=height)
@@ -629,7 +630,7 @@ def test_tqecs_call_shape():
     manifest = json.loads((pathlib.Path(__file__).parent / "tqec_port" / "fixtures" / "manifest.json").read_text())
     constant = re.sub(r"<[\w.]+\.(\w+) object at 0x[0-9a-f]+>", r"<\1 object>", next(c for c in manifest["cases"] if c["id"] == "memory_Z_fixed_bulk_k1_height1")["error"]["message"])
     assert constant == "Cannot add the block as a cube. The provided block(<Block object>) has at least one non-scalable dimension."
-    hint = "2.1 took a number or a callable of k here, as the engine's rounds; the engine still does, at a distance: compile_block_graph(graph, distance, block_temporal_height=...)."
+    hint = "2.1 took a number or a callable of k here, and its engine ran height + 2 rounds in every time slice (height 5: 7 rounds); the engine still takes them, at a distance: compile_block_graph(graph, distance, block_temporal_height=...)."
     assert refusal(LinearFunction(0, 5)) == constant
     for height in (5, 2.5, np.int64(5)):
         assert refusal(height) == f"{constant} block_temporal_height={height!r} is a constant height, and tqec's is a LinearFunction of k (slope * k + offset, the rounds between a block's initialisation and measurement layers; LinearFunction(2, -1) by default). {hint}"
@@ -746,10 +747,88 @@ def test_generate_stim_circuit_takes_tqecs_parameters():
     for cls in (tqec.TopologicalComputationGraph, CompiledBlockGraph):
         parameters = inspect.signature(cls.generate_stim_circuit).parameters
         assert list(parameters) == list(theirs_parameters)
-        # tqec's defaults, apart from database_path (tqec's database file; not used here) and,
-        # for the engine's program, k (its own scale).
-        assert [p.default for name, p in parameters.items() if name not in ("k", "database_path")] == [p.default for name, p in theirs_parameters.items() if name not in ("k", "database_path")]
+        # tqec's defaults, database_path's (tqec's database file) included, apart from the
+        # engine's program's k (its own scale; tqec's k has no default).
+        assert [p.default for name, p in parameters.items() if name != "k"] == [p.default for name, p in theirs_parameters.items() if name != "k"]
+        assert parameters["k"].default is (None if cls is CompiledBlockGraph else inspect.Parameter.empty)
         assert all(p.kind == p.POSITIONAL_OR_KEYWORD for p in parameters.values())
+
+
+@needs_tqec
+def test_database_path_defaults_to_tqecs(monkeypatch: pytest.MonkeyPatch):
+    """Every database_path this package takes for one of tqec's signatures defaults to tqec's
+    DEFAULT_DETECTOR_DATABASE_PATH, computed as tqec computes it (and never read)."""
+    import tqec.utils.paths as their_paths
+    from tqec.compile.graph import TopologicalComputationGraph as Theirs
+    from tqec.compile.tree.tree import LayerTree as TheirTree
+    from tqec.simulation import generation as their_generation, simulation as their_simulation
+
+    from stabilizer_qec.tqec._compile.graph import TopologicalComputationGraph as Port
+    from stabilizer_qec.tqec._compile.tree.tree import LayerTree
+    from stabilizer_qec.tqec._compile.utils import paths
+    from stabilizer_qec.tqec.compile import CompiledBlockGraph
+    from stabilizer_qec.tqec.simulation import generation, simulation
+
+    assert paths.USER_DATA_PATH == their_paths.USER_DATA_PATH
+    assert paths.DEFAULT_DETECTOR_DATABASE_PATH == their_paths.DEFAULT_DETECTOR_DATABASE_PATH
+    pairs = [
+        (tqec.TopologicalComputationGraph.generate_stim_circuit, Theirs.generate_stim_circuit),
+        (CompiledBlockGraph.generate_stim_circuit, Theirs.generate_stim_circuit),
+        (Port.generate_stim_circuit, Theirs.generate_stim_circuit),
+        (LayerTree.generate_circuit, TheirTree.generate_circuit),
+        (LayerTree._annotate_detectors, TheirTree._annotate_detectors),
+        (generation.generate_stim_circuits_with_detectors, their_generation.generate_stim_circuits_with_detectors),
+        (generation.generate_sinter_tasks, their_generation.generate_sinter_tasks),
+        (simulation.start_simulation_using_sinter, their_simulation.start_simulation_using_sinter),
+    ]
+    for ours, theirs_function in pairs:
+        default = inspect.signature(ours).parameters["database_path"].default
+        assert default == inspect.signature(theirs_function).parameters["database_path"].default == their_paths.DEFAULT_DETECTOR_DATABASE_PATH, ours
+    # tqec's environment variable, which tqec reads when it is imported.
+    monkeypatch.setenv("TQEC_DETECTOR_DATABASE_PATH", "elsewhere/db.pkl")
+    assert paths._get_database_path() == their_paths._get_database_path() == pathlib.Path("elsewhere/db.pkl")
+
+
+def test_default_database_path_without_platformdirs(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path):
+    """tqec's database path is platformdirs' user data directory for "TQEC"; without platformdirs
+    (which tqec requires) it is platformdirs' rule for the platform. The port never reads or
+    writes the path."""
+    import os
+    import sys
+
+    from stabilizer_qec.tqec._compile.utils import paths
+
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    monkeypatch.delenv("TQEC_DETECTOR_DATABASE_PATH", raising=False)
+    try:
+        import platformdirs
+    except ImportError:  # pragma: no cover
+        platformdirs = None
+    expected = None if platformdirs is None else platformdirs.user_data_path(appname="TQEC")
+    assert paths._user_data_path("TQEC") == expected or expected is None
+    assert paths._get_database_path() == paths.USER_DATA_PATH / "detector_database.pkl"
+    monkeypatch.setitem(sys.modules, "platformdirs", None)  # import platformdirs now fails
+    fallback = paths._user_data_path("TQEC")
+    if expected is not None:
+        assert fallback == expected
+    if sys.platform == "darwin":
+        assert fallback == pathlib.Path.home() / "Library" / "Application Support" / "TQEC"
+    if sys.platform != "win32":
+        # $XDG_DATA_HOME, when absolute, as platformdirs takes it on macOS and other Unix
+        # systems (Windows has no XDG directories); a relative one is ignored.
+        monkeypatch.setenv("XDG_DATA_HOME", " /xdg/data ")
+        assert paths._user_data_path("TQEC") == pathlib.Path("/xdg/data/TQEC")
+        monkeypatch.setenv("XDG_DATA_HOME", "relative/data")
+        assert paths._user_data_path("TQEC") == fallback
+    else:  # pragma: no cover
+        monkeypatch.setenv("LOCALAPPDATA", "C:\\Users\\u\\AppData\\Local")
+        assert paths._user_data_path("TQEC") == pathlib.Path("C:\\Users\\u\\AppData\\Local", "TQEC", "TQEC")
+    monkeypatch.setenv("TQEC_DETECTOR_DATABASE_PATH", os.fspath(tmp_path / "db.pkl"))
+    assert paths._get_database_path() == tmp_path / "db.pkl"
+    # The path is taken for tqec's signature only: nothing is read or written there.
+    memory = tqec.compile_block_graph(gallery.memory(Basis.Z))
+    assert str(memory.generate_stim_circuit(1, database_path=tmp_path / "db.pkl")) == _tqec_fixture("memory_Z_fixed_bulk_k1")
+    assert list(tmp_path.iterdir()) == []
 
 
 @needs_tqec

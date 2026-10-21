@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Union
 
 from ... import sinter
+from .._compile.utils.paths import DEFAULT_DETECTOR_DATABASE_PATH
 from ..compile import FIXED_BULK_CONVENTION, Convention, compile_block_graph
 from ..scale import LinearFunction
 from .generation import generate_sinter_tasks
@@ -32,7 +33,7 @@ def start_simulation_using_sinter(
     convention: Convention = FIXED_BULK_CONVENTION,
     observables: Optional[list["CorrelationSurface"]] = None,
     detector_database=None,
-    database_path: Union[str, Path, None] = None,
+    database_path: Union[str, Path, None] = DEFAULT_DETECTOR_DATABASE_PATH,
     num_workers: int = multiprocessing.cpu_count(),
     progress_callback: Optional[Callable[["sinter.Progress"], None]] = None,
     max_shots: Optional[int] = None,
@@ -57,8 +58,8 @@ def start_simulation_using_sinter(
     has ``max_errors`` (:func:`heuristic_custom_error_key`); otherwise it is ``[stats]``.
 
     The detectors are tqec's, found within ``manhattan_radius`` of each plaquette and kept in
-    ``detector_database`` (in memory: ``database_path`` is taken for tqec's signature, and no
-    file is read or written)."""
+    ``detector_database`` (in memory: ``database_path``, by default tqec's database file, is
+    taken for tqec's signature, and no file is read or written)."""
     if observables is None:
         observables = block_graph.find_correlation_surfaces()
     custom_error_count_key: Optional[str] = None

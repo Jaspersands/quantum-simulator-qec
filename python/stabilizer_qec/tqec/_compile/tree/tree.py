@@ -21,6 +21,7 @@ from stabilizer_qec.tqec._compile.tree.annotators.circuit import AnnotateCircuit
 from stabilizer_qec.tqec._compile.tree.annotators.detectors import AnnotateDetectorsOnLayerNode
 from stabilizer_qec.tqec._compile.tree.annotators.observables import annotate_observable
 from stabilizer_qec.tqec._compile.tree.node import LayerNode, NodeWalker
+from stabilizer_qec.tqec._compile.utils.paths import DEFAULT_DETECTOR_DATABASE_PATH
 from stabilizer_qec.tqec._errors import TQECError
 
 # tqec runs its detector search in a pool of ``cpu_count() // 2 + 1`` processes when the database
@@ -117,7 +118,7 @@ class LayerTree:
         k: int,
         manhattan_radius: int = 2,
         detector_database: DetectorDatabase | None = None,
-        database_path: Path | None = None,
+        database_path: Path | None = DEFAULT_DETECTOR_DATABASE_PATH,
         only_use_database: bool = False,
         lookback: int = 2,
         parallel_process_count: int = 1,
@@ -171,7 +172,7 @@ class LayerTree:
         include_qubit_coords: bool = True,
         manhattan_radius: int = 2,
         detector_database: DetectorDatabase | None = None,
-        database_path: Union[str, Path, None] = None,
+        database_path: Union[str, Path, None] = DEFAULT_DETECTOR_DATABASE_PATH,
         do_not_use_database: bool = False,
         only_use_database: bool = False,
         lookback: int = 2,
@@ -197,7 +198,8 @@ class LayerTree:
                 that are computed as part of the circuit generation. If not given,
                 an empty one, in memory.
             database_path: accepted for tqec's signature and not used: this port never reads
-                or writes a database file.
+                or writes a database file. Defaults to
+                :data:`.DEFAULT_DETECTOR_DATABASE_PATH`, as in tqec.
             do_not_use_database: if ``True``, no database is used.
             only_use_database: if ``True``, only detectors from the database
                 will be used. An error will be raised if a situation that is not

@@ -40,6 +40,7 @@ import operator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Optional, Sequence, Union
 
+from ._compile.utils.paths import DEFAULT_DETECTOR_DATABASE_PATH
 from ._errors import TQECError
 from .cube import ZXCube
 from .enums import Basis
@@ -77,13 +78,14 @@ class CompiledBlockGraph:
     def num_merges(self) -> int:
         return sum(1 for s in self.steps if s[0] == "merge")
 
-    def generate_stim_circuit(self, k: Optional[int] = None, noise_model=None, manhattan_radius: int = 2, detector_database=None, database_path=None, do_not_use_database: bool = False, only_use_database: bool = False, reschedule_measurements: bool = True):
+    def generate_stim_circuit(self, k: Optional[int] = None, noise_model=None, manhattan_radius: int = 2, detector_database=None, database_path=DEFAULT_DETECTOR_DATABASE_PATH, do_not_use_database: bool = False, only_use_database: bool = False, reschedule_measurements: bool = True):
         """tqec's circuit of this program's graph at scale ``k`` (distance 2k + 1; by default
         this program's distance), with ``noise_model`` laid over it:
         ``TopologicalComputationGraph.generate_stim_circuit``, whose parameters these are, with
-        tqec's names, order and defaults, apart from two defaults: ``k``'s (this program's
-        scale; tqec's ``k`` has none) and ``database_path``'s (None: the path is taken and not
-        used; tqec's is its database file).
+        tqec's names, order and defaults, apart from ``k``'s: this program's scale, where tqec's
+        ``k`` has none (2.1's ``generate_stim_circuit()`` still works). ``database_path``
+        defaults, as in tqec, to tqec's database file (``DEFAULT_DETECTOR_DATABASE_PATH``,
+        computed as tqec computes it), and is taken and never read or written.
 
         A program has two layouts. ``circuit`` is the engine's: one patch per tile with its own
         boundaries and ancillas (the CNOT at distance 3 has 113 qubits), each time slice
@@ -461,7 +463,7 @@ def _is_number(height: object) -> bool:
 
 
 # Appended to the refusal of a number or a callable as tqec's block_temporal_height.
-_HEIGHT_HINT = "2.1 took a number or a callable of k here, as the engine's rounds; the engine still does, at a distance: compile_block_graph(graph, distance, block_temporal_height=...)"
+_HEIGHT_HINT = "2.1 took a number or a callable of k here, and its engine ran height + 2 rounds in every time slice (height 5: 7 rounds); the engine still takes them, at a distance: compile_block_graph(graph, distance, block_temporal_height=...)"
 
 
 def _linear_height(height: object):
@@ -601,7 +603,7 @@ class TopologicalComputationGraph:
         compiled.computation = self
         return compiled
 
-    def generate_stim_circuit(self, k: int, noise_model=None, manhattan_radius: int = 2, detector_database=None, database_path=None, do_not_use_database: bool = False, only_use_database: bool = False, reschedule_measurements: bool = True):
+    def generate_stim_circuit(self, k: int, noise_model=None, manhattan_radius: int = 2, detector_database=None, database_path=DEFAULT_DETECTOR_DATABASE_PATH, do_not_use_database: bool = False, only_use_database: bool = False, reschedule_measurements: bool = True):
         """tqec's circuit at scale ``k`` (distance 2k + 1), with ``noise_model`` (ours, or
         tqec's own) laid over the noiseless circuit, as tqec lays it.
 
@@ -609,8 +611,9 @@ class TopologicalComputationGraph:
         when it is not positive), and ``reschedule_measurements`` is tqec's. tqec keeps the
         detectors it finds in a database file; here a database lives in memory only:
         ``detector_database`` (one from an earlier call's, else an empty one, or none with
-        ``do_not_use_database``), and ``database_path`` is taken for tqec's signature and not
-        used. With ``only_use_database`` a situation missing from a database that has entries is
+        ``do_not_use_database``), and ``database_path`` (by default tqec's database file,
+        ``DEFAULT_DETECTOR_DATABASE_PATH``) is taken for tqec's signature and never read or
+        written. With ``only_use_database`` a situation missing from a database that has entries is
         an error, as in tqec; an empty database (or none) is filled, as tqec fills it."""
         from ._compile.detectors.database import DetectorDatabase
 

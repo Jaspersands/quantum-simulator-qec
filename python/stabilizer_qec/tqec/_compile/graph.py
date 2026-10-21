@@ -72,6 +72,7 @@ from stabilizer_qec.tqec._compile.observables.abstract_observable import Abstrac
 from stabilizer_qec.tqec._compile.observables.builder import ObservableBuilder
 from stabilizer_qec.tqec._compile.tree.tree import LayerTree
 from stabilizer_qec.tqec._compile.templates.enums import TemplateBorder
+from stabilizer_qec.tqec._compile.utils.paths import DEFAULT_DETECTOR_DATABASE_PATH
 from stabilizer_qec.tqec._errors import TQECError
 from stabilizer_qec.tqec.position import BlockPosition3D, Direction3D, SignedDirection3D
 from stabilizer_qec.tqec.scale import PhysicalQubitScalable2D
@@ -471,7 +472,7 @@ class TopologicalComputationGraph:
         noise_model: Any = None,
         manhattan_radius: int = 2,
         detector_database: DetectorDatabase | None = None,
-        database_path: Union[str, Path, None] = None,
+        database_path: Union[str, Path, None] = DEFAULT_DETECTOR_DATABASE_PATH,
         do_not_use_database: bool = False,
         only_use_database: bool = False,
         reschedule_measurements: bool = True,
@@ -489,7 +490,8 @@ class TopologicalComputationGraph:
                 the detectors are retrieved from/stored in the provided
                 ``database_path``.
             database_path: accepted for tqec's signature and not used: this port never reads
-                or writes a database file.
+                or writes a database file. Defaults to
+                :data:`.DEFAULT_DETECTOR_DATABASE_PATH`, as in tqec.
             do_not_use_database: if ``True``, no database is used.
             only_use_database: if ``True``, only detectors from the database
                 will be used. An error will be raised if a situation that is not
