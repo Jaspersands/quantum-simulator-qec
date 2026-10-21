@@ -1,0 +1,268 @@
+# Ported from Tsim (QuEraComputing/tsim, bloqade-tsim 0.1.5, src/tsim/core/graph.py; Apache License 2.0;
+# see LICENSE in this directory), modified for stabilizer_qec: only the graph construction and
+# manipulation the ZX graphs and diagrams use (the sampling graph, the change of error basis, the layout),
+# on any graph with the interface of pyzx_param's GraphS; the connected components, the direct classification
+# and the compilation of the graph are Tsim's JAX sampler, which this package replaces with its own.
+"""ZX graph construction, manipulation, and preparation for sampling."""
+
+from __future__ import annotations
+
+from collections import defaultdict, deque
+from typing import Any, Dict, List, Set, Tuple
+
+import numpy as np
+
+from stabilizer_qec.tsim.utils.linalg import find_basis
+from stabilizer_qec.tsim.zx.instructions import GraphRepresentation
+
+_BOUNDARY, _Z, _X = 0, 1, 2
+
+
+def build_sampling_graph(built: GraphRepresentation, sample_detectors: bool = False) -> Any:
+    """Build a ZX graph for sampling from a GraphRepresentation.
+
+    This is the internal implementation of get_sampling_graph.
+    """
+    g = built.graph.copy()
+
+    # Initialize un-initialized first vertices to the 0 state
+    for v in built.first_vertex.values():
+        if g.type(v) == _BOUNDARY:
+            g.set_type(v, built.vt.X)
+
+    # Clean up last row
+    if built.last_vertex:
+        max_row = max(g.row(v) for v in built.last_vertex.values())
+        for q in built.last_vertex:
+            g.set_row(built.last_vertex[q], max_row)
+
+    num_measurements = len(built.rec)
+    outputs = [v for v in g.vertices() if g.type(v) == _BOUNDARY]
+    g.set_outputs(tuple(outputs))
+
+    g_adj = g.adjoint()
+    g.compose(g_adj)
+
+    g = g.copy()
+
+    label_to_vertex: Dict[str, List[int]] = defaultdict(list)
+    annotation_to_vertex: Dict[str, List[int]] = defaultdict(list)
+    for v in g.vertices():
+        phase_vars = g._phaseVars[v]
+        if len(phase_vars) != 1:
+            continue
+        phase = next(iter(phase_vars))
+        if "det" in phase or "obs" in phase or "rec" in phase or "m" in phase:
+            label_to_vertex[phase].append(v)
+        if "det" in phase or "obs" in phase:
+            annotation_to_vertex[phase].append(v)
+
+    outputs = [0] * num_measurements if not sample_detectors else []
+
+    # Connect all rec[i] vertices to each other and add red vertex with rec[i] label
+    for i in range(num_measurements):
+        label = f"rec[{i}]"
+        vertices = label_to_vertex[label]
+
+        assert len(vertices) == 2
+        v0, v1 = vertices
+        if not g.connected(v0, v1):
+            g.add_edge((v0, v1))
+        g.set_phase(v0, 0)
+        g.set_phase(v1, 0)
+
+        # Add outputs
+        if not sample_detectors:
+            v3 = g.add_vertex(built.vt.BOUNDARY, qubit=-1, row=i + 1, phase=0)
+            outputs[i] = v3
+            g.add_edge((v0, v3))
+
+    # Connect all m[i] vertices to each other
+    for i in range(len(built.silent_rec)):
+        label = f"m[{i}]"
+        vertices = label_to_vertex[label]
+
+        assert len(vertices) == 2
+        v0, v1 = vertices
+        if not g.connected(v0, v1):
+            g.add_edge((v0, v1))
+        g.set_phase(v0, 0)
+        g.set_phase(v1, 0)
+
+    if not sample_detectors:
+        # Sample measurements: remove detectors and observables
+        for vertices in annotation_to_vertex.values():
+            assert len(vertices) == 2
+            for v in vertices:
+                g.remove_vertex(v)
+    else:
+        # Sample detectors and observables:
+        # Keep detector and observables but remove the adjoint (duplicated)
+        # annotation nodes
+        for vertices in annotation_to_vertex.values():
+            assert len(vertices) == 2
+            g.remove_vertex(vertices.pop())
+
+        labels = [f"det[{i}]" for i in range(len(built.detectors))] + [
+            f"obs[{i}]" for i in sorted(built.observables_dict)
+        ]
+        for label in labels:
+            vs = annotation_to_vertex[label]
+            assert len(vs) == 1
+            v = vs[0]
+            row = g.row(v)
+            vb = g.add_vertex(
+                built.vt.BOUNDARY, qubit=-2 if "det" in label else -2.5, row=row
+            )
+            g.add_edge((v, vb))
+            g.set_phase(v, 0)
+            outputs.append(vb)
+
+    g.set_outputs(tuple(outputs))
+
+    return g
+
+
+def transform_error_basis(g: Any, num_e: Any = None) -> Tuple[Any, np.ndarray]:
+    """Transform phase variables from the original 'e' basis to a reduced 'f' basis.
+
+    This function finds a linearly independent basis for the phase variables
+    across all vertices and transforms them accordingly. The original variables
+    (e0, e1, ...) are mapped to a smaller set (f0, f1, ...) where each f_i
+    corresponds to a linear combination of original e variables.
+
+    Args:
+        g: A ZX graph with phase variables attached to vertices.
+        num_e: Total number of e-variables. If provided, the returned matrix
+            will have exactly this many columns (padded with zeros if needed).
+            If None, the matrix will have only the columns that appear in the graph.
+
+    Returns:
+        A tuple containing:
+            - The modified graph (same object, mutated in place)
+            - A binary matrix of shape (num_f, num_e) where entry [i, j] = 1
+              means f_i depends on e_j. For example, if row 0 is [0, 1, 0, 1],
+              then f0 = e1 XOR e3.
+
+    """
+    # Prioritize output-connected detector vertices so that f0, f1, ...
+    # are assigned in output order.  This maximises the chance that the
+    # direct-component fast path produces an identity permutation, avoiding
+    # a column reindex at sample time.
+    output_detectors = []
+    for v_out in g.outputs():
+        neighbors = list(g.neighbors(v_out))
+        if len(neighbors) == 1 and g._phaseVars.get(neighbors[0]):
+            output_detectors.append(neighbors[0])
+
+    output_det_set = set(output_detectors)
+    other_param_vertices = [
+        v for v in g.vertices() if v not in output_det_set and g._phaseVars.get(v)
+    ]
+    parametrized_vertices = output_detectors + other_param_vertices
+
+    if not parametrized_vertices:
+        g.scalar = type(g.scalar)()
+        num_cols = num_e if num_e is not None else 0
+        return g, np.zeros((0, num_cols), dtype=np.uint8)
+
+    # Parse variable indices and find the dimension
+    for var in (var for v in parametrized_vertices for var in g._phaseVars[v]):
+        assert (
+            var.startswith("e") and var[1:].isdigit()
+        ), f"unexpected phase var {var!r}"
+    error_indices = [
+        [int(var[1:]) for var in g._phaseVars[v]] for v in parametrized_vertices
+    ]
+    num_errors = max(max(indices) for indices in error_indices) + 1
+    if num_e is not None:
+        num_errors = max(num_errors, num_e)
+
+    # Build binary matrix representation
+    error_matrix = np.zeros((len(error_indices), num_errors), dtype=np.uint8)
+    for row_idx, indices in enumerate(error_indices):
+        error_matrix[row_idx, indices] = 1
+
+    basis, transform = find_basis(error_matrix)
+    # Now: error_matrix = transform @ basis
+
+    for v, transform_row in zip(parametrized_vertices, transform):
+        new_vars = {f"f{j}" for j in np.nonzero(transform_row)[0]}
+        g._phaseVars[v] = new_vars
+
+    return g, basis
+
+
+def squash_graph(g: Any) -> None:
+    """Compact the graph by placing vertices underneath their output connections.
+
+    Starting from output vertices, each vertex is placed directly underneath
+    (same row, qubit - 1) its already-placed neighbor. Positions are assigned
+    via BFS traversal from outputs, ensuring no (qubit, row) collisions.
+    """
+    outputs = list(g.outputs())
+    if not outputs:
+        return
+
+    # Normalize output positions: consecutive rows at qubit = num_outputs
+    num_outputs = len(outputs)
+    for row, v in enumerate(outputs):
+        g.set_row(v, row)
+
+    # Track occupied positions and placed vertices
+    occupied: Set[Tuple[int, int]] = {(num_outputs, row) for row in range(num_outputs)}
+    placed: Set[Any] = set(outputs)
+
+    # BFS from outputs
+    queue: deque = deque(outputs)
+
+    while queue:
+        current = queue.popleft()
+        current_qubit = int(g.qubit(current))
+        current_row = int(g.row(current))
+
+        for neighbor in g.neighbors(current):
+            if neighbor in placed:
+                continue
+
+            # Try to place directly underneath: same row, qubit - 1
+            target_qubit = current_qubit - 1
+            target_row = current_row
+
+            # If spot is taken, search for nearest free spot at same qubit level
+            if (target_qubit, target_row) in occupied:
+                # Search outward from target_row
+                for offset in range(1, 1000):
+                    if (target_qubit, target_row + offset) not in occupied:
+                        target_row = target_row + offset
+                        break
+                    if (
+                        target_qubit,
+                        target_row - offset,
+                    ) not in occupied and target_row - offset >= 0:
+                        target_row = target_row - offset
+                        break
+
+            g.set_qubit(neighbor, target_qubit)
+            g.set_row(neighbor, target_row)
+            occupied.add((target_qubit, target_row))
+            placed.add(neighbor)
+            queue.append(neighbor)
+
+    for v in g.outputs():
+        neighbors = list(g.neighbors(v))
+        if neighbors and len(list(g.neighbors(neighbors[0]))) == 1:
+            g.set_qubit(neighbors[0], g.qubit(v) + 1)
+            g.set_row(neighbors[0], g.row(v))
+
+
+def scale_horizontally(g: Any, scale: float) -> None:
+    """Scale horizontal positions of graph vertices by a factor of ``scale``.
+
+    Args:
+        g: A ZX graph
+        scale: The factor to scale the graph by
+
+    """
+    for v in g.vertices():
+        g.set_row(v, g.row(v) * scale)

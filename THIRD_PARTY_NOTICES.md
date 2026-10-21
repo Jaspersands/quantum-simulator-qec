@@ -225,7 +225,19 @@ Copyright 2026 QuEra Computing Inc. Licensed under the Apache License, Version 2
 `python/stabilizer_qec/tsim/` holds bloqade-tsim 0.1.5's encoders, program-text utilities and
 its detector error model with non-deterministic observables (`noise/dem.py`) on this package's
 `Circuit`, and `tests/tsim_port/` its program-text tests and the gate matrices its tests check
-gates against.
+gates against. `python/stabilizer_qec/tsim/zx/` holds its ZX graphs (`core/parse.py`,
+`core/instructions.py`, `core/graph.py`, the diagrams of `utils/diagram.py`) with the noise
+channels' probability tables (`noise/channels.py`) and `find_basis` (`utils/linalg.py`);
+`tests/tsim_port/zx_graphs.json.gz` records its graphs, tensors and T-counts on 40 circuits
+(`tools/tsim_zx_fixtures.py`).
+
+`python/stabilizer_qec/tsim/zx/graph.py` and `tensor.py` are ported from pyzx_param 0.9.3
+(https://github.com/rafaelha/pyzx, a parametric fork of PyZX): the simple graph backend, the
+scalar, the vertex and edge types and the tensor contraction of Copyright (C) 2018 - Aleks
+Kissinger and John van de Wetering, licensed under the Apache License, Version 2.0 (the licence
+is in `python/stabilizer_qec/tsim/LICENSE`, after Tsim's). pyzx_param and PyZX are otherwise
+optional: the graphs are built on this package's own, and `ZXGraph.to_pyzx()` and the diagrams use
+them when installed.
 
 ## qecsim
 

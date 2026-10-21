@@ -1775,7 +1775,7 @@ def _gf2_rank(rows: list) -> int:
 def _warn_if_coherent_errors(circuit: "Circuit") -> None:
     """The frame engines read coherent errors as Stim does, as nothing: say so once per sampler
     (``twirled()`` and ``compile_coherent_sampler`` are the models that run them)."""
-    if circuit.num_non_clifford_gates() == 0 and (circuit.tcount() > 0 or call(circuit._c.num_clifford_angle_errors) > 0):
+    if circuit.num_non_clifford_gates() == 0 and (call(circuit._c.t_count) > 0 or call(circuit._c.num_clifford_angle_errors) > 0):  # (the engine's count: tsim.Circuit.tcount is Tsim's, which has no coherent errors)
         warnings.warn(
             "the frame sampler reads the circuit's coherent errors (I_ERROR[R_Z(theta=...)] and the rest) as Stim does, as nothing: "
             "sample circuit.twirled() for the Pauli-twirled model, circuit.compile_coherent_sampler() for the coherent one, "

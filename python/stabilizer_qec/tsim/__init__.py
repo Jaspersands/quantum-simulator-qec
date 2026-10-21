@@ -13,9 +13,17 @@
   Tsim's methods return is a ``tsim.Circuit`` (``copy``, slices, ``*``, ``flattened``,
   ``without_noise``, ``inverse``, ...), and ``stim_circuit`` a plain ``stabilizer_qec.Circuit``.
   ``tcount``, ``is_clifford`` and ``inverse`` are Tsim's; ``to_matrix`` is Tsim's map on the
-  qubits the circuit names, a state column when every qubit is reset first; ``diagram`` defaults
-  to the timeline SVG, its tagged gates labelled, with Tsim's ``height``, ``width`` and
-  ``zoomable`` for the notebook view (the pyzx ZX-graph diagrams are not drawn).
+  qubits the circuit names, a state column when every qubit is reset first, and, of a circuit
+  with measurements, resets after a qubit's first operation, feedback or noise on a qubit
+  before its reset, Tsim's ZX tensor with every measurement outcome and error bit read as 0;
+  ``diagram`` defaults to the timeline SVG, its tagged gates labelled, with Tsim's ``height``,
+  ``width`` and ``zoomable`` for the notebook view, and draws the ZX graph for ``"pyzx"``,
+  ``"pyzx-dets"`` and ``"pyzx-meas"``.
+- ``Circuit.get_graph`` and ``Circuit.get_sampling_graph`` (``stabilizer_qec.tsim.zx``): Tsim's
+  ZX graphs, equal to Tsim's vertex for vertex (numbers, types, phases as Fractions, phase
+  variables, positions, edges, scalar). They are pyzx_param's ``GraphS`` when pyzx_param is
+  installed, else this package's ``ZXGraph`` (``backend="own"`` or ``"pyzx_param"`` chooses;
+  ``ZXGraph.to_pyzx()`` gives a pyzx graph). ``zx.tensorfy`` contracts a graph in numpy.
 - ``CompiledDetectorSampler`` (``Circuit.compile_detector_sampler``): Tsim's convention, each
   detector's and observable's *value*, the parity of its measurements (``X 0``, ``M 0``,
   ``DETECTOR rec[-1]`` reads True), not Stim's flip from a reference run;
@@ -50,16 +58,24 @@ Where it differs from Tsim:
   Tsim ``R_Z(1)``); a tag on an appended ``T``, ``T_DAG``, ``TPP`` or ``TPP_DAG`` is not kept.
 - Two product rotations with the same angle in a row stay two lines (Tsim's Stim text fuses
   them into one, which its shorthand misprints).
-- ``to_matrix`` of a circuit with a measurement or a reset after a qubit's first operation
-  raises ``ValueError`` (Tsim gives its ZX tensor, not a map of states).
+- ``tcount`` is the graph's, as Tsim's: a coherent error (``I_ERROR[R_Z(...)]``) is not a gate
+  (``stabilizer_qec.Circuit.tcount`` counts its phase).
+- A product rotation by ±0.25 half-turns (``R_PAULI(0.25)``, ``R_XX(0.25)``) is the same gate as
+  ``TPP`` here, and its ZX graph is ``TPP``'s: Tsim's graph for ``R_PAULI(0.25)`` carries the
+  rotation's scalar phase of -1/8 that ``TPP``'s does not, so the graph's scalar (and, through
+  the ZX path, ``to_matrix``) differs from Tsim's for ``R_PAULI(0.25)`` by that global phase and
+  equals Tsim's for ``TPP``. An angle is read back from the radians this package stores as the
+  shortest decimal number of half-turns that gives them, so ``R_Z(0.3)`` is the phase 3/10 of
+  Tsim's graph.
+- ``diagram("pyzx")`` needs pyzx or pyzx_param to draw; ``"pyzx-dets"`` and ``"pyzx-meas"`` need
+  pyzx_param (their graphs are reduced by its ``full_reduce``). ``to_matrix`` of a circuit
+  with measurements is at most 2^22 entries, its spiders at most 24 legs, a chain of correlated
+  errors at most 24 branches.
 - ``circuit[i]`` is this package's instruction (``I[T] 0``), not a ``stim.CircuitInstruction``
   in Tsim's tagged form (``S[T] 0``).
-
-Not ported: Tsim's ZX graphs (``get_graph``, ``get_sampling_graph``, the ``pyzx`` diagram
-types), which need pyzx.
 """
 
-from . import sampler
+from . import sampler, zx
 from ._native import tsim_to_native
 from .circuit import Circuit
 from .noise.dem import get_detector_error_model
@@ -80,4 +96,5 @@ __all__ = [
     "shorthand_to_stim",
     "stim_to_shorthand",
     "tsim_to_native",
+    "zx",
 ]

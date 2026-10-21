@@ -199,3 +199,15 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+--------------------------------------------------------------------------------
+
+python/stabilizer_qec/tsim/zx/graph.py and python/stabilizer_qec/tsim/zx/tensor.py are ported from
+pyzx_param 0.9.3 (https://github.com/rafaelha/pyzx, a parametric fork of PyZX,
+https://github.com/zxcalc/pyzx): its simple graph backend (pyzx_param/graph/graph_s.py and
+graph/base.py), its scalar (graph/scalar.py), its vertex and edge types (utils.py) and its tensor
+contraction (tensor.py), modified for stabilizer_qec.
+
+    Copyright (C) 2018 - Aleks Kissinger and John van de Wetering
+
+pyzx_param is licensed under the Apache License, Version 2.0, the text above.

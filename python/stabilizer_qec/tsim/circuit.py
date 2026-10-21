@@ -2,8 +2,8 @@
 # see LICENSE in this directory), modified for stabilizer_qec: the circuit is a subclass of this
 # package's Circuit holding this package's tagged operations (``I[T]``, rotations in radians), not a
 # wrapper of stim.Circuit holding Tsim's (``S[T]``, half-turns); the methods this package's Circuit
-# already has are its own, and the ZX-graph methods (get_graph, get_sampling_graph, pyzx diagrams)
-# are not ported.
+# already has are its own, and the ZX-graph methods (get_graph, get_sampling_graph, tcount, to_matrix of
+# a circuit with measurements, the pyzx diagrams) build Tsim's ZX graph with ``tsim.zx``.
 """Tsim's ``Circuit``: this package's circuit, read and written in Tsim's program text, with
 Tsim's sampling conventions."""
 
@@ -86,6 +86,42 @@ def _qubits_named(circuit: Any) -> set:
             if q is not None:
                 out.add(q)
     return out
+
+
+def _lane_scan(circuit: Any) -> tuple:
+    """``(reset_after_first, pair_identity_qubits)``: whether a reset follows the first instruction
+    that names a qubit when that instruction is not a reset (an operation, noise, an identity or
+    coordinates: Tsim's graph gives the qubit an input, where the unitary engine counts only an
+    operation as one), and the qubits an ``II`` names (which that engine does not see). A loop's
+    body is read twice (its second pass shows a reset after the first pass's operations)."""
+    first_is_reset: dict = {}
+    flags: dict = {}
+    pair_identity: set = set()
+    found = [False]
+
+    def visit(items: list) -> None:
+        for item in items:
+            if item[0] == "repeat":
+                for _ in range(min(item[1], 2)):
+                    visit(item[3])
+                continue
+            name, targets = item[1], item[4]
+            if name not in flags:
+                flags[name] = bool(_stim.GateData(name).is_reset)
+            reset = flags[name]
+            for v in targets:
+                q = _stim.GateTarget._raw(v).qubit_value
+                if q is None:
+                    continue
+                if name == "II":
+                    pair_identity.add(q)
+                if q not in first_is_reset:
+                    first_is_reset[q] = reset
+                elif reset and not first_is_reset[q]:
+                    found[0] = True
+
+    visit(circuit._items())
+    return found[0], pair_identity
 
 
 class Circuit(_Base):
@@ -449,18 +485,47 @@ class Circuit(_Base):
         ``RX``, ``RY``) starts in that state and has no input: a circuit that resets every qubit
         first gives its state, a 2^n × 1 column (up to 22 qubits), and one that resets some a
         2^n × 2^k matrix. Noise channels are skipped (no error drawn), and detectors,
-        observables, coordinates and ``TICK`` are nothing. A measurement, a reset after a
-        qubit's first operation, or feedback raises ``ValueError`` (Tsim's ZX tensor of those
-        is not a map of states). At most 2^22 entries (a unitary of 11 qubits)."""
+        observables, coordinates and ``TICK`` are nothing. At most 2^22 entries (a unitary of 11
+        qubits).
+
+        A circuit with a measurement, a reset after a qubit's first operation or feedback is
+        Tsim's ZX tensor of it (``tsim.zx.tensorfy``), contracted in numpy with every measurement
+        outcome and error bit read as 0: a measurement is the identity on its qubit times
+        1/sqrt(2) (``H 0`` then ``M 0`` is [[.5, .5], [.5, -.5]]), a detector or observable
+        projects its parity even, a reset projects (and prepares), ``MPP`` and heralded noise add
+        an output qubit (the first, qubit -2 in Tsim's graph), feedback is the controlled gate.
+        Its qubits are the ZX graph's: the inputs of the qubits first used by a gate, the outputs
+        of every qubit."""
         if endian not in ("big", "little"):
             raise ValueError(f"endian must be 'big' or 'little', got {endian!r}")
+        reset_after_first, pair_identity = _lane_scan(self)
+        if reset_after_first:
+            return self._zx_matrix(endian)
         ideal = self.without_noise()
-        # A qubit only noise names stays, as an input the circuit leaves alone (Tsim's identity).
-        noise_only = sorted(_qubits_named(self) - _qubits_named(ideal))
-        if noise_only:
-            ideal = type(self)._of_native(f"I {' '.join(map(str, noise_only))}\n{ideal._stim_exact_text()}")
-        n, k, data = call(ideal._c.tsim_matrix, endian == "little")
+        # A qubit only noise names (or an II) stays, as an input the circuit leaves alone (Tsim's identity).
+        lanes = sorted((_qubits_named(self) - _qubits_named(ideal)) | pair_identity)
+        if lanes:
+            ideal = type(self)._of_native(f"I {' '.join(map(str, lanes))}\n{ideal._stim_exact_text()}")
+        try:
+            n, k, data = call(ideal._c.tsim_matrix, endian == "little")
+        except ValueError as exc:
+            if "has no matrix" not in str(exc):
+                raise
+            return self._zx_matrix(endian)
         return np.frombuffer(data, dtype="<c16").reshape(1 << n, 1 << k).copy()
+
+    def _zx_matrix(self, endian: str) -> np.ndarray:
+        from stabilizer_qec.tsim.zx import parse_stim_circuit, tensorfy
+
+        g = parse_stim_circuit(self, backend="own").graph.copy()
+        g.normalize()
+        n_out, n_in = g.num_outputs(), g.num_inputs()
+        if n_out + n_in > 22:
+            raise ValueError(f"the circuit's ZX tensor has {n_out} output and {n_in} input qubits; to_matrix gives at most 2^22 entries")
+        t = tensorfy(g)
+        if endian == "little":
+            t = t.transpose(list(range(n_out - 1, -1, -1)) + list(range(n_out + n_in - 1, n_out - 1, -1)))
+        return np.ascontiguousarray(t).reshape(1 << n_out, 1 << n_in)
 
     def to_tensor(self, *, endian: str = "big") -> np.ndarray:
         """``to_matrix`` as a tensor: one index of size 2 per output qubit, then one per input
@@ -468,6 +533,67 @@ class Circuit(_Base):
         m = self.to_matrix(endian=endian)
         n, k = m.shape[0].bit_length() - 1, m.shape[1].bit_length() - 1
         return m.reshape((2,) * (n + k))
+
+    def tcount(self) -> int:
+        """Count the number of T gates in the circuit, as Tsim counts them: the vertices of the
+        circuit's ZX graph with a non-Clifford phase (one for each ``T``, ``T_DAG`` and ``TPP``
+        and each rotation by an angle that is not a multiple of 0.5 half-turns, three for a
+        ``U3`` whose angles are none). A coherent error (``I_ERROR[R_Z(...)]``) is no gate, as in
+        Tsim; ``stabilizer_qec.Circuit.tcount`` counts it."""
+        from stabilizer_qec.tsim.zx import parse_stim_circuit
+        from stabilizer_qec.tsim.zx import tcount as graph_tcount
+
+        return graph_tcount(parse_stim_circuit(self, backend="own").graph)
+
+    def get_graph(self, *, backend: Union[str, None] = None) -> Any:
+        """Construct the ZX graph, as Tsim's ``get_graph``: one lane (a pair of boundary vertices
+        joined by an edge) for each qubit the circuit names, its gates spiders on it, each
+        measurement a Z spider with the phase variable ``rec[i]``, each noise channel's error bits
+        spiders with phase variables ``e{k}``, each detector and observable an X spider with the
+        phase variable ``det[i]`` or ``obs[i]`` joined to the measurements it XORs, and the scalar.
+
+        Args:
+            backend: ``"pyzx_param"`` for pyzx_param's ``GraphS`` (the graph Tsim returns; needs
+                pyzx_param), ``"own"`` for this package's ``tsim.zx.ZXGraph`` (nothing to
+                install); ``None`` (the default) is pyzx_param's if it is installed, else this
+                package's. The two are equal vertex for vertex, edge for edge.
+
+        Returns:
+            The ZX graph.
+
+        """
+        from stabilizer_qec.tsim.zx import get_graph
+
+        return get_graph(self, backend)
+
+    def get_sampling_graph(self, sample_detectors: bool = False, *, backend: Union[str, None] = None) -> Any:
+        """Get a ZX graph that can be used to compute probabilities.
+
+        This graph will be constructed as follows:
+
+        1. Double the ZX-diagram by composing it with its adjoint.
+        2. Connect all rec[i] vertices to their corresponding adjoint rec[i] vertices.
+        3. Add outputs:
+        (a) When sampling measurements (i.e. `sample_detectors` is False),
+            add output nodes for each measurement. Detectors and observables are
+            removed since they are ignored when sampling measurements.
+        (b) When sampling detectors and observables (i.e. `sample_detectors` is True),
+            add output nodes for each detector and observable. Only one set of detector
+            and observable nodes is kept, i.e., detectors and observables are not
+            composed with their adjoints.
+
+        Args:
+            sample_detectors: If True, sample detectors and observables instead of
+                measurements.
+            backend: As ``get_graph``'s.
+
+        Returns:
+            A ZX graph for sampling.
+
+        """
+        from stabilizer_qec.tsim.zx import get_sampling_graph
+
+        return get_sampling_graph(self, sample_detectors, backend)
 
     def diagram(
         self,
@@ -487,7 +613,10 @@ class Circuit(_Base):
                 tagged gates are labelled (``T``, ``R_X(0.1π)``, ``TPP[XY]``, ...), or any of
                 Stim's types (``"timeline-text"``, ``"detslice-svg"``, ...), as
                 ``stabilizer_qec.Circuit.diagram``'s. Tsim's ZX-graph types ("pyzx",
-                "pyzx-dets", "pyzx-meas") need pyzx and raise ``NotImplementedError``.
+                "pyzx-dets", "pyzx-meas") draw the circuit's ZX graph (``"pyzx"``: with bold
+                classical wires) or the sampling graph for measurements or for detectors and
+                observables after pyzx_param's ``full_reduce(paramSafe=True)`` (the reduced two
+                need pyzx_param); they draw it with pyzx (or pyzx_param) and return the graph.
             tick: Required for time slice diagrams. Specifies which TICK instruction, or
                 range of TICK instructions, to slice at.
             filter_coords: A list of things to include in the diagram (detslice diagrams).
@@ -507,11 +636,18 @@ class Circuit(_Base):
 
         Returns:
             An object whose `__str__` method returns the diagram (for the SVG types, the raw
-            SVG), and whose `_repr_html_` shows it in a notebook at the given size.
+            SVG), and whose `_repr_html_` shows it in a notebook at the given size. For the ZX-graph
+            types, the ZX graph that was drawn (``Circuit.get_graph``'s kind).
 
         """
-        if type in ("pyzx", "pyzx-dets", "pyzx-meas"):
-            raise NotImplementedError(f"diagram type {type!r} draws Tsim's ZX graph with pyzx, which stabilizer_qec does not build; 'timeline-svg', 'timeslice-svg' and Stim's diagram types are drawn")
+        if type == "pyzx":
+            from stabilizer_qec.tsim.zx.diagram import render_pyzx
+
+            return render_pyzx(self, kwargs)
+        if type in ("pyzx-dets", "pyzx-meas"):
+            from stabilizer_qec.tsim.zx.diagram import render_reduced
+
+            return render_reduced(self, type == "pyzx-dets", kwargs)
         if type in ("timeline-svg", "timeslice-svg"):
             from stabilizer_qec.tsim.utils.diagram import render_svg
 
