@@ -102,7 +102,8 @@ def _bplsd_replayed(run_mine, run_ref, label, capsys):
     where ldpc merged clusters in another order than ours: ldpc merges the clusters a step meets
     in the order of their hashed heap addresses (a tsl::robin_set of pointers), so its answer can
     vary from decode to decode. Every answer of ldpc's must be one ours reaches over some merge
-    order (`_merge_order_outcomes`); with them, the predictions must be equal."""
+    order (`_merge_order_outcomes`, stopping at ldpc's answer); with them, the predictions must be
+    equal."""
     import quits.decoder.bplsd as theirs
     import stabilizer_qec.quits.decoder.bplsd as mine
 
@@ -129,7 +130,9 @@ def _bplsd_replayed(run_mine, run_ref, label, capsys):
             out = self.d.decode(s)
             if np.array_equal(out, answer):
                 return out
-            assert answer.tobytes() in self.d._merge_order_outcomes(s), (label, at[0] - 1)
+            # (The search stops at ldpc's answer: each order is a whole LSD decode, and walking
+            # all 4,096 has taken over 100 s on one of the HGP n=12 circuit windows.)
+            assert answer.tobytes() in self.d._merge_order_outcomes(s, target=answer), (label, at[0] - 1)
             others.append(at[0] - 1)
             return answer.astype(np.asarray(out).dtype)
 

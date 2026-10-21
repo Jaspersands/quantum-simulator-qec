@@ -126,24 +126,29 @@ impl MergePath {
 /// it at one choice, then at two, and so on. Each path is walked once: a round's paths each
 /// depart from one of the last round's at a choice after that one's last departure. `walk`
 /// follows the choices it is given, then the first option at each choice after them, and
-/// returns the path's choices as (option taken, options). (Paths walked, the departures up to
-/// which every path was walked, whether every path was.)
-fn walk_departures_first(max_paths: usize, mut walk: impl FnMut(Vec<(u32, u32)>) -> Vec<(u32, u32)>) -> (usize, usize, bool) {
+/// returns the path's choices as (option taken, options), and whether to stop there (no path
+/// after it is walked). (Paths walked, the departures up to which every path was walked,
+/// whether every path was.)
+fn walk_departures_first(max_paths: usize, mut walk: impl FnMut(Vec<(u32, u32)>) -> (Vec<(u32, u32)>, bool)) -> (usize, usize, bool) {
+    let (first, mut stop) = walk(Vec::new());
     // Each path of the last round, with the index of the choice after its last departure.
-    let mut round = vec![(walk(Vec::new()), 0)];
+    let mut round = vec![(first, 0)];
     let (mut paths, mut departures) = (1, 0);
     loop {
         let mut next = Vec::new();
         for (choices, from) in &round {
             for i in *from..choices.len() {
                 for taken in 1..choices[i].1 {
-                    if paths >= max_paths {
+                    // (Here, a path is left to walk.)
+                    if stop || paths >= max_paths {
                         return (paths, departures, false);
                     }
                     let mut departed = choices[..i].to_vec();
                     departed.push((taken, choices[i].1));
                     paths += 1;
-                    next.push((walk(departed), i + 1));
+                    let (walked, done) = walk(departed);
+                    stop = done;
+                    next.push((walked, i + 1));
                 }
             }
         }
@@ -553,7 +558,7 @@ pub struct MergeOrderOutcomes {
     pub paths: usize,
     /// Every path departing from `decode`'s order at up to this many merges was walked.
     pub departures: usize,
-    /// Whether every path was walked.
+    /// Whether every path was walked (not when the walk stopped at its target with paths left).
     pub complete: bool,
 }
 
@@ -639,8 +644,11 @@ impl BpLsd {
     /// Every correction a decode of `syndrome` reaches over the merge orders ldpc can take (see
     /// the module comment): BP once, as `decode`, then LSD along at most `max_paths` paths
     /// through the merges' choices, fewest departures from `decode`'s order first
-    /// (`walk_departures_first`). A debug hook, for checking against ldpc.
-    pub fn merge_order_outcomes(&self, syndrome: &[u8], max_paths: usize, w: &mut BpLsdWork) -> MergeOrderOutcomes {
+    /// (`walk_departures_first`). With a `target` correction, the walk stops at the first path
+    /// that reaches it, so the last correction is the target when one is reached. A debug hook,
+    /// for checking against ldpc: one path costs a whole LSD decode (tens of ms on a large
+    /// window), so asking whether ldpc's answer is reachable should stop when it is.
+    pub fn merge_order_outcomes(&self, syndrome: &[u8], max_paths: usize, target: Option<&[u8]>, w: &mut BpLsdWork) -> MergeOrderOutcomes {
         w.ties = 0;
         w.cluster_bits.clear();
         let one = |c: Vec<u8>| MergeOrderOutcomes { corrections: vec![c], paths: 1, departures: 0, complete: true };
@@ -656,10 +664,11 @@ impl BpLsd {
         let (paths, departures, complete) = walk_departures_first(max_paths, |choices| {
             let mut path = MergePath { choices, at: 0 };
             // (A syndrome no set of faults explains has no correction on any path.)
-            if self.lsd_along(syndrome, &llr, w, Some(&mut path)) && !corrections.contains(&w.correction) {
+            let solved = self.lsd_along(syndrome, &llr, w, Some(&mut path));
+            if solved && !corrections.contains(&w.correction) {
                 corrections.push(w.correction.clone());
             }
-            path.choices
+            (path.choices, solved && target == Some(w.correction.as_slice()))
         });
         w.bp.llr = llr;
         MergeOrderOutcomes { corrections, paths, departures, complete }
@@ -903,27 +912,40 @@ mod tests {
     }
 
     /// A tree of a choice of 3, then on its last branch a choice of 2, then a choice of 2: its
-    /// 8 paths each walked once, fewest departures first, and a cap stops the walk.
+    /// 8 paths each walked once, fewest departures first; a cap stops the walk, and so does a
+    /// path that asks to, with nothing after it walked (complete only when it was the last).
     #[test]
     fn paths_are_walked_fewest_departures_first() {
-        let tree = |given: Vec<(u32, u32)>, seen: &mut Vec<Vec<u32>>| {
+        let tree = |given: Vec<(u32, u32)>, seen: &mut Vec<Vec<u32>>, stop_at: &[u32]| {
             let mut path = MergePath { choices: given, at: 0 };
             let a = path.choose(3);
             if a == 2 {
                 path.choose(2);
             }
             path.choose(2);
-            seen.push(path.choices.iter().map(|&(taken, _)| taken).collect());
-            path.choices
+            let taken: Vec<u32> = path.choices.iter().map(|&(taken, _)| taken).collect();
+            let stop = taken == stop_at;
+            seen.push(taken);
+            (path.choices, stop)
         };
         let mut seen = Vec::new();
-        assert_eq!(walk_departures_first(100, |given| tree(given, &mut seen)), (8, 3, true));
+        assert_eq!(walk_departures_first(100, |given| tree(given, &mut seen, &[])), (8, 3, true));
         let want: Vec<Vec<u32>> = vec![vec![0, 0], vec![1, 0], vec![2, 0, 0], vec![0, 1], vec![1, 1], vec![2, 1, 0], vec![2, 0, 1], vec![2, 1, 1]];
         assert_eq!(seen, want);
         let mut seen = Vec::new();
-        assert_eq!(walk_departures_first(5, |given| tree(given, &mut seen)), (5, 1, false));
+        assert_eq!(walk_departures_first(5, |given| tree(given, &mut seen, &[])), (5, 1, false));
         assert_eq!(seen, want[..5]);
-        assert_eq!(walk_departures_first(1, |given| tree(given, &mut Vec::new())), (1, 0, false));
+        assert_eq!(walk_departures_first(1, |given| tree(given, &mut Vec::new(), &[])), (1, 0, false));
+        // Stopped at the first path, at the last of the first departures, and at the last path.
+        for (at, walked) in [(0, (1, 0, false)), (3, (4, 1, false)), (7, (8, 3, true))] {
+            let mut seen = Vec::new();
+            assert_eq!(walk_departures_first(100, |given| tree(given, &mut seen, &want[at])), walked);
+            assert_eq!(seen, want[..=at]);
+        }
+        // A tree without a choice is its one path, stopped there or not.
+        for stop in [false, true] {
+            assert_eq!(walk_departures_first(100, |given| (given, stop)), (1, 0, true));
+        }
     }
 
     /// The corrections the merge orders reach: the first is `decode`'s, each explains the
@@ -944,14 +966,22 @@ mod tests {
                 dec.decode(&s, &mut w);
                 let (first, tie) = (w.correction.clone(), w.ties > 0);
                 tied += usize::from(tie);
-                let found = dec.merge_order_outcomes(&s, 16, &mut w);
+                let found = dec.merge_order_outcomes(&s, 16, None, &mut w);
                 assert_eq!(found.corrections[0], first);
                 // (Without a tie there is one path.)
                 assert!(tie || (found.corrections.len(), found.paths, found.complete) == (1, 1, true));
                 for c in &found.corrections {
                     assert_eq!(syndrome_of(&columns, m, c), s);
+                    // Sought, the walk stops at the first path that reaches it.
+                    let to = dec.merge_order_outcomes(&s, 16, Some(c), &mut w);
+                    assert_eq!(to.corrections.last(), Some(c));
+                    assert!(found.corrections.starts_with(&to.corrections) && to.paths <= found.paths);
+                    assert!(to.paths == 1 || !dec.merge_order_outcomes(&s, to.paths - 1, None, &mut w).corrections.contains(c));
                 }
-                assert_eq!(dec.merge_order_outcomes(&s, 1, &mut w).corrections, vec![first]);
+                assert_eq!(dec.merge_order_outcomes(&s, 1, None, &mut w).corrections, vec![first.clone()]);
+                assert_eq!(dec.merge_order_outcomes(&s, 16, Some(&first), &mut w).paths, 1);
+                // A correction no order reaches is sought as far as the cap.
+                assert_eq!(dec.merge_order_outcomes(&s, 16, Some(&vec![1; n]), &mut w), found);
             }
         }
         assert!(tied > 30, "{tied} decodes with a merge ldpc may order otherwise");
@@ -974,10 +1004,13 @@ mod tests {
         let mut w = dec.work();
         dec.decode(&s, &mut w);
         let first = w.correction.clone();
-        let found = dec.merge_order_outcomes(&s, 64, &mut w);
+        let found = dec.merge_order_outcomes(&s, 64, None, &mut w);
         assert!(found.complete);
         assert_eq!(found.corrections.len(), 2);
         assert_eq!(found.corrections[0], first);
+        let to = dec.merge_order_outcomes(&s, 64, Some(&found.corrections[1]), &mut w);
+        assert_eq!(to.corrections, found.corrections);
+        assert!(to.paths < found.paths && !to.complete, "{} of {} paths", to.paths, found.paths);
         for c in &found.corrections {
             assert_eq!(syndrome_of(&columns, m, c), s);
         }

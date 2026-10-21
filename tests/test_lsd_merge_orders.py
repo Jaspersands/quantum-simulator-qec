@@ -82,6 +82,27 @@ def test_reachable_set_small(windows):
         assert reachable == {ours, *theirs}, k
 
 
+def test_search_stops_at_the_target():
+    """Sought, a correction ends the walk at the first order that reaches it: ours (``decode``'s)
+    at the first order, and each of ldpc's where the orders before it have not reached it, within
+    the 32 orders that depart from ours at one merge."""
+    matrices = [_matrix(m) for m in CAPTURED["matrices"]]
+    for k, w in enumerate(CAPTURED["windows"]):
+        H = matrices[w["matrix"]]
+        m, n = H.shape
+        dec = BpLsdDecoder(H, **w["kw"])
+        s = np.frombuffer(_dense(w["syndrome"], m), dtype=np.uint8)
+        ours = np.asarray(dec.decode(s), dtype=np.uint8)
+        assert dec._merge_order_outcomes(s, target=ours) == {ours.tobytes()}, k
+        assert dec._merge_search == (1, 0, False), k
+        for a in w["ldpc"]:
+            answer = np.frombuffer(_dense(a["correction"], n), dtype=np.uint8)
+            found = dec._merge_order_outcomes(s, target=answer)
+            paths = dec._merge_search[0]
+            assert answer.tobytes() in found and len(found) <= 2 and paths <= 32, (k, paths)
+            assert paths == 1 or answer.tobytes() not in dec._merge_order_outcomes(s, max_leaves=paths - 1), (k, paths)
+
+
 def _sweep():
     """Our corrections on random matrices for LSD-0 (one bit a step and all), LSD-E and LSD-CS,
     LSD on every shot: 2,071 of its 2,400 decodes make a merge choice ldpc may make otherwise."""
@@ -116,6 +137,11 @@ def test_merge_order_outcomes_arguments():
         dec._merge_order_outcomes(np.zeros(3, dtype=np.uint8))
     with pytest.raises(ValueError, match="max_leaves must be at least 1, not 0"):
         dec._merge_order_outcomes(np.zeros(2, dtype=np.uint8), max_leaves=0)
+    with pytest.raises(ValueError, match="The target must have length 3. Not 2."):
+        dec._merge_order_outcomes(np.zeros(2, dtype=np.uint8), target=np.zeros(2, dtype=np.uint8))
     # BP's answer where it converges: one order, no merge.
-    assert dec._merge_order_outcomes(np.array([1, 0])) == {np.asarray(dec.decode(np.array([1, 0])), dtype=np.uint8).tobytes()}
+    bp = np.asarray(dec.decode(np.array([1, 0])), dtype=np.uint8)
+    assert dec._merge_order_outcomes(np.array([1, 0])) == {bp.tobytes()}
+    assert dec._merge_search == (1, 0, True)
+    assert dec._merge_order_outcomes(np.array([1, 0]), target=1 - bp) == {bp.tobytes()}
     assert dec._merge_search == (1, 0, True)

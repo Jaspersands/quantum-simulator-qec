@@ -16,9 +16,10 @@ Sections (each skipped, and said so, when its reference is not installed):
           clusters at once, and clusters met while merging, in the order of their hashed
           pointers, which varies from decode to decode, so where the corrections differ ldpc's
           must be among those ours reaches over the merge orders ldpc can take (at most 4,096
-          of them, fewest departures from ours first: `_merge_order_outcomes`); those shots are
-          counted as ties. Also: each untied final cluster's bits, in the order ldpc's
-          statistics list them (its robin-set order), must be listed in the same order.
+          of them, fewest departures from ours first, stopping at ldpc's correction:
+          `_merge_order_outcomes`); those shots are counted as ties. Also: each untied final
+          cluster's bits, in the order ldpc's statistics list them (its robin-set order), must
+          be listed in the same order.
 
   relay   Relay-BP against IBM's relay_bp (RelayDecoderF64) on the gross code's check matrix
           (2 and 6 cycles at p = 0.3%): explicit memory strengths, seeded random ones (its sinter
@@ -119,7 +120,7 @@ def check_lsd(quick):
                 row["ours_s"] += time.perf_counter() - t1
                 if np.array_equal(a, b):
                     row["agree"] += 1
-                elif np.asarray(b, dtype=np.uint8).tobytes() in ours._merge_order_outcomes(s):
+                elif np.asarray(b, dtype=np.uint8).tobytes() in ours._merge_order_outcomes(s, target=b):
                     row["tied"] += 1
                 else:
                     row["untied"] += 1
