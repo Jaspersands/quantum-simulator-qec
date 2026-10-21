@@ -8,16 +8,19 @@ The frames come from PyMatching 2.4.0's macOS arm64 wheel: ``pymatching.cli`` (w
 ``pymatching`` script runs), exiting with what it returns. ``--pymatching`` is PyMatching 2.4.0's
 C++ command line, built from its sdist with CMake (target ``pymatching``; its CMakeLists pins Stim
 at 1320ad7e and googletest 1.12.1): the same ``pm::main``, whose exit codes and stderr must be the
-wheel's, and whose frames each case notes as equal or not (``program_frames_equal``). Built with
-a newer clang (Apple clang 21 here; the wheel's SDK is 15.5), it does not fuse ``lerp_pos``'s
-multiply and add as the wheel does, and some polygon corners differ in a sixth digit, so the
-shipped wheel is the reference for the drawing. The wheel also gives the exceptions the program aborts
-on (an ``--out_dir`` it cannot create) and the message of an unknown command. Stim 1.16 makes the
-models and shots.
+wheel's, and whose frames each case notes as equal or not (``program_frames_equal``). Build it
+for arm64, as the wheel is (``-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_APPLE_SILICON_PROCESSOR=arm64``,
+which an x86-64 ``cmake`` needs; Apple clang 21 here): it then fuses the multiply-adds the wheel
+fuses, and its frames equal the wheel's in every case. Built for x86-64 (an x86-64 ``cmake``'s
+default, run under Rosetta) it fuses nothing, and some numbers differ in their sixth digit (in
+474 of the 1,080 frames). The shipped wheel is the reference for the drawing. It also gives the
+exceptions the program aborts on (an ``--out_dir`` it cannot create) and the message of an
+unknown command. Stim 1.16 makes the models and shots.
 
 Each frame case runs in a fresh directory with relative paths (``model.dem``, ``shot.<format>``,
 ``--out_dir out``), so stderr's ``wrote out/frame_00000.svg`` lines are the same wherever the
-fixtures are checked. ``<case>.json.gz`` holds the case's model and shot file, its arguments, the
+fixtures are checked. ``<case>.json.gz`` holds the case's model (``dem``, or its bytes as
+``dem_b64`` where they are not UTF-8) and shot file, its arguments, the
 exit code and stderr, the frame names, and each frame as its lines sorted (an index into the
 case's table of distinct lines): PyMatching draws its regions in heap-address order
 (``std::set<GraphFillRegion *>``, ``mwpm_diagram.cc:218``), which no port can reproduce, so a
@@ -41,7 +44,12 @@ The cases:
   and PyMatching stops with ``Unknown tentative event type.`` after the frames it drew;
 - ``irregular``: a grid of detectors at irregular (non-integer) places with three and five
   coordinates, its edges' probabilities all different, shot as ``hits`` listed out of order;
-- ``irregular_ptb64``: the same model, another shot, the first of a group of 64 in ``ptb64``.
+- ``irregular_ptb64``: the same model, another shot, the first of a group of 64 in ``ptb64``;
+- ``digits17``: an edge whose probability's seventeenth significant digit moves it to another of
+  the 1000 weight levels (101; its sixteen-digit print, ``0.4444202507930651``, is at 102), so the
+  graph must be built from the file's own text;
+- ``bytes_in_comments``: a model with bytes past ASCII, UTF-8 and not, in its comments and a tag,
+  which Stim reads as bytes and passes over (stored as ``dem_b64``, not ``dem``).
 """
 
 from __future__ import annotations
@@ -89,7 +97,7 @@ def _file(stim, dets, obs, fmt: str, *, appended: bool) -> bytes:
 def frame_cases(stim) -> list:
     out = []
 
-    def add(name, dem_text, shot, fmt, params, *, appended=False, quiet=False):
+    def add(name, dem, shot, fmt, params, *, appended=False, quiet=False):
         args = ["animate", "--dem_in", "model.dem", "--dets_in", f"shot.{fmt}", "--dets_in_format", fmt, "--out_dir", "out"]
         for flag, v in zip(PARAMS, params):
             args += [flag, str(v)]
@@ -97,7 +105,8 @@ def frame_cases(stim) -> list:
             args.append("--dets_in_includes_appended_observables")
         if quiet:
             args.append("--quiet")
-        out.append({"name": name, "dem": dem_text, "shot_name": f"shot.{fmt}", "shot": base64.b64encode(shot).decode(), "args": args})
+        model = {"dem_b64": base64.b64encode(dem).decode()} if isinstance(dem, bytes) else {"dem": dem}
+        out.append({"name": name, **model, "shot_name": f"shot.{fmt}", "shot": base64.b64encode(shot).decode(), "args": args})
 
     def memory(task, d, rounds, *, varied_seed=None, top=0.0, shot_seed, lo, hi, fmt, params, appended=False, quiet=False, name):
         c = stim.Circuit.generated(task, distance=d, rounds=rounds, after_clifford_depolarization=0.01, before_measure_flip_probability=0.01)
@@ -135,6 +144,11 @@ def frame_cases(stim) -> list:
     # The hits in the file's order (not sorted), as PyMatching creates its detection events.
     add("irregular", irregular, b"9,2,13,6,4\n", "hits", [1, 1, 1, 6, 37])
     add("irregular_ptb64", irregular, _ptb64_first_shot([1, 5, 8, 10, 14], 15, seed=8), "ptb64", [2, 0, 1, 11, 5])
+    # Weight level 101 (2 * 101 once doubled) from the seventeen digits, whose weight is ten ulps
+    # below 101.5 (so 101 with any platform's log); 102 from sixteen, one ulp above it.
+    add("digits17", "error(0.1) D0\nerror(0.44442025079306513) D0 D1\nerror(0.1) D1\ndetector(0, 0) D0\ndetector(1, 0) D1\n", b"11\n", "01", [1, 1, 1, 20, 10])
+    bytes_model = b"# \xff\xfe\nerror(0.1) D0 # caf\xe9 \x85\nerror[\xff\xa0](0.2) D0 D1\nerror(0.15) D1 D2 #\xa0\nerror(0.1) D2\ndetector(0, 0) D0 # \xc3\xa9\ndetector(1, 0) D1\ndetector(2, 0) D2\n"
+    add("bytes_in_comments", bytes_model, b"101\n", "01", [1, 1, 1, 10, 10])
     return out
 
 
@@ -166,7 +180,7 @@ def _ptb64_first_shot(hits: list, n: int, *, seed: int) -> bytes:
 
 
 def run_case(cmd: list, case: dict, tmp: pathlib.Path) -> dict:
-    (tmp / "model.dem").write_text(case["dem"])
+    (tmp / "model.dem").write_bytes(base64.b64decode(case["dem_b64"]) if "dem_b64" in case else case["dem"].encode())
     (tmp / case["shot_name"]).write_bytes(base64.b64decode(case["shot"]))
     r = subprocess.run(cmd + case["args"], cwd=tmp, capture_output=True)
     names = sorted(os.listdir(tmp / "out")) if (tmp / "out").exists() else []
@@ -229,7 +243,10 @@ def message_cases() -> list:
         ("out_dir_parent_missing", argv(out_dir="missing/out")),
         ("out_dir_slash", argv(out_dir="out2/")),
         ("double_dash", argv() + ["--", "--bogus"]),
+        # fopen opens a directory on macOS and Linux, and its reads fail: an empty file.
+        ("dem_in_directory", argv(dem_in=".")),
     ]
+    cases += [(f"dets_in_directory_{fmt}", argv(dets_in=".", dets_in_format=fmt)) for fmt in ("01", "b8", "dets", "hits", "ptb64", "r8")]
     return cases
 
 

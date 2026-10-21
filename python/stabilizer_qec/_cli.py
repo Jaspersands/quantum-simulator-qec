@@ -561,7 +561,9 @@ DESCRIPTION
     green when matched to the boundary) and blue while shrinking; detection events are red dots,
     collisions about to happen orange, alternating trees black, blossom cycles blue, matches thick
     black, and the event about to be handled is highlighted. A run with no perfect matching stops
-    with PyMatching's `Unknown tentative event type.` (exit 1) after the frames before it.
+    with PyMatching's `Unknown tentative event type.` (exit 1) after the frames before it. An
+    --out_dir that cannot be made, or a shot index too big for 64 bits, is reported as
+    `stabilizer-qec animate: <message>` (exit 1), where PyMatching's program aborts.
     Also `python -m stabilizer_qec.pymatching animate ...`.
 
 OPTIONS
@@ -570,7 +572,8 @@ OPTIONS
         animation builds it); its detectors' first two coordinates place them on the page.
 
     --dets_in
-        The detection events; only the first shot is drawn.
+        The detection events; only the first shot is drawn, and the file is not read to its end
+        (a pipe's writer need not finish).
 
     --dets_in_format
         The format of --dets_in: 01, b8, r8, ptb64, hits or dets.
@@ -783,7 +786,11 @@ def main(argv: Optional[List[str]] = None, *, command_line_args: Optional[List[s
     if command == "animate":  # PyMatching's flags, messages and exit codes
         from .pymatching import _animate
 
-        return _animate([command] + rest)
+        try:
+            return _animate([command] + rest)
+        except RuntimeError as ex:  # what PyMatching's program aborts on (and its cli raises), said as ours are
+            print(f"stabilizer-qec {command}: {ex}", file=sys.stderr)
+            return 1
     try:
         args = _parser(command).parse_args(rest)
         globals()[f"cmd_{command}"](args)

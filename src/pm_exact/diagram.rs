@@ -17,9 +17,11 @@
 //! product fused with the sum (clang's contraction) on aarch64, in `lerp_pos` and in the boundary
 //! direction's length, and is rounded twice on x86-64, where C++ builds have no fused
 //! multiply-add by default; polygon corners are sorted by angle with the platform's `std::sort`
-//! (`cpp_random::Library::NATIVE`, whose order among equal angles is its own) and `atan2f`. (A
-//! newer clang, Apple clang 21, builds PyMatching's program without the fusion, and some corners
-//! then differ in their sixth digit.)
+//! (`cpp_random::Library::NATIVE`, whose order among equal angles is its own) and `atan2f`.
+//! PyMatching's own program built from its sdist for arm64 (Apple clang 21) fuses the same
+//! products and draws every recorded frame as the wheel does; built for x86-64 (as an x86-64
+//! `cmake` configures it by default, run under Rosetta), it fuses nothing, and some numbers then
+//! differ in their sixth digit.
 //!
 //! PyMatching draws regions (and their tree nodes) in heap-address order
 //! (`std::set<GraphFillRegion *>`); here they are drawn in arena-slot order. A frame's lines are

@@ -167,16 +167,17 @@ def _find_bool_argument(name: str, argv: List[str]) -> bool:
     raise _InvalidArgument(f"Got non-empty value '{text}' for boolean flag '{name}'.")
 
 
-def _find_open_file_argument(name: str, argv: List[str]) -> bytes:
-    """The required file's bytes (Stim's ``find_open_file_argument``, then read whole)."""
+def _find_open_file_argument(name: str, argv: List[str]) -> int:
+    """The required file, opened (Stim's ``find_open_file_argument``): its descriptor, for a
+    ``_Stream``. As ``fopen`` does, this opens a directory on macOS and Linux (whose reads then
+    fail, so it reads as an empty file), and refuses one on Windows."""
     path = _find_argument(name, argv)
     if path is None:
         raise _InvalidArgument(f"Missing command line argument: '{name}'")
     if path == "":
         raise _InvalidArgument(f"Command line argument '{name}' can't be empty. It's supposed to be a file path.")
     try:
-        with open(path, "rb") as f:
-            return f.read()
+        return os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0))
     except OSError:
         raise _InvalidArgument(f"Failed to open '{path}'") from None
 
@@ -193,16 +194,44 @@ def _find_format_argument(name: str, argv: List[str]) -> str:
 
 
 class _Stream:
-    """A file's bytes read with ``getc`` (-1 at the end)."""
+    """An open file read as C's stdio reads it: ``getc`` (-1 at the end) and ``fread``, from a
+    buffer refilled by one ``read`` of what is there when it runs out. So only the bytes asked
+    for are waited on: a pipe's first shot is read as it arrives, without waiting for the
+    writer to finish, and a long file is not read past its first shot. A failed read is the end,
+    as for ``getc`` (a directory's reads fail EISDIR), and the end stays the end."""
 
-    def __init__(self, data: bytes) -> None:
-        self.data, self.pos = data, 0
+    _CHUNK = 1 << 16
+
+    def __init__(self, fd: int) -> None:
+        self.fd, self.buf, self.pos, self.ended = fd, b"", 0, False
+
+    def _fill(self) -> bool:
+        if not self.ended:
+            try:
+                self.buf = os.read(self.fd, self._CHUNK)
+            except OSError:
+                self.buf = b""
+            self.pos = 0
+            self.ended = not self.buf
+        return not self.ended
 
     def getc(self) -> int:
-        if self.pos >= len(self.data):
+        if self.pos >= len(self.buf) and not self._fill():
             return -1
         self.pos += 1
-        return self.data[self.pos - 1]
+        return self.buf[self.pos - 1]
+
+    def read(self, n: int = -1) -> bytes:
+        """``fread``: ``n`` bytes, or fewer at the end; every byte to the end for -1."""
+        out = []
+        while n:
+            if self.pos >= len(self.buf) and not self._fill():
+                break
+            chunk = self.buf[self.pos :] if n < 0 else self.buf[self.pos : self.pos + n]
+            self.pos += len(chunk)
+            n -= len(chunk) if n > 0 else 0
+            out.append(chunk)
+        return b"".join(out)
 
 
 def _read_uint64(s: _Stream) -> tuple:
@@ -220,11 +249,12 @@ def _read_uint64(s: _Stream) -> tuple:
     return value, nxt
 
 
-def _read_first_shot(data: bytes, fmt: str, nd: int, no: int) -> Optional[List[int]]:
-    """Stim's ``MeasureRecordReader::start_and_read_entire_record`` into a ``SparseShot``, once:
-    the first shot's detection events (in the file's order in hits and dets), or None for no
-    shot. ``no`` is the number of observables appended to each shot."""
-    s = _Stream(data)
+def _read_first_shot(s: _Stream, fmt: str, nd: int, no: int) -> Optional[List[int]]:
+    """Stim's ``MeasureRecordReader::start_and_read_entire_record`` into a ``SparseShot``, once,
+    from ``s``: the first shot's detection events (in the file's order in hits and dets), or
+    None for no shot. ``no`` is the number of observables appended to each shot. Reads no
+    further into ``s`` than Stim does: to the first shot's end (b8, its bytes; ptb64, its group
+    of 64)."""
     n = nd + no
     bits: List[int] = []
     if fmt == "hits":
@@ -330,7 +360,10 @@ def _read_first_shot(data: bytes, fmt: str, nd: int, no: int) -> Optional[List[i
                 raise _InvalidArgument(f"End of file before end of r8 data. Expected to decode {n} bits.")
     elif fmt == "b8":
         nb = (n + 7) >> 3
-        if n == 0 or not data:
+        if n == 0:
+            return None  # (Stim stops at once, reading nothing: where such data ends is ambiguous.)
+        data = s.read(nb)  # getc, nb times
+        if not data:
             return None
         if len(data) < nb:
             raise _InvalidArgument(f"b8 data ended in middle of record at byte position {len(data)}.\nExpected bytes per record was {nb} ({n} bits padded).")
@@ -338,7 +371,8 @@ def _read_first_shot(data: bytes, fmt: str, nd: int, no: int) -> Optional[List[i
         ok = True
     else:  # ptb64: the first group of 64 shots, and its first shot
         nb = n * 8
-        if not data[:nb]:
+        data = s.read(nb)  # fread
+        if not data:
             return None
         if len(data) < nb:
             raise _InvalidArgument(f"ptb64 data ended in middle of 64 record group at byte position {len(data)}.\nExpected bytes per 64 records was {nb} ({n} bits padded).")
@@ -378,36 +412,57 @@ def _animate(argv: List[str]) -> int:
     return 0
 
 
+# Stim reads a model's bytes: a byte past ASCII is part of a comment or a tag, or is refused,
+# being no space, digit or letter. Each such byte reaches the parsers as a character of its own in
+# the private-use range (0x80 as U+F780, ..., 0xFF as U+F7FF), which they do not read as a space,
+# digit or letter either. So a model with any bytes in its comments and tags, UTF-8 or not, parses
+# as Stim parses it, and one with such a byte elsewhere is refused. (Latin-1 would make 0x85 and
+# 0xA0 spaces, and accept the model.) A refusal shows each byte as its Latin-1 character.
+_BYTE_CHARS = {b: 0xF700 + b for b in range(0x80, 0x100)}
+_BYTE_CHARS_BACK = {0xF700 + b: b for b in range(0x80, 0x100)}
+
+
 def _animate_or_raise(argv: List[str]) -> None:
     from . import _core
     from ._circuit import DetectorErrorModel
     from ._util import call
 
     _check_for_unknown_arguments(_ANIMATE_FLAGS, "animate", argv)
-    dets_raw = _find_open_file_argument("--dets_in", argv)
-    dem_raw = _find_open_file_argument("--dem_in", argv)
-    fmt = _find_format_argument("--dets_in_format", argv)
-    dets_include_obs = _find_bool_argument("--dets_in_includes_appended_observables", argv)
-    quiet = _find_bool_argument("--quiet", argv)
-    per_event = _find_int64_argument("--held_frames_per_event", -1, 0, 1000000, argv)
-    at_start = _find_int64_argument("--held_frames_at_start", -1, 0, 1000000, argv)
-    at_end = _find_int64_argument("--held_frames_at_end", -1, 0, 1000000, argv)
-    max_growth = _find_int64_argument("--max_growth_between_frames", -1, 0, 1000000, argv)
-    pixels = _find_int64_argument("--pixels_per_unit_length", -1, 4, 2048, argv)
-    out_dir = _find_argument("--out_dir", argv)
-    if out_dir is None:
-        raise _InvalidArgument("\033[31mMissing command line argument: '--out_dir'")
-    if not out_dir.endswith("/") and not out_dir.endswith("\\"):
-        out_dir += "/"
+    opened: List[int] = []  # (closed once the shot is read, or on a refusal)
+    try:
+        opened.append(_find_open_file_argument("--dets_in", argv))
+        opened.append(_find_open_file_argument("--dem_in", argv))
+        fmt = _find_format_argument("--dets_in_format", argv)
+        dets_include_obs = _find_bool_argument("--dets_in_includes_appended_observables", argv)
+        quiet = _find_bool_argument("--quiet", argv)
+        per_event = _find_int64_argument("--held_frames_per_event", -1, 0, 1000000, argv)
+        at_start = _find_int64_argument("--held_frames_at_start", -1, 0, 1000000, argv)
+        at_end = _find_int64_argument("--held_frames_at_end", -1, 0, 1000000, argv)
+        max_growth = _find_int64_argument("--max_growth_between_frames", -1, 0, 1000000, argv)
+        pixels = _find_int64_argument("--pixels_per_unit_length", -1, 4, 2048, argv)
+        out_dir = _find_argument("--out_dir", argv)
+        if out_dir is None:
+            raise _InvalidArgument("\033[31mMissing command line argument: '--out_dir'")
+        if not out_dir.endswith("/") and not out_dir.endswith("\\"):
+            out_dir += "/"
 
-    dem = DetectorErrorModel(dem_raw.decode("utf-8"))
-    nd, no = dem.num_detectors, dem.num_observables
-    hits = _read_first_shot(dets_raw, fmt, nd, no if dets_include_obs else 0)
-    if hits is None:
-        raise _InvalidArgument("No shot in file.")
+        # The model's own text, read whole, as DetectorErrorModel::from_file reads it.
+        dem_text = _Stream(opened[1]).read().decode("latin-1").translate(_BYTE_CHARS)
+        try:
+            dem = DetectorErrorModel(dem_text)
+        except ValueError as ex:
+            raise _InvalidArgument(str(ex).translate(_BYTE_CHARS_BACK)) from None
+        nd, no = dem.num_detectors, dem.num_observables
+        hits = _read_first_shot(_Stream(opened[0]), fmt, nd, no if dets_include_obs else 0)
+        if hits is None:
+            raise _InvalidArgument("No shot in file.")
+    finally:
+        for fd in opened:
+            os.close(fd)
 
     coords = dem.get_detector_coordinates()
-    animation = call(_core.PmAnimation, str(dem), [[float(c) for c in coords.get(k, [])] for k in range(nd)], pixels)
+    # The graph from the file's text, not the model printed again (whose numbers keep 16 digits).
+    animation = call(_core.PmAnimation, dem_text, [[float(c) for c in coords.get(k, [])] for k in range(nd)], pixels)
 
     if not os.path.exists(out_dir):
         try:
