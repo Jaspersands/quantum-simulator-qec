@@ -2293,10 +2293,10 @@ impl PyBpLsd {
     }
 
     /// (Every correction a decode of `syndrome` reaches over at most `max_paths` of the merge
-    /// orders `ldpc` can take, `decode`'s first, stopping at `target` when given; paths walked;
-    /// the departures from `decode`'s order up to which every path was walked; whether every
-    /// path was): `BpLsd::merge_order_outcomes`. The serial schedule and statistics are left as
-    /// they were.
+    /// orders `ldpc` can take, `decode`'s first, stopping at `target` when given, and none when
+    /// no correction explains the syndrome; paths walked; the departures from `decode`'s order
+    /// up to which every path was walked; whether every path was): `BpLsd::merge_order_outcomes`.
+    /// The serial schedule and statistics are left as they were.
     #[pyo3(signature = (syndrome, max_paths, target=None))]
     #[allow(clippy::type_complexity)]
     fn merge_order_outcomes(&mut self, syndrome: Vec<u8>, max_paths: usize, target: Option<Vec<u8>>) -> PyResult<(Vec<Vec<u32>>, usize, usize, bool)> {

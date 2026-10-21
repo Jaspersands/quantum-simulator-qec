@@ -19,11 +19,13 @@ import pytest
 
 from stabilizer_qec.ldpc import BpLsdDecoder
 
-# ldpc's answers were recorded on macOS. Elsewhere BP's posteriors are the platform's libm's
-# (tanh, log), and LSD's sorts leave equal weights in the order the platform's std::sort does
-# (ours reproduces each), so a window need not be the same decode there; tests/
-# test_quits_differential.py checks reachability against ldpc itself on every platform.
-pytestmark = pytest.mark.skipif(platform.system() != "Darwin", reason="ldpc's answers were recorded on macOS (libc++, Apple's libm)")
+# ldpc's answers, and the sweep digest, were recorded on macOS. Elsewhere BP's posteriors are
+# the platform's libm's (tanh, log), and LSD's sorts leave equal weights in the order the
+# platform's std::sort does (ours reproduces each), so a window need not be the same decode
+# there; tests/test_quits_differential.py checks reachability against ldpc itself on every
+# platform. Only the tests on the recorded decodes are skipped there; the argument and
+# unexplainable-syndrome tests depend on no platform behaviour.
+macos_recorded = pytest.mark.skipif(platform.system() != "Darwin", reason="ldpc's answers were recorded on macOS (libc++, Apple's libm)")
 
 CAPTURED = json.loads((pathlib.Path(__file__).parent / "ldpc_lsd_merge" / "captured.json").read_text(encoding="utf-8"))
 
@@ -64,6 +66,7 @@ def windows():
     return out
 
 
+@macos_recorded
 def test_ours_and_every_ldpc_answer_reachable(windows):
     assert len(windows) == 15
     for k, (ours, reachable, _, theirs, _, _) in enumerate(windows):
@@ -73,6 +76,7 @@ def test_ours_and_every_ldpc_answer_reachable(windows):
             assert a in reachable, k
 
 
+@macos_recorded
 def test_reachable_set_small(windows):
     for k, (ours, reachable, (paths, departures, complete), theirs, _, _) in enumerate(windows):
         assert 2 <= len(reachable) <= 8, (k, len(reachable))
@@ -82,6 +86,7 @@ def test_reachable_set_small(windows):
         assert reachable == {ours, *theirs}, k
 
 
+@macos_recorded
 def test_search_stops_at_the_target():
     """Sought, a correction ends the walk at the first order that reaches it: ours (``decode``'s)
     at the first order, and each of ldpc's where the orders before it have not reached it, within
@@ -122,6 +127,7 @@ def _sweep():
     return out, tied
 
 
+@macos_recorded
 def test_default_order_unchanged(windows):
     for k, (ours, _, _, _, recorded, again) in enumerate(windows):
         assert ours == recorded == again, k
@@ -145,3 +151,37 @@ def test_merge_order_outcomes_arguments():
     assert dec._merge_search == (1, 0, True)
     assert dec._merge_order_outcomes(np.array([1, 0]), target=1 - bp) == {bp.tobytes()}
     assert dec._merge_search == (1, 0, True)
+
+
+def test_an_unexplainable_syndrome_raises_as_decode():
+    """A syndrome no correction explains raises ``decode``'s ValueError. No merge order explains
+    it either, so the walk ends at the first order, whatever choices are left."""
+    message = "^no correction explains the syndrome$"
+    H = np.array([[1, 1, 0], [0, 1, 1], [0, 0, 0]], dtype=np.uint8)
+    s = np.array([0, 0, 1])
+    for always_run_lsd in (True, False):
+        dec = BpLsdDecoder(H, error_rate=0.1, max_iter=2, always_run_lsd=always_run_lsd)
+        with pytest.raises(ValueError, match=message):
+            dec.decode(s)
+        for target in (None, np.zeros(3, dtype=np.uint8)):
+            with pytest.raises(ValueError, match=message):
+                dec._merge_order_outcomes(s, target=target)
+            assert dec._merge_search == (1, 0, True)
+    # Shots with a fired check no fault touches, whose other clusters still merge with choices:
+    # each search walks one order, and stops with orders left where that order made a choice.
+    rng = np.random.default_rng(14)
+    pcm = (rng.random((24, 48)) < 0.12).astype(np.uint8)
+    pcm[rng.integers(24, size=48), np.arange(48)] = 1
+    H = np.vstack([pcm, np.zeros((1, 48), dtype=np.uint8)])
+    dec = BpLsdDecoder(H, error_rate=0.05, max_iter=3, bits_per_step=1, always_run_lsd=True)
+    stopped = 0
+    for _ in range(20):
+        s = np.append((pcm @ (rng.random(48) < 0.05)) % 2, 1)
+        with pytest.raises(ValueError, match=message):
+            dec.decode(s)
+        with pytest.raises(ValueError, match=message):
+            dec._merge_order_outcomes(s)
+        paths, departures, complete = dec._merge_search
+        assert (paths, departures) == (1, 0)
+        stopped += not complete
+    assert stopped >= 15, stopped  # (all 20 on macOS arm64)

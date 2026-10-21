@@ -27,6 +27,12 @@
 //! A decode that met one of these where the order could differ counts it in
 //! `BpLsdWork::ties`, so a check against `ldpc` can tell a tie from a bug, and
 //! `BpLsd::merge_order_outcomes` walks the orders ldpc can take for the corrections they reach.
+//! Two things robin-map can do when a cluster joins the set mid-walk are outside those orders,
+//! and either would show as ldpc's answer out of reach, a loud false failure, not a hidden one:
+//! a rehash (the set grows at half full, which invalidates ldpc's iterator), and a robin-hood
+//! displacement that wraps past the end of the buckets, carrying a cluster met before the walk
+//! behind the iterator, never merged (the orders walked leave out only clusters met while
+//! merging).
 //!
 //! Higher orders (LSD-E, LSD-CS): each cluster grows on until it has `order` free columns, and
 //! ordered-statistics search runs inside it on BP's posteriors (`ldpc`'s `apply_lsdw` and
@@ -284,7 +290,8 @@ impl Lsd<'_> {
     /// met in robin-set order, by their hashed addresses, and a cluster met while merging (into
     /// this one, while it is the larger) joins the set it walks, ahead of the walk or behind it.
     /// This merges them in the order they were met, every one, or as `path` chooses: any of
-    /// them next, and when only clusters met while merging are left, none of them.
+    /// them next, and when only clusters met while merging are left, none of them. (What this
+    /// leaves out of robin-map's walk is in the module comment.)
     fn merge_intersecting(&mut self, me: usize) {
         let mut larger = me;
         let met = self.clusters[me].merge_list.len();
@@ -552,13 +559,15 @@ impl LsdStats {
 /// The corrections the merge orders ldpc can take reach (`BpLsd::merge_order_outcomes`).
 #[derive(Clone, Debug, PartialEq)]
 pub struct MergeOrderOutcomes {
-    /// Distinct, in the order found; the first is `decode`'s.
+    /// Distinct, in the order found; the first is `decode`'s. None when no correction explains
+    /// the syndrome (`decode` fails on it, and so does every order: the walk ends at the first).
     pub corrections: Vec<Vec<u8>>,
     /// The paths through the merges' choices walked.
     pub paths: usize,
     /// Every path departing from `decode`'s order at up to this many merges was walked.
     pub departures: usize,
-    /// Whether every path was walked (not when the walk stopped at its target with paths left).
+    /// Whether every path was walked (not when the walk stopped, at its target or at a path that
+    /// does not solve the syndrome, with paths left).
     pub complete: bool,
 }
 
@@ -645,9 +654,10 @@ impl BpLsd {
     /// the module comment): BP once, as `decode`, then LSD along at most `max_paths` paths
     /// through the merges' choices, fewest departures from `decode`'s order first
     /// (`walk_departures_first`). With a `target` correction, the walk stops at the first path
-    /// that reaches it, so the last correction is the target when one is reached. A debug hook,
-    /// for checking against ldpc: one path costs a whole LSD decode (tens of ms on a large
-    /// window), so asking whether ldpc's answer is reachable should stop when it is.
+    /// that reaches it, so the last correction is the target when one is reached. A syndrome no
+    /// correction explains has none, after one path. A debug hook, for checking against ldpc:
+    /// one path costs a whole LSD decode (tens of ms on a large window), so asking whether
+    /// ldpc's answer is reachable should stop when it is.
     pub fn merge_order_outcomes(&self, syndrome: &[u8], max_paths: usize, target: Option<&[u8]>, w: &mut BpLsdWork) -> MergeOrderOutcomes {
         w.ties = 0;
         w.cluster_bits.clear();
@@ -663,12 +673,14 @@ impl BpLsd {
         let mut corrections: Vec<Vec<u8>> = Vec::new();
         let (paths, departures, complete) = walk_departures_first(max_paths, |choices| {
             let mut path = MergePath { choices, at: 0 };
-            // (A syndrome no set of faults explains has no correction on any path.)
             let solved = self.lsd_along(syndrome, &llr, w, Some(&mut path));
             if solved && !corrections.contains(&w.correction) {
                 corrections.push(w.correction.clone());
             }
-            (path.choices, solved && target == Some(w.correction.as_slice()))
+            // LSD fails only once a cluster that cannot be valid holds its whole connected
+            // component, whatever the merge order, so a path that does not solve the syndrome
+            // means none does: no path after it is walked.
+            (path.choices, !solved || target == Some(w.correction.as_slice()))
         });
         w.bp.llr = llr;
         MergeOrderOutcomes { corrections, paths, departures, complete }
@@ -902,13 +914,17 @@ mod tests {
         }
     }
 
-    /// A syndrome no set of faults explains ends (ldpc would loop) and says so.
+    /// A syndrome no set of faults explains ends (ldpc would loop) and says so. No merge order
+    /// explains it either: the walk over them finds no correction.
     #[test]
     fn an_unexplainable_syndrome_is_reported() {
         let columns: Vec<Vec<u32>> = vec![vec![0, 1], vec![1, 2]];
         let dec = BpLsd::new(3, columns, &[0.1, 0.1], Method::ProductSum, 1, OsdMethod::Osd0, 1, true).unwrap();
         let mut w = dec.work();
         assert!(!dec.decode(&[1, 0, 0], &mut w).solved);
+        let none = MergeOrderOutcomes { corrections: Vec::new(), paths: 1, departures: 0, complete: true };
+        assert_eq!(dec.merge_order_outcomes(&[1, 0, 0], 16, None, &mut w), none);
+        assert_eq!(dec.merge_order_outcomes(&[1, 0, 0], 16, Some(&[0, 0]), &mut w), none);
     }
 
     /// A tree of a choice of 3, then on its last branch a choice of 2, then a choice of 2: its
@@ -1014,6 +1030,15 @@ mod tests {
         for c in &found.corrections {
             assert_eq!(syndrome_of(&columns, m, c), s);
         }
+        // The same shot with a fired check no fault touches: no order explains it, and the walk
+        // ends at the first, with its choices left.
+        let dec = BpLsd::new(m + 1, columns.clone(), &priors, Method::ProductSum, 1, OsdMethod::Exhaustive(2), 1, true).unwrap();
+        let mut w = dec.work();
+        let unexplained: Vec<u8> = s.iter().copied().chain([1]).collect();
+        assert!(!dec.decode(&unexplained, &mut w).solved && w.ties > 0);
+        let none = MergeOrderOutcomes { corrections: Vec::new(), paths: 1, departures: 0, complete: false };
+        assert_eq!(dec.merge_order_outcomes(&unexplained, 64, None, &mut w), none);
+        assert_eq!(dec.merge_order_outcomes(&unexplained, 64, Some(&found.corrections[1]), &mut w), none);
     }
 
     /// One likely fault is found when LSD always runs.

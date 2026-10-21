@@ -931,15 +931,16 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
     def _merge_order_outcomes(self, syndrome: np.ndarray, max_leaves: int = 4096, target: Optional[np.ndarray] = None) -> set[bytes]:
         """Every correction a decode of ``syndrome`` reaches over the merge orders ldpc can take,
         each as ``np.uint8`` bytes, one per column: for checking against ldpc. ldpc merges the
-        clusters a growth step meets in the order of their hashed heap addresses, so one syndrome
-        can decode two ways in one process; ``decode`` takes one of the orders, and its answer is
-        always in the set. BP runs once. The orders (any order of the clusters met, and whether
-        each cluster met while merging is merged) are walked for at most ``max_leaves`` of them,
-        fewest departures from ``decode``'s order first. With ``target`` (a correction, one entry
-        per column), the walk stops at the first order that reaches it: each order is a whole LSD
-        decode, so asking whether ldpc's answer is reachable should pass it. ``_merge_search``
-        then says how far: (orders walked, the departures up to which every order was walked,
-        whether all were)."""
+        clusters a growth step meets in the order of their hashed heap addresses, so one
+        syndrome can decode two ways in one process; ``decode`` takes one of the orders, and its
+        answer is always in the set. A syndrome no correction explains raises ``decode``'s
+        ValueError (no order explains it, so the walk ends at the first). BP runs once. The
+        orders (any order of the clusters met, and whether each cluster met while merging is
+        merged) are walked for at most ``max_leaves`` of them, fewest departures from
+        ``decode``'s order first. With ``target`` (a correction, one entry per column), the walk
+        stops at the first order that reaches it: each order is a whole LSD decode, so asking
+        whether ldpc's answer is reachable should pass it. ``_merge_search`` then says how far:
+        (orders walked, the departures up to which every order was walked, whether all were)."""
         syndrome = np.asarray(syndrome)
         if not len(syndrome) == self.m:
             raise ValueError(f"The syndrome must have length {self.m}. Not {len(syndrome)}.")
@@ -950,6 +951,8 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
             target = [int(x != 0) for x in target]
         found, paths, departures, complete = call(self._x.merge_order_outcomes, [int(x != 0) for x in syndrome], count(max_leaves, "max_leaves", 1), target)
         self._merge_search = (paths, departures, complete)
+        if not found:
+            raise ValueError("no correction explains the syndrome")
         return {np.asarray(c, dtype=np.uint8).tobytes() for c in found}
 
     @property
