@@ -36,7 +36,7 @@ jobs:
           RUSTDOCFLAGS: -D warnings
       - name: Build the WebAssembly engine
         run: cargo build --release --target wasm32-unknown-unknown --no-default-features
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Site tests
