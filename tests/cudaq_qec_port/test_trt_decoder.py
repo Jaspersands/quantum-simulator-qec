@@ -16,10 +16,13 @@
 # engine_load_path and engine_save_path are refused and the engine-building tests are not ported.
 # Added: the evaluator against onnxruntime's recorded outputs, TensorRT's quantization rules, the
 # parameter schema, and malformed models (truncated, unknown ops, two inputs, fuzzed bytes).
+import builtins
 import hashlib
+import importlib.machinery
 import os
 import re
 import sys
+import types
 import warnings
 
 import numpy as np
@@ -460,6 +463,32 @@ def test_warnings_are_the_callers_and_said_on_every_construction():
     assert [str(w.message) for w in rec] == ["Unknown precision 'said-once', using default (best)"]
 
 
+def test_warnings_reach_a_caller_whose_globals_have_no_module_spec(tmp_path):
+    # A caller in a namespace with no __spec__ (IPython's and Jupyter's user namespace, a
+    # types.ModuleType's dict, the __main__ of "python script.py") is given the warning and its
+    # decoder: no module globals go with the warning, which Python 3.12+ would check for a
+    # __spec__.loader (a ValueError when there is no __loader__ either, a DeprecationWarning, or
+    # under "error" a failed construction, when there is).
+    source = 'd = qec.get_decoder("trt_decoder", np.eye(3, dtype=np.uint8), onnx_load_path=path, batch_size=1)\n'
+    script = tmp_path / "script.py"
+    script.write_text(source)
+    shell = types.ModuleType("__main__").__dict__
+    main = {"__name__": "__main__", "__builtins__": builtins, "__loader__": importlib.machinery.SourceFileLoader("__main__", str(script)), "__spec__": None}
+    for namespace, filename in ((shell, "<ipython-input-1>"), (main, str(script))):
+        namespace.update(qec=qec, np=np, path=model_path("identity_dynamic.onnx"))
+        code = compile(source, filename, "exec")
+        with warnings.catch_warnings(record=True) as rec:
+            warnings.simplefilter("always")
+            exec(code, namespace)
+        assert [(w.category, w.filename, w.lineno, str(w.message)) for w in rec] == [(RuntimeWarning, filename, 1, CUDA_GRAPH_WARNING)]
+        assert namespace["d"].decode([1.0, 0.0, 0.5]).result.tolist() == [1.0, 0.0, 0.5]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            with pytest.raises(RuntimeError) as e:
+                exec(code, namespace)
+        assert str(e.value) == PREFIX + CUDA_GRAPH_WARNING and type(e.value.__cause__) is RuntimeWarning
+
+
 # -- Models' I/O (test_trt_decoder.cpp: dynamic batch, uint8, mixed types) --------------------------
 
 CUDA_GRAPH_WARNING = "Model has dynamic shapes or multiple profiles, CUDA graphs not supported. Using traditional execution."
@@ -533,6 +562,16 @@ def test_engine_io_past_an_int_fails_the_build(tmp_path):
         qec.get_decoder("trt_decoder", H3, onnx_load_path=path, batch_size=2)
     assert str(e.value) == PREFIX + "Failed to build TensorRT engine"
     assert str(e.value.__cause__) == "input 'x' of shape (2, 1073741824) at batch_size 2 has 2147483648 elements: dimension 1 (1073741824) takes it past 2147483647, the most CUDA-Q's int input_size holds"
+    # A static shape CUDA-Q counts in its int dimension by dimension (trt_decoder.cpp:677-679): a
+    # count past the limit fails even when a later dimension of 0 leaves no elements.
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", H3, onnx_load_path=identity_of(tmp_path, [2**35, 0]))
+    assert str(e.value) == PREFIX + "Failed to build TensorRT engine"
+    assert str(e.value.__cause__) == "input 'x' of shape (34359738368, 0) has 0 elements, but CUDA-Q counts them dimension by dimension in its int input_size: dimension 0 (34359738368) takes the count past 2147483647, the most it holds"
+    # A dynamic batch it counts as the batch times the rest, in a size_t (cpp:664-668): 0 here.
+    data = onnx_model([node("Flatten", ["x"], ["y"])], [value_info("x", FLOAT, ["batch", 2**31, 0])], [value_info("y", FLOAT, ["batch", 0])])
+    d = qec.get_decoder("trt_decoder", H3, onnx_load_path=write(tmp_path, "empty.onnx", data), batch_size=1, use_cuda_graph=False)
+    assert (d._model_batch, d._per_sample) == (1, 0)
 
 
 def test_engine_io_limit_at_its_edge(tmp_path, monkeypatch):
@@ -543,6 +582,11 @@ def test_engine_io_limit_at_its_edge(tmp_path, monkeypatch):
     with pytest.raises(RuntimeError) as e:
         qec.get_decoder("trt_decoder", H, onnx_load_path=identity_of(tmp_path, [7]))
     assert str(e.value.__cause__) == "input 'x' of shape (7,) has 7 elements: dimension 0 (7) takes it past 6, the most CUDA-Q's int input_size holds"
+    # A static count dimension by dimension: up to the limit, then 0, it fits; past it, it fails.
+    assert qec.get_decoder("trt_decoder", H, onnx_load_path=identity_of(tmp_path, [6, 0])).decode([]).result.tolist() == []
+    with pytest.raises(RuntimeError) as e:
+        qec.get_decoder("trt_decoder", H, onnx_load_path=identity_of(tmp_path, [7, 0]))
+    assert str(e.value.__cause__) == "input 'x' of shape (7, 0) has 0 elements, but CUDA-Q counts them dimension by dimension in its int input_size: dimension 0 (7) takes the count past 6, the most it holds"
     # The output, as the engine has it.
     W = tensor("W", np.ones((3, 7), dtype=np.float32), FLOAT)
     data = onnx_model([node("MatMul", ["x", "W"], ["y"])], [value_info("x", FLOAT, [1, 3])], [value_info("y", FLOAT, [1, 7])], [W])
@@ -690,19 +734,33 @@ def test_o_is_checked():
 
 
 def test_o_must_be_a_matrix():
+    # CUDA-Q reads O as a uint8 tensor, then checks its rank (trt_decoder.cpp:781-785). Its Python
+    # binding makes a tensor of an array of rank 2 or more only (kwargs_utils.h:77-108): an array
+    # of rank 3 or more reaches the rank check. Anything else it passes as a vector or a number
+    # (an array of rank 0 or 1, a list, a number, a string or a dict; kwargs_utils.h:41-74 and
+    # 109-128), which the read of O as a tensor refuses first.
+    # (Not mirrored: what the binding refuses before any decoder is made, such as None, a tuple or
+    # a list nested three deep, and an empty list, which it drops, get the read's message here
+    # too; and O's dtype is not checked, here as for every decoder, where the binding makes a
+    # uint8 tensor of uint8 only.)
     H3 = np.eye(3, dtype=np.uint8)
     kw = dict(onnx_load_path=model_path("identity_dynamic.onnx"), batch_size=1, use_cuda_graph=False)
-    for O in (np.ones(3, dtype=np.uint8), np.ones((1, 1, 3), dtype=np.uint8), [1, 0, 1]):
+    for O in (np.ones((1, 1, 3), dtype=np.uint8), np.ones((1, 1, 1, 3), dtype=np.uint8)):
         with pytest.raises(RuntimeError) as e:
             qec.get_decoder("trt_decoder", H3, O=O, **kw)
         assert str(e.value) == PREFIX + "trt_decoder: O must be a 2-dimensional tensor (num_observables x block_size)"
+    for O in (np.ones(3, dtype=np.uint8), np.ones(3), np.array(1, dtype=np.uint8), [1, 0, 1], 1, 0.5, True, "O", {"a": 1}):
+        with pytest.raises(RuntimeError) as e:
+            qec.get_decoder("trt_decoder", H3, O=O, **kw)
+        assert str(e.value) == PREFIX + "heterogeneous_map::get() error - Invalid type or key (O)."
     # (Checked where CUDA-Q checks it: after the model is built and the global decoder made.)
-    with pytest.raises(RuntimeError) as e:
-        qec.get_decoder("trt_decoder", H3, O=np.ones(3, dtype=np.uint8), onnx_load_path="/no/such/model.onnx")
-    assert str(e.value) == PREFIX + "Failed to open file: /no/such/model.onnx"
-    with pytest.raises(RuntimeError) as e:
-        qec.get_decoder("trt_decoder", H3, O=np.ones(3, dtype=np.uint8), global_decoder="nope", global_decoder_params={}, **kw)
-    assert str(e.value).startswith(PREFIX + "invalid decoder requested: nope.")
+    for O in (np.ones(3, dtype=np.uint8), np.ones((1, 1, 3), dtype=np.uint8)):
+        with pytest.raises(RuntimeError) as e:
+            qec.get_decoder("trt_decoder", H3, O=O, onnx_load_path="/no/such/model.onnx")
+        assert str(e.value) == PREFIX + "Failed to open file: /no/such/model.onnx"
+        with pytest.raises(RuntimeError) as e:
+            qec.get_decoder("trt_decoder", H3, O=O, global_decoder="nope", global_decoder_params={}, **kw)
+        assert str(e.value).startswith(PREFIX + "invalid decoder requested: nope.")
     # (The other decoders keep get_decoder's own message.)
     with pytest.raises(RuntimeError) as e:
         qec.get_decoder("single_error_lut", H3, O=np.ones(3, dtype=np.uint8))

@@ -239,8 +239,8 @@ def _columns(H: Any) -> Tuple[int, int, List[List[int]]]:
 class _Inputs:
     """``decoder_init``: H as columns, the observable matrix (rows of faults) if any, and the
     error rates; ``obs_cols``, the column count of an O given as a matrix (None otherwise);
-    ``obs_rank``, the rank of an O given that is not a matrix, for a decoder that refuses it
-    itself (trt_decoder; None otherwise)."""
+    ``obs_rank``, for a decoder that refuses an O that is not a matrix itself (trt_decoder), the
+    rank of the tensor CUDA-Q's binding makes of it, 0 when it makes none (None otherwise)."""
 
     def __init__(self, num_rows: int, num_cols: int, columns: List[List[int]], O: Optional[List[List[int]]], num_obs: int, rates: List[float], obs_cols: Optional[int] = None, obs_rank: Optional[int] = None) -> None:
         self.num_rows, self.num_cols, self.columns = num_rows, num_cols, columns
@@ -702,8 +702,11 @@ def _get_decoder(name: str, H: Any, options: dict, typed: bool = False) -> Any:
     if "O" in options:
         given = options.pop("O")
         if name == "trt_decoder" and not hasattr(given, "tocsc") and np.ndim(given) != 2:
-            # (trt_decoder refuses an O that is not a matrix itself, where CUDA-Q's does.)
-            o_rank = int(np.ndim(given))
+            # (trt_decoder refuses an O that is not a matrix itself, where CUDA-Q's does. CUDA-Q's
+            # binding passes an array of rank 2 or more as a tensor, which its rank check refuses
+            # past 2; anything else it passes as a vector, a number, a string or a map
+            # (kwargs_utils.h:41-128), which its read of O as a tensor refuses first: rank 0 here.)
+            o_rank = int(given.ndim) if isinstance(given, np.ndarray) and given.ndim > 2 else 0
         else:
             num_obs, o_cols, O = _rows_of(given)
         if o_cols != n and name == "pymatching" and options.get("output") == "observables":

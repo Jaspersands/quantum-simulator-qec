@@ -18,7 +18,8 @@ types computed in, so ``precision`` (other than ``best``, ``tf32`` and ``noTF32`
 there. TensorRT's quantization is what runs: QuantizeLinear to int8 where ONNX says uint8 (or
 names no zero point), a float8 zero point ignored, and a nonzero integer zero point or a scale
 that is not positive refused, as are DequantizeLinear of uint8 and MatMul or Gemm of int32 or
-int64. An engine's input and output have at most 2**31 - 1 elements, which CUDA-Q counts in ints.
+int64. An engine's input and output have at most 2**31 - 1 elements, which CUDA-Q counts in ints
+(a static shape's dimension by dimension, so no partial count may pass it either).
 A TensorRT engine is a GPU binary: ``engine_load_path`` and ``engine_save_path`` are refused.
 ``memory_workspace`` and ``use_cuda_graph`` are read and checked as CUDA-Q reads them, and change
 nothing else. CUDA-Q's warnings are RuntimeWarnings, the caller's (at the line that made the
@@ -54,12 +55,15 @@ def _warn(message: str) -> None:
     """CUDA-Q's log warning, as a RuntimeWarning of the caller: of the first frame outside this
     package, its file, line and module (for filters). It is shown on every construction, as
     CUDA-Q logs it: no registry keeps the "default" or "module" action from showing it again
-    (nothing is written to the caller's); the filters, and "once"'s registry, are Python's own."""
+    (nothing is written to the caller's); the filters, and "once"'s registry, are Python's own.
+    No module globals are passed: Python 3.12+ checks them for a __spec__.loader, which an
+    interactive or script __main__ lacks (failing, or warning); the line shown is read from the
+    file name, as for any warning."""
     frame = sys._getframe(1)
     while frame.f_back is not None and str(frame.f_globals.get("__name__", "")).split(".")[0] == "stabilizer_qec":
         frame = frame.f_back
-    g = frame.f_globals
-    warnings.warn_explicit(message, RuntimeWarning, frame.f_code.co_filename, frame.f_lineno, module=g.get("__name__", "<string>"), registry=None, module_globals=g)
+    module = frame.f_globals.get("__name__", "<string>")
+    warnings.warn_explicit(message, RuntimeWarning, frame.f_code.co_filename, frame.f_lineno, module=module, registry=None)
 
 
 def _volume(dims: Any) -> int:
@@ -70,15 +74,23 @@ def _volume(dims: Any) -> int:
 
 
 def _too_large(kind: str, name: str, dims: Tuple[int, ...], batch: int = 0) -> Optional[ValueError]:
-    """Why an engine input or output of these dimensions (a dynamic batch's at ``batch``) is more
-    than CUDA-Q's int count of its elements holds, naming the dimension that takes it past; None
-    when it fits."""
+    """Why CUDA-Q's int count of the elements of an engine input or output of these dimensions (a
+    dynamic batch's at ``batch``) does not hold them, naming the dimension that takes the count
+    past it; None when it does. A static shape CUDA-Q counts in the int dimension by dimension
+    (cpp:677-679, 688-690), so a count past it fails even when a later dimension of 0 leaves no
+    elements; a dynamic batch it counts as the batch times the rest, counted in a size_t
+    (cpp:664-668, 692-694)."""
+    volume = _volume(dims)
+    if batch and volume <= _MAX_VOLUME:
+        return None
     n = 1
     for j, d in enumerate(dims):
         n *= d
         if n > _MAX_VOLUME:
             at = f" at batch_size {batch}" if batch else ""
-            return ValueError(f"{kind} '{name}' of shape {tuple(dims)}{at} has {_volume(dims)} elements: dimension {j} ({d}) takes it past {_MAX_VOLUME}, the most CUDA-Q's int {kind}_size holds")
+            if volume > _MAX_VOLUME:
+                return ValueError(f"{kind} '{name}' of shape {tuple(dims)}{at} has {volume} elements: dimension {j} ({d}) takes it past {_MAX_VOLUME}, the most CUDA-Q's int {kind}_size holds")
+            return ValueError(f"{kind} '{name}' of shape {tuple(dims)} has {volume} elements, but CUDA-Q counts them dimension by dimension in its int {kind}_size: dimension {j} ({d}) takes the count past {_MAX_VOLUME}, the most it holds")
     return None
 
 
@@ -238,6 +250,9 @@ class _TrtDecoder(_NativeDecoder):
 
         # The observables: the model's output is [pre_L, residual detectors].
         if inputs.obs_rank is not None:
+            # (params.get<tensor<uint8_t>>("O"), then its rank, cpp:781-785.)
+            if inputs.obs_rank == 0:
+                raise RuntimeError("heterogeneous_map::get() error - Invalid type or key (O).")
             raise RuntimeError("trt_decoder: O must be a 2-dimensional tensor (num_observables x block_size)")
         self._num_obs = 0
         self._to_obs = inputs.O is not None and (inputs.obs_cols is not None or inputs.num_observables > 0)
@@ -306,7 +321,7 @@ class _TrtDecoder(_NativeDecoder):
                 in_dims, out_dims = self._profile_dims(model, in_shape, batch)
             if too_large is None:
                 # (The output as CUDA-Q sizes it: its dimensions when its batch is static, else the
-                # model's batch times its other dimensions, a dynamic one counted as 1.)
+                # model's batch times its other dimensions, one that is not positive counted as 1.)
                 assert out_dims is not None
                 if len(out_dims) > 0 and out_dims[0] > 0:
                     too_large = _too_large("output", model._out[0][0], tuple(out_dims))
