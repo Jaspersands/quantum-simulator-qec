@@ -356,7 +356,11 @@ def _read_first_shot(data: bytes, fmt: str, nd: int, no: int) -> Optional[List[i
 
 def _filesystem_error(op: str, ex: OSError, path: str) -> RuntimeError:
     """The ``std::filesystem_error`` PyMatching's program aborts on (its ``cli``, RuntimeError),
-    worded as the platform's C++ library words it: libstdc++ on Linux, libc++ elsewhere."""
+    worded as the platform's C++ library words it, with the reason from the OS's own errno for the
+    same ``mkdir``: libstdc++ on Linux (where ``mkdir("file/")`` fails EEXIST; macOS fails it
+    ENOTDIR), libc++ elsewhere. PyMatching's Windows wheel is built with MSVC, whose STL words it
+    ``create_directory: <Win32 message>: "<path>"``; that wording is not reproduced, and Windows
+    gets libc++'s."""
     reason = os.strerror(ex.errno) if ex.errno else str(ex)
     if sys.platform.startswith("linux"):
         return RuntimeError(f"filesystem error: cannot {op.replace('_', ' ')}: {reason} [{path}]")

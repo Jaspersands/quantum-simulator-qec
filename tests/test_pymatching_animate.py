@@ -19,6 +19,7 @@ the sixth significant digit.
 from __future__ import annotations
 
 import base64
+import errno
 import gzip
 import json
 import math
@@ -142,14 +143,52 @@ def test_misuse_messages(name, tmp_path, monkeypatch, capsys):
     _check_message(name, tmp_path, monkeypatch, capsys)
 
 
-@pytest.mark.parametrize("name", [n for n in MESSAGES if n.startswith("out_dir_") and MESSAGES[n]["wheel"].startswith("RuntimeError")])
+OUT_DIR_CASES = [n for n in MESSAGES if n.startswith("out_dir_") and MESSAGES[n]["wheel"].startswith("RuntimeError")]
+# A ``std::filesystem_error`` is worded by the C++ library PyMatching was built with, around the
+# reason for the OS's own errno, so the message is the platform's:
+# - macOS (libc++), where the fixtures were recorded: exactly the recorded message. There
+#   ``mkdir("model.dem/")`` fails ENOTDIR, and libc++ words it
+#   ``filesystem error: in create_directory: <strerror> ["<path>"]``.
+# - Linux (libstdc++, PyMatching's manylinux wheels): ``create_directory`` throws
+#   ``filesystem_error("cannot create directory", p, ec)``, worded
+#   ``filesystem error: cannot create directory: <strerror> [<path>]``, and Linux's
+#   ``mkdir("model.dem/")`` fails EEXIST, which libstdc++ keeps because the path is not a
+#   directory. These are what libstdc++.so.6.0.30 itself throws on Linux (Debian 12 aarch64 and
+#   Ubuntu 22.04 x86_64) for PyMatching's ``if (!exists(out_dir)) create_directory(out_dir);``,
+#   recorded by calling it through ctypes in this test's two situations.
+# - Windows (MSVC's STL, PyMatching's Windows wheel): worded
+#   ``create_directory: <Win32 FormatMessage text>: "<path>"``, with Win32 error codes. That was
+#   never recorded and the port does not reproduce it, so the test is skipped there, as on any
+#   other platform, where neither the library nor the errno was recorded.
+OUT_DIR_LIBSTDCXX = {
+    "out_dir_is_a_file": "filesystem error: cannot create directory: File exists [model.dem/]",
+    "out_dir_parent_missing": "filesystem error: cannot create directory: No such file or directory [missing/out/]",
+}
+
+
+@pytest.mark.skipif(sys.platform != "darwin" and not sys.platform.startswith("linux"), reason="recorded for libc++ on macOS and libstdc++ on Linux only; MSVC's wording on Windows (create_directory: <Win32 message>: \"<path>\") is not reproduced: see OUT_DIR_LIBSTDCXX")
+@pytest.mark.parametrize("name", OUT_DIR_CASES)
 def test_out_dir_that_cannot_be_made(name, tmp_path, monkeypatch, capsys):
     """PyMatching's ``std::filesystem::create_directory`` throws past its handler: its program
-    aborts and its ``cli`` raises RuntimeError with the filesystem's message."""
+    aborts and its ``cli`` raises RuntimeError with the filesystem's message, worded as the
+    platform's C++ library words it (see OUT_DIR_LIBSTDCXX)."""
     with pytest.raises(RuntimeError) as ex:
         _message_case(name, tmp_path, monkeypatch, capsys)
-    assert f"RuntimeError: {ex.value}\n" == MESSAGES[name]["wheel"]
+    if sys.platform.startswith("linux"):
+        assert str(ex.value) == OUT_DIR_LIBSTDCXX[name]
+    else:
+        assert f"RuntimeError: {ex.value}\n" == MESSAGES[name]["wheel"]
     assert capsys.readouterr().err == MESSAGES[name]["wheel_stderr"] == ""
+
+
+@pytest.mark.parametrize("name", OUT_DIR_CASES)
+def test_out_dir_wording_on_linux(name, monkeypatch):
+    """The Linux wording, checked on every platform: the errno Linux's ``mkdir`` gives in each
+    situation (see OUT_DIR_LIBSTDCXX), worded as libstdc++ words it."""
+    out_dir = MESSAGES[name]["args"][MESSAGES[name]["args"].index("--out_dir") + 1] + "/"
+    err = {"out_dir_is_a_file": errno.EEXIST, "out_dir_parent_missing": errno.ENOENT}[name]
+    monkeypatch.setattr(sys, "platform", "linux")
+    assert str(pymatching._filesystem_error("create_directory", OSError(err, os.strerror(err)), out_dir)) == OUT_DIR_LIBSTDCXX[name]
 
 
 def test_unrecognized_command_lists_animate():
