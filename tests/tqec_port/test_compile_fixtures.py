@@ -22,6 +22,7 @@ import pytest
 
 from stabilizer_qec import tqec
 from stabilizer_qec.tqec import LinearFunction
+from stabilizer_qec.tqec._compile import compile as _tqec_compile
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 MANIFEST = json.loads((FIXTURES / "manifest.json").read_text())
@@ -195,10 +196,20 @@ def test_detector_order_independent_of_hash_seed():
     assert texts[0] == texts[1] == reference_text(CASES["cnot_Z_fixed_boundary_k1"])
 
 
-def test_each_compilation_starts_from_fresh_caches():
-    """tqec's circuit for a graph depends on what its process compiled before (it reschedules
-    cached plaquettes in place); here every compilation is a fresh process's."""
-    check_case("cnot_X_fixed_boundary_k1")
+def test_each_compilation_starts_from_fresh_caches(monkeypatch):
+    """tqec's circuit for a graph depends on what its process compiled before: it reschedules
+    the measurements of cached plaquettes in place. Move/rotation (fixed boundary) reschedules
+    plaquettes the memory, the rotated memory and the temporal Hadamard share, so a tqec process
+    that compiled it first writes other circuits for them than a fresh process does. Here every
+    compilation is a fresh process's."""
+    check_case("move_rotation_Z_fixed_boundary_k1")
+    # The control: with the cache clear skipped, the memory compiled now is the circuit of a tqec
+    # process that compiled move/rotation first, not the fixture. So the checks below need the clear.
+    memory = CASES["memory_Z_fixed_boundary_k1"]
+    with monkeypatch.context() as patch:
+        patch.setattr(_tqec_compile, "_start_from_fresh_caches", lambda: None)
+        _, stale = compile_case(memory)
+    assert str(stale) != reference_text(memory), "move/rotation no longer changes the memory's cached plaquettes: this test no longer tests the cache clear"
+    check_case("memory_Z_fixed_boundary_k1")
     check_case("rotated_memory_Z_fixed_boundary_k1")
     check_case("temporal_hadamard_fixed_boundary_k1")
-    check_case("rotated_memory_Z_fixed_boundary_k1")
