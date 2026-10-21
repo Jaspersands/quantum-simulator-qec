@@ -1,9 +1,10 @@
 # Ported from tqec (tqec/tqec 0.2.0, src/tqec/utils/scale.py; Apache License 2.0, see LICENSE in
-# this directory), modified for stabilizer_qec: LinearFunction and round_or_fail only (the
-# Scalable2D shapes are those of tqec's templates, which this port does not have).
+# this directory), modified for stabilizer_qec: round_or_fail lives in position.py (re-exported here),
+# and PhysicalQubitScalable2D.to_grid_qubit imports GridQubit when called.
 """tqec's ``LinearFunction``, ``slope * k + offset``: the type of tqec's
 ``block_temporal_height`` (``LinearFunction(2, -1)``, 2k - 1 rounds between a slice's
-initialisation and measurement layers, by default)."""
+initialisation and measurement layers, by default), and ``Scalable2D``, a pair of them: the
+shape of a template, in plaquettes or physical qubits, at every ``k``."""
 
 from __future__ import annotations
 
@@ -12,7 +13,7 @@ from dataclasses import dataclass
 from typing import Optional, Union
 
 from ._errors import TQECError
-from .position import round_or_fail
+from .position import PhysicalQubitShape2D, PlaquetteShape2D, Shape2D, Shift2D, round_or_fail
 
 
 @dataclass(frozen=True)
@@ -87,14 +88,16 @@ class LinearFunction:
     @staticmethod
     def unambiguous_max_on_positives(fs: Iterable[LinearFunction], default: Optional[LinearFunction] = None) -> LinearFunction:
         """The function of ``fs`` at least every other on the positive numbers (a TQECError when
-        there is none)."""
+        there is none). As tqec's, the check runs over ``fs`` a second time: given an iterator,
+        it has nothing left to check."""
         if default is None:
             default = LinearFunction(0, 0)
-        fs = list(fs)
-        if not fs:
+        iterator = iter(fs)
+        try:
+            res: LinearFunction = next(iterator)
+        except StopIteration:
             return default
-        res = fs[0]
-        for f in fs[1:]:
+        for f in iterator:
             if f.offset >= res.offset and f.slope >= res.slope:
                 res = f
         for f in fs:
@@ -110,4 +113,62 @@ class LinearFunction:
         return LinearFunction(lhs.slope * rhs.offset + rhs.slope * lhs.offset, lhs.offset * rhs.offset)
 
 
-__all__ = ["LinearFunction", "round_or_fail"]
+@dataclass(frozen=True)
+class Scalable2D:
+    """A pair of scalable quantities: ``x`` and ``y``, each a linear function of ``k``."""
+
+    x: LinearFunction
+    y: LinearFunction
+
+    def to_shape_2d(self, k: int) -> Shape2D:
+        """``Shape2D(self.x.integer_eval(k), self.y.integer_eval(k))``."""
+        return Shape2D(self.x.integer_eval(k), self.y.integer_eval(k))
+
+    def to_numpy_shape(self, k: int) -> tuple[int, int]:
+        """The shape at ``k`` in numpy's coordinates, ``(y, x)``."""
+        return self.to_shape_2d(k).to_numpy_shape()
+
+    @staticmethod
+    def _get_x_y(other):
+        if isinstance(other, tuple):
+            return other
+        elif isinstance(other, (Scalable2D, Shift2D)):
+            return other.x, other.y
+        else:
+            raise TypeError("Unsupported input provided.")
+
+    def __add__(self, other):
+        x, y = Scalable2D._get_x_y(other)
+        return self.__class__(self.x + x, self.y + y)
+
+    def __sub__(self, other):
+        x, y = Scalable2D._get_x_y(other)
+        return self.__class__(self.x - x, self.y - y)
+
+
+class PlaquetteScalable2D(Scalable2D):
+    """A pair of scalable quantities in plaquette coordinates."""
+
+    def to_shape_2d(self, k: int) -> PlaquetteShape2D:
+        """Evaluate both coordinates with ``k`` as input."""
+        return PlaquetteShape2D(self.x.integer_eval(k), self.y.integer_eval(k))
+
+    def __mul__(self, other: Shift2D) -> PhysicalQubitScalable2D:
+        return PhysicalQubitScalable2D(self.x * other.x, self.y * other.y)
+
+
+class PhysicalQubitScalable2D(Scalable2D):
+    """A pair of scalable quantities in physical qubit coordinates."""
+
+    def to_shape_2d(self, k: int) -> PhysicalQubitShape2D:
+        """Evaluate both coordinates with ``k`` as input."""
+        return PhysicalQubitShape2D(self.x.integer_eval(k), self.y.integer_eval(k))
+
+    def to_grid_qubit(self, k: int):
+        """Evaluate both coordinates with ``k`` as input, returning a ``GridQubit``."""
+        from ._compile.circuit.qubit import GridQubit
+
+        return GridQubit(self.x.integer_eval(k), self.y.integer_eval(k))
+
+
+__all__ = ["LinearFunction", "PhysicalQubitScalable2D", "PlaquetteScalable2D", "Scalable2D", "round_or_fail"]

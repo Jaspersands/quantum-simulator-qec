@@ -1,13 +1,24 @@
 # Ported from tqec (tqec/tqec 0.2.0, src/tqec/utils/enums.py; Apache License 2.0; see LICENSE in this directory),
 # modified for stabilizer_qec.
-"""Bases and Paulis as tqec names them."""
+"""Orientations, bases and Paulis as tqec names them."""
 
 from __future__ import annotations
 
-from enum import Enum, Flag
+from enum import Enum, Flag, auto
 from typing import Generator
 
 from ._errors import TQECError
+
+
+class Orientation(Enum):
+    """Either horizontal or vertical orientation."""
+
+    HORIZONTAL = auto()
+    VERTICAL = auto()
+
+    def flip(self) -> Orientation:
+        """Flip ``self``, returning the opposite orientation."""
+        return Orientation.HORIZONTAL if self == Orientation.VERTICAL else Orientation.VERTICAL
 
 
 class Basis(Enum):
