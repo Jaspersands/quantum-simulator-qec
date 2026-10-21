@@ -50,9 +50,12 @@ def run(case, tmp_path):
         (d / name).write_bytes(data)
     stdin = FILES[case["stdin"]] if case["stdin"] else b""
     saved = sys.stdin, sys.stdout, sys.stderr, os.getcwd()
+    # newline="\n": the text written is kept as written. (The default, None, would write each
+    # "\n" as os.linesep, so on Windows every message would end CRLF, as the real sys.stderr's
+    # do; the recording is macOS's, LF.)
     sys.stdin = io.TextIOWrapper(io.BytesIO(stdin))
-    sys.stdout = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
-    sys.stderr = io.TextIOWrapper(io.BytesIO(), encoding="utf-8")
+    sys.stdout = io.TextIOWrapper(io.BytesIO(), encoding="utf-8", newline="\n")
+    sys.stderr = io.TextIOWrapper(io.BytesIO(), encoding="utf-8", newline="\n")
     try:
         os.chdir(d)
         status = cli.main(["chromobius", *case["args"]])
@@ -196,6 +199,11 @@ def test_runs_as_a_module(tmp_path):
         stdin = FILES[case["stdin"]] if case["stdin"] else b""
         r = subprocess.run([sys.executable, "-m", "stabilizer_qec.chromobius", *case["args"]], cwd=tmp_path, input=stdin, capture_output=True, timeout=300)
         status, out, err, files = recorded(case)
-        assert (r.returncode, r.stdout, r.stderr.decode()) == (status, out, err), name
+        stderr = r.stderr
+        if sys.platform == "win32":
+            # Windows' sys.stderr is a text stream that writes each "\n" as "\r\n" (as is
+            # Chromobius's std::cerr there); the recording is macOS's.
+            stderr = stderr.replace(b"\r\n", b"\n")
+        assert (r.returncode, r.stdout, stderr.decode()) == (status, out, err), name
         for k, v in files.items():
             assert (tmp_path / k).read_bytes() == v
