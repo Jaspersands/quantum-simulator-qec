@@ -390,7 +390,10 @@ class Circuit(_Base):
         return stim_to_shorthand(_Base.__str__(self))
 
     def __repr__(self) -> str:
-        """Return a string representation that can recreate the circuit."""
+        """Return a string representation that can recreate the circuit (Tsim's shorthand, which
+        leaves out an all-identity product rotation and a product's identity letters: what it
+        recreates then has their operation, not their instruction or qubits; see "Where it differs"
+        in ``stabilizer_qec.tsim``)."""
         return f"tsim.Circuit('''\n{self!s}\n''')"
 
     def __reduce__(self) -> tuple:

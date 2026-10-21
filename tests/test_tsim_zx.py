@@ -2079,6 +2079,53 @@ def test_an_all_identity_product_is_left_out_of_the_print(text):
             assert_matrix_is_tsims(c.inverse(), ref.inverse())
 
 
+# What "Where it differs" says of that print: read back, by Tsim or here, it has the all-identity product's
+# instruction fewer and the ``num_qubits`` of the qubits it names (Stim's, one past the largest), so a qubit
+# only the product names is not counted, as one only an identity letter names is not; ``tsim.Circuit(str(c))``
+# and ``eval(repr(c))`` are not ``== c``, but have its graph, T-count, matrix, model and inverse.
+# text: (len, num_qubits, the print, the print's len and num_qubits read back)
+PRINTS_WITHOUT_A_PRODUCTS_QUBITS = {
+    "H 0\nII[R_PAULI(theta=0.1, pauli=__)] 1 2": (2, 3, "H 0", 1, 1),
+    "H 0\nI[R_PAULI(theta=0.1, pauli=II)] 1 2": (2, 3, "H 0", 1, 1),
+    "H 0\nII[R_PAULI(theta=0.1, pauli=__)] 1 2\nX_ERROR(0.1) 1": (3, 3, "H 0\nX_ERROR(0.1) 1", 2, 2),
+    "R 0\nH 0\nII[R_PAULI(theta=0.1, pauli=__)] 1 2\nM 0\nDETECTOR rec[-1]": (5, 3, "R 0\nH 0\nM 0\nDETECTOR rec[-1]", 4, 1),
+    "H 0\nREPEAT 2 {\n    I[R_PAULI(theta=0.1, pauli=_)] 3\n    I[T] 0\n}": (2, 4, "H 0\nREPEAT 2 {\n    T 0\n}", 2, 1),
+    "H 0\nI[R_PAULI(theta=0.1, pauli=X_)] 0 1": (2, 2, "H 0\nR_PAULI(0.06366197723675814) X0", 2, 1),
+    "H 0\nII[R_PAULI(theta=0.1, pauli=_Z__)] 1 2 3 4": (2, 5, "H 0\nR_PAULI(0.06366197723675814) Z2", 2, 3),
+}
+
+
+@pytest.mark.parametrize("text", list(PRINTS_WITHOUT_A_PRODUCTS_QUBITS))
+def test_the_print_read_back_lacks_a_qubit_only_an_identity_product_names(text):
+    c = tsim.Circuit(sq.Circuit(text))
+    length, qubits, printed, printed_length, printed_qubits = PRINTS_WITHOUT_A_PRODUCTS_QUBITS[text]
+    assert (len(c), c.num_qubits, str(c)) == (length, qubits, printed)
+    read = tsim.Circuit(printed)
+    assert eval(repr(c), {"tsim": tsim}) == read and read != c
+    assert (len(read), read.num_qubits, str(read)) == (printed_length, printed_qubits, printed)
+    assert record(read.get_graph(backend="own")) == record(c.get_graph(backend="own"))
+    assert read.tcount() == c.tcount()
+    assert np.allclose(read.to_matrix(), c.to_matrix(), atol=1e-12, rtol=0)  # one of the two can be the ZX tensor
+    measured = "M" in printed
+    if measured:
+        assert str(read.detector_error_model(allow_gauge_detectors=True)) == str(c.detector_error_model(allow_gauge_detectors=True))
+    else:
+        assert outcome(lambda: str(read.inverse())) == outcome(lambda: str(c.inverse()))  # noise has none
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        ref = real.Circuit(printed)
+        assert (len(ref), ref.num_qubits, str(ref)) == (printed_length, printed_qubits, printed)
+        assert eval(repr(ref), {"tsim": real}) == ref  # Tsim's own print gives its circuit back
+        assert record(ref.get_graph()) == record(c.get_graph(backend="own"))
+        assert ref.tcount() == c.tcount()
+        assert_matrix_is_tsims(c, ref)
+        if measured:
+            assert str(c.detector_error_model(allow_gauge_detectors=True)) == str(ref.detector_error_model(allow_gauge_detectors=True))
+        else:
+            assert outcome(lambda: str(c.inverse())) == outcome(lambda: str(ref.inverse()))
+
+
 # A pair rotation's inverse is one instruction, its gate and pairs kept, its ``SPP_DAG`` written with an
 # empty argument first (``II[R_ZZ(, theta=-t)] 3 2 1 0``; a TPP's dagger is its sign): its print is Tsim's
 # inverse of the print (``SPP_DAG[R_PAULI(theta=a*pi)] Z3*Z2 Z1*Z0``; a TPP of two products two lines here,

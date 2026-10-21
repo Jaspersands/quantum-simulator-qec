@@ -86,7 +86,14 @@ Where it differs from Tsim:
   ``R_PAULI(...) X0*Z1``, its inverse that of the ``I`` form on ``II``), and on ``I_ERROR`` or
   ``II_ERROR`` it is a coherent error, no gate. A product rotation whose letters are all identities
   (``pauli=__``) is no operation and is left out of the print, as the core, the graph and the model
-  read it (Tsim would read ``II[R_PAULI(...)] 1 2`` as a plain ``II`` naming qubits 1 and 2). A pair
+  read it (Tsim would read ``II[R_PAULI(...)] 1 2`` as a plain ``II`` naming qubits 1 and 2). So the
+  print, read back by Tsim or by ``tsim.Circuit``, has that instruction fewer, and its ``num_qubits``
+  is that of the qubits it names, without one only the product names (``H 0`` then
+  ``II[R_PAULI(theta=0.1, pauli=__)] 1 2`` has ``len`` 2 and ``num_qubits`` 3, its print ``H 0`` 1
+  and 1), as it is without one only an identity letter names (``I[R_PAULI(theta=0.1, pauli=X_)] 0 1``
+  prints ``R_PAULI(...) X0``, ``num_qubits`` 1, not 2): the print and ``repr`` of such a circuit do
+  not give it back under ``==``, though what they give has its graph, ``tcount``, matrix, model and
+  inverse. A pair
   rotation ``II[R_ZZ(theta=t)] 0 1 2 3`` (``R_XX``, ``R_YY``) is Tsim's ``R_ZZ(a) 0 1`` and
   ``R_ZZ(a) 2 3``; its ``SPP_DAG`` is written with an empty argument first,
   ``II[R_ZZ(, theta=-t)] 3 2 1 0``, as a product rotation's has its arguments in the other order,
