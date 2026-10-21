@@ -66,18 +66,34 @@ def test_report_fixture_is_the_tools_cases():
     assert WIDGET["space"] == json.loads(json.dumps(fx.widget_cases(RESULTS)["space"])) and WIDGET["scatter"] == fx.WIDGET_SCATTERS and WIDGET["numbers"] == fx.WIDGET_NUMBERS
 
 
+def _named_as_the_qdk(drawn: dict) -> dict:
+    """The port's steps with a failed result's `summary` error named as the QDK's class, AttributeError. The port
+    raises `_EstimateFailed`, an AttributeError that is also 2.1's EstimatorError (test_failed_summary_is_both_errors);
+    that step, and that class alone, is renamed, and every other step keeps its exception's own class name."""
+    assert issubclass(az._EstimateFailed, AttributeError) and issubclass(az._EstimateFailed, az.EstimatorError)
+    return {step: dict(rec, raised="AttributeError") if step == "summary" and rec.get("raised") == "_EstimateFailed" else rec for step, rec in drawn.items()}
+
+
 @pytest.mark.parametrize("name", sorted(CASES))
 def test_report_against_qdk_recorded(name, monkeypatch):
     """Without markdown: every step's HTML (or exception, class and message) and what it printed is the QDK's."""
     monkeypatch.setattr(rep, "has_markdown", False)
-    assert fx.render_case(CASES[name], RESULTS, az.EstimatorResult, az.EstimatorError) == PLAIN[name]
+    assert _named_as_the_qdk(fx.render_case(CASES[name], RESULTS, az.EstimatorResult, az.EstimatorError)) == PLAIN[name]
 
 
 @pytest.mark.skipif(not _markdown_as_recorded(), reason="markdown 3.11.2 and python-markdown-math 0.9 (the recorded versions) are not installed")
 @pytest.mark.parametrize("name", sorted(CASES))
 def test_report_with_markdown_against_qdk_recorded(name):
     """With markdown and python-markdown-math: the explanations and assumptions converted, as the QDK's."""
-    assert fx.render_case(CASES[name], RESULTS, az.EstimatorResult, az.EstimatorError, diagrams=False) == MARKDOWN[name]
+    assert _named_as_the_qdk(fx.render_case(CASES[name], RESULTS, az.EstimatorResult, az.EstimatorError, diagrams=False)) == MARKDOWN[name]
+
+
+def test_only_a_failed_summary_is_renamed():
+    """Which recorded steps `_named_as_the_qdk` renames: the failed result's `summary`, whose QDK error is an
+    AttributeError, and no other (the port raises `_EstimateFailed` nowhere else)."""
+    renamed = {(name, step) for name in CASES for step, rec in fx.render_case(CASES[name], RESULTS, az.EstimatorResult, az.EstimatorError, diagrams=False).items() if rec.get("raised") == "_EstimateFailed"}
+    assert renamed == {(name, "summary") for name in CASES if PLAIN[name].get("summary", {}).get("raised") == "AttributeError"} and renamed
+    assert all(PLAIN[name]["summary"]["str"] == "'EstimatorResult' object has no attribute 'summary'" for name, _ in renamed)
 
 
 def _counts():
@@ -144,16 +160,95 @@ def test_none_succeeded_prints_when_drawn(capsys):
 
 def test_attributes_only_where_the_qdk_has_them():
     """As the QDK's: a succeeded result has `summary` and `diagram`, a failed one neither, a batch `plot` (and
-    the text summary of its overview here), a single result no `plot`."""
+    the text summary of its overview here), a single result no `plot`. Each missing attribute's AttributeError is
+    the one Python raises for the QDK's (its attributes are the instance's, set when the result is made): its args
+    the message, and from Python 3.10 its `name` and `obj`. `diagram` and `plot`, which 2.1 did not have, raise
+    nothing else; a failed `summary` is also an EstimatorError (test_failed_summary_is_both_errors)."""
     batch = _counts().estimate([{}, {"constraints": {"maxDuration": "1 ns"}}])
     failed = batch[1]
     for obj, name in ((failed, "summary"), (failed, "diagram"), (batch, "diagram"), (batch[0], "plot"), (failed, "plot")):
-        with pytest.raises(AttributeError, match=f"^'EstimatorResult' object has no attribute '{name}'$"):
+        with pytest.raises(AttributeError, match=f"^'EstimatorResult' object has no attribute '{name}'$") as caught:
             getattr(obj, name)
         assert not hasattr(obj, name)
+        assert _attribute_error_face(caught.value) == _attribute_error_face(_python_attribute_error(name)) and getattr(caught.value, "obj", obj) is obj
+        assert name == "summary" or type(caught.value) is AttributeError
+        # The property sets `name` and `obj` itself: Python fills them in when getattr reads it, but not on every
+        # path (`result.summary` can run the property without), and not here, where the property is run directly.
+        with pytest.raises(AttributeError) as direct:
+            getattr(type(obj), name).fget(obj)
+        assert type(direct.value) is type(caught.value) and _attribute_error_face(direct.value) == _attribute_error_face(caught.value) and getattr(direct.value, "obj", obj) is obj
     with pytest.raises(az.EstimatorError, match="MaxDurationTooSmall"):
         failed._repr_html_()
     assert callable(batch.plot) and hasattr(batch[0], "summary") and hasattr(batch[0], "diagram")
+
+
+def _python_attribute_error(name: str) -> AttributeError:
+    """The AttributeError Python raises when an `EstimatorResult` instance lacks `name`, as the QDK's does: the QDK
+    sets `summary`, `diagram` and `plot` on the instance, so a result without one fails Python's own lookup."""
+    stand_in = type("EstimatorResult", (), {})()
+    try:
+        getattr(stand_in, name)
+    except AttributeError as e:
+        return e
+    raise AssertionError(name)
+
+
+def _attribute_error_face(e: BaseException) -> tuple:
+    """What an AttributeError shows: its message, its args and, where Python has them (3.10 on), its `name` and
+    whether it holds an `obj`."""
+    return (BaseException.__str__(e), e.args, getattr(e, "name", "<no name>"), getattr(e, "obj", "<no obj>") is None if hasattr(e, "obj") else "<no obj>")
+
+
+def test_failed_summary_is_both_errors():
+    """A failed result's `summary` raises one error that is both the QDK's and 2.1's:
+    - the QDK's AttributeError, as `test_attributes_only_where_the_qdk_has_them` checks: `hasattr` is False,
+      `getattr` with a default returns it, `except AttributeError` catches it;
+    - 2.1's: the failed estimate's EstimatorError, which 2.1 raised from `summary`. `except EstimatorError` (and
+      `except ValueError`) catch it, and its `code`, `reason` and `message` are the estimate's. Its string is the
+      QDK's message.
+    It pickles and copies as Python's AttributeError does (its `obj` dropped, its `name` kept where that Python
+    keeps it: 3.12 on), keeping the estimate's code, reason and message. A batch item and a single result fail
+    alike."""
+    batch = _counts().estimate([{}, {"constraints": {"maxDuration": "1 ns"}}])
+    message = "'EstimatorResult' object has no attribute 'summary'"
+    for failed in (batch[1], az.EstimatorResult(batch.data(1))):
+        estimate_error = failed.error
+        assert type(estimate_error) is az.EstimatorError and estimate_error.code == "Qdk.Qsc.Estimates.MaxDurationTooSmall"
+        expected = (estimate_error.code, estimate_error.reason, estimate_error.message)
+        # The QDK's
+        assert not hasattr(failed, "summary") and getattr(failed, "summary", "absent") == "absent"
+        with pytest.raises(AttributeError) as caught:
+            failed.summary
+        as_qdk = caught.value
+        assert str(as_qdk) == message and as_qdk.args == (message,) and getattr(as_qdk, "obj", failed) is failed
+        # 2.1's
+        with pytest.raises(az.EstimatorError) as caught:
+            failed.summary
+        as_2_1 = caught.value
+        assert (as_2_1.code, as_2_1.reason, as_2_1.message) == expected and as_2_1.message.startswith("Error estimating resources (Qdk.Qsc.Estimates.MaxDurationTooSmall):\n")
+        with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+            failed.summary
+        assert isinstance(as_qdk, az.EstimatorError) and isinstance(as_2_1, AttributeError)
+        # Pickled and copied
+        python_own = _python_attribute_error("summary")
+        for again, python_again in ((pickle.loads(pickle.dumps(as_qdk)), pickle.loads(pickle.dumps(python_own))), (copy.copy(as_qdk), copy.copy(python_own)), (copy.deepcopy(as_qdk), copy.deepcopy(python_own))):
+            assert type(again) is type(as_qdk) and _attribute_error_face(again) == _attribute_error_face(python_again)
+            assert (again.code, again.reason, again.message) == expected and str(again) == message
+
+
+@needs_qdk
+def test_failed_summary_against_qdk_live():
+    """The QDK's own failed `summary`: the same message, args, `name` and `obj` (the result), and `hasattr` False."""
+    counts = {"numQubits": 10, "tCount": 100, "rotationCount": 5, "rotationDepth": 3}
+    params = [{}, {"constraints": {"maxDuration": "1 ns"}}]
+    faces = []
+    for failed in (qdk_estimator.LogicalCounts(counts).estimate(params)[1], az.LogicalCounts.fromdict(counts).estimate(params)[1]):
+        assert not hasattr(failed, "summary")
+        with pytest.raises(AttributeError) as caught:
+            failed.summary
+        assert caught.value.obj is failed
+        faces.append(_attribute_error_face(caught.value))
+    assert faces[0] == faces[1] and faces[0][0] == "'EstimatorResult' object has no attribute 'summary'"
 
 
 def test_results_and_drawings_pickle():

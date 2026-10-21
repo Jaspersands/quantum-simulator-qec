@@ -41,6 +41,7 @@ import functools
 import json
 import math
 import re
+import sys
 import unicodedata
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
@@ -3406,8 +3407,35 @@ def _report():
     return azure_report
 
 
-def _no_attribute(name: str) -> AttributeError:
-    return AttributeError(f"'EstimatorResult' object has no attribute '{name}'")
+class _EstimateFailed(EstimatorError, AttributeError):
+    """What a failed result's `summary` raises: both the QDK's error and 2.1's.
+    - The QDK's AttributeError: its string and `args` are the QDK's message, ``'EstimatorResult' object has no
+      attribute 'summary'``, and from Python 3.10 its `name` and `obj` are set, as Python sets the QDK's. So
+      ``hasattr(result, "summary")`` is False and ``except AttributeError`` catches it, as with the QDK.
+    - 2.1's EstimatorError, which 2.1 raised from a failed result's `summary`: its `code`, `reason` and `message`
+      are the failed estimate's. So ``except EstimatorError`` (and ``except ValueError``) catch it, as in 2.1.
+      Unlike an EstimatorError's, its string is not its `message` but the QDK's.
+    It pickles and copies as an AttributeError does: its `args`, then its attributes (and, where that Python keeps
+    an AttributeError's, its `name`)."""
+
+    def __init__(self, message: str, code: str = "", reason: str = ""):
+        EstimatorError.__init__(self, code, reason)
+        AttributeError.__init__(self, message)
+
+    __str__ = AttributeError.__str__
+    __reduce__ = AttributeError.__reduce__
+
+
+def _no_attribute(name: str, obj: "EstimatorResult", error: Optional[EstimatorError] = None) -> AttributeError:
+    """The AttributeError Python raises for the QDK's result, which lacks the attribute `name`; with the failed
+    estimate's `error`, it is also that EstimatorError (`_EstimateFailed`)."""
+    message = f"'EstimatorResult' object has no attribute '{name}'"
+    e = AttributeError(message) if error is None else _EstimateFailed(message, error.code, error.reason)
+    if sys.version_info >= (3, 10):
+        # As Python sets them on the QDK's. Python fills them in on a property's AttributeError when it is read with
+        # getattr or hasattr, but not always with `result.summary`.
+        e.name, e.obj = name, obj
+    return e
 
 
 class EstimatorResult(dict):
@@ -3420,7 +3448,8 @@ class EstimatorResult(dict):
     items side by side; a failed result raises its error), ``summary`` the summary table and ``result[i:j]`` a
     batch's items side by side, each as text (the string) and as HTML (``.content``, ``_repr_html_()``), and
     ``diagram.space`` and ``diagram.time`` the QDK's diagrams; a batch has ``plot()`` (matplotlib). As in the QDK,
-    a failed result has no `summary` or `diagram` and a single one no `plot`. The QDK's side-by-side table reads
+    a failed result has no `summary` or `diagram` and a single one no `plot` (AttributeError; a failed `summary`'s
+    is also its EstimatorError, which 2.1 raised from it). The QDK's side-by-side table reads
     each path as it is, so a frontier item's counts there are "N/A". The tables are drawn when first asked for
     (the QDK draws them when the result is made: its prints, and a table it cannot draw, come then). And the
     charts of the QDK's notebook widgets, as SVG: `space_chart` and `scatter_chart`."""
@@ -3512,14 +3541,15 @@ class EstimatorResult(dict):
         """The summary table: each report group's entries as label, value and description (in the HTML the
         explanations are tooltips); for a batch, its overview, the items side by side (the first five; slice the
         result, ``result[:]``, for all). Text, with the QDK's HTML as ``.content`` and ``_repr_html_()``. A failed
-        result has none (AttributeError, as the QDK's)."""
+        result has none: it raises the QDK's AttributeError, which is also the estimate's EstimatorError (its code,
+        reason and message), as 2.1 raised, so ``hasattr`` is False and ``except EstimatorError`` still catches it."""
         report = _report()
         if not self._is_simple:
             n = min(len(self), self.MAX_DEFAULT_ITEMS_IN_TABLE)
             note = f"(the first {n} of {len(self)} items; result[:] shows them all)\n" if len(self) > n else ""
             return self._drawn_once("summary", lambda: report.Report(note + report.batch_text(self, range(n)), self._repr_html_))
         if not self._is_succeeded(self._data):
-            raise _no_attribute("summary")
+            raise _no_attribute("summary", self, self._error if isinstance(self._error, EstimatorError) else None)
         return self._drawn_once("summary", lambda: report.Report(report.item_summary_text(self), lambda: report.item_result_summary_table(self)))
 
     @property
@@ -3527,7 +3557,7 @@ class EstimatorResult(dict):
         """The QDK's space and time diagrams of a succeeded single result (``diagram.space``, ``diagram.time``):
         HTML that loads the QDK's visualization script from its CDN."""
         if not self._is_simple or not self._is_succeeded(self._data):
-            raise _no_attribute("diagram")
+            raise _no_attribute("diagram", self)
         return self._drawn_once("diagram", lambda: _report().EstimatorResultDiagram(self.data().copy()))
 
     @property
@@ -3536,7 +3566,7 @@ class EstimatorResult(dict):
         the runtime ticks in units (``1 ns`` to ``1 century``); ``labels`` names the items in the legend. A single
         result has none (AttributeError, as the QDK's)."""
         if self._is_simple:
-            raise _no_attribute("plot")
+            raise _no_attribute("plot", self)
         return self._plot
 
     def _plot(self, **kwargs: Any) -> None:
