@@ -517,11 +517,17 @@ class Matching:
         raise ValueError(f"The shape ({z.shape}) of the syndrome vector z is not valid.")
 
     def _check_correlations(self, enable_correlations: bool) -> bool:
-        if enable_correlations and self._corr is None:
+        if not enable_correlations:
+            return False
+        # PyMatching's correlated calls first take its decoder with the search graph
+        # (`get_mwpm_with_search_graph`), rebuilding one built without it, and only then decode
+        # (or refuse); the plain decoder here follows, though the correlated matcher decodes.
+        call(self._g.mwpm_with_search_graph)
+        if self._corr is None:
             raise ValueError(
                 "Attempting to decode with `enable_correlations=True`, however the decoder has not been configured to decode using correlations. Ensure that you also set `enable_correlations=True` when loading the stim circuit or detector error model. For example: `matching = pymatching.Matching.from_detector_error_model(dem, enable_correlations=True)`"
             )
-        return bool(enable_correlations)
+        return True
 
     def decode(self, z: Any, *, return_weight: bool = False, enable_correlations: bool = False, **kwargs: Any) -> Any:
         """One syndrome (a 1-d array over the detectors, or 2-d over checks × rounds) to the
@@ -592,11 +598,11 @@ class Matching:
     def decode_to_edges_array(self, syndrome: Any, *, enable_correlations: bool = False) -> np.ndarray:
         """The edges the correction flips, as an (edges × 2) int64 array of node pairs (-1: the
         boundary)."""
+        events = self._events(syndrome)
         if self._check_correlations(enable_correlations):
-            events = self._events(syndrome)
             edges = call(self._corr.decode_to_edges, [int(e) for e in events[events < self.num_detectors]])
             return np.array(edges, dtype=np.int64).reshape(-1, 2)
-        edges = call(self._g.decode_to_edges, [int(e) for e in self._events(syndrome)])
+        edges = call(self._g.decode_to_edges, [int(e) for e in events])
         return np.array(edges, dtype=np.int64).reshape(-1, 2)
 
     def decode_to_matched_dets_array(self, syndrome: Any) -> np.ndarray:

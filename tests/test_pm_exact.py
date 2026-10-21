@@ -365,10 +365,15 @@ def test_a_correlated_load_refuses_as_pymatching():
     ours, theirs = correlated_load(text)
     assert rows(ours) == rows(theirs) == [(0, 1, set(), 0.0, 0.5)]
     # Loaded, but a weight implied for a self-loop (not an edge of the matching graph) stops
-    # PyMatching building its decoder: every decode is refused, with its message.
+    # PyMatching building its decoder: every decode is refused, with its message, correlated ones
+    # too (they take the decoder, `get_mwpm_with_search_graph`, before they reweight).
     ours, theirs = correlated_load("error(0.1) D0 D0 ^ D1\nerror(0.2) D0\nerror(0.2) D1 D2")
     s = np.array([1, 0, 1], dtype=np.uint8)
-    for f in (lambda m: m.decode(s).tolist(), lambda m: m.decode_to_edges_array(s).tolist(), lambda m: m.decode_batch(s[None]).tolist()):
+    for f in (
+        lambda m: m.decode(s).tolist(), lambda m: m.decode_to_edges_array(s).tolist(), lambda m: m.decode_batch(s[None]).tolist(),
+        lambda m: m.decode(s, enable_correlations=True).tolist(), lambda m: m.decode_to_edges_array(s, enable_correlations=True).tolist(),
+        lambda m: m.decode_batch(s[None], enable_correlations=True).tolist(),
+    ):  # fmt: skip
         assert outcome(lambda: f(ours)) == outcome(lambda: f(theirs)) == ("error", "Failed to find neighbor.")
 
 
@@ -381,3 +386,88 @@ def test_a_changed_correlated_load_pickles_with_its_implied_weights():
     want = theirs.decode_batch(dets, return_weights=True)
     got = again.decode_batch(dets, return_weights=True)
     assert np.array_equal(got[0], want[0]) and np.array_equal(got[1], want[1])
+
+
+SQUARE_DEM = "error(0.1) D0 D1 L0\nerror(0.1) D1 D2\nerror(0.1) D2 D3 L1\nerror(0.1) D3 D0"
+
+
+def plain_value(x):
+    if isinstance(x, np.ndarray):
+        return x.tolist()
+    if isinstance(x, (tuple, list)):
+        return [plain_value(v) for v in x]
+    if isinstance(x, dict):
+        return sorted(x.items())
+    return x
+
+
+@pytest.mark.parametrize(
+    "load,steps",
+    [
+        ("square", "d e d"), ("square", "d e b"), ("square", "d e b4"), ("square", "d e bp"), ("square", "e d"),
+        ("square", "d e p q d"), ("square", "b e b"), ("square", "d e d e d"), ("square", "d e x d"),
+        ("square", "d x e d"), ("square", "x e d"), ("square", "p e d"), ("square", "d e d x d b"),
+        ("square", "d e a d"), ("square", "x e x d"),
+        ("plain", "d e d"), ("plain", "d e c d"), ("plain", "d e cb d"), ("plain", "d e cx d"), ("plain", "d c e d"),
+        ("correlated", "d e d"), ("correlated", "d e c d"), ("correlated", "d e cb b"), ("correlated", "d e cx d"),
+        ("correlated", "c e d"), ("correlated", "d e x d"),
+    ],
+)  # fmt: skip
+def test_ensure_num_fault_ids_keeps_the_built_decoder_as_pymatching(load, steps):
+    # PyMatching's `set_min_num_observables` does not mark its decoder for rebuilding, so one built
+    # before keeps its own fault-id count: it fills only those of the longer output, and on ties
+    # takes its own path (by mask up to 64 fault ids, by the search graph above). A change to the
+    # graph rebuilds it, and so does `get_mwpm_with_search_graph` (`decode_to_edges_array` and every
+    # correlated call) when it was built without the search graph. On this square, [1, 0, 1, 0]
+    # has two matchings of weight 2 and the two paths pick different ones.
+    def build(mod):
+        if load == "square":
+            m = mod.Matching()
+            for (u, v), f in zip(((0, 1), (1, 2), (2, 3), (3, 0)), ({0}, set(), {1}, set())):
+                m.add_edge(u, v, fault_ids=f, weight=1.0)
+            return m
+        dem = (sq.DetectorErrorModel if mod is sq else stim.DetectorErrorModel)(SQUARE_DEM)
+        return mod.Matching.from_detector_error_model(dem, enable_correlations=load == "correlated")
+
+    s = np.array([1, 0, 1, 0], dtype=np.uint8)
+    shots = np.tile(s, (50, 1))
+    packed = np.packbits(s, bitorder="little")[None, :]
+
+    def batch(m, rows, **kw):
+        if isinstance(m, sq.Matching) and kw.pop("threads4", False):
+            kw["threads"] = 4
+        kw.pop("threads4", None)
+        return m.decode_batch(rows, return_weights=True, **kw)
+
+    ops = {
+        "d": lambda m: m.decode(s, return_weight=True),
+        "b": lambda m: batch(m, shots),
+        "b4": lambda m: batch(m, shots, threads4=True),
+        "bp": lambda m: batch(m, packed, bit_packed_shots=True, bit_packed_predictions=True),
+        "e": lambda m: m.ensure_num_fault_ids(70),
+        "x": lambda m: m.decode_to_edges_array(s),
+        "p": lambda m: m.decode_to_matched_dets_array(s),
+        "q": lambda m: m.decode_to_matched_dets_dict(s),
+        "a": lambda m: m.add_edge(0, 2, fault_ids={2}, weight=5.0),
+        # Correlated calls (their answers are the correlated matcher's; only whether they decode or
+        # refuse is compared here).
+        "c": lambda m: m.decode(s, enable_correlations=True) is None,
+        "cb": lambda m: batch(m, shots, enable_correlations=True) is None,
+        "cx": lambda m: m.decode_to_edges_array(s, enable_correlations=True) is None,
+    }
+    ours, theirs = build(sq), build(pymatching)
+    got = [outcome(lambda: plain_value(ops[k](ours))) for k in steps.split()]
+    want = [outcome(lambda: plain_value(ops[k](theirs))) for k in steps.split()]
+    assert got == want, (load, steps)
+
+
+def test_ensure_num_fault_ids_cases_are_not_vacuous():
+    # The kept decoder answers otherwise than a fresh one: the sequences above see it.
+    s = np.array([1, 0, 1, 0], dtype=np.uint8)
+    for mod in (sq, pymatching):
+        dem = (sq.DetectorErrorModel if mod is sq else stim.DetectorErrorModel)(SQUARE_DEM)
+        kept, fresh = mod.Matching.from_detector_error_model(dem), mod.Matching.from_detector_error_model(dem)
+        kept.decode(s)
+        kept.ensure_num_fault_ids(70)
+        fresh.ensure_num_fault_ids(70)
+        assert kept.decode(s)[:2].tolist() == [1, 0] and fresh.decode(s)[:2].tolist() == [0, 1], mod

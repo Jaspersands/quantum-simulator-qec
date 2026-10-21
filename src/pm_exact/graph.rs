@@ -283,6 +283,13 @@ pub fn normalising_constant_v2_4(g: &UserGraph, num_distinct_weights: u32) -> Re
 }
 
 /// PyMatching 2.2.2's scale: the heaviest edge always to `num_distinct_weights - 1`.
+///
+/// One known gap, not replicated: 2.2.2's `IntermediateWeightedGraph::add_or_merge_edge`
+/// (`driver/io.cc`) stores a self-loop `u u` as two neighbour entries of `u`, and a merge updates
+/// only the first, so its `max_abs_weight` counts a self-loop twice, the second time at its
+/// first, unmerged weight. Here each edge counts once, as merged, so the scales differ when a
+/// merged self-loop's first weight is the heaviest. This order's user, Chromobius's Möbius
+/// models, has no self-loops. (Self-loops never become edges in either.)
 fn normalising_constant_v2_2(g: &UserGraph, num_distinct_weights: u32) -> f64 {
     let mut max_abs_weight = 0f64;
     for e in &g.edges {

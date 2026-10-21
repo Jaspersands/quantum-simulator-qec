@@ -21,7 +21,8 @@ impl Mwpm {
     /// `process_timeline_until_completion`'s set-up: the clock at 0 and a region at every
     /// detection event (skipping the user graph's boundary nodes), the negative-weight edges'
     /// toggles applied. Detection events must be distinct. Out-of-range events are refused
-    /// before anything is created.
+    /// before anything is created (PyMatching creates the regions before the bad event, so its
+    /// next decode raises "!mwpm.flooder.queue.empty()"; deliberately not copied).
     pub fn begin(&mut self, detection_events: &[u64]) -> Result<(), String> {
         if !self.queue.is_empty() {
             return Err("!mwpm.flooder.queue.empty()".into());
