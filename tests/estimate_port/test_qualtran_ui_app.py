@@ -121,6 +121,19 @@ def test_layout_json_equals_qualtran():
     assert ui.app is ui.app and ui.app.title == GOLDEN["title"]
 
 
+def test_ci_pins_the_goldens_dash():
+    """CI installs the dash this file's goldens were recorded with (a later dash may serialize components
+    differently), and the `dash` extra's floor is that version."""
+    root = pathlib.Path(__file__).parents[2]
+    ci = root / ".github" / "workflows" / "ci.yml"
+    if not ci.exists():
+        pytest.skip("needs the repository's .github/workflows/ci.yml")
+    assert GOLDEN["dash"] == "4.4.1"
+    loops = [line for line in ci.read_text().splitlines() if line.lstrip().startswith("for p in ") and " plotly " in line]
+    assert len(loops) == 1 and re.findall(r"(?<=\s)dash\S*", loops[0]) == ["dash==" + GOLDEN["dash"]]
+    assert re.findall(r"^dash = .*$", (root / "pyproject.toml").read_text(), re.M) == ['dash = ["dash>=' + GOLDEN["dash"] + '"]']
+
+
 @pytest.mark.parametrize("server", ["standard library", "dash"])
 def test_callback_signature(server):
     """The one callback: its nine outputs and eight inputs (the algorithm's six by the pattern
@@ -515,13 +528,37 @@ def test_serve_fallback_plotly_js(tmp_path, plotly):
 
 
 def _node():
-    """node, where node 18 or later (whose fetch the page's smoke test uses) is installed; else None."""
+    """node, where it is installed and its fetch (which the page's smoke test uses) is global and prints no warning;
+    else None. fetch is global from node 18. Node 18.0-18.12 and 19.0 print "ExperimentalWarning: The Fetch API is
+    an experimental feature" on stderr at its first call, which the test's empty-stderr check would take for the
+    page's own output; node dropped that warning in 18.13.0 and 19.1.0 (nodejs/node#45287)."""
     node = shutil.which("node")
     if node is None:
         return None
     version = subprocess.run([node, "--version"], capture_output=True, text=True, timeout=60).stdout
-    match = re.match(r"v(\d+)\.", version)
-    return node if match and int(match.group(1)) >= 18 else None
+    match = re.match(r"v(\d+)\.(\d+)\.", version)
+    if match is None:
+        return None
+    major_minor = (int(match.group(1)), int(match.group(2)))
+    return node if major_minor >= (18, 13) and major_minor != (19, 0) else None
+
+
+@pytest.mark.parametrize(("version", "used"), [("v16.20.1", False), ("v18.0.0", False), ("v18.12.0", False), ("v18.13.0", True), ("v18.17.0", True), ("v19.0.1", False), ("v19.1.0", True), ("v20.11.1", True), ("v24.18.0", True), ("", False)])
+def test_node_gate(monkeypatch, version, used):
+    """The node smoke test runs only under a node whose fetch prints no ExperimentalWarning (18.13 on, but not
+    19.0), and skips where node prints no version."""
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, version + "\n" if version else "", "")
+
+    monkeypatch.setattr(shutil, "which", lambda name: "/opt/node/bin/node" if name == "node" else None)
+    monkeypatch.setattr(subprocess, "run", run)
+    assert _node() == ("/opt/node/bin/node" if used else None)
+    assert calls == [["/opt/node/bin/node", "--version"]]
+    monkeypatch.setattr(shutil, "which", lambda name: None)
+    assert _node() is None and len(calls) == 1
 
 
 def _initial_args():
@@ -554,7 +591,7 @@ def test_page_script_in_node(served, tmp_path):
     resized; the page writes nothing to the console."""
     node = _node()
     if node is None:
-        pytest.skip("needs node 18 or later")
+        pytest.skip("needs node 18.13 or later, other than 19.0, whose fetch prints no ExperimentalWarning")
     page = served.request("")[2]
     (tmp_path / "page.html").write_bytes(page)
     qubits = json.dumps({"type": "algorithm", "property": "qubits"}, sort_keys=True, separators=(",", ":"))
