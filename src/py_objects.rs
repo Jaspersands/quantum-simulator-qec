@@ -2718,7 +2718,8 @@ pub struct PyDemColorMatcher {
 impl PyDemColorMatcher {
     #[new]
     fn new(dem: &PyDem, ignore_decomposition_failures: bool) -> PyResult<Self> {
-        let d = dem.flat()?;
+        // (A model naming an observable past L63 has no flat form; Chromobius's refusal first.)
+        let d = dem.flat().map_err(|e| crate::color::refusal_past_l63(dem.dem.program()).map_or(e, err))?;
         let dec = crate::color::ColorDecoder::from_dem(d, dem.dem.program(), ignore_decomposition_failures).map_err(err)?;
         Ok(PyDemColorMatcher { dec, num_detectors: d.num_detectors, num_observables: d.num_observables })
     }
@@ -2736,16 +2737,30 @@ impl PyDemColorMatcher {
     /// (observables as u64 per shot, weights as f64, one status byte per shot as
     /// `color_shots` gives it: 0 decoded, 1 decoded through an ambiguous table entry, 2 no
     /// lifting explains the shot, 3 the matcher found no perfect matching; the shots that
-    /// failed, 2 or 3).
+    /// failed, 2 or 3; and for each of those, the tour no start charge explains as its
+    /// detectors in order (Chromobius's "The cycle"), or None where there is none).
     #[allow(clippy::type_complexity)]
-    fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<usize>)> {
+    fn decode_batch<'py>(
+        &self,
+        py: Python<'py>,
+        packed: &[u8],
+        shots: usize,
+        threads: usize,
+    ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<usize>, Vec<Option<Vec<u32>>>)> {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
         let dec = &self.dec;
         let out = py.detach(|| crate::batch::color_shots(dec, packed, nd, shots, threads));
-        let failed = out.iter().enumerate().filter(|(_, x)| x.2 >= 2).map(|(s, _)| s).collect();
+        let failed: Vec<usize> = out.iter().enumerate().filter(|(_, x)| x.2 >= 2).map(|(s, _)| s).collect();
+        let tours = failed.iter().map(|&s| out[s].3.as_ref().map(|t| t.to_vec())).collect();
         let status: Vec<u8> = out.iter().map(|x| x.2).collect();
-        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &status), failed))
+        Ok((PyBytes::new(py, &le_u64(out.iter().map(|x| x.0))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &status), failed, tours))
+    }
+
+    /// Each detector's colour and basis as Chromobius prints a `ColorBasis`'s two fields
+    /// together in its messages (`R`, `G`, `B` or `NEUTRAL`, then `X`, `Z` or `UNKNOWN_BASIS`).
+    fn detector_colors(&self) -> Vec<String> {
+        self.dec.detector_colors()
     }
 
     /// One shot's lifting of a Möbius matching given as its edges, in a matcher's order (the

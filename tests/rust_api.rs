@@ -115,6 +115,25 @@ fn color_matching_names_a_shot_with_no_perfect_matching() {
 }
 
 #[test]
+fn color_matching_refuses_models_with_chromobius_messages() {
+    // Chromobius's checks, in its order: each declaration's colour, then each error's targets
+    // (a detector no declaration colours, an observable past L63), with its messages (each as
+    // Chromobius 1.1.1's program prints it for the same model).
+    let uncoloured = "Expected all detectors to have at least 4 coordinates, with the 4th identifying the basis and color (RedX=0, GreenX=1, BlueX=2, RedZ=3, GreenZ=4, BlueZ=5), but got ";
+    let cases = [
+        ("error(0.1) D0 D1\ndetector(0, 0, 0, 0) D0\ndetector D1", format!("{uncoloured}detector D1")),
+        ("error(0.1) D0\nerror(0.1) D1 L0\ndetector(0, 0, 0, 0) D0", format!("{uncoloured}error(0.1) D1 L0")),
+        ("error(0.1) D0 L64\ndetector(0, 0, 0, 0) D0", "Max logical observable is L63 but a larger one appeared in 'error(0.1) D0 L64'".to_string()),
+        ("shift_detectors 1\nerror(0.1) D0 L70\ndetector(0, 0, 0, 0) D0", "Max logical observable is L63 but a larger one appeared in 'error(0.1) D1 L70'".to_string()),
+    ];
+    for (text, want) in &cases {
+        let dem: DetectorErrorModel = text.parse().unwrap();
+        assert_eq!(ColorMatching::new(&dem).err().map(|e| e.message().to_string()).as_deref(), Some(want.as_str()), "{text}");
+        assert_eq!(ColorMatching::ignoring_decomposition_failures(&dem).err().map(|e| e.message().to_string()).as_deref(), Some(want.as_str()), "{text}");
+    }
+}
+
+#[test]
 fn belief_matching_bposd_and_windows() {
     let c = memory_circuit(SurfaceCode::Rotated, 3, 30, Noise::Sd6 { p: 0.005 }, Basis::Z).unwrap();
     let dem = c.detector_error_model(&DemOptions::new().decompose_errors(true)).unwrap();

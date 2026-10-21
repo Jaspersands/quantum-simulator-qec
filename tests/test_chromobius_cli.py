@@ -40,7 +40,14 @@ CASES = {c["name"]: c for c in REF["cases"]}
 # exception it does not catch, this port prints the same message and exits with status 134
 # rather than raising SIGABRT (-6).
 PARSER_MESSAGE = {"predict malformed dem", "predict probability above 1", "describe malformed"}
-ABORTS = {"predict huge hit", "benchmark huge hit"}
+ABORTS = {"predict huge hit", "benchmark huge hit", "predict hit of 2^64"}
+# Records with a bit set past the last detector (a b8 record's padding; an observable read both
+# appended and from --obs_in). Chromobius's own result for them is undefined: its
+# detection_events_to_mobius_detection_events reads node_colors[d] past the end of the table
+# for such a bit (decoder.cc), so another build or run may name another node or decode the
+# record. The recording (macOS) refuses them with PyMatching's message, which this port gives
+# deterministically; should a re-recording differ here, it is Chromobius's undefined behaviour.
+UNDEFINED_IN_CHROMOBIUS = {"predict padding bit", "benchmark padding bit", "benchmark both observables"}
 
 
 def run(case, tmp_path):
@@ -177,9 +184,12 @@ def test_missing_flags_messages(tmp_path):
     """Misuse gives Chromobius's (Stim's) message and exit status, and leaves the files it
     leaves: missing, empty, unknown, repeated and malformed flags; files that cannot be opened
     (an output file is created before the model is read); records that go wrong part way (the
-    predictions before them written); models Chromobius refuses."""
+    predictions before them written); models Chromobius refuses. A record with a bit set past
+    the last detector, whose result in Chromobius is undefined (``UNDEFINED_IN_CHROMOBIUS``), is
+    refused deterministically with the message the recording shows."""
     names = [n for n, c in CASES.items() if c["returncode"] != 0]
     assert len(names) > 70
+    assert UNDEFINED_IN_CHROMOBIUS <= set(names)
 
     def compare(name, got, want):
         if name in PARSER_MESSAGE:
@@ -212,11 +222,88 @@ def test_unmatchable_shot_message(tmp_path):
     assert decoder.decode_batch(shots[[0, 1, 3]]).tolist() == [[0], [1], [1]]
 
 
+def test_integers_read_as_stims_uint64(tmp_path):
+    """Hit and DETS indices are read as Stim's ``read_uint64`` reads them, in uint64_t
+    arithmetic: a value that wraps past 2^64 without dropping below the step before it is read
+    wrapped (30000000000000000000 as 11553255926290448384) and refused as too large; only a
+    step that drops is the exception Chromobius does not catch."""
+    want = {
+        "predict wrapped hit": "hit index is too large.\n",
+        "benchmark wrapped hit": "hit index is too large.\n",
+        "predict largest hit": "hit index is too large.\n",
+        "predict wrapped dets": "DETS data had a value larger than expected. Got D11553255926290448384 but expected length of D space to be 18.\n",
+        "predict wrapped dets observable": "DETS data had a value larger than expected. Got L11553255926290448384 but expected length of L space to be 1.\n",
+    }
+    assert {n: CASES[n]["stderr"] for n in want} == want
+    assert all(CASES[n]["returncode"] == 1 for n in want)
+    assert CASES["predict hit of 2^64"]["returncode"] == -6
+    assert mismatches(list(want), tmp_path, lambda name, got, want: got == want) == []
+    status, out, err, files = run(CASES["predict hit of 2^64"], tmp_path)
+    assert (status, out, err, files) == (134, *recorded(CASES["predict hit of 2^64"])[1:])
+    # The reader itself.
+    assert cli._Bytes(b"30000000000000000000\n").read_uint64() == (11553255926290448384, 10)
+    assert cli._Bytes(b"18446744073709551615,").read_uint64() == (2**64 - 1, 44)
+    assert cli._Bytes(b"x").read_uint64() == (None, 120)
+    for digits in (b"18446744073709551616", b"99999999999999999999", b"184467440737095516150"):
+        with pytest.raises(cli._Abort):
+            cli._Bytes(digits).read_uint64()
+
+
+def test_unliftable_shot_message(tmp_path):
+    """A shot no lifting of the Möbius matching explains gets Chromobius's whole message, after
+    the predictions of the shots before it: the cycle that failed (its detectors in its order,
+    each with its colour and basis, and whether it fired) and the shot's detection events."""
+    names = ["predict unliftable", "predict unliftable to a file", "benchmark unliftable"]
+    cycle = "The cycle: {\n    D3[RX]\n    D1[BX, triggered]\n    D1[BX, triggered]\n    D2[GX]\n}\n"
+    events = "All detection events in the shot: {\n    D0[NEUTRALUNKNOWN_BASIS, triggered]\n    D1[BX, triggered]\n}\n"
+    for n in names:
+        assert CASES[n]["returncode"] == 1 and CASES[n]["stderr"].startswith("Failed to lift a flattened edge cycle")
+        assert CASES[n]["stderr"].endswith(cycle + events)
+    assert mismatches(names, tmp_path, lambda name, got, want: got == want) == []
+    # The Python API names the shot.
+    decoder = sq.ColorMatching(sq.DetectorErrorModel(FILES["unliftable.dem"].decode()))
+    with pytest.raises(ValueError, match="^shot 1: no lifting of the matching explains"):
+        decoder.decode_batch(np.array([[0, 0, 0, 0], [1, 1, 0, 0]], dtype=np.uint8))
+
+
+def test_describe_keeps_negative_zero(tmp_path):
+    """A coordinate past the shift's length is not shifted, so a negative zero keeps its sign in
+    the Möbius model (``collect_nodes.cc`` adds an offset only where the shift has one)."""
+    _, out, err, _ = run(CASES["describe negative zero"], tmp_path)
+    want = base64.b64decode(CASES["describe negative zero"]["stdout"]).decode()
+    for line in ("detector(-0, 0, -0, 0, 2) D0\n", "detector(1, -0, 0, 1, 1) D2\n"):
+        assert line in want and line in out.decode()
+    assert err == ""
+
+
+def test_decomposition_failure_coordinates_as_stim_gives_them(tmp_path):
+    """The message for a fault Chromobius cannot split names each detector's coordinates as
+    Stim's ``get_detector_coordinates`` gives them: its first declaration, shifted only where
+    the shift has an entry (a negative zero past it keeps its sign)."""
+    names = ["predict sevenfold shifted", "describe sevenfold shifted"]
+    for n in names:
+        assert CASES[n]["returncode"] == 1
+        for line in ("        D0: coords=[0.5, -0, 0, 0] ColorBasis{.color=R, .basis=X}\n", "        D1: coords=[0.5, 1, -0, 1] ColorBasis{.color=G, .basis=X}\n"):
+            assert line in CASES[n]["stderr"]
+    assert mismatches(names, tmp_path, lambda name, got, want: got == want) == []
+
+
+def test_error_targets_checked_as_chromobius_checks(tmp_path):
+    """Each error's targets, in the model's order, as Chromobius checks them: an observable past
+    L63 and a detector no declaration colours are refused with its messages."""
+    names = ["predict observable past L63", "describe observable past L63", "predict undeclared detector", "describe undeclared detector"]
+    assert [CASES[n]["stderr"] for n in names[::2]] == [
+        "Max logical observable is L63 but a larger one appeared in 'error(0.1) D0 L64'\n",
+        "Expected all detectors to have at least 4 coordinates, with the 4th identifying the basis and color (RedX=0, GreenX=1, BlueX=2, RedZ=3, GreenZ=4, BlueZ=5), but got error(0.1) D1 L0\n",
+    ]
+    assert mismatches(names, tmp_path, lambda name, got, want: got == want) == []
+
+
 def test_runs_as_a_module(tmp_path):
     """``python -m stabilizer_qec.chromobius``, as a program: its exit status and output."""
     for name, data in FILES.items():
         (tmp_path / name).write_bytes(data)
-    for name in ("help -h", "predict to a file", "predict from stdin", "predict unknown flag", "describe empty", "predict unmatchable"):
+    for name in ("help -h", "predict to a file", "predict from stdin", "predict unknown flag", "describe empty", "predict unmatchable", "predict unliftable"):
         case = CASES[name]
         stdin = FILES[case["stdin"]] if case["stdin"] else b""
         r = subprocess.run([sys.executable, "-m", "stabilizer_qec.chromobius", *case["args"]], cwd=tmp_path, input=stdin, capture_output=True, timeout=300)

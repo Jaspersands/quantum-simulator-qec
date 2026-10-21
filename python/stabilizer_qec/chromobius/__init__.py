@@ -16,6 +16,10 @@ Where it differs from Chromobius:
 
 - A model with a fault of probability 1 is refused (Chromobius's weights are then NaN);
   probabilities above 1/2 are negative-weight edges, as in Chromobius.
+- A model declaring an observable past L63 that no error names (``logical_observable L64``) is
+  refused with this package's 64-observable message, where Chromobius compiles it (its
+  predictions past L63 are undefined). An error naming one is refused with Chromobius's
+  message.
 - ``decode_via_files`` with records wider than the model refuses a set bit past its detectors,
   as Chromobius does, but may name another detector."""
 

@@ -266,6 +266,13 @@ impl DemProgram {
         Ok(DemProgram { instrs: out })
     }
 
+    /// Whether the program unrolls within the flat model's limits (`flattened`'s), without
+    /// keeping what it unrolls into.
+    pub fn check_unrolls(&self) -> Result<(), String> {
+        let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES };
+        unroll(&self.instrs, &mut st, &mut |_| {})
+    }
+
     /// Every detector's time (its last coordinate, shifts applied), by detector, walking the
     /// declarations alone: a model of millions of faults costs only its detectors. Refuses a
     /// detector without coordinates, or more than `MAX_DETECTOR` + 1 detectors.

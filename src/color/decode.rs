@@ -65,7 +65,8 @@ pub enum ColorError {
     /// The matched edges did not fall into closed tours.
     NotEulerian,
     /// A tour no start charge explains (wrong annotations, or a model Chromobius cannot
-    /// decode). The tour's detectors.
+    /// decode). The tour's detectors, in its order (each Möbius node's detector, as
+    /// Chromobius's message lists "The cycle").
     Unliftable(Vec<u32>),
 }
 
@@ -108,6 +109,13 @@ impl ColorDecoder {
     /// The decoder's tables and Möbius model as `chromobius describe_decoder` prints them.
     pub fn describe(&self) -> Result<String, String> {
         self.lifted.describe()
+    }
+
+    /// Each detector's colour and basis as Chromobius's lifting-failure message prints them
+    /// (`ss << node_colors[d].color; ss << node_colors[d].basis;`): `R`, `G`, `B` or
+    /// `NEUTRAL`, then `X`, `Z` or `UNKNOWN_BASIS` (an ignored detector is `NEUTRALUNKNOWN_BASIS`).
+    pub fn detector_colors(&self) -> Vec<String> {
+        self.lifted.colors.iter().map(|cb| format!("{}{}", ["NEUTRAL", "R", "G", "B"][cb.color as usize], ["UNKNOWN_BASIS", "X", "Z"][cb.basis as usize])).collect()
     }
 
     pub fn work(&self) -> ColorWork {

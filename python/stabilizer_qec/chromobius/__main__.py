@@ -15,14 +15,30 @@ to standard input and output), checked against it in tests/test_chromobius_cli.p
 differs:
 
 - A malformed model or circuit is refused with this package's message, not Stim's parser's.
+- A ``--circuit`` that Stim's error analysis refuses (a non-deterministic detector, say) is
+  refused with this package's analysis message, not Stim's (which, for one, suggests a
+  ``detslice-with-ops-svg`` diagram). The exit status and output are the same.
+- A fault of probability 1 (``error(1) D0``), whose Möbius edges' weights are NaN in
+  PyMatching, is refused ("Möbius edge (0, 1) has probability 1; ..."), where Chromobius
+  describes and decodes the model.
+- A model declaring an observable past L63 that no error names (``logical_observable L64``) is
+  refused with this package's 64-observable message, where Chromobius decodes it, its
+  predictions past L63 undefined (it shifts its 64-bit mask by 64 or more). An error naming one
+  gets Chromobius's message ("Max logical observable is L63 but a larger one appeared in ...").
 - Records are read whole before any is decoded (Chromobius streams them); a bad record still
   stops the command with Stim's message after the predictions of the records before it.
 - ``predict`` decodes on every core (its predictions are the same at any thread count);
   ``benchmark`` on one, as Chromobius does, so its timings compare.
-- A shot no lifting explains (a model with wrong colour annotations) is refused with
-  Chromobius's message less its list of the failing cycle's detectors.
-- A hit or DETS index past 2⁶⁴ − 1, an exception Chromobius's program does not catch (it
-  aborts), prints the C++ library's message and exits with status 134 without raising SIGABRT.
+- A hit or DETS index whose digits overflow Stim's unsigned 64-bit read (a step that leaves
+  the value below the one before it; a value that wraps without dropping is read wrapped, as
+  Stim reads it), an exception Chromobius's program does not catch (it aborts), prints the C++
+  library's message and exits with status 134 without raising SIGABRT.
+- A record with a bit set past the last detector (a b8 record's padding, or an observable that
+  benchmark reads both appended and from ``--obs_in``) is refused with PyMatching's message for
+  the first such detector's Möbius node, as the recording of Chromobius's macOS build shows.
+  Chromobius's own result there is undefined (it reads its detectors' colours past the end of
+  their table): another build or run can name another node or decode the record. This port
+  refuses it the same way every time.
 """
 
 from __future__ import annotations
@@ -286,14 +302,20 @@ class _Bytes:
         return self.data[p] if p < len(self.data) else -1
 
     def read_uint64(self) -> Tuple[Optional[int], int]:
-        """``read_uint64``: (the integer, the character after it), or (None, the character)."""
+        """``read_uint64``: (the integer, the character after it), or (None, the character).
+
+        As Stim's uint64_t arithmetic: each digit's step wraps at 2⁶⁴, and only a step that
+        leaves the value below the one before it is noticed (an abort). So a value from about
+        2.05e19 to 3.69e19 (one wrap that lands higher) reads as itself less 2⁶⁴, as Stim reads
+        it, and is then refused as a hit or DETS index too large, with that wrapped value."""
         c = self.getc()
         if not 48 <= c <= 57:
             return None, c
         value = 0
         while 48 <= c <= 57:
-            value = value * 10 + c - 48
-            if value >= 1 << 64:
+            prev = value
+            value = (value * 10 + c - 48) & 0xFFFFFFFFFFFFFFFF
+            if value < prev:
                 raise _Abort("std::runtime_error: Integer value read from file was too big")
             c = self.getc()
         return value, c
@@ -461,8 +483,10 @@ def _decode(decoder: Any, rows: _np.ndarray, nd: int, threads: int) -> Tuple[_np
 
     nb = (nd + 7) // 8
     stop, err = len(rows), None
-    # A bit set past the last detector (a b8 record's padding, an observable not cleared) reaches
-    # PyMatching as two Möbius detection events past its nodes, which it refuses.
+    # A bit set past the last detector (a b8 record's padding, an observable not cleared): in
+    # Chromobius, detection_events_to_mobius_detection_events reads node_colors[d] past the end
+    # for it, so its result is undefined; its macOS build hands PyMatching the two Möbius events
+    # past its nodes, which it refuses with this message. This port refuses it so everywhere.
     if len(rows) and rows.shape[1] * 8 > nd:
         extra = rows.copy()
         _clear_bits(extra, 0, nd)
@@ -472,29 +496,36 @@ def _decode(decoder: Any, rows: _np.ndarray, nd: int, threads: int) -> Tuple[_np
             d = int(_np.flatnonzero(_np.unpackbits(extra[stop], bitorder="little"))[0])
             err = _Fail(f"The detection event with index {2 * d} does not correspond to a node in the graph, which only has {2 * nd} nodes.")
     dets = _np.ascontiguousarray(rows[:stop, :nb])
-    preds, _weights, status, failed = decoder._x.decode_batch(dets.tobytes(), stop, threads)
+    preds, _weights, status, failed, tours = decoder._x.decode_batch(dets.tobytes(), stop, threads)
     preds = _np.frombuffer(preds, dtype="<u8")
     if failed:
         stop = int(failed[0])
         # PyMatching throws its message where the Möbius matching has no perfect matching (a
         # detector no fault touches fired, or a component without a boundary has odd parity);
         # Chromobius's own message is for a matching it then cannot lift.
-        err = _Fail(_NO_PERFECT_MATCHING if status[stop] == _COLOR_UNMATCHABLE else _unliftable(decoder, dets[stop], nd))
+        if status[stop] == _COLOR_UNMATCHABLE:
+            err = _Fail(_NO_PERFECT_MATCHING)
+        elif tours[0] is None:
+            # The matched edges did not fall into closed tours (EulerTourGraph's message; a
+            # perfect matching's edges always do).
+            err = _Fail("Graph didn't decompose into Euler tours.")
+        else:
+            err = _Fail(_unliftable(decoder, dets[stop], nd, tours[0]))
     return preds[:stop], err
 
 
-def _unliftable(decoder: Any, shot: _np.ndarray, nd: int) -> str:
-    """Chromobius's message for a shot no lifting explains, less the failing cycle."""
-    colors = ["NEUTRALUNKNOWN_BASIS"] * nd
-    for d, coords in decoder._made_from[0][0].get_detector_coordinates().items():
-        if len(coords) > 3 and coords[3] in (0, 1, 2, 3, 4, 5):
-            c = int(coords[3])
-            colors[d] = "RGB"[c % 3] + "XZ"[c // 3]
-    fired = _np.flatnonzero(_np.unpackbits(shot, bitorder="little")[:nd])
-    events = "".join(f"\n    D{d}[{colors[d]}, triggered]" for d in fired)
+def _unliftable(decoder: Any, shot: _np.ndarray, nd: int, tour: List[int]) -> str:
+    """Chromobius's message for a shot no lifting explains (``Decoder::discharge_cycle``): the
+    tour no start charge explains (its detectors in its order) and the shot's detection
+    events, each with its colour and basis."""
+    colors = decoder._x.detector_colors()
+    bits = _np.unpackbits(shot, bitorder="little")
+    cycle = "".join(f"\n    D{d}[{colors[d]}{', triggered' if bits[d] else ''}]" for d in tour)
+    events = "".join(f"\n    D{d}[{colors[d]}, triggered]" for d in _np.flatnonzero(bits[:nd]))
     return (
         "Failed to lift a flattened edge cycle from the matcher into an explanation of the detection events in the cycle.\n"
         "This error could be due to a coloring error in the model used to configure the decoder, or a bug in the decoder.\n"
+        f"The cycle: {{{cycle}\n}}\n"
         f"All detection events in the shot: {{{events}\n}}"
     )
 

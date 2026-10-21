@@ -128,6 +128,39 @@ def inputs():
     files["unmatchable_obs.01"] = b"000\n011\n100\n011\n"
     files["odd_component.dem"] = b"error(0.1) D0 D1 D2 L0\ndetector(0, 0, 0, 0) D0\ndetector(1, 0, 0, 1) D1\ndetector(2, 0, 0, 2) D2\n"
     files["odd_component.01"] = b"000\n111\n100\n"
+    # Integers Stim reads as uint64_t: a value that wraps once without dropping below the step
+    # before it is read wrapped (30000000000000000000 as 11553255926290448384), the largest
+    # value is read whole, and 2^64 drops to 0 (an exception Chromobius does not catch).
+    files["wrap.hits"] = goodhits + b"30000000000000000000\n"
+    files["max.hits"] = goodhits + b"18446744073709551615\n"
+    files["two64.hits"] = goodhits + b"18446744073709551616\n"
+    files["wrap.dets"] = gooddets + b"shot D30000000000000000000\n"
+    files["wrap_obs.dets"] = gooddets + b"shot L30000000000000000000\n"
+    # A shot no lifting explains: Chromobius's message with the failing cycle (an ignored
+    # detector fires; the first shot decodes).
+    files["unliftable.dem"] = (
+        b"error(0.3) D2 D3 L0\nerror(0.2) D0 L0\nerror(0.1) D0 D2 D3 L0\nerror(0.01) D0 D1 D2\nerror(0.3) D0 D3\n"
+        b"error(0.01) D0 D1 D3 L0\nerror(0.05) D0 D2 L0\n"
+        b"detector(0, 0, 0, -1) D0\ndetector(1, 0, 0, 2) D1\ndetector(2, 0, 0, 1) D2\ndetector(3, 0, 0, 0) D3\n"
+    )
+    files["unliftable.01"] = b"0000\n1100\n0111\n"
+    files["unliftable_obs.01"] = b"00000\n11001\n01110\n"
+    # A negative zero coordinate keeps its sign in the Möbius model, past the shift's length.
+    files["negzero.dem"] = (
+        b"error(0.1) D0 D1\nerror(0.1) D0\nerror(0.1) D1\ndetector(-0, 0, -0, 0) D0\nshift_detectors(1) 0\ndetector(-0, -0, 0, 1) D1\n"
+    )
+    # Chromobius's checks of each error's targets: an observable past L63, and a detector no
+    # declaration colours.
+    files["obs_past_l63.dem"] = b"error(0.1) D0 L64\ndetector(0, 0, 0, 0) D0\n"
+    files["undeclared.dem"] = b"error(0.1) D0\nerror(0.1) D1 L0\ndetector(0, 0, 0, 0) D0\n"
+    # A fault Chromobius cannot split, its detectors' coordinates as Stim gives them: the first
+    # declaration of each, shifted only where the shift has an entry (a negative zero past it
+    # keeps its sign).
+    files["sevenfold_shifted.dem"] = (
+        b"error(0.1) D0 D1 D2 D3 D4 D5 D6\nshift_detectors(0.5) 0\n"
+        + b"".join(f"detector(0, {'-0' if k == 0 else k}, {'-0' if k == 1 else 0}, {k % 3}) D{k}\n".encode() for k in range(7))
+        + b"detector(9, 9, 9, 0, 7) D0\ndetector(9, 9, 9, 1) D1\n"
+    )
     return files
 
 
@@ -254,6 +287,24 @@ def cases():
     case("predict odd component", ["predict", "--dem", "odd_component.dem", "--in", "odd_component.01", "--in_format", "01"])
     case("benchmark unmatchable", ["benchmark", "--dem", "unmatchable.dem", "--in", "unmatchable_obs.01", "--in_includes_appended_observables"])
     case("benchmark unmatchable obs file", ["benchmark", "--dem", "unmatchable.dem", "--in", "unmatchable.01", "--obs_in", "obs.01"])
+    # Integers read as Stim's uint64_t.
+    case("predict wrapped hit", ["predict", "--dem", "d3.dem", "--in", "wrap.hits", "--in_format", "hits"])
+    case("predict largest hit", ["predict", "--dem", "d3.dem", "--in", "max.hits", "--in_format", "hits"])
+    case("predict hit of 2^64", ["predict", "--dem", "d3.dem", "--in", "two64.hits", "--in_format", "hits"])
+    case("predict wrapped dets", ["predict", "--dem", "d3.dem", "--in", "wrap.dets", "--in_format", "dets"])
+    case("predict wrapped dets observable", ["predict", "--dem", "d3.dem", "--in", "wrap_obs.dets", "--in_format", "dets", "--in_includes_appended_observables"])
+    case("benchmark wrapped hit", ["benchmark", "--dem", "d3.dem", "--in", "wrap.hits", "--in_format", "hits", "--obs_in", "obs.01"])
+    # A shot no lifting explains, after the predictions before it.
+    case("predict unliftable", ["predict", "--dem", "unliftable.dem", "--in", "unliftable.01", "--in_format", "01"])
+    case("predict unliftable to a file", ["predict", "--dem", "unliftable.dem", "--in", "unliftable.01", "--in_format", "01", "--out", "part.01"], outputs=["part.01"])
+    case("benchmark unliftable", ["benchmark", "--dem", "unliftable.dem", "--in", "unliftable_obs.01", "--in_includes_appended_observables"])
+    case("describe negative zero", ["describe_decoder", "--in", "negzero.dem"])
+    case("predict observable past L63", ["predict", "--dem", "obs_past_l63.dem", "--in", "empty"])
+    case("describe observable past L63", ["describe_decoder", "--in", "obs_past_l63.dem"])
+    case("predict undeclared detector", ["predict", "--dem", "undeclared.dem", "--in", "empty"])
+    case("describe undeclared detector", ["describe_decoder", "--in", "undeclared.dem"])
+    case("predict sevenfold shifted", ["predict", "--dem", "sevenfold_shifted.dem", "--in", "empty"])
+    case("describe sevenfold shifted", ["describe_decoder", "--in", "sevenfold_shifted.dem"])
     return out
 
 

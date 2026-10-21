@@ -1274,7 +1274,7 @@ class ColorMatching(_DemDecoder):
         """As ``Matching.decode_batch``; ``return_weights`` also returns each shot's Möbius
         matching weight (as ``chromobius``'s ``predict_weighted_obs_flips_from_dets_bit_packed``)."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
-        preds, weights, status, failed = call(self._x.decode_batch, packed, n, threads)
+        preds, weights, status, failed, _tours = call(self._x.decode_batch, packed, n, threads)
         if failed:
             _failed(failed, _NO_PERFECT_MATCHING if status[failed[0]] == _COLOR_UNMATCHABLE else "no lifting of the matching explains the detection events (are the colour annotations right?)")
         out = self._predictions(preds, n, bit_packed_predictions)
@@ -1284,7 +1284,7 @@ class ColorMatching(_DemDecoder):
 
     def _decode_with_ties(self, shots: Any) -> tuple:
         packed, n, _ = self._shots(shots, False, 1)
-        preds, weights, status, failed = call(self._x.decode_batch, packed, n, 1)
+        preds, weights, status, failed, _tours = call(self._x.decode_batch, packed, n, 1)
         return self._predictions(preds, n, False), np.frombuffer(weights, dtype="<f8").copy(), np.frombuffer(status, dtype=np.uint8) == 1, failed
 
 

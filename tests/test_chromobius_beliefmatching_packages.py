@@ -176,7 +176,9 @@ def test_chromobius_refuses_models_as_chromobius_refuses():
     """Models Chromobius will not compile, refused with its messages: a detector without its
     colour coordinate (declared without coordinates, with three, shifted to a 4th that is not a
     whole -1..5), and a fault it cannot split into basic faults (seven detectors in one basis;
-    with its observable and an ignored detector; ten in Z once an X piece is split off)."""
+    with its observable and an ignored detector; ten in Z once an X piece is split off). Each
+    error's targets are checked in the model's order, as Chromobius checks them: a detector no
+    declaration colours (named twice, so cancelling, included) and an observable past L63."""
     chromobius = reference("chromobius")
     import stabilizer_qec.chromobius as ours
 
@@ -192,6 +194,13 @@ def test_chromobius_refuses_models_as_chromobius_refuses():
         "error(0.1) D0 D1 D2 D3 D4 D5 D6\n" + seven,
         "shift_detectors(0.5, 0, 0, 0) 0\nerror(0.125) D0 D1 D2 D3 D4 D5 D6 D7 L1\n" + seven + "detector(0, 7, 0, -1) D7\n",
         "error(0.1) D0 D1 L2\nerror(0.1) D0 D1 D7 D8 D9 D10 D11 D12 D13 D14 D15 D16\n" + seven + ten_z,
+        "error(0.1) D0\nerror(0.1) D1 L0\ndetector(0, 0, 0, 0) D0\n",
+        "error(0.1) D1 D1\nerror(0.1) D0\ndetector(0, 0, 0, 0) D0\n",
+        "error(0.1) D0 L64\ndetector(0, 0, 0, 0) D0\n",
+        "error[foo](0.125) L70 D1\ndetector(0, 0, 0, 0) D0\n",
+        "error(0.1) D1 L64\ndetector(0, 0, 0, 0) D0\n",
+        "repeat 3 {\n    error(0.1) D0 L1\n    detector(0, 0, 0, 0) D0\n    shift_detectors(0, 1) 1\n}\nerror(0.1) D0 L65\n",
+        "error(0.1) D0 L64\ndetector(0, 0, 0) D0\n",
     ]
     for text in models:
         dem = stim.DetectorErrorModel(text)
