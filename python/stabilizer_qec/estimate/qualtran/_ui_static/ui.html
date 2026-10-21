@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qualtran Resource Estimation</title>
+<!-- plotly.js. Where plotly is installed, serve() puts in place of this tag one that loads the installed plotly's
+     own copy (plotly/package_data/plotly.min.js, which Dash 4.4.1 serves by default). Without plotly it is
+     plotly.js 3.7.0 from cdn.plot.ly, the URL Dash 4.4.1 gives as plotly 6.9.0's external_url (used only with
+     serve_locally=False); the hash is of plotly 6.9.0's copy, which cdn.plot.ly's must match to run. -->
+<script id="plotly-js" src="https://cdn.plot.ly/plotly-3.7.0.min.js" integrity="sha384-l4G4qURPwALv583BKlynU/4LiUx0rk9jcTX58Aq+Jc+jgWb52zeH2geZkSS3UPPs" crossorigin="anonymous" charset="utf-8"></script>
+<style>
+.dash-options-list-option { display: block; }
+.dash-options-list-option.dash-radioitems-inline { display: inline-block; margin-right: 1em; }
+.dash-spinner { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+.dash-spinner > div { width: 40px; height: 40px; background: #119dff; animation: dash-cube 1.2s infinite ease-in-out; }
+@keyframes dash-cube {
+  0% { transform: perspective(120px) rotateX(0deg) rotateY(0deg); }
+  50% { transform: perspective(120px) rotateX(-180deg) rotateY(0deg); }
+  100% { transform: perspective(120px) rotateX(-180deg) rotateY(-180deg); }
+}
+.ui-error { color: #b00020; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="react-entry-point"><div class="_dash-loading">Loading...</div></div>
+<script>
+// The page stabilizer_qec.estimate.qualtran.ui.serve() sends where Dash is not installed. It draws Qualtran's
+// layout (Dash's component JSON, from layout.json) as Dash draws the components it uses, wires its callback
+// (from dependencies.json) as Dash does, and posts the callback's inputs to update: a JSON list of the input
+// values, a pattern's (ALL) as a list in the layout's order. A 200 answer is the outputs' values in order; a
+// 204 keeps the outputs. Every text goes into the page as text.
+"use strict";
+(function () {
+  var TITLE = document.title;
+  var records = [];  // every component drawn, depth first
+  var graphs = [];
+  var radioGroups = 0;
+  var pending = 0;
+
+  function stringifyId(id) {  // Dash's: a dict id as JSON with its keys sorted
+    if (id === null || typeof id !== "object") return id;
+    return "{" + Object.keys(id).sort().map(function (k) { return JSON.stringify(k) + ":" + JSON.stringify(id[k]); }).join(",") + "}";
+  }
+  function cssName(name) {  // React's style names: camelCase, or a CSS name as it is
+    return name.indexOf("-") >= 0 ? name : name.replace(/[A-Z]/g, function (c) { return "-" + c.toLowerCase(); });
+  }
+  function applyStyle(el, style) {  // a style prop replaces the element's whole style, as React's does
+    el.removeAttribute("style");
+    Object.keys(style || {}).forEach(function (k) {
+      var v = style[k];
+      el.style.setProperty(cssName(k), typeof v === "number" ? v + "px" : String(v));
+    });
+  }
+  function setId(el, id) {
+    if (id !== undefined && id !== null) el.id = stringifyId(id);
+  }
+  function record(spec, el, loading) {
+    var rec = {spec: spec, el: el, props: Object.assign({}, spec.props), loading: loading, listeners: []};
+    records.push(rec);
+    return rec;
+  }
+  function changed(rec, prop, value) {  // a change the user made: then each callback it is an input of
+    rec.props[prop] = value;
+    rec.listeners.forEach(function (l) { if (l.prop === prop) l.fire(); });
+  }
+
+  function render(node, loading) {
+    if (node === null || node === undefined || typeof node === "boolean") return null;
+    if (Array.isArray(node)) {
+      var frag = document.createDocumentFragment();
+      node.forEach(function (child) { var c = render(child, loading); if (c) frag.appendChild(c); });
+      return frag;
+    }
+    if (typeof node !== "object") return document.createTextNode(String(node));
+    var make = node.namespace === "dash_html_components" ? renderHtml : node.namespace === "dash_core_components" ? CORE[node.type] : null;
+    if (!make) {
+      var span = document.createElement("span");
+      span.className = "ui-error";
+      span.textContent = "(" + node.namespace + "." + node.type + " is not drawn here)";
+      return span;
+    }
+    return make(node, loading);
+  }
+  function setChildren(el, children, loading) {
+    el.textContent = "";
+    var c = render(children, loading);
+    if (c) el.appendChild(c);
+  }
+
+  function renderHtml(spec, loading) {
+    var p = spec.props;
+    var el = document.createElement(spec.type.toLowerCase());
+    var rec = record(spec, el, loading);
+    function set(prop, value) {
+      rec.props[prop] = value;
+      if (prop === "children") setChildren(el, value, loading);
+      else if (prop === "style") applyStyle(el, value);
+      else if (prop === "id") setId(el, value);
+      else if (prop === "className") el.className = value || "";
+      else if (/^on/i.test(prop)) return;  // never an event handler
+      else if (value === null || value === undefined || value === false) el.removeAttribute(prop);
+      else el.setAttribute(prop, value === true ? "" : String(value));
+    }
+    Object.keys(p).forEach(function (k) { set(k, p[k]); });
+    rec.set = set;
+    return el;
+  }
+
+  function isNumeric(v) {
+    return (typeof v === "number" && isFinite(v)) || (typeof v === "string" && v.trim() !== "" && isFinite(+v));
+  }
+  function convert(v) { return isNumeric(v) ? +v : NaN; }
+  function equivalent(a, b) { return a === b || (a !== a && b !== b); }
+
+  // dcc.Input: a number input sends its value when it is valid (else null), on Enter or on leaving it with
+  // debounce, else on each change; as Dash's, only when the number changed.
+  function renderInput(spec, loading) {
+    var p = spec.props;
+    var type = p.type || "text";
+    var wrap = document.createElement("div");
+    wrap.className = "dash-input-container" + (p.className ? " " + p.className : "");
+    applyStyle(wrap, p.style);
+    var input = document.createElement("input");
+    input.className = "dash-input-element";
+    input.type = type;
+    setId(input, p.id);
+    input.step = p.step === undefined ? "any" : String(p.step);
+    input.autocomplete = p.autoComplete || "off";
+    if (p.placeholder !== undefined) input.placeholder = p.placeholder;
+    if (p.min !== undefined && p.min !== null) input.min = String(p.min);
+    if (p.max !== undefined && p.max !== null) input.max = String(p.max);
+    input.readOnly = !!p.readOnly;
+    input.disabled = [true, "disabled", "DISABLED"].indexOf(p.disabled) >= 0;
+    wrap.appendChild(input);
+    var rec = record(spec, wrap, loading);
+    function show(v) { input.value = v === null || v === undefined || v !== v ? "" : String(v); }
+    function commit() {
+      if (type === "number") {
+        var v = input.checkValidity() ? convert(input.value) : NaN;
+        if (!equivalent(convert(rec.props.value), v)) changed(rec, "value", v !== v ? null : v);
+      } else if (input.value !== rec.props.value) {
+        changed(rec, "value", input.value);
+      }
+    }
+    if (p.debounce === true) {
+      input.addEventListener("blur", commit);
+      input.addEventListener("keypress", function (e) { if (e.key === "Enter") commit(); });
+    } else {
+      input.addEventListener("input", commit);
+    }
+    show(p.value);
+    rec.set = function (prop, value) {
+      rec.props[prop] = value;
+      if (prop === "value") show(value);
+      else if (prop === "style") applyStyle(wrap, value);
+    };
+    return wrap;
+  }
+
+  function renderRadioItems(spec, loading) {
+    var p = spec.props;
+    var el = document.createElement("div");
+    el.className = "dash-radioitems" + (p.className ? " " + p.className : "");
+    setId(el, p.id);
+    applyStyle(el, p.style);
+    var rec = record(spec, el, loading);
+    var name = "dash-radioitems-" + (++radioGroups);
+    var opts = p.options || [];
+    opts = Array.isArray(opts) ? opts : Object.keys(opts).map(function (k) { return {label: opts[k], value: k}; });
+    var inputs = opts.map(function (o) {
+      if (o === null || typeof o !== "object") o = {label: String(o), value: o};
+      var label = document.createElement("label");
+      label.className = "dash-options-list-option" + (p.inline ? " dash-radioitems-inline" : "");
+      var input = document.createElement("input");
+      input.type = "radio";
+      input.name = name;
+      input.value = String(o.value);
+      input.disabled = !!o.disabled;
+      input.addEventListener("change", function () { if (input.checked) changed(rec, "value", o.value); });
+      label.appendChild(input);
+      label.appendChild(document.createTextNode(" " + String(o.label)));
+      el.appendChild(label);
+      return {input: input, value: o.value};
+    });
+    function show(v) { inputs.forEach(function (i) { i.input.checked = i.value === v; }); }
+    show(p.value);
+    rec.set = function (prop, value) {
+      rec.props[prop] = value;
+      if (prop === "value") show(value);
+      else if (prop === "style") applyStyle(el, value);
+    };
+    return el;
+  }
+
+  // dcc.Loading: its children are hidden under a spinner (drawn with its style, as Dash 4's) while a callback
+  // whose outputs it holds runs.
+  function renderLoading(spec, loading) {
+    var p = spec.props;
+    var el = document.createElement("div");
+    el.style.position = "relative";
+    var inner = document.createElement("div");
+    var cover = document.createElement("div");
+    setId(cover, p.id);
+    var rec = record(spec, el, loading);
+    var busy = 0;
+    rec.setBusy = function (on) {
+      busy += on ? 1 : -1;
+      inner.style.visibility = busy > 0 ? "hidden" : "";
+      cover.className = busy > 0 ? "dash-spinner" : "";
+      cover.textContent = "";
+      if (busy > 0) {
+        var spinner = document.createElement("div");
+        applyStyle(spinner, p.style);
+        cover.appendChild(spinner);
+      }
+    };
+    setChildren(inner, p.children, rec);
+    el.appendChild(inner);
+    el.appendChild(cover);
+    rec.set = function (prop, value) { rec.props[prop] = value; if (prop === "children") setChildren(inner, value, rec); };
+    return el;
+  }
+
+  function renderGraph(spec, loading) {
+    var p = spec.props;
+    var el = document.createElement("div");
+    el.className = "dash-graph" + (p.className ? " " + p.className : "");
+    setId(el, p.id);
+    applyStyle(el, p.style);
+    var rec = record(spec, el, loading);
+    rec.draw = function () {
+      var fig = rec.props.figure || {data: [], layout: {}};
+      if (!window.Plotly) {
+        var script = document.getElementById("plotly-js");
+        el.className = "ui-error";
+        el.textContent = "plotly.js did not load" + (script ? " (from " + script.src + ")" : "") + ": the figure cannot be drawn.";
+        return;
+      }
+      window.Plotly.react(el, fig.data || [], fig.layout || {}, Object.assign({responsive: true}, p.config));
+    };
+    rec.set = function (prop, value) {
+      rec.props[prop] = value;
+      if (prop === "figure") rec.draw();
+      else if (prop === "style") applyStyle(el, value);
+    };
+    graphs.push(rec);
+    return el;
+  }
+
+  var CORE = {Input: renderInput, RadioItems: renderRadioItems, Loading: renderLoading, Graph: renderGraph};
+
+  function resizeGraphs() {  // a graph drawn while hidden takes its size when it is shown
+    if (!window.Plotly) return;
+    graphs.forEach(function (g) { if (g.el.offsetParent !== null && g.el.classList.contains("js-plotly-plot")) window.Plotly.Plots.resize(g.el); });
+  }
+
+  function parseOutputs(output) {  // Dash's "..id.prop...id.prop..", a dot in an id written "\."
+    var body = output.slice(0, 2) === ".." ? output.slice(2, -2) : output;
+    return body.split("...").map(function (s) {
+      var i = s.lastIndexOf(".");
+      return {id: s.slice(0, i).replace(/\\\./g, "."), property: s.slice(i + 1)};
+    });
+  }
+  function matches(pattern, id) {  // a pattern-matching id: its keys, each value equal or the wildcard ALL
+    if (id === null || typeof id !== "object") return false;
+    var keys = Object.keys(pattern);
+    return keys.length === Object.keys(id).length && keys.every(function (k) {
+      return Object.prototype.hasOwnProperty.call(id, k) && (Array.isArray(pattern[k]) ? pattern[k][0] === "ALL" : pattern[k] === id[k]);
+    });
+  }
+  function byId(id) {
+    for (var i = 0; i < records.length; i++) if (records[i].spec.props.id === id) return records[i];
+    return null;
+  }
+
+  function wire(callback) {
+    var outputs = parseOutputs(callback.output).map(function (o) { return {rec: byId(o.id), property: o.property}; });
+    var inputs = callback.inputs.map(function (dep) {
+      if (dep.id.charAt(0) === "{") {
+        var pattern = JSON.parse(dep.id);
+        return {all: true, property: dep.property, recs: records.filter(function (r) { return matches(pattern, r.spec.props.id); })};
+      }
+      var rec = byId(dep.id);
+      return {all: false, property: dep.property, recs: rec ? [rec] : []};
+    });
+    var loadings = [];
+    outputs.forEach(function (o) { if (o.rec && o.rec.loading && loadings.indexOf(o.rec.loading) < 0) loadings.push(o.rec.loading); });
+    var latest = 0;
+    var busy = false;
+    function setBusy(on) {
+      if (on === busy) return;
+      busy = on;
+      pending += on ? 1 : -1;
+      document.title = pending > 0 ? "Updating..." : TITLE;
+      loadings.forEach(function (l) { l.setBusy(on); });
+    }
+    function value(rec, prop) { var v = rec.props[prop]; return v === undefined ? null : v; }
+    async function fire() {
+      var n = ++latest;
+      var args = inputs.map(function (i) {
+        if (i.all) return i.recs.map(function (r) { return value(r, i.property); });
+        return i.recs.length ? value(i.recs[0], i.property) : null;
+      });
+      setBusy(true);
+      try {
+        var r = await fetch("update", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(args)});
+        var out = r.status === 200 ? await r.json() : null;
+        if (n !== latest) return;  // a later change's answer is on its way
+        if (out) {
+          outputs.forEach(function (o, i) { if (o.rec) o.rec.set(o.property, out[i]); });
+          resizeGraphs();
+        } else if (r.status !== 204) {
+          console.error("update answered " + r.status + ": " + (await r.text()));
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (n === latest) setBusy(false);
+      }
+    }
+    inputs.forEach(function (i) { i.recs.forEach(function (r) { r.listeners.push({prop: i.property, fire: fire}); }); });
+    if (!callback.prevent_initial_call) fire();
+  }
+
+  function getJson(url) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error(url + " answered " + r.status);
+      return r.json();
+    });
+  }
+
+  var root = document.getElementById("react-entry-point");
+  Promise.all([getJson("layout.json"), getJson("dependencies.json")]).then(function (got) {
+    var tree = render(got[0], null);
+    root.textContent = "";
+    if (tree) root.appendChild(tree);
+    graphs.forEach(function (g) { g.draw(); });
+    got[1].forEach(wire);
+  }).catch(function (e) {
+    root.textContent = "";
+    var pre = document.createElement("pre");
+    pre.className = "ui-error";
+    pre.textContent = "The app could not load: " + e;
+    root.appendChild(pre);
+  });
+})();
+</script>
+</body>
+</html>

@@ -161,8 +161,10 @@ jobs:
           python -m pip install dist/*.whl pytest hypothesis
       - name: Install the reference packages that build for this Python (tests skip the rest)
         shell: bash
+        # dash runs Qualtran's Dash app (estimate.qualtran.ui.make_app), which its tests check without qualtran,
+        # against tests/estimate_port/qualtran_layout.json: pinned to 4.4.1, the dash that file was recorded with.
         run: |
-          for p in stim pymatching ldpc beliefmatching scipy sinter matplotlib networkx qec-util galois sympy cvxpy diskcache platformdirs pyperclip tqdm mpmath click "qiskit[qasm3-import]" z3-solver numba multiprocess qldpc==0.4.1 quits==1.2.0 panqec==0.1.7 pandas psutil python-dotenv flask deltakit-stim==0.2.7 deltakit-circuit==0.9.2 deltakit-core==0.9.2 deltakit-decode==0.9.2 deltakit-explorer==0.9.4 seaborn plotly pathos uncertainties adjustText "gql[requests]" pytest-mock pytest-lazy-fixtures chromobius==1.1.1 relay-bp==0.2.2 fusion-blossom==0.2.13 "mwpf[stim]==0.2.12" tesseract-decoder==0.1.1.dev20261013012529; do
+          for p in stim pymatching ldpc beliefmatching scipy sinter matplotlib networkx qec-util galois sympy cvxpy diskcache platformdirs pyperclip tqdm mpmath click "qiskit[qasm3-import]" z3-solver numba multiprocess qldpc==0.4.1 quits==1.2.0 panqec==0.1.7 pandas psutil python-dotenv flask deltakit-stim==0.2.7 deltakit-circuit==0.9.2 deltakit-core==0.9.2 deltakit-decode==0.9.2 deltakit-explorer==0.9.4 seaborn plotly dash==4.4.1 pathos uncertainties adjustText "gql[requests]" pytest-mock pytest-lazy-fixtures chromobius==1.1.1 relay-bp==0.2.2 fusion-blossom==0.2.13 "mwpf[stim]==0.2.12" tesseract-decoder==0.1.1.dev20261013012529; do
             python -m pip install --only-binary=:all: "$p" || echo "::notice::$p is not available for Python ${{ matrix.python }} on ${{ matrix.os }}"
           done
           # Quantumsim 0.2.0, the density matrix's reference, without the dependencies the test does not use.

@@ -1,0 +1,884 @@
+{
+ "callbacks": [
+  {
+   "background": null,
+   "clientside_function": null,
+   "dynamic_creator": null,
+   "hidden": null,
+   "inputs": [
+    {
+     "id": "physical_error_rate",
+     "property": "value"
+    },
+    {
+     "id": "error_budget",
+     "property": "value"
+    },
+    {
+     "id": "estimation_model",
+     "property": "value"
+    },
+    {
+     "id": "{\"property\":[\"ALL\"],\"type\":\"algorithm\"}",
+     "property": "value"
+    },
+    {
+     "id": "QEC",
+     "property": "value"
+    },
+    {
+     "id": "_MAGIC_FACTORIES",
+     "property": "value"
+    },
+    {
+     "id": "_MAGIC_FACTORIES_number",
+     "property": "value"
+    },
+    {
+     "id": "rotation-cost-model",
+     "property": "value"
+    }
+   ],
+   "no_output": false,
+   "optional": false,
+   "output": "..qubit-pie-chart.figure...runtime-container.style...runtime-plot.figure...magic-name.children...total_magic.value...magic-factory-container.style...min_factory_count.value...duration-container.style...duration.value..",
+   "persistent": false,
+   "prevent_initial_call": false,
+   "state": [],
+   "websocket": false
+  }
+ ],
+ "dash": "4.4.1",
+ "layout": {
+  "namespace": "dash_html_components",
+  "props": {
+   "children": [
+    {
+     "namespace": "dash_html_components",
+     "props": {
+      "children": "Interactive QEC overhead estimation"
+     },
+     "type": "H4"
+    },
+    {
+     "namespace": "dash_html_components",
+     "props": {
+      "children": [
+       {
+        "namespace": "dash_html_components",
+        "props": {
+         "children": [
+          {
+           "namespace": "dash_html_components",
+           "props": {
+            "children": [
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": [
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": "Enter physical error rate"
+                    },
+                    "type": "Td"
+                   },
+                   {
+                    "namespace": "dash_core_components",
+                    "props": {
+                     "debounce": true,
+                     "id": "physical_error_rate",
+                     "max": 1,
+                     "min": 0,
+                     "style": {
+                      "marginLeft": "10px"
+                     },
+                     "type": "number",
+                     "value": 0.0001
+                    },
+                    "type": "Input"
+                   }
+                  ]
+                 },
+                 "type": "Tr"
+                },
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": "Enter error budget"
+                    },
+                    "type": "Td"
+                   },
+                   {
+                    "namespace": "dash_core_components",
+                    "props": {
+                     "debounce": true,
+                     "id": "error_budget",
+                     "max": 1,
+                     "min": 0,
+                     "style": {
+                      "marginLeft": "10px"
+                     },
+                     "type": "number",
+                     "value": 0.001
+                    },
+                    "type": "Input"
+                   }
+                  ]
+                 },
+                 "type": "Tr"
+                }
+               ]
+              },
+              "type": "Table"
+             },
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": "Select Estimation Cost Model:"
+              },
+              "type": "P"
+             },
+             {
+              "namespace": "dash_core_components",
+              "props": {
+               "id": "estimation_model",
+               "options": [
+                "GidneyFowler (arxiv:1812.01238)",
+                "Beverland et al (arxiv:2211.07629)"
+               ],
+               "value": "GidneyFowler (arxiv:1812.01238)"
+              },
+              "type": "RadioItems"
+             },
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": "Enter a summary of the quantum algorithm/circuit"
+              },
+              "type": "P"
+             },
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": [
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": "Qubits"
+                    },
+                    "type": "Td"
+                   },
+                   {
+                    "namespace": "dash_core_components",
+                    "props": {
+                     "debounce": true,
+                     "id": {
+                      "property": "qubits",
+                      "type": "algorithm"
+                     },
+                     "min": 0,
+                     "placeholder": "Number of Qubits",
+                     "style": {
+                      "marginLight": "10px"
+                     },
+                     "type": "number",
+                     "value": 10
+                    },
+                    "type": "Input"
+                   }
+                  ]
+                 },
+                 "type": "Tr"
+                },
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": "Measurements"
+                    },
+                    "type": "Td"
+                   },
+                   {
+                    "namespace": "dash_core_components",
+                    "props": {
+                     "debounce": true,
+                     "id": {
+                      "property": "Measurements",
+                      "type": "algorithm"
+                     },
+                     "min": 0,
+                     "placeholder": "Number of Measurements",
+                     "style": {
+                      "marginLight": "10px"
+                     },
+                     "type": "number",
+                     "value": 10
+                    },
+                    "type": "Input"
+                   }
+                  ]
+                 },
+                 "type": "Tr"
+                },
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": "Ts"
+                    },
+                    "type": "Td"
+                   },
+                   {
+                    "namespace": "dash_core_components",
+                    "props": {
+                     "debounce": true,
+                     "id": {
+                      "property": "Ts",
+                      "type": "algorithm"
+                     },
+                     "min": 0,
+                     "placeholder": "Number of T gates",
+                     "style": {
+                      "marginLight": "10px"
+                     },
+                     "type": "number",
+                     "value": 10
+                    },
+                    "type": "Input"
+                   }
+                  ]
+                 },
+                 "type": "Tr"
+                },
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": "Toffolis"
+                    },
+                    "type": "Td"
+                   },
+                   {
+                    "namespace": "dash_core_components",
+                    "props": {
+                     "debounce": true,
+                     "id": {
+                      "property": "Toffolis",
+                      "type": "algorithm"
+                     },
+                     "min": 0,
+                     "placeholder": "Number of Toffolis",
+                     "style": {
+                      "marginLight": "10px"
+                     },
+                     "type": "number",
+                     "value": 10
+                    },
+                    "type": "Input"
+                   }
+                  ]
+                 },
+                 "type": "Tr"
+                },
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": "Rotations"
+                    },
+                    "type": "Td"
+                   },
+                   {
+                    "namespace": "dash_core_components",
+                    "props": {
+                     "debounce": true,
+                     "id": {
+                      "property": "Rotations",
+                      "type": "algorithm"
+                     },
+                     "min": 0,
+                     "placeholder": "Number of Rotations",
+                     "style": {
+                      "marginLight": "10px"
+                     },
+                     "type": "number",
+                     "value": 10
+                    },
+                    "type": "Input"
+                   }
+                  ]
+                 },
+                 "type": "Tr"
+                },
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": "Rotation Circuit Depth"
+                    },
+                    "type": "Td"
+                   },
+                   {
+                    "namespace": "dash_core_components",
+                    "props": {
+                     "debounce": true,
+                     "id": {
+                      "property": "Rotation Depth",
+                      "type": "algorithm"
+                     },
+                     "min": 0,
+                     "placeholder": "Rotation Circuit Depth",
+                     "style": {
+                      "marginLight": "10px"
+                     },
+                     "type": "number",
+                     "value": 10
+                    },
+                    "type": "Input"
+                   }
+                  ]
+                 },
+                 "type": "Tr"
+                }
+               ]
+              },
+              "type": "Table"
+             },
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": "Select a QEC algorithm:"
+              },
+              "type": "P"
+             },
+             {
+              "namespace": "dash_core_components",
+              "props": {
+               "id": "QEC",
+               "options": [
+                "BeverlandEtAl",
+                "GidneyFowler"
+               ],
+               "value": "BeverlandEtAl"
+              },
+              "type": "RadioItems"
+             },
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": [
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": "QECs' information"
+                 },
+                 "type": "Summary"
+                },
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": [
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "BeverlandEtAl"
+                       },
+                       "type": "Td"
+                      },
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "QECScheme(error_rate_scaler=0.03, error_rate_threshold=0.01)",
+                        "style": {
+                         "padding": "10px"
+                        }
+                       },
+                       "type": "Td"
+                      }
+                     ]
+                    },
+                    "type": "Tr"
+                   },
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": [
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "GidneyFowler"
+                       },
+                       "type": "Td"
+                      },
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "QECScheme(error_rate_scaler=0.1, error_rate_threshold=0.01)",
+                        "style": {
+                         "padding": "10px"
+                        }
+                       },
+                       "type": "Td"
+                      }
+                     ]
+                    },
+                    "type": "Tr"
+                   }
+                  ]
+                 },
+                 "type": "Table"
+                }
+               ]
+              },
+              "type": "Details"
+             },
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": "Enter number of magic state factories:"
+              },
+              "type": "P"
+             },
+             {
+              "namespace": "dash_core_components",
+              "props": {
+               "id": "_MAGIC_FACTORIES",
+               "options": [
+                "FifteenToOne733",
+                "FifteenToOne933",
+                "GidneyFowlerCCZ"
+               ],
+               "value": "FifteenToOne733"
+              },
+              "type": "RadioItems"
+             },
+             {
+              "namespace": "dash_core_components",
+              "props": {
+               "debounce": true,
+               "id": "_MAGIC_FACTORIES_number",
+               "min": 1,
+               "type": "number",
+               "value": 1
+              },
+              "type": "Input"
+             },
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": [
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": "Magic Factories' information"
+                 },
+                 "type": "Summary"
+                },
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": [
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "FifteenToOne733"
+                       },
+                       "type": "Td"
+                      },
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "FifteenToOne(d_X=7, d_Z=3, d_m=3)",
+                        "style": {
+                         "padding": "10px"
+                        }
+                       },
+                       "type": "Td"
+                      }
+                     ]
+                    },
+                    "type": "Tr"
+                   },
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": [
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "FifteenToOne933"
+                       },
+                       "type": "Td"
+                      },
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "FifteenToOne(d_X=9, d_Z=3, d_m=3)",
+                        "style": {
+                         "padding": "10px"
+                        }
+                       },
+                       "type": "Td"
+                      }
+                     ]
+                    },
+                    "type": "Tr"
+                   },
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": [
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "GidneyFowlerCCZ"
+                       },
+                       "type": "Td"
+                      },
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "CCZ2TFactory(distillation_l1_d=15, distillation_l2_d=31)",
+                        "style": {
+                         "padding": "10px"
+                        }
+                       },
+                       "type": "Td"
+                      }
+                     ]
+                    },
+                    "type": "Tr"
+                   }
+                  ]
+                 },
+                 "type": "Table"
+                }
+               ]
+              },
+              "type": "Details"
+             },
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": "Select Rotation Cost Model:"
+              },
+              "type": "P"
+             },
+             {
+              "namespace": "dash_core_components",
+              "props": {
+               "id": "rotation-cost-model",
+               "options": [
+                "BeverlandEtAlRotationCost",
+                "SevenDigitsOfPrecisionConstantCost"
+               ],
+               "value": "BeverlandEtAlRotationCost"
+              },
+              "type": "RadioItems"
+             },
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": [
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": "Models' information"
+                 },
+                 "type": "Summary"
+                },
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": [
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "BeverlandEtAlRotationCost"
+                       },
+                       "type": "Td"
+                      },
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "RotationLogarithmicModel(slope=0.53, overhead=5.3, gateset='Clifford+T')",
+                        "style": {
+                         "padding": "10px"
+                        }
+                       },
+                       "type": "Td"
+                      }
+                     ]
+                    },
+                    "type": "Tr"
+                   },
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": [
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "SevenDigitsOfPrecisionConstantCost"
+                       },
+                       "type": "Td"
+                      },
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "ConstantWithOverheadRotationCost(bitsize=7, overhead_rotation_cost=RotationLogarithmicModel(slope=0.53, overhead=5.3, gateset='Clifford+T'))",
+                        "style": {
+                         "padding": "10px"
+                        }
+                       },
+                       "type": "Td"
+                      }
+                     ]
+                    },
+                    "type": "Tr"
+                   }
+                  ]
+                 },
+                 "type": "Table"
+                }
+               ]
+              },
+              "type": "Details"
+             }
+            ],
+            "style": {
+             "width": "30vw"
+            }
+           },
+           "type": "Td"
+          },
+          {
+           "namespace": "dash_html_components",
+           "props": {
+            "children": [
+             {
+              "namespace": "dash_html_components",
+              "props": {
+               "children": [
+                {
+                 "namespace": "dash_html_components",
+                 "props": {
+                  "children": [
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": [
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "Total Number of Toffoli gates",
+                        "id": "magic-name"
+                       },
+                       "type": "Td"
+                      },
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": {
+                         "namespace": "dash_core_components",
+                         "props": {
+                          "id": "total_magic",
+                          "readOnly": true,
+                          "type": "text",
+                          "value": ""
+                         },
+                         "type": "Input"
+                        }
+                       },
+                       "type": "Td"
+                      }
+                     ]
+                    },
+                    "type": "Tr"
+                   },
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": [
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "#magic factories for min runtime"
+                       },
+                       "type": "Td"
+                      },
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": {
+                         "namespace": "dash_core_components",
+                         "props": {
+                          "id": "min_factory_count",
+                          "readOnly": true,
+                          "value": ""
+                         },
+                         "type": "Input"
+                        }
+                       },
+                       "type": "Td"
+                      }
+                     ],
+                     "id": "magic-factory-container"
+                    },
+                    "type": "Tr"
+                   },
+                   {
+                    "namespace": "dash_html_components",
+                    "props": {
+                     "children": [
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": "Duration"
+                       },
+                       "type": "Td"
+                      },
+                      {
+                       "namespace": "dash_html_components",
+                       "props": {
+                        "children": {
+                         "namespace": "dash_core_components",
+                         "props": {
+                          "id": "duration",
+                          "readOnly": true,
+                          "type": "text",
+                          "value": ""
+                         },
+                         "type": "Input"
+                        }
+                       },
+                       "type": "Td"
+                      }
+                     ],
+                     "id": "duration-container"
+                    },
+                    "type": "Tr"
+                   }
+                  ]
+                 },
+                 "type": "Tbody"
+                }
+               ]
+              },
+              "type": "Table"
+             }
+            ],
+            "style": {
+             "width": "20vw"
+            }
+           },
+           "type": "Td"
+          },
+          {
+           "namespace": "dash_html_components",
+           "props": {
+            "children": {
+             "namespace": "dash_core_components",
+             "props": {
+              "children": {
+               "namespace": "dash_core_components",
+               "props": {
+                "id": "qubit-pie-chart"
+               },
+               "type": "Graph"
+              },
+              "style": {
+               "float": "right",
+               "max-width": "80vw"
+              },
+              "type": "cube"
+             },
+             "type": "Loading"
+            }
+           },
+           "type": "Td"
+          }
+         ]
+        },
+        "type": "Tr"
+       }
+      ],
+      "style": {
+       "width": "100vw"
+      }
+     },
+     "type": "Table"
+    },
+    {
+     "namespace": "dash_html_components",
+     "props": {
+      "children": [
+       {
+        "namespace": "dash_core_components",
+        "props": {
+         "children": {
+          "namespace": "dash_core_components",
+          "props": {
+           "id": "runtime-plot"
+          },
+          "type": "Graph"
+         },
+         "style": {
+          "max-width": "80vw"
+         },
+         "type": "cube"
+        },
+        "type": "Loading"
+       }
+      ],
+      "id": "runtime-container"
+     },
+     "type": "Div"
+    }
+   ]
+  },
+  "type": "Div"
+ },
+ "qualtran": "0.7.0",
+ "title": "Qualtran Resource Estimation"
+}

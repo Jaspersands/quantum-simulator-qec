@@ -354,13 +354,18 @@ fixtures.json` records outputs of el-loom 0.4.0 the tests compare against.
 ## Qualtran
 
 `python/stabilizer_qec/estimate/qualtran/` is a port of Qualtran's `qualtran.surface_code`
-package (its `ui` without Dash, plotly or pandas), the `GateCounts` of
-`qualtran.resource_counting` and the `TComplexity` of `qualtran.cirq_interop`
-(quantumlib/Qualtran 0.7.0, https://github.com/quantumlib/Qualtran), rewritten on
-dataclasses, plain numbers and numpy without attrs, sympy or Cirq. Qualtran is Copyright
+package, the `GateCounts` of `qualtran.resource_counting` and the `TComplexity` of
+`qualtran.cirq_interop` (quantumlib/Qualtran 0.7.0, https://github.com/quantumlib/Qualtran),
+rewritten on dataclasses, plain numbers and numpy without attrs, sympy or Cirq. Its `ui` is
+ported whole: the estimates and figures without Dash, plotly or pandas; the Dash app (its
+layout, built without Dash, and its callback), made with Dash where dash is installed; and,
+where it is not, a page of this package's own (`_ui_static/ui.html`) that the standard
+library's HTTP server sends to run the same app. The page loads plotly.js from the installed
+plotly package or from cdn.plot.ly; plotly.js is not distributed here. Qualtran is Copyright
 2023–2024 Google LLC and licensed under the Apache License, Version 2.0; the licence is in
 `python/stabilizer_qec/estimate/LICENSE`. `tests/estimate_port/qualtran_ui.json.gz` records
-outputs of Qualtran 0.7.0's `ui.update` the tests compare against.
+outputs of Qualtran 0.7.0's `ui.update`, and `tests/estimate_port/qualtran_layout.json` the
+title, layout and callback of its Dash app (with dash 4.4.1), that the tests compare against.
 
 ## Azure Quantum Resource Estimator
 
