@@ -741,8 +741,9 @@ def test_o_must_be_a_matrix():
     # kwargs_utils.h:41-74 and 109-128), which the read of O as a tensor refuses first.
     # (Not mirrored: what the binding refuses before any decoder is made, such as None, a tuple or
     # a list nested three deep, and an empty list, which it drops, get the read's message here
-    # too; and O's dtype is not checked, here as for every decoder, where the binding makes a
-    # uint8 tensor of uint8 only.)
+    # too; an equal-length list of lists, which the binding passes as a vector of vectors, is
+    # taken as a matrix here, as for every decoder; and O's dtype is not checked, here as for
+    # every decoder, where the binding makes a uint8 tensor of uint8 only.)
     H3 = np.eye(3, dtype=np.uint8)
     kw = dict(onnx_load_path=model_path("identity_dynamic.onnx"), batch_size=1, use_cuda_graph=False)
     for O in (np.ones((1, 1, 3), dtype=np.uint8), np.ones((1, 1, 1, 3), dtype=np.uint8)):

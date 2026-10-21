@@ -713,7 +713,9 @@ def _get_decoder(name: str, H: Any, options: dict, typed: bool = False) -> Any:
             # (trt_decoder refuses an O that is not a matrix itself, where CUDA-Q's does. CUDA-Q's
             # binding passes an array of rank 2 or more as a tensor, which its rank check refuses
             # past 2; anything else it passes as a vector, a number, a string or a map
-            # (kwargs_utils.h:41-128), which its read of O as a tensor refuses first: rank 0 here.)
+            # (kwargs_utils.h:41-128), which its read of O as a tensor refuses first: rank 0 here.
+            # Not mirrored: an equal-length list of lists, a vector of vectors to the binding, is
+            # taken as a matrix below, as for every decoder.)
             o_rank = int(given.ndim) if isinstance(given, np.ndarray) and given.ndim > 2 else 0
         else:
             num_obs, o_cols, O = _rows_of(given)
