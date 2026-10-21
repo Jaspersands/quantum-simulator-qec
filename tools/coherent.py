@@ -6,6 +6,8 @@
     python tools/coherent.py capacity   # code capacity, d = 3 to 15 (Bravyi et al.'s setting)
     python tools/coherent.py crosstalk  # ZZ crosstalk on every CNOT
     python tools/coherent.py all
+    python tools/coherent.py sweep --only d=3          # re-measure these rows, keep the rest
+    python tools/coherent.py validate --only code=surface
 
 Every coherent rate is the coherent sampler's weighted estimate (stabilizer_qec.CoherentSampler),
 decoded by matching on the twirled model and on the merged (coherence-aware) model; every twirl
@@ -29,6 +31,21 @@ import stabilizer_qec as sq
 OUT = Path(__file__).resolve().parent.parent / "data" / "coherent"
 NOISE = 0.002  # SD-style circuit noise besides the rotations
 THREADS = 0
+# With --only field=value[,value...]: the rows to re-measure; every other row is kept as the file
+# has it.
+ONLY: dict = {}
+KEPT: dict = {}
+# The fields that name a row, by file.
+KEYS = {"validate": ("code", "d", "rounds", "theta"), "sweep": ("d", "rounds", "theta"), "crosstalk": ("d", "rounds", "theta"), "capacity": ("d", "theta")}
+
+
+def wanted(key: dict) -> bool:
+    return all(str(key[field]) in values for field, values in ONLY.items())
+
+
+def previous(name: str, key: dict) -> dict:
+    """The file's row for `key` as it was before this run, kept when --only leaves it out."""
+    return next(r for r in KEPT[name]["rows"] if all(r[f] == v for f, v in key.items()))
 
 
 def data_qubits(text: str) -> list[str]:
@@ -108,6 +125,8 @@ def coherent_rates(c: sq.Circuit, *, min_failures: float = 300, max_shots: int =
         "seconds": round(time.time() - t0, 1),
         "generators": sampler.num_generators,
         "locations": sampler.num_locations,
+        "exact": sampler.exact_weights,
+        "width": sampler.contraction_width,
     }
 
 
@@ -126,8 +145,15 @@ def twirl_rate(c: sq.Circuit, tw: sq.Circuit, *, min_failures: int = 300, max_sh
 
 
 def save(name: str, payload: dict) -> None:
+    """The file, stamped with this version; with --only, every row it had, those re-measured so
+    far in place of theirs, and the version of the rows kept."""
     OUT.mkdir(parents=True, exist_ok=True)
-    payload = {"version": sq.__version__, **payload}
+    version = sq.__version__
+    if name in KEPT:
+        version = KEPT[name]["version"]
+        new = {tuple(r[f] for f in KEYS[name]): r for r in payload["rows"]}
+        payload = {**payload, "rows": [new.get(tuple(r[f] for f in KEYS[name]), r) for r in KEPT[name]["rows"]]}
+    payload = {"version": version, **payload}
     (OUT / f"{name}.json").write_text(json.dumps(payload, indent=1) + "\n")
 
 
@@ -136,6 +162,10 @@ def validate() -> None:
     rows = []
     # Repetition codes: the state vector's exact distribution, no noise besides the rotations.
     for d, rounds, theta in [(3, 2, 0.1), (3, 3, 0.1), (5, 2, 0.1), (3, 3, 0.05), (5, 2, 0.05), (3, 4, 0.05)]:
+        key = {"code": "repetition", "d": d, "rounds": rounds, "theta": theta}
+        if not wanted(key):
+            rows.append(previous("validate", key))
+            continue
         text = str(sq.Circuit.generated("repetition_code:memory", distance=d, rounds=rounds))
         data = [line for line in text.splitlines() if line.startswith("M ")][-1].split()[1:]
         c = sq.Circuit(text.replace("TICK", f"TICK\nI_ERROR[R_X(theta={theta!r})] " + " ".join(data)))
@@ -153,10 +183,19 @@ def validate() -> None:
         print(f"repetition d{d} r{rounds} θ{theta}: exact {exact:.5f} coherent {coh['rate']:.5f}±{coh['stderr']:.5f} twirl {tr['rate']:.5f}", flush=True)
     # The d = 3 surface code: state-vector samples (17 qubits).
     for theta, shots in [(0.02, 60_000), (0.04, 60_000)]:
+        key = {"code": "surface", "d": 3, "rounds": 2, "theta": theta}
+        if not wanted(key):
+            rows.append(previous("validate", key))
+            continue
         c, tw = memory(3, theta, rounds=2)
-        de, oe = c.compile_exact_sampler(seed=7).sample(shots, separate_observables=True, threads=THREADS)
-        fail = (decoder(tw).decode_batch(de) != oe).any(axis=1)
-        pe = float(fail.mean())
+        if ONLY and previous("validate", key).get("exact_shots") == shots:
+            # The state vector's samples are seeded, so re-measuring gives the file's again, and
+            # they take most of the row's time (60,000 shots of 17 qubits): with --only, keep them.
+            pe = previous("validate", key)["exact"]
+        else:
+            de, oe = c.compile_exact_sampler(seed=7).sample(shots, separate_observables=True, threads=THREADS)
+            fail = (decoder(tw).decode_batch(de) != oe).any(axis=1)
+            pe = float(fail.mean())
         coh = coherent_rates(c, min_failures=1e9, max_shots=2_000_000)
         tr = twirl_rate(c, tw, min_failures=10**9, max_shots=2_000_000)
         rows.append({"code": "surface", "d": 3, "rounds": 2, "theta": theta, "noise": NOISE, "exact": pe, "exact_stderr": float(np.sqrt(pe * (1 - pe) / shots)), "exact_shots": shots, "coherent": coh, "twirl": tr})
@@ -172,6 +211,10 @@ def sweep(crosstalk: bool = False) -> None:
     grid = {3: [0.01, 0.02, 0.04, 0.06], 5: [0.01, 0.02, 0.04], 7: [0.01, 0.02]} if crosstalk else SWEEP
     for d, thetas in grid.items():
         for theta in thetas:
+            key = {"d": d, "rounds": d, "theta": theta}
+            if not wanted(key):
+                rows.append(previous("crosstalk" if crosstalk else "sweep", key))
+                continue
             c, tw = memory(d, theta, crosstalk=crosstalk)
             coh = coherent_rates(c)
             tr = twirl_rate(c, tw)
@@ -184,6 +227,10 @@ def code_capacity() -> None:
     rows = []
     for theta in (0.2, 0.25, 0.3, 0.35):
         for d in (3, 5, 7, 9, 11, 13, 15):
+            key = {"d": d, "theta": theta}
+            if not wanted(key):
+                rows.append(previous("capacity", key))
+                continue
             c, tw = capacity(d, theta)
             coh = coherent_rates(c, max_shots=2_000_000)
             tr = twirl_rate(c, tw, max_shots=4_000_000)
@@ -194,6 +241,13 @@ def code_capacity() -> None:
 
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
+    for i, arg in enumerate(sys.argv):
+        if arg == "--only":
+            field, values = sys.argv[i + 1].split("=")
+            ONLY[field] = set(values.split(","))
+    if ONLY:
+        for name in ("validate", "sweep", "crosstalk", "capacity"):
+            KEPT[name] = json.loads((OUT / f"{name}.json").read_text())
     os.environ.setdefault("PYTHONUNBUFFERED", "1")
     if what in ("validate", "all"):
         validate()

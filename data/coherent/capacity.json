@@ -48,14 +48,16 @@
    "theta": 0.2,
    "coherent": {
     "shots": 100000,
-    "ess": 0.6196065838411149,
-    "rate": 0.00829857062494487,
-    "stderr": 0.00046598696509156634,
-    "rate_merged": 0.00829857062494487,
-    "stderr_merged": 0.00046598696509156634,
-    "seconds": 1.6,
+    "ess": 0.5471400753352039,
+    "rate": 0.0066037355833766746,
+    "stderr": 0.0005486931152467356,
+    "rate_merged": 0.0066037355833766746,
+    "stderr_merged": 0.0005486931152467356,
+    "seconds": 0.2,
     "generators": 24,
-    "locations": 49
+    "locations": 49,
+    "exact": true,
+    "width": 3
    },
    "twirl": {
     "shots": 1000000,
@@ -69,14 +71,16 @@
    "theta": 0.2,
    "coherent": {
     "shots": 100000,
-    "ess": 0.5251129746905173,
-    "rate": 0.0038942218019405042,
-    "stderr": 0.0003250059834709961,
-    "rate_merged": 0.0038942218019405042,
-    "stderr_merged": 0.0003250059834709961,
-    "seconds": 1.4,
+    "ess": 0.43199458364898397,
+    "rate": 0.004150777338505265,
+    "stderr": 0.0005423829011775644,
+    "rate_merged": 0.004150777338505265,
+    "stderr_merged": 0.0005423829011775644,
+    "seconds": 0.5,
     "generators": 40,
-    "locations": 81
+    "locations": 81,
+    "exact": true,
+    "width": 4
    },
    "twirl": {
     "shots": 1000000,
@@ -90,14 +94,16 @@
    "theta": 0.2,
    "coherent": {
     "shots": 200000,
-    "ess": 0.44452703974955177,
-    "rate": 0.00243743896904308,
-    "stderr": 0.00020684182259817958,
-    "rate_merged": 0.00243743896904308,
-    "stderr_merged": 0.00020684182259817958,
-    "seconds": 5.2,
+    "ess": 0.3119606271294456,
+    "rate": 0.001869152160439347,
+    "stderr": 0.0002980611780218141,
+    "rate_merged": 0.001869152160439347,
+    "stderr_merged": 0.0002980611780218141,
+    "seconds": 1.6,
     "generators": 60,
-    "locations": 121
+    "locations": 121,
+    "exact": true,
+    "width": 7
    },
    "twirl": {
     "shots": 1000000,
@@ -111,14 +117,16 @@
    "theta": 0.2,
    "coherent": {
     "shots": 300000,
-    "ess": 0.3709851173613557,
-    "rate": 0.001077992467456657,
-    "stderr": 0.00011154299543086757,
-    "rate_merged": 0.001077992467456657,
-    "stderr_merged": 0.00011154299543086757,
-    "seconds": 13.8,
+    "ess": 0.22320265017376625,
+    "rate": 0.001039411502609936,
+    "stderr": 0.000286412964357492,
+    "rate_merged": 0.001039411502609936,
+    "stderr_merged": 0.000286412964357492,
+    "seconds": 6.9,
     "generators": 84,
-    "locations": 169
+    "locations": 169,
+    "exact": true,
+    "width": 8
    },
    "twirl": {
     "shots": 1000000,
@@ -131,15 +139,17 @@
    "d": 15,
    "theta": 0.2,
    "coherent": {
-    "shots": 500000,
-    "ess": 0.30651929785397486,
-    "rate": 0.0006817002808924463,
-    "stderr": 9.239655333869756e-05,
-    "rate_merged": 0.0006817002808924463,
-    "stderr_merged": 9.239655333869756e-05,
-    "seconds": 15.8,
+    "shots": 700000,
+    "ess": 0.1596412767282375,
+    "rate": 0.000645805126498851,
+    "stderr": 0.00016101362164300492,
+    "rate_merged": 0.000645805126498851,
+    "stderr_merged": 0.00016101362164300492,
+    "seconds": 34.2,
     "generators": 112,
-    "locations": 225
+    "locations": 225,
+    "exact": true,
+    "width": 10
    },
    "twirl": {
     "shots": 1000000,
@@ -195,14 +205,16 @@
    "theta": 0.25,
    "coherent": {
     "shots": 100000,
-    "ess": 0.50835333497781,
-    "rate": 0.032326109343773876,
-    "stderr": 0.0008907847223148058,
-    "rate_merged": 0.032326109343773876,
-    "stderr_merged": 0.0008907847223148058,
-    "seconds": 1.0,
+    "ess": 0.37831943360625303,
+    "rate": 0.029857197322068398,
+    "stderr": 0.0011885463586181113,
+    "rate_merged": 0.029857197322068398,
+    "stderr_merged": 0.0011885463586181113,
+    "seconds": 0.6,
     "generators": 24,
-    "locations": 49
+    "locations": 49,
+    "exact": true,
+    "width": 3
    },
    "twirl": {
     "shots": 1000000,
@@ -216,14 +228,16 @@
    "theta": 0.25,
    "coherent": {
     "shots": 100000,
-    "ess": 0.4187578071379485,
-    "rate": 0.02403883533400683,
-    "stderr": 0.0007994562145071956,
-    "rate_merged": 0.02403883533400683,
-    "stderr_merged": 0.0007994562145071956,
-    "seconds": 1.8,
+    "ess": 0.23463171083482282,
+    "rate": 0.023643653792672036,
+    "stderr": 0.001876028941545043,
+    "rate_merged": 0.023643653792672036,
+    "stderr_merged": 0.001876028941545043,
+    "seconds": 0.7,
     "generators": 40,
-    "locations": 81
+    "locations": 81,
+    "exact": true,
+    "width": 4
    },
    "twirl": {
     "shots": 1000000,
@@ -237,14 +251,16 @@
    "theta": 0.25,
    "coherent": {
     "shots": 100000,
-    "ess": 0.35408167707428867,
-    "rate": 0.018517901990642068,
-    "stderr": 0.0007791776831089797,
-    "rate_merged": 0.018517901990642068,
-    "stderr_merged": 0.0007791776831089797,
-    "seconds": 3.0,
+    "ess": 0.1333268093904421,
+    "rate": 0.019119189829127983,
+    "stderr": 0.0021110224359219823,
+    "rate_merged": 0.019119189829127983,
+    "stderr_merged": 0.0021110224359219823,
+    "seconds": 1.9,
     "generators": 60,
-    "locations": 121
+    "locations": 121,
+    "exact": true,
+    "width": 7
    },
    "twirl": {
     "shots": 1000000,
@@ -258,14 +274,16 @@
    "theta": 0.25,
    "coherent": {
     "shots": 100000,
-    "ess": 0.28987477104255077,
-    "rate": 0.013737234980537904,
-    "stderr": 0.0006651946078331233,
-    "rate_merged": 0.013737234980537904,
-    "stderr_merged": 0.0006651946078331233,
-    "seconds": 3.6,
+    "ess": 0.06740310394201861,
+    "rate": 0.01442405437734687,
+    "stderr": 0.004124810825179422,
+    "rate_merged": 0.01442405437734687,
+    "stderr_merged": 0.004124810825179422,
+    "seconds": 2.2,
     "generators": 84,
-    "locations": 169
+    "locations": 169,
+    "exact": true,
+    "width": 8
    },
    "twirl": {
     "shots": 1000000,
@@ -279,14 +297,16 @@
    "theta": 0.25,
    "coherent": {
     "shots": 100000,
-    "ess": 0.23963274537415716,
-    "rate": 0.010318466841865081,
-    "stderr": 0.0005887553769566084,
-    "rate_merged": 0.010318466841865081,
-    "stderr_merged": 0.0005887553769566084,
-    "seconds": 4.0,
+    "ess": 0.051300401670543436,
+    "rate": 0.008864931137885454,
+    "stderr": 0.0016758454135855775,
+    "rate_merged": 0.008864931137885454,
+    "stderr_merged": 0.0016758454135855775,
+    "seconds": 5.1,
     "generators": 112,
-    "locations": 225
+    "locations": 225,
+    "exact": true,
+    "width": 10
    },
    "twirl": {
     "shots": 1000000,
@@ -342,14 +362,16 @@
    "theta": 0.3,
    "coherent": {
     "shots": 100000,
-    "ess": 0.4353512276220014,
-    "rate": 0.09019023739555253,
-    "stderr": 0.001434587351298098,
-    "rate_merged": 0.09019023739555253,
-    "stderr_merged": 0.001434587351298098,
-    "seconds": 1.0,
+    "ess": 0.2616254370326754,
+    "rate": 0.08765005513280937,
+    "stderr": 0.0021430915498114106,
+    "rate_merged": 0.08765005513280937,
+    "stderr_merged": 0.0021430915498114106,
+    "seconds": 0.4,
     "generators": 24,
-    "locations": 49
+    "locations": 49,
+    "exact": true,
+    "width": 3
    },
    "twirl": {
     "shots": 1000000,
@@ -363,14 +385,16 @@
    "theta": 0.3,
    "coherent": {
     "shots": 100000,
-    "ess": 0.36201436245532626,
-    "rate": 0.08303360155871993,
-    "stderr": 0.0014234494738163282,
-    "rate_merged": 0.08303360155871993,
-    "stderr_merged": 0.0014234494738163282,
-    "seconds": 1.4,
+    "ess": 0.1313913164097693,
+    "rate": 0.0824182279831229,
+    "stderr": 0.0027062820316884843,
+    "rate_merged": 0.0824182279831229,
+    "stderr_merged": 0.0027062820316884843,
+    "seconds": 1.0,
     "generators": 40,
-    "locations": 81
+    "locations": 81,
+    "exact": true,
+    "width": 4
    },
    "twirl": {
     "shots": 1000000,
@@ -384,14 +408,16 @@
    "theta": 0.3,
    "coherent": {
     "shots": 100000,
-    "ess": 0.3144759010099938,
-    "rate": 0.07936459808583378,
-    "stderr": 0.0015109354225717243,
-    "rate_merged": 0.07936459808583378,
-    "stderr_merged": 0.0015109354225717243,
-    "seconds": 2.2,
+    "ess": 0.06234676851192019,
+    "rate": 0.08980339675693313,
+    "stderr": 0.004912308469136622,
+    "rate_merged": 0.08980339675693313,
+    "stderr_merged": 0.004912308469136622,
+    "seconds": 1.6,
     "generators": 60,
-    "locations": 121
+    "locations": 121,
+    "exact": true,
+    "width": 7
    },
    "twirl": {
     "shots": 1000000,
@@ -405,14 +431,16 @@
    "theta": 0.3,
    "coherent": {
     "shots": 100000,
-    "ess": 0.27081502894449294,
-    "rate": 0.07705422497240556,
-    "stderr": 0.001524428187808637,
-    "rate_merged": 0.07705422497240556,
-    "stderr_merged": 0.001524428187808637,
+    "ess": 0.017008204374984924,
+    "rate": 0.07151168012840602,
+    "stderr": 0.005177488184182987,
+    "rate_merged": 0.07151168012840602,
+    "stderr_merged": 0.005177488184182987,
     "seconds": 3.3,
     "generators": 84,
-    "locations": 169
+    "locations": 169,
+    "exact": true,
+    "width": 8
    },
    "twirl": {
     "shots": 1000000,
@@ -426,14 +454,16 @@
    "theta": 0.3,
    "coherent": {
     "shots": 100000,
-    "ess": 0.24770638750519985,
-    "rate": 0.07310029931758669,
-    "stderr": 0.0015301345334148518,
-    "rate_merged": 0.07310029931758669,
-    "stderr_merged": 0.0015301345334148518,
-    "seconds": 4.3,
+    "ess": 0.013616011053355628,
+    "rate": 0.07738651460800337,
+    "stderr": 0.00835104793232501,
+    "rate_merged": 0.07738651460800337,
+    "stderr_merged": 0.00835104793232501,
+    "seconds": 5.7,
     "generators": 112,
-    "locations": 225
+    "locations": 225,
+    "exact": true,
+    "width": 10
    },
    "twirl": {
     "shots": 1000000,
@@ -489,14 +519,16 @@
    "theta": 0.35,
    "coherent": {
     "shots": 100000,
-    "ess": 0.38440333808216265,
-    "rate": 0.18450599810475482,
-    "stderr": 0.0019683164776549134,
-    "rate_merged": 0.18450599810475482,
-    "stderr_merged": 0.0019683164776549134,
-    "seconds": 0.8,
+    "ess": 0.18263266501821715,
+    "rate": 0.18619100682818396,
+    "stderr": 0.003120955769513436,
+    "rate_merged": 0.18619100682818396,
+    "stderr_merged": 0.003120955769513436,
+    "seconds": 0.5,
     "generators": 24,
-    "locations": 49
+    "locations": 49,
+    "exact": true,
+    "width": 3
    },
    "twirl": {
     "shots": 1000000,
@@ -510,14 +542,16 @@
    "theta": 0.35,
    "coherent": {
     "shots": 100000,
-    "ess": 0.3348032119238327,
-    "rate": 0.19715280299818194,
-    "stderr": 0.0021420919527797605,
-    "rate_merged": 0.19715280299818194,
-    "stderr_merged": 0.0021420919527797605,
+    "ess": 0.08820348733732424,
+    "rate": 0.20282010197880762,
+    "stderr": 0.004893752293750618,
+    "rate_merged": 0.20282010197880762,
+    "stderr_merged": 0.004893752293750618,
     "seconds": 1.6,
     "generators": 40,
-    "locations": 81
+    "locations": 81,
+    "exact": true,
+    "width": 4
    },
    "twirl": {
     "shots": 1000000,
@@ -531,14 +565,16 @@
    "theta": 0.35,
    "coherent": {
     "shots": 100000,
-    "ess": 0.29427565197605005,
-    "rate": 0.20708327372396063,
-    "stderr": 0.002329266775000782,
-    "rate_merged": 0.20708327372396063,
-    "stderr_merged": 0.002329266775000782,
-    "seconds": 2.4,
+    "ess": 0.027533114074393343,
+    "rate": 0.20189732354558226,
+    "stderr": 0.00670750641502499,
+    "rate_merged": 0.20189732354558226,
+    "stderr_merged": 0.00670750641502499,
+    "seconds": 3.1,
     "generators": 60,
-    "locations": 121
+    "locations": 121,
+    "exact": true,
+    "width": 7
    },
    "twirl": {
     "shots": 1000000,
@@ -552,14 +588,16 @@
    "theta": 0.35,
    "coherent": {
     "shots": 100000,
-    "ess": 0.2805359666125464,
-    "rate": 0.220647424120235,
-    "stderr": 0.0024456106239311597,
-    "rate_merged": 0.220647424120235,
-    "stderr_merged": 0.0024456106239311597,
-    "seconds": 3.7,
+    "ess": 0.01182441887531422,
+    "rate": 0.2263652667056545,
+    "stderr": 0.01134022205306332,
+    "rate_merged": 0.2263652667056545,
+    "stderr_merged": 0.01134022205306332,
+    "seconds": 3.4,
     "generators": 84,
-    "locations": 169
+    "locations": 169,
+    "exact": true,
+    "width": 8
    },
    "twirl": {
     "shots": 1000000,
@@ -573,14 +611,16 @@
    "theta": 0.35,
    "coherent": {
     "shots": 100000,
-    "ess": 0.2525589624527351,
-    "rate": 0.222446968022249,
-    "stderr": 0.0024782334863668342,
-    "rate_merged": 0.222446968022249,
-    "stderr_merged": 0.0024782334863668342,
-    "seconds": 4.9,
+    "ess": 0.004857123256848254,
+    "rate": 0.22605921166131607,
+    "stderr": 0.023118504866638943,
+    "rate_merged": 0.22605921166131607,
+    "stderr_merged": 0.023118504866638943,
+    "seconds": 7.6,
     "generators": 112,
-    "locations": 225
+    "locations": 225,
+    "exact": true,
+    "width": 10
    },
    "twirl": {
     "shots": 1000000,

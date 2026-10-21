@@ -8,14 +8,16 @@
    "theta": 0.01,
    "coherent": {
     "shots": 200000,
-    "ess": 0.9936513124626837,
-    "rate": 0.0024773616909960624,
-    "stderr": 0.00011983828541220155,
-    "rate_merged": 0.0024773616909960624,
-    "stderr_merged": 0.00011983828541220155,
-    "seconds": 0.3,
+    "ess": 0.993965084186809,
+    "rate": 0.002422541121585384,
+    "stderr": 0.0001160400171097941,
+    "rate_merged": 0.002422541121585384,
+    "stderr_merged": 0.0001160400171097941,
+    "seconds": 0.4,
     "generators": 56,
-    "locations": 72
+    "locations": 72,
+    "exact": true,
+    "width": 4
    },
    "twirl": {
     "shots": 1000000,
@@ -30,14 +32,16 @@
    "theta": 0.02,
    "coherent": {
     "shots": 100000,
-    "ess": 0.9758018772816636,
-    "rate": 0.003279944781817364,
-    "stderr": 0.0002170104315886859,
-    "rate_merged": 0.003279944781817364,
-    "stderr_merged": 0.0002170104315886859,
+    "ess": 0.973830657843599,
+    "rate": 0.0033867798520968682,
+    "stderr": 0.00026517167915718316,
+    "rate_merged": 0.0033867798520968682,
+    "stderr_merged": 0.00026517167915718316,
     "seconds": 0.2,
     "generators": 56,
-    "locations": 72
+    "locations": 72,
+    "exact": true,
+    "width": 4
    },
    "twirl": {
     "shots": 1000000,
@@ -52,14 +56,16 @@
    "theta": 0.04,
    "coherent": {
     "shots": 100000,
-    "ess": 0.913819241549277,
-    "rate": 0.007964015594028866,
-    "stderr": 0.0004155917853873244,
-    "rate_merged": 0.007964015594028866,
-    "stderr_merged": 0.0004155917853873244,
-    "seconds": 0.3,
+    "ess": 0.8919976933174211,
+    "rate": 0.00863779544766237,
+    "stderr": 0.0006126773410863266,
+    "rate_merged": 0.00863779544766237,
+    "stderr_merged": 0.0006126773410863266,
+    "seconds": 0.2,
     "generators": 56,
-    "locations": 72
+    "locations": 72,
+    "exact": true,
+    "width": 4
    },
    "twirl": {
     "shots": 1000000,
@@ -74,14 +80,16 @@
    "theta": 0.06,
    "coherent": {
     "shots": 100000,
-    "ess": 0.8280616193528458,
-    "rate": 0.017619840042745673,
-    "stderr": 0.0006927152181333824,
-    "rate_merged": 0.017619840042745673,
-    "stderr_merged": 0.0006927152181333824,
-    "seconds": 0.4,
+    "ess": 0.7703509712815131,
+    "rate": 0.019565332123262703,
+    "stderr": 0.0009431876519359802,
+    "rate_merged": 0.019565332123262703,
+    "stderr_merged": 0.0009431876519359802,
+    "seconds": 0.2,
     "generators": 56,
-    "locations": 72
+    "locations": 72,
+    "exact": true,
+    "width": 4
    },
    "twirl": {
     "shots": 1000000,
