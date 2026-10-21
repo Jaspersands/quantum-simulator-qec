@@ -14,8 +14,9 @@
   ``without_noise``, ``inverse``, ...), and ``stim_circuit`` a plain ``stabilizer_qec.Circuit``.
   ``tcount``, ``is_clifford`` and ``inverse`` are Tsim's; ``to_matrix`` is Tsim's map on the
   qubits the circuit names, a state column when every qubit is reset first, and, of a circuit
-  with measurements, resets after a qubit's first operation, feedback or noise on a qubit
-  before its reset, Tsim's ZX tensor with every measurement outcome and error bit read as 0;
+  with measurements, detectors or observables (one that XORs no measurement is a factor of 2),
+  resets after a qubit's first operation, feedback or noise on a qubit before its reset, Tsim's
+  ZX tensor with every measurement outcome and error bit read as 0;
   ``diagram`` defaults to the timeline SVG, its tagged gates labelled, with Tsim's ``height``,
   ``width`` and ``zoomable`` for the notebook view, and draws the ZX graph for ``"pyzx"``,
   ``"pyzx-dets"`` and ``"pyzx-meas"``.

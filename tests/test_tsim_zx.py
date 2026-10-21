@@ -440,6 +440,57 @@ def test_to_matrix_measurement_semantics():
     assert tsim.Circuit("R 0 1\nH 0\nCX 0 1\nM 0 1").to_matrix().shape == (4, 1)
 
 
+# Circuits with no measurement whose detectors and observables XOR nothing, and Tsim's matrices of them.
+ANNOTATED_UNMEASURED = [
+    "DETECTOR",
+    "DETECTOR\nH 0",
+    "H 0\nOBSERVABLE_INCLUDE(1)",
+    "OBSERVABLE_INCLUDE(2)",
+    "DETECTOR(1)\nR 0\nH 0",
+    "REPEAT 3 {\n    DETECTOR\n}",
+    "H 0\nREPEAT 2 {\n    OBSERVABLE_INCLUDE(0)\n    T 0\n}",
+    "OBSERVABLE_INCLUDE(1)\nOBSERVABLE_INCLUDE(1)",
+    "OBSERVABLE_INCLUDE(2)\nOBSERVABLE_INCLUDE(0)",
+    "DETECTOR(1, 2)\nSHIFT_COORDS(1)\nDETECTOR\nCX 0 1",
+    "OBSERVABLE_INCLUDE(1)\nX_ERROR(0.1) 0",
+    "DETECTOR\nII 0 1",
+    "R 0 1\nH 0\nCX 0 1\nDETECTOR(0, 0, 0)\nTPP X0*Z1",
+]
+
+
+def test_to_matrix_of_annotations_without_measurements():
+    """A detector or an observable is an X spider of Tsim's graph, so one that XORs no measurement
+    stands alone, a factor of 2 (an ``OBSERVABLE_INCLUDE(k)`` makes the observables 0 to k), with or
+    without a measurement elsewhere in the circuit. Tsim's values."""
+    h = np.array([[1, 1], [1, -1]]) / np.sqrt(2)
+    for text, want in (
+        ("DETECTOR", [[2]]),
+        ("DETECTOR\nH 0", 2 * h),
+        ("H 0\nOBSERVABLE_INCLUDE(1)", 4 * h),
+        ("OBSERVABLE_INCLUDE(2)", [[8]]),
+        ("DETECTOR(1)\nR 0\nH 0", 2 * np.sqrt(0.5) * np.ones((2, 1))),
+        ("REPEAT 3 {\n    DETECTOR\n}", [[8]]),
+        ("OBSERVABLE_INCLUDE(1)\nOBSERVABLE_INCLUDE(1)", [[4]]),
+        ("OBSERVABLE_INCLUDE(2)\nOBSERVABLE_INCLUDE(0)", [[8]]),
+        ("DETECTOR\nII 0 1", 2 * np.eye(4)),
+        ("M 0\nDETECTOR\nOBSERVABLE_INCLUDE(3)", 16 * np.sqrt(2) * np.eye(2)),
+    ):
+        got = tsim.Circuit(text).to_matrix()
+        assert got.shape == np.shape(want) and np.allclose(got, want, atol=1e-12, rtol=0), text
+    # An observable of Pauli targets is Tsim's error, measurement or not.
+    for text in ("OBSERVABLE_INCLUDE(0) X0", "H 0\nOBSERVABLE_INCLUDE(1) Z0"):
+        with pytest.raises(ValueError, match="OBSERVABLE_INCLUDE with Pauli targets is not supported in Tsim"):
+            tsim.Circuit(text).to_matrix()
+
+
+@pytest.mark.parametrize("text", ANNOTATED_UNMEASURED)
+def test_to_matrix_of_annotations_equals_tsim(text):
+    real = pytest.importorskip("tsim")
+    want = np.asarray(real.Circuit(text).to_matrix())
+    got = tsim.Circuit(text).to_matrix()
+    assert got.shape == want.shape and np.allclose(got, want, atol=1e-9, rtol=0)
+
+
 def test_to_matrix_of_loops_is_the_unrolled_circuits():
     looped = tsim.Circuit("REPEAT 3 {\n    H 0\n    T 0\n    M 0\n    R 1\n    CX 0 1\n}")
     unrolled = tsim.Circuit("H 0\nT 0\nM 0\nR 1\nCX 0 1\n" * 3)
@@ -620,3 +671,45 @@ def test_random_circuits_against_tsim(seed):
     i = np.argmax(np.abs(want))
     phase = got.flat[i] / want.flat[i]
     assert abs(abs(phase) - 1) < 1e-6 and np.allclose(got, phase * want, atol=1e-6), text
+
+
+def random_unmeasured_annotated_circuit(rng, n: int, length: int) -> str:
+    """A circuit of gates, rotations, noise and resets, no measurement, with at least one detector or
+    observable that XORs nothing (none of the ±0.25 product rotations whose graph is ``TPP``'s here)."""
+    one = ["H", "S", "S_DAG", "X", "SQRT_X", "C_XYZ", "H_YZ", "T", "T_DAG"]
+    two = ["CX", "CY", "CZ", "SWAP", "ISWAP", "SQRT_XX", "XCZ"]
+    annotations = ["DETECTOR", "DETECTOR(1, 2)", "OBSERVABLE_INCLUDE(0)", "OBSERVABLE_INCLUDE(1)"]
+    lines = [str(rng.choice(annotations))]
+    for _ in range(length):
+        u, q = rng.random(), int(rng.integers(n))
+        a, b = (int(x) for x in rng.choice(n, 2, replace=False)) if n > 1 else (0, 0)
+        if u < 0.3:
+            lines.append(f"{rng.choice(one)} {q}")
+        elif u < 0.45 and n > 1:
+            lines.append(f"{rng.choice(two)} {a} {b}")
+        elif u < 0.55:
+            lines.append(f"R_{rng.choice(list('XYZ'))}({round(float(rng.uniform(-2, 2)), 4)}) {q}")
+        elif u < 0.6 and n > 1:
+            lines.append(f"{rng.choice(['TPP', 'SPP_DAG'])} {rng.choice(list('XYZ'))}{a}*{rng.choice(list('XYZ'))}{b}")
+        elif u < 0.68:
+            lines.append(f"{rng.choice(['R', 'RX', 'RY'])} {q}")
+        elif u < 0.76:
+            lines.append(f"{rng.choice(['X_ERROR', 'Z_ERROR', 'DEPOLARIZE1'])}({round(float(rng.uniform(0, 0.3)), 3)}) {q}")
+        elif u < 0.8:
+            lines.append(f"QUBIT_COORDS(1, 2) {q}\nTICK")
+        else:
+            lines.append(str(rng.choice(annotations)))
+    order = rng.permutation(len(lines))
+    return "\n".join(lines[i] for i in order)
+
+
+@pytest.mark.parametrize("seed", range(20))
+def test_random_unmeasured_annotated_circuits_against_tsim(seed):
+    """Without a measurement, a detector or observable still makes ``to_matrix`` Tsim's ZX tensor:
+    equal to Tsim's, not up to a phase or a factor."""
+    real = pytest.importorskip("tsim")
+    rng = np.random.default_rng(1000 + seed)
+    text = random_unmeasured_annotated_circuit(rng, int(rng.integers(1, 4)), int(rng.integers(2, 12)))
+    want = np.asarray(real.Circuit(text).to_matrix())
+    got = tsim.Circuit(text).to_matrix()
+    assert got.shape == want.shape and np.allclose(got, want, atol=1e-9, rtol=0), text

@@ -89,11 +89,14 @@ def _qubits_named(circuit: Any) -> set:
 
 
 def _lane_scan(circuit: Any) -> tuple:
-    """``(reset_after_first, pair_identity_qubits)``: whether a reset follows the first instruction
-    that names a qubit when that instruction is not a reset (an operation, noise, an identity or
-    coordinates: Tsim's graph gives the qubit an input, where the unitary engine counts only an
-    operation as one), and the qubits an ``II`` names (which that engine does not see). A loop's
-    body is read twice (its second pass shows a reset after the first pass's operations)."""
+    """``(needs_zx, pair_identity_qubits)``: whether a measurement-free circuit's matrix still needs
+    Tsim's ZX tensor, and the qubits an ``II`` names (which the unitary engine does not see). It
+    does when a reset follows the first instruction that names a qubit and that instruction is not
+    a reset (an operation, noise, an identity or coordinates: Tsim's graph gives the qubit an input,
+    where the engine counts only an operation as one), or when there is a ``DETECTOR`` or an
+    ``OBSERVABLE_INCLUDE`` (an X spider of Tsim's graph, standing alone when it XORs no measurement:
+    a factor of 2 the engine has no part for; one of Pauli targets is Tsim's error). A loop's body
+    is read twice (its second pass shows a reset after the first pass's operations)."""
     first_is_reset: dict = {}
     flags: dict = {}
     pair_identity: set = set()
@@ -106,6 +109,9 @@ def _lane_scan(circuit: Any) -> tuple:
                     visit(item[3])
                 continue
             name, targets = item[1], item[4]
+            if name in ("DETECTOR", "OBSERVABLE_INCLUDE"):
+                found[0] = True
+                continue
             if name not in flags:
                 flags[name] = bool(_stim.GateData(name).is_reset)
             reset = flags[name]
@@ -484,22 +490,23 @@ class Circuit(_Base):
         (``endian="little"``: the least). A qubit whose first operation is a reset (``R``,
         ``RX``, ``RY``) starts in that state and has no input: a circuit that resets every qubit
         first gives its state, a 2^n × 1 column (up to 22 qubits), and one that resets some a
-        2^n × 2^k matrix. Noise channels are skipped (no error drawn), and detectors,
-        observables, coordinates and ``TICK`` are nothing. At most 2^22 entries (a unitary of 11
-        qubits).
+        2^n × 2^k matrix. Noise channels are skipped (no error drawn), and coordinates and
+        ``TICK`` are nothing. At most 2^22 entries (a unitary of 11 qubits).
 
-        A circuit with a measurement, a reset after a qubit's first operation or feedback is
-        Tsim's ZX tensor of it (``tsim.zx.tensorfy``), contracted in numpy with every measurement
-        outcome and error bit read as 0: a measurement is the identity on its qubit times
-        1/sqrt(2) (``H 0`` then ``M 0`` is [[.5, .5], [.5, -.5]]), a detector or observable
-        projects its parity even, a reset projects (and prepares), ``MPP`` and heralded noise add
-        an output qubit (the first, qubit -2 in Tsim's graph), feedback is the controlled gate.
-        Its qubits are the ZX graph's: the inputs of the qubits first used by a gate, the outputs
-        of every qubit."""
+        A circuit with a measurement, a detector or observable, a reset after a qubit's first
+        operation or feedback is Tsim's ZX tensor of it (``tsim.zx.tensorfy``), contracted in
+        numpy with every measurement outcome and error bit read as 0: a measurement is the
+        identity on its qubit times 1/sqrt(2) (``H 0`` then ``M 0`` is [[.5, .5], [.5, -.5]]), a
+        detector or observable is an X spider joined to the measurements it XORs, projecting their
+        parity even (one that XORs none stands alone, a factor of 2: ``DETECTOR`` is [[2]],
+        ``OBSERVABLE_INCLUDE(k)`` makes the observables 0 to k, so ``OBSERVABLE_INCLUDE(2)`` is
+        [[8]]), a reset projects (and prepares), ``MPP`` and heralded noise add an output qubit
+        (the first, qubit -2 in Tsim's graph), feedback is the controlled gate. Its qubits are the
+        ZX graph's: the inputs of the qubits first used by a gate, the outputs of every qubit."""
         if endian not in ("big", "little"):
             raise ValueError(f"endian must be 'big' or 'little', got {endian!r}")
-        reset_after_first, pair_identity = _lane_scan(self)
-        if reset_after_first:
+        needs_zx, pair_identity = _lane_scan(self)
+        if needs_zx:
             return self._zx_matrix(endian)
         ideal = self.without_noise()
         # A qubit only noise names (or an II) stays, as an input the circuit leaves alone (Tsim's identity).
