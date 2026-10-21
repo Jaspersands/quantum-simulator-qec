@@ -68,10 +68,10 @@ def _product_rotation_or_none(args: dict, targets: List[str]):
 def stim_reading(text: str) -> str:
     """This package's tagged operations as Stim reads Tsim's tagged form of them, the gate
     carrying the tag and the tag dropped: T is ``S`` (``S[T]``), T_DAG ``S_DAG``, a rotation or
-    ``U3`` ``I`` (``I[R_Z(theta=a*pi)]``), a Pauli-product rotation its Tsim instruction's gate on
-    its product (``SPP[R_PAULI(theta=a*pi)] !X0`` is ``SPP !X0``, ``SPP_DAG[T] X0`` ``SPP_DAG X0``),
-    a pair rotation (``II[R_ZZ(theta=t)] 0 1``) ``SPP Z0*Z1``. Tsim builds its detector error model
-    of that reading; every other line is as it is."""
+    ``U3`` ``I`` (``I[R_Z(theta=a*pi)]``), a Pauli-product rotation (on ``I`` or ``II``) its Tsim
+    instruction's gate on its product (``SPP[R_PAULI(theta=a*pi)] !X0`` is ``SPP !X0``,
+    ``SPP_DAG[T] X0`` ``SPP_DAG X0``), a pair rotation (``II[R_ZZ(theta=t)] 0 1``) ``SPP Z0*Z1``.
+    Tsim builds its detector error model of that reading; every other line is as it is."""
     from stabilizer_qec.tsim.utils.program_text import _NATIVE_LINE, _NATIVE_TAG, _native_args, _no_args, _product_text
 
     lines = []
@@ -85,7 +85,8 @@ def stim_reading(text: str) -> str:
         name, body = t.group(1), t.group(2)
         targets = rest.split()
         args = _native_args(body) if body else {}
-        product = _product_rotation_or_none(args, targets) if gate == "I" and name == "R_PAULI" and args and set(args) == {"theta", "pauli"} else None
+        # A product rotation on I or II alike, one product over the targets, as the core reads it.
+        product = _product_rotation_or_none(args, targets) if name == "R_PAULI" and args and set(args) == {"theta", "pauli"} else None
         if gate == "I" and _no_args(body) and name in ("T", "T_DAG"):
             lines.append(f"{indent}{'S' if name == 'T' else 'S_DAG'} {' '.join(targets)}")
         elif gate == "I" and name in ("R_X", "R_Y", "R_Z", "U3") and args:

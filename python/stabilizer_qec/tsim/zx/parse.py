@@ -159,7 +159,7 @@ def tsim_instructions(circuit: Any) -> Iterator[Any]:
 
     This package writes Tsim's gates as its own operations: ``I[T]`` and ``I[T_DAG]`` for T and its
     inverse, ``I[R_Z(theta=t)]`` (and R_X, R_Y) for exp(-i t Z), ``I[U3(...)]`` in radians,
-    ``I[R_PAULI(theta=t, pauli=XY)] 0 1`` for each product and ``II[R_ZZ(theta=t)] 0 1``. They are
+    ``I[R_PAULI(theta=t, pauli=XY)] 0 1`` for each product (``II[...]`` the same) and ``II[R_ZZ(theta=t)] 0 1``. They are
     read back as the half-turns they were written in (the shortest decimal number of half-turns that
     gives the stored radians, or the one their further digits give), so the phases are Tsim's exact
     fractions, a product rotation by +-pi/8 as ``SPP[T]`` or ``SPP[R_PAULI(theta=0.25*pi)]`` as
@@ -207,8 +207,9 @@ def _tsim_form(name: str, tag: str, args: List[float], targets: List[int]) -> Op
         if name == "I" and gate == "U3" and set(params) == {"theta", "phi", "lambda"}:
             a, b, c = (_read_turns(params[k], 1.0) for k in ("theta", "phi", "lambda"))
             return [TsimInstruction("I", f"U3(theta={a}*pi, phi={b}*pi, lambda={c}*pi)", args, targets)]
-        if name == "I" and gate == "R_PAULI" and set(params) == {"theta", "pauli"}:
-            # The instruction ``tsim_to_native`` stored: SPP or SPP_DAG, T or R_PAULI, the ``!``s.
+        if gate == "R_PAULI" and set(params) == {"theta", "pauli"}:
+            # The instruction ``tsim_to_native`` stored: SPP or SPP_DAG, T or R_PAULI, the ``!``s. On I or
+            # II alike, one product over the targets, as the core reads it.
             found = _product_rotation(params, [_stim.GateTarget._raw(v).value for v in targets])
             if found is None:
                 return None

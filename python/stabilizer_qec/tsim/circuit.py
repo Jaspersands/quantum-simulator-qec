@@ -102,6 +102,18 @@ def _negated(number: str, zero: Union[str, None] = "0.0") -> str:
     return "-" + (number[1:] if number.startswith("+") else number)
 
 
+def _inverted_product(theta: str, letters: str, dagger: bool) -> str:
+    """The arguments of the inverse of a stored product rotation (``theta`` its stored radians, ``letters``
+    its letters in the inverse's order of its targets, ``dagger`` whether its arguments are in
+    ``SPP_DAG``'s order). Stim inverts Tsim's ``SPP[R_PAULI(theta=a*pi)]`` to ``SPP_DAG[...]`` of the same
+    a, its tag untouched: the radians negated exactly (a zero's sign too), the arguments' order (the
+    ``SPP_DAG``) turned, the letters' case (the ``!``s) kept; a ``TPP``'s dagger is its sign."""
+    negated = _negated(theta, zero=None)
+    if not _is_tpp_radians(theta):
+        dagger = not dagger
+    return f"pauli={letters}, theta={negated}" if dagger else f"theta={negated}, pauli={letters}"
+
+
 def _rotations_inverted(text: str) -> Union[str, None]:
     """This package's text of a circuit with each rotation's tag (``I[R_Z(theta=t)]``,
     ``I[R_PAULI(theta=t, pauli=XZ)]``, ``II[R_ZZ(theta=t)]``, ``I[U3(...)]``) replaced by its
@@ -110,7 +122,10 @@ def _rotations_inverted(text: str) -> Union[str, None]:
     reversed (the inverse reverses the targets) and its ``SPP`` and ``SPP_DAG`` exchanged (Tsim's
     inverse of ``R_PAULI(0.3) X0`` is ``SPP_DAG[R_PAULI(theta=0.3*pi)] X0``), and ``U3(θ, φ, λ)`` as
     ``U3(−θ, −λ, −φ)``, under names the core's inverse leaves alone; ``None`` if the text already has
-    such a name."""
+    such a name. A product rotation on ``II`` (one product over its targets, as on ``I``) is inverted
+    as on ``I``, and a pair rotation ``II[R_ZZ(theta=t)] 0 1`` as the product rotation it prints as
+    (``R_ZZ(...) 0 1``, ``I[R_PAULI(theta=t, pauli=ZZ)] 0 1``), a line a pair: so each inverse is
+    Tsim's inverse of the print (``SPP_DAG[R_PAULI(theta=a*pi)] Z1*Z0``)."""
     if _AS_INVERTED in text:
         return None
     out = []
@@ -122,18 +137,17 @@ def _rotations_inverted(text: str) -> Union[str, None]:
             out.append(line)
             continue
         indent, gate, _, rest = m.groups()
-        name = t.group(1)
-        if gate == "I" and name in ("R_X", "R_Y", "R_Z") and set(args) == {"theta"} or gate == "II" and name in ("R_XX", "R_YY", "R_ZZ") and set(args) == {"theta"}:
+        name, targets = t.group(1), rest.split()
+        if gate == "I" and name in ("R_X", "R_Y", "R_Z") and set(args) == {"theta"}:
             tag = f"theta={_negated(args['theta'])}"
-        elif gate == "I" and name == "R_PAULI" and set(args) == {"theta", "pauli"}:
-            # Stim inverts Tsim's SPP[R_PAULI(theta=a*pi)] to SPP_DAG[...] of the same a, its tag untouched:
-            # the radians negated exactly (a zero's sign too), the arguments' order (the SPP_DAG) turned,
-            # the letters' case (the !s) kept; a TPP's dagger is its sign.
-            theta, pauli = _negated(args["theta"], zero=None), args["pauli"][::-1]
-            dagger = list(args) == ["pauli", "theta"]
-            if not _is_tpp_radians(args["theta"]):
-                dagger = not dagger
-            tag = f"pauli={pauli}, theta={theta}" if dagger else f"theta={theta}, pauli={pauli}"
+        elif gate == "II" and name in _PAIR_ROTATIONS and set(args) == {"theta"} and len(targets) % 2 == 0:
+            inverse = _inverted_product(args["theta"], name[2] * 2, False)
+            out.extend(f"{indent}I[R_PAULI{_AS_INVERTED}({inverse})] {targets[i]} {targets[i + 1]}" for i in range(0, len(targets), 2))
+            continue
+        elif name == "R_PAULI" and set(args) == {"theta", "pauli"}:
+            # Written on I, whose inverse reverses the targets (an II's reverses its pairs, each pair's
+            # order kept), the letters reversed with them.
+            gate, tag = "I", _inverted_product(args["theta"], args["pauli"][::-1], list(args) == ["pauli", "theta"])
         elif gate == "I" and name == "U3" and set(args) == {"theta", "phi", "lambda"}:
             tag = f"theta={_negated(args['theta'])}, phi={_negated(args['lambda'])}, lambda={_negated(args['phi'])}"
         else:
@@ -169,10 +183,10 @@ def _lane_scan(circuit: Any) -> tuple:
     or an ``OBSERVABLE_INCLUDE`` (an X spider of Tsim's graph, standing alone when it XORs no
     measurement: a factor of 2 the engine has no part for; one of Pauli targets is Tsim's error). What
     the builders can refuse is read from the instructions: a Pauli product (``SPP``, ``SPP_DAG``,
-    ``MPP``, a product rotation ``I[R_PAULI(...)]``, a pair rotation ``II[R_ZZ(...)]``) or a sweep
-    bit; a tag that only names one (``H[SPP]``, the coherent error ``I_ERROR[R_PAULI(...)]``) is not
-    one. A loop's body is read twice (its second pass shows a reset after the first pass's
-    operations)."""
+    ``MPP``, a product rotation ``I[R_PAULI(...)]`` or ``II[R_PAULI(...)]``, a pair rotation
+    ``II[R_ZZ(...)]``) or a sweep bit; a tag that only names one (``H[SPP]``, the coherent error
+    ``I_ERROR[R_PAULI(...)]``) is not one. A loop's body is read twice (its second pass shows a reset
+    after the first pass's operations)."""
     first_is_reset: dict = {}
     flags: dict = {}
     pair_identity: set = set()
@@ -188,13 +202,21 @@ def _lane_scan(circuit: Any) -> tuple:
             if name in ("DETECTOR", "OBSERVABLE_INCLUDE"):
                 found[0] = True
                 continue
+            pair_identity_here = name == "II"
             if name in _PRODUCT_GATES:
                 found[1] = True
             elif tag and name in ("I", "II"):
                 t = _NATIVE_TAG.match(tag)
-                if t and t.group(1) == "R_PAULI" and name == "I":
+                if t and t.group(1) == "R_PAULI":
+                    # One product over the targets on I or II alike, as the core reads it: an II's qubits are
+                    # its product's, not the identity lanes of a plain II. It names a qubit twice when two of
+                    # its X, Y and Z letters are on it (an identity letter, ``I`` or ``_``, names none).
                     found[1] = True
-                    found[2] = found[2] or len(set(targets)) < len(targets)
+                    args = _native_args(t.group(2)) if t.group(2) else None
+                    letters = args.get("pauli") if args else None
+                    named = [q for p, q in zip(letters, targets) if p not in "Ii_"] if letters is not None and len(letters) == len(targets) else list(targets)
+                    found[2] = found[2] or len(set(named)) < len(named)
+                    pair_identity_here = False
                 elif t and t.group(1) in _PAIR_ROTATIONS and name == "II":
                     found[1] = True
             if name not in flags:
@@ -206,7 +228,7 @@ def _lane_scan(circuit: Any) -> tuple:
                 q = _stim.GateTarget._raw(v).qubit_value
                 if q is None:
                     continue
-                if name == "II":
+                if pair_identity_here:
                     pair_identity.add(q)
                 if q not in first_is_reset:
                     first_is_reset[q] = reset
@@ -610,7 +632,11 @@ class Circuit(_Base):
         ``SPP X0*Z1`` and ``H 0``). Tsim's own ``to_matrix`` builds and contracts that graph, and takes
         far longer. A circuit without products or sweep bits does not build it, and one with an
         instruction the builders cannot read (a tag the core leaves inert, ``I[foo(x)] 0``) is the
-        engine's matrix, as without products (Tsim's raises its parse error)."""
+        engine's matrix, as without products (Tsim's raises its parse error), unless a product
+        rotation names a qubit twice: without a graph that raises Tsim's parse error too. Where a
+        product leaves a qubit out of Tsim's graph (an identity letter's, ``pauli=X_``, or one
+        ``SPP X0*X0`` cancels on), the engine's matrix leaves it out too, and is Tsim's matrix of the
+        circuit without that instruction up to the engine's global phase."""
         if endian not in ("big", "little"):
             raise ValueError(f"endian must be 'big' or 'little', got {endian!r}")
         needs_zx, pair_identity, products, repeated = _lane_scan(self)
@@ -630,8 +656,11 @@ class Circuit(_Base):
                 built = parse_stim_circuit(self, backend="own")
             except ValueError as exc:
                 # An instruction the builders cannot read (a tag of someone else's, ``I[foo(x)]``, which
-                # the core leaves inert) is left to the engine, as in a circuit without products.
-                if not str(exc).startswith(_UNREAD_BY_TSIMS_BUILDERS):
+                # the core leaves inert) is left to the engine, as in a circuit without products, unless a
+                # product rotation names a qubit twice: that is the ZX tensor's (the engine drops the sign
+                # of ``TPP X0*Y0*X0`` and keeps the qubit ``TPP Z0*Z0`` cancels on), and there is no graph,
+                # so Tsim's error, as Tsim's ``to_matrix`` raises it.
+                if not str(exc).startswith(_UNREAD_BY_TSIMS_BUILDERS) or repeated:
                     raise
             else:
                 if set(built.first_vertex) != _qubits_named(self) or repeated:

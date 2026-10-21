@@ -16,6 +16,7 @@ from __future__ import annotations
 import gzip
 import importlib.util
 import json
+import re
 import sys
 import types
 import warnings
@@ -1377,6 +1378,14 @@ STORED_SPELLINGS = {
     "II[R_ZZ( theta=0.1 ,)] 0 1": "II[R_ZZ(theta=0.1)] 0 1",
     "I[T()] 0": "I[T] 0",
     "I[ T_DAG ( , ) ] 1": "I[T_DAG] 1",
+    # ``R_PAULI`` on ``II`` is one product over its targets, as on ``I`` (``parse``'s R_PAULI arm takes
+    # either gate), pairs of distinct qubits that may repeat across pairs.
+    "II[R_PAULI(theta=0.1, pauli=XZ)] 0 1": "I[R_PAULI(theta=0.1, pauli=XZ)] 0 1",
+    "II[R_PAULI(theta=0.1, pauli=X_Z_)] 0 1 2 0": "I[R_PAULI(theta=0.1, pauli=XIZI)] 0 1 2 0",
+    "II[R_PAULI(pauli=yX, theta=-0.3)] 2 0": "I[R_PAULI(pauli=yX, theta=-0.3)] 2 0",
+    "II[R_PAULI(theta=-0.39269908169872414, pauli=ZxY_)] 1 0 2 1": "I[R_PAULI(theta=-0.39269908169872414, pauli=ZxYI)] 1 0 2 1",
+    "II[ R_PAULI ( theta = +.1 ,, pauli = XzyX ) ] 0 1 2 0": "I[R_PAULI(theta=+.1, pauli=XzyX)] 0 1 2 0",
+    "II[R_PAULI(theta=0.1, pauli=__)] 0 1": "I[R_PAULI(theta=0.1, pauli=II)] 0 1",
 }
 
 
@@ -1391,7 +1400,7 @@ def stored_circuits(line: str) -> tuple:
 def assert_read_as_spelled(stored: str, spelled: str) -> None:
     """Every reader reads ``stored`` (a circuit in this package's text) as ``spelled``: printing, Stim's
     reading for the model, the graphs, the T-count, ``to_matrix`` (bit for bit), the model and the
-    inverse (its printing, graph and matrix)."""
+    inverse (its printing, graph and matrix), which undoes the circuit."""
     from stabilizer_qec.tsim._native import stim_reading
 
     def same_matrix(a, b) -> None:
@@ -1417,6 +1426,10 @@ def assert_read_as_spelled(stored: str, spelled: str) -> None:
     assert model == outcome(lambda: str(theirs.detector_error_model(allow_gauge_detectors=True))), stored
     a, b = outcome(mine.inverse), outcome(theirs.inverse)
     assert a[0] == b[0] and (a[0] == "ok" or a == b), stored
+    undone = outcome((mine + a[1]).to_matrix) if a[0] == "ok" else ("no inverse", "")
+    if undone[0] == "ok":
+        u = undone[1]
+        assert abs(abs(u.flat[0]) - 1) < 1e-9 and np.allclose(u, u.flat[0] * np.eye(len(u)), atol=1e-9, rtol=0), stored
     if a[0] == "ok" and len(mine) == len(theirs):
         if printed:
             same_print(a[1], b[1])
@@ -1441,6 +1454,90 @@ def test_a_stored_form_the_core_reads_is_read_as_its_spelling(stored):
             assert str(c.detector_error_model(allow_gauge_detectors=True)) == str(ref.detector_error_model(allow_gauge_detectors=True)), stored
             if outcome(ref.to_matrix)[0] == "ok":
                 assert_matrix_is_tsims(c, ref)
+            inverse = outcome(ref.inverse)
+            if inverse[0] == "ok" and outcome(inverse[1].to_matrix)[0] == "ok":
+                assert str(c.inverse()) == str(inverse[1]), stored
+                assert record(c.inverse().get_graph(backend="own")) == record(inverse[1].get_graph()), stored
+                assert_matrix_is_tsims(c.inverse(), inverse[1])
+
+
+def test_an_ii_r_pauli_is_one_product_as_in_the_core():
+    """The review's examples: the core reads ``II[R_PAULI(...)]`` as it reads ``I[R_PAULI(...)]``, one
+    product rotation over its targets (``nonpauli::parse``'s R_PAULI arm takes either gate), so every
+    reader does. The model is Tsim's of ``R_PAULI(...) X0*Z2`` (Stim's reading ``SPP X0*Z2``, not the
+    identity); the print is Tsim's shorthand, the T-count 1, ``to_matrix`` the ``I`` spelling's and
+    Tsim's; the inverse is Tsim's inverse of the print, and undoes the circuit."""
+    from stabilizer_qec.tsim._native import stim_reading
+
+    measured = "R 0 1 2 3\nX_ERROR(0.1) 2\n{}[R_PAULI(theta=0.1, pauli={})] 0 1 2 3\nM 0 1 2\nDETECTOR rec[-3]\nDETECTOR rec[-1]"
+    pair, single = (tsim.Circuit(sq.Circuit(measured.format(gate, letters))) for gate, letters in (("II", "X_Z_"), ("I", "XIZI")))
+    assert stim_reading(pair._stim_exact_text()) == stim_reading(single._stim_exact_text())
+    assert "SPP X0*Z2" in stim_reading(pair._stim_exact_text()).split("\n")
+    model = str(pair.detector_error_model(allow_gauge_detectors=True))
+    assert model == str(single.detector_error_model(allow_gauge_detectors=True)) == "error(0.5) D0\nerror(0.1) D0 D1"
+    a, b = (tsim.Circuit(sq.Circuit(f"H 0\n{gate}[R_PAULI(theta=0.1, pauli=XZ)] 0 1")) for gate in ("II", "I"))
+    assert str(a) == str(b) == "H 0\nR_PAULI(0.06366197723675814) X0*Z1"
+    assert a.tcount() == b.tcount() == 1
+    assert record(a.get_graph(backend="own")) == record(b.get_graph(backend="own"))
+    assert np.array_equal(a.to_matrix(), b.to_matrix())
+    want, got = a._zx_matrix("big"), a.to_matrix()
+    i = np.argmax(np.abs(want))
+    assert got.shape == (4, 4) and np.allclose(got, got.flat[i] / want.flat[i] * want, atol=1e-12, rtol=0)
+    four = tsim.Circuit(sq.Circuit("H 0 1 2 3\nII[R_PAULI(theta=0.1, pauli=XZYy)] 0 1 2 3"))
+    assert str(four) == "H 0 1 2 3\nR_PAULI(-0.06366197723675814) X0*Z1*Y2*!Y3"
+    # Inverted as I's (the targets reversed, not II's pairs): the core's inverse of the I spelling.
+    assert four.inverse()._stim_exact_text() == "I[R_PAULI(pauli=yYZX, theta=-0.1)] 3 2 1 0\nH 3 2 1 0"
+    assert str(four.inverse()) == "SPP_DAG[R_PAULI(theta=-0.06366197723675814*pi)] !Y3*Y2*Z1*X0\nH 3 2 1 0"
+    undone = (four + four.inverse()).to_matrix()
+    assert np.allclose(undone, undone[0, 0] * np.eye(16), atol=1e-12, rtol=0) and abs(abs(undone[0, 0]) - 1) < 1e-12
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        ref = real.Circuit("R 0 1 2 3\nX_ERROR(0.1) 2\nR_PAULI(0.06366197723675814) X0*Z2\nM 0 1 2\nDETECTOR rec[-3]\nDETECTOR rec[-1]")
+        assert model == str(ref.detector_error_model(allow_gauge_detectors=True))
+        ref = real.Circuit("H 0\nR_PAULI(0.06366197723675814) X0*Z1")
+        assert record(a.get_graph(backend="own")) == record(ref.get_graph())
+        assert_matrix_is_tsims(a, ref)
+        ref = real.Circuit(str(four)).inverse()
+        assert str(four.inverse()) == str(ref)
+        assert record(four.inverse().get_graph(backend="own")) == record(ref.get_graph())
+        assert_matrix_is_tsims(four.inverse(), ref)
+
+
+COHERENT_PRODUCT_ERRORS = [
+    "I_ERROR[R_PAULI(theta=0.1, pauli=XZ)] 0 1",
+    "II_ERROR[R_PAULI(theta=0.1, pauli=X_,)] 0 1",
+    "I_ERROR[ R_PAULI (pauli=_zY, theta=0.39269908169872414)] 0 1 2",
+    "II_ERROR[R_PAULI(theta=-0.3, pauli=XYZ_)] 0 1 2 0",
+]
+
+
+@pytest.mark.parametrize("line", COHERENT_PRODUCT_ERRORS)
+def test_a_coherent_product_error_is_no_product_rotation(line):
+    """``R_PAULI`` on ``I_ERROR`` or ``II_ERROR`` is a coherent error (``nonpauli::parse``), which no
+    reader takes for a product rotation: it prints and stays in Stim's reading as written, and its
+    graphs, T-count, matrix and model are those of the untagged noise (Tsim's, reading the print); the
+    inverse of the unmeasured circuit is the core's error for noise."""
+    from stabilizer_qec.tsim._native import stim_reading
+
+    untagged = re.sub(r"\[.*\]", "", line)
+    for stored, plain, why in zip(stored_circuits(line), stored_circuits(untagged), ("noise", "resets or measurements")):
+        c, p = tsim.Circuit(sq.Circuit(stored)), tsim.Circuit(sq.Circuit(plain))
+        assert line in str(c).split("\n") and line in stim_reading(c._stim_exact_text()).split("\n")
+        for backend in ["own"] + (["pyzx_param"] if HAS_PYZX_PARAM else []):
+            assert record(c.get_graph(backend=backend)) == record(p.get_graph(backend=backend)), (backend, stored)
+        assert c.tcount() == p.tcount() == 0
+        assert np.array_equal(c.to_matrix(), p.to_matrix())
+        assert str(c.detector_error_model(allow_gauge_detectors=True)) == str(p.detector_error_model(allow_gauge_detectors=True))
+        with pytest.raises(ValueError, match=f"because it contains {why}"):
+            c.inverse()
+        if importlib.util.find_spec("tsim") is not None:
+            import tsim as real
+
+            ref = real.Circuit(str(c))
+            assert record(ref.get_graph()) == record(c.get_graph(backend="own")), stored
+            assert str(ref.detector_error_model(allow_gauge_detectors=True)) == str(c.detector_error_model(allow_gauge_detectors=True)), stored
+            assert_matrix_is_tsims(c, ref)
 
 
 def test_an_underscore_is_an_identity_letter_as_in_the_core():
@@ -1493,19 +1590,28 @@ def random_stored_form(rng, n: int) -> tuple:
     u, q = rng.random(), int(rng.integers(n))
     theta = str(rng.choice(STORED_THETAS))
     if u < 0.6:
-        k = int(rng.integers(1, min(n, 4) + 1))
-        qubits = [int(x) for x in rng.choice(n, k, replace=False)] if rng.random() < 0.85 else [int(rng.integers(n)) for _ in range(k)]
+        # ``parse``'s R_PAULI arm takes I, II (one product over its targets, as I's), and I_ERROR and
+        # II_ERROR (a coherent error, no product rotation): II's targets are pairs of distinct qubits.
+        gate = str(rng.choice(["I", "I", "I", "II", "II", "I_ERROR", "II_ERROR"] if n > 1 else ["I", "I", "I", "I_ERROR"]))
+        if gate.startswith("II"):
+            qubits = [int(x) for _ in range(int(rng.integers(1, 3))) for x in rng.choice(n, 2, replace=False)]
+        else:
+            k = int(rng.integers(1, min(n, 4) + 1))
+            qubits = [int(x) for x in rng.choice(n, k, replace=False)] if rng.random() < 0.85 else [int(rng.integers(n)) for _ in range(k)]
         letters = "".join(str(rng.choice(list("XYZxyzXYZ_I_i"))) for _ in qubits)
         args = [("theta", theta), ("pauli", letters)]
         if rng.random() < 0.5:
             args.reverse()
         stored, spelled = tag("R_PAULI", args, [(k, v.replace("_", "I") if k == "pauli" else v) for k, v in args])
         targets = " ".join(map(str, qubits))
-        return f"I[{stored}] {targets}", f"I[{spelled}] {targets}"
+        if gate.endswith("_ERROR"):  # a coherent error keeps its tag as written (its own test)
+            return f"{gate}[{stored}] {targets}", f"{gate}[{stored}] {targets}"
+        return f"{gate}[{stored}] {targets}", f"{'I' if gate == 'II' else gate}[{spelled}] {targets}"
     if u < 0.7:
         args = [("theta", theta)]
+        gate = str(rng.choice(["I", "I", "I_ERROR"]))
         stored, spelled = tag(str(rng.choice(["R_X", "R_Y", "R_Z"])), args, args)
-        return f"I[{stored}] {q}", f"I[{spelled}] {q}"
+        return f"{gate}[{stored}] {q}", f"{gate}[{stored if gate == 'I_ERROR' else spelled}] {q}"
     if u < 0.8:
         args = [("theta", theta), ("phi", str(rng.choice(STORED_THETAS))), ("lambda", str(rng.choice(STORED_THETAS)))]
         args = [args[i] for i in rng.permutation(3)]
@@ -1514,8 +1620,9 @@ def random_stored_form(rng, n: int) -> tuple:
     if u < 0.9 and n > 1:
         q0, q1 = (int(x) for x in rng.choice(n, 2, replace=False))
         args = [("theta", theta)]
+        gate = str(rng.choice(["II", "II", "II_ERROR"]))
         stored, spelled = tag(str(rng.choice(["R_XX", "R_YY", "R_ZZ"])), args, args)
-        return f"II[{stored}] {q0} {q1}", f"II[{spelled}] {q0} {q1}"
+        return f"{gate}[{stored}] {q0} {q1}", f"{gate}[{stored if gate == 'II_ERROR' else spelled}] {q0} {q1}"
     stored, spelled = tag(str(rng.choice(["T", "T_DAG"])), [], [])
     return f"I[{stored}] {q}", f"I[{spelled}] {q}"
 
@@ -1528,11 +1635,12 @@ def test_random_stored_forms_are_read_as_the_core_reads_them(seed):
     package's spelling of it (and, Tsim reading this package's printing of it, as Tsim's circuit)."""
     import math
 
+    from stabilizer_qec.tsim._native import stim_reading
     from stabilizer_qec.tsim.utils.program_text import _NATIVE_LINE, _NATIVE_TAG, _native_args, _product_rotation, _read_turns
 
     rng = np.random.default_rng(9000 + seed)
     n, accepted = int(rng.integers(1, 5)), 0
-    for _ in range(6):
+    for _ in range(12):
         lines = [random_stored_form(rng, n) for _ in range(int(rng.integers(1, 4)))]
         stored = "\n".join(s for s, _ in lines)
         try:
@@ -1540,8 +1648,13 @@ def test_random_stored_forms_are_read_as_the_core_reads_them(seed):
         except ValueError:
             continue
         accepted += 1
-        for line, _ in lines:
+        for line, spelled_line in lines:
             m = _NATIVE_LINE.match(line)
+            if m is None:  # a coherent error (I_ERROR, II_ERROR): no product rotation, kept in Stim's reading
+                assert re.match(r"II?_ERROR\[", line) and stim_reading(line) == line, line
+                continue
+            # II[R_PAULI(...)] is read as its I spelling, one product over the same targets.
+            assert stim_reading(line) == stim_reading(spelled_line), line
             t = _NATIVE_TAG.match(m.group(3))
             if t.group(1) != "R_PAULI":
                 continue
@@ -1587,8 +1700,9 @@ NO_GRAPH_FIRST = [
     "H 0\nII_ERROR[R_ZZ(theta=0.1)] 0 1",
     "H 0\nII[foo] 0 1",
     "H 0\nT 1\nR_X(0.3) 0\nCX 0 1",
+    "H 0\nII_ERROR[R_PAULI(theta=0.1, pauli=XZ)] 0 1",
 ]
-GRAPH_FIRST = ["SPP X0*Z1", "SPP_DAG X0", "H 0\nR_PAULI(0.3) X0*Z1", "R_ZZ(0.3) 0 1", "TPP X0*Y1", "TPP Z0*Z0\nH 1", "H 0\nI[R_PAULI(theta=0.1, pauli=X_Z)] 0 1 2", "MPP X0*Z1"]
+GRAPH_FIRST = ["SPP X0*Z1", "SPP_DAG X0", "H 0\nR_PAULI(0.3) X0*Z1", "R_ZZ(0.3) 0 1", "TPP X0*Y1", "TPP Z0*Z0\nH 1", "H 0\nI[R_PAULI(theta=0.1, pauli=X_Z)] 0 1 2", "MPP X0*Z1", "H 0\nII[R_PAULI(theta=0.1, pauli=XZ)] 0 1"]
 
 
 def test_to_matrix_builds_the_graph_first_only_for_products_and_sweep_bits(monkeypatch):
@@ -1622,7 +1736,8 @@ def test_to_matrix_builds_the_graph_first_only_for_products_and_sweep_bits(monke
 
 # A circuit with products and an instruction Tsim's builders cannot read (a tag the core leaves inert,
 # which Tsim's ``parse_parametric_tag`` refuses): ``to_matrix`` is the engine's, as without the products
-# (and as before the graph was built first); the graph is Tsim's error.
+# (and as before the graph was built first); the graph is Tsim's error. (With a product rotation naming
+# a qubit twice, Tsim's error: ``UNREAD_WITH_A_REPEATED_QUBIT``.)
 UNREAD_WITH_PRODUCTS = {
     "H 0\nR_PAULI(0.3) X0*Z1\nI[foo(bar)] 1": "H 0\nR_PAULI(0.3) X0*Z1\nI 1",
     "H 0\nR_PAULI(0.3) X0*Z1\nI[R_PAULIX(theta=0.1)] 1": "H 0\nR_PAULI(0.3) X0*Z1\nI 1",
@@ -1661,3 +1776,73 @@ def test_a_products_refusal_before_an_instruction_tsims_builders_cannot_read_is_
         with pytest.raises(ValueError) as theirs:
             real.Circuit(text).to_matrix()
         assert str(theirs.value) == message
+
+
+# A product rotation naming a qubit twice is the ZX tensor's matrix (``TPP X0*Y0*X0`` is exp(-i pi/8 (-Y)),
+# a sign the unitary engine does not keep; ``TPP Z0*Z0`` cancels, leaving qubit 0 out of Tsim's graph and
+# matrix). With an instruction Tsim's builders cannot read there is no graph, so ``to_matrix`` raises
+# Tsim's error, before or after the product, as Tsim's ``to_matrix`` does.
+UNREAD_WITH_A_REPEATED_QUBIT = [
+    "H 0\nTPP X0*Y0*X0\nI[foo(bar)] 1",
+    "H 0\nI[foo(bar)] 1\nTPP X0*Y0*X0",
+    "H 0\nTPP X0*Y0*X0\nH 1\nI[R_PAULIX(theta=0.1)] 1",
+    "H 1\nTPP Z0*Z0\nI[foo(bar)] 1",
+    "H 0\nTPP Z0*Z0\nH 1\nI[foo(bar)] 1",
+    "H 0\nR_PAULI(0.3) X0*Y1\nI[R_PAULI(theta=0.39269908169872414, pauli=XYX)] 0 0 0\nI[foo(bar)] 1",
+    "H 0\nI[foo(bar)] 1\nII[R_PAULI(theta=0.1, pauli=XYZX)] 0 1 0 2",
+]
+
+
+# A product that leaves a qubit out of Tsim's graph without naming it twice in a rotation (an identity
+# letter, an ``SPP`` that cancels on it) leaves it out of the engine's matrix too, so with an instruction
+# Tsim's builders cannot read, ``to_matrix`` is the engine's: of the qubits Tsim's matrix of the circuit
+# without that tag has, equal to it up to the engine's global phase (Tsim's builders apply each rotation up
+# to one), as the engine's matrix of a circuit without products is.
+UNREAD_WITH_A_QUBIT_LEFT_OUT = [
+    "H 1\nSPP X0*X0\nI[foo(bar)] 1",
+    "H 1\nSPP Z0*Z0*X1\nI[foo(bar)] 1",
+    "H 0\nI[R_PAULI(theta=0.1, pauli=X_)] 0 1\nI[foo(bar)] 0",
+    "H 0\nI[foo(bar)] 0\nII[R_PAULI(theta=0.39269908169872414, pauli=X_)] 0 1",
+    "H 0\nII[R_PAULI(theta=0.1, pauli=X_Z_)] 0 1 2 3\nI[R_PAULIX(theta=0.1)] 0",
+    "H 0\nII[R_PAULI(theta=0.1, pauli=__)] 1 2\nI[foo(bar)] 0",
+]
+
+
+@pytest.mark.parametrize("text", UNREAD_WITH_A_QUBIT_LEFT_OUT)
+def test_to_matrix_of_a_qubit_left_out_with_an_instruction_tsims_builders_cannot_read(text):
+    c = tsim.Circuit(text)
+    plain = tsim.Circuit(re.sub(r"I\[(foo\(bar\)|R_PAULIX\(theta=0\.1\))\]", "I", text))
+    got, want = c.to_matrix(), plain.to_matrix()
+    assert np.allclose(want, plain._zx_matrix("big"), atol=1e-12, rtol=0)  # its ZX tensor, the qubit left out
+    i = np.argmax(np.abs(want))
+    phase = got.flat[i] / want.flat[i]
+    assert got.shape == want.shape and abs(abs(phase) - 1) < 1e-9 and np.allclose(got, phase * want, atol=1e-9, rtol=0), text
+    with pytest.raises(ValueError, match="^Could not parse instruction "):
+        c.get_graph(backend="own")
+    if importlib.util.find_spec("tsim") is not None and "pauli=__" not in text:
+        import tsim as real
+
+        assert_matrix_is_tsims(plain, real.Circuit(str(plain)))
+
+
+@pytest.mark.parametrize("text", UNREAD_WITH_A_REPEATED_QUBIT)
+def test_to_matrix_of_a_repeated_qubit_with_an_instruction_tsims_builders_cannot_read_raises(text):
+    c = tsim.Circuit(text)
+    with pytest.raises(ValueError) as ours:
+        c.to_matrix()
+    with pytest.raises(ValueError) as graph:
+        c.get_graph(backend="own")
+    assert str(ours.value) == str(graph.value) and str(ours.value).startswith("Could not parse instruction ")
+    if importlib.util.find_spec("tsim") is not None:
+        import tsim as real
+
+        with pytest.raises(ValueError) as theirs:
+            real.Circuit(str(c)).to_matrix()
+        assert str(ours.value) == str(theirs.value)
+        # With that instruction an untagged ``I``, the matrix is Tsim's (or its error).
+        plain = tsim.Circuit(re.sub(r"I\[(foo\(bar\)|R_PAULIX\(theta=0\.1\))\]", "I", text))
+        ref = real.Circuit(str(plain))
+        if outcome(ref.to_matrix)[0] == "ok":
+            assert_matrix_is_tsims(plain, ref)
+        else:
+            assert outcome(plain.to_matrix) == outcome(ref.to_matrix)

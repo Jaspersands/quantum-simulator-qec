@@ -349,16 +349,19 @@ def _is_tpp_radians(text: str) -> bool:
 # either case), and the ``SPP_DAG`` of a rotation has its arguments in the other order
 # (``SPP_DAG[R_PAULI(theta=0.3*pi)] X0`` is ``I[R_PAULI(pauli=X, theta=-0.47123889803846897)] 0``; a
 # ``TPP``'s dagger is its sign). So the instruction read back is Tsim's, and Stim's fusion of it with its
-# neighbours, R_PAULI's limits and the messages quoting it are Tsim's.
+# neighbours, R_PAULI's limits and the messages quoting it are Tsim's. The core reads ``R_PAULI`` on ``II``
+# as on ``I`` (``nonpauli::parse``: one product over the targets, ``II[R_PAULI(theta=t, pauli=XZYY)] 0 1 2 3``
+# is X0*Z1*Y2*Y3), and so it is read here.
 
 
 def _product_rotation(args: dict, qubits: list) -> tuple | None:
-    """Tsim's instruction of this package's ``I[R_PAULI(theta=t, pauli=L)] q1 q2 ...`` (``args`` its tag's
-    arguments): ``(dagger, turns, factors)``, the instruction ``SPP_DAG`` when ``dagger`` else ``SPP``,
-    its tag ``T`` when ``turns`` is ``None`` else ``R_PAULI(theta=<turns>*pi)``, its product's
-    ``factors`` ``(inverted, letter, qubit)`` (``!`` on the inverted ones; ``I``, ``i`` and ``_``
-    letters dropped, identities as the core reads them in ``nonpauli::parse``). ``None`` if the
-    letters are not one of these, X, Y, Z (either case) for each qubit."""
+    """Tsim's instruction of this package's ``I[R_PAULI(theta=t, pauli=L)] q1 q2 ...`` (or ``II[...]``, the
+    same product; ``args`` its tag's arguments): ``(dagger, turns, factors)``, the instruction
+    ``SPP_DAG`` when ``dagger`` else ``SPP``, its tag ``T`` when ``turns`` is ``None`` else
+    ``R_PAULI(theta=<turns>*pi)``, its product's ``factors`` ``(inverted, letter, qubit)`` (``!`` on
+    the inverted ones; ``I``, ``i`` and ``_`` letters dropped, identities as the core reads them in
+    ``nonpauli::parse``). ``None`` if the letters are not one of these, X, Y, Z (either case) for
+    each qubit."""
     letters = args["pauli"]
     if len(letters) != len(qubits) or not set(letters) <= set("IXYZixyz_"):
         return None
@@ -406,7 +409,7 @@ def _native_to_shorthand_line(line: str) -> str | None:
                 return "\n".join(f"{indent}{head} {p}{a}*{p}{b}" for a, b in pairs)
             angle = _read_turns(args["theta"], 0.5)
             return "\n".join(f"{indent}{name}({angle}) {a} {b}" for a, b in pairs)
-        if gate == "I" and name == "R_PAULI" and set(args) == {"theta", "pauli"}:
+        if name == "R_PAULI" and set(args) == {"theta", "pauli"}:  # on I or II, one product as the core reads it
             if not all(q.isdecimal() for q in targets):
                 return None
             found = _product_rotation(args, targets)
@@ -431,7 +434,7 @@ def _native_to_shorthand_line(line: str) -> str | None:
 
 def _native_to_shorthand(text: str) -> str:
     """This package's tagged forms (``I[T]``, ``I[R_X(theta=<radians>)]``, ``I[U3(...)]``,
-    ``I[R_PAULI(theta=..., pauli=...)]``, ``II[R_ZZ(theta=...)]``) as Tsim's shorthand."""
+    ``I[R_PAULI(theta=..., pauli=...)]`` or ``II[...]``, ``II[R_ZZ(theta=...)]``) as Tsim's shorthand."""
     out = []
     for line in text.split("\n"):
         converted = _native_to_shorthand_line(line)
@@ -461,7 +464,8 @@ def stim_to_shorthand(text: str) -> str:
     - I[R_PAULI(theta=±π/8, pauli=XY)] 0 1 → TPP / TPP_DAG X0*Y1 (±π/8 as ``repr`` writes it;
       written with further digits it is R_PAULI(±0.25) X0*Y1)
     - I[R_PAULI(theta=t, pauli=ZZ)] 0 1 → R_ZZ(2t/π) 0 1; any other product
-      R_PAULI(2t/π) X0*Y1
+      R_PAULI(2t/π) X0*Y1 (II[R_PAULI(...)] as I[R_PAULI(...)], one product over its targets, as
+      the core reads it)
     - a product with a ``!`` (a lower-case letter, ``pauli=xY``) or the ``SPP_DAG`` of a rotation
       (its arguments in the other order, ``pauli=X, theta=t``) → Tsim's tagged form, as its
       shorthand writes it: SPP[R_PAULI(theta=α*pi)] !X0*Y1, SPP_DAG[R_PAULI(theta=α*pi)] X0,
