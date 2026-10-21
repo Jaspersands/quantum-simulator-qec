@@ -11,11 +11,14 @@ Run from the repository root, with the package built and the references installe
 Sections (each skipped, and said so, when its reference is not installed):
   lsd     BP+LSD against ldpc's BpLsdDecoder on the same check matrix: random matrices, a
           d = 5 surface code's model and the gross code's (2 and 6 cycles at p = 0.3%), LSD-0 with
-          both BP methods, LSD-E 6 and LSD-CS 10. Every correction must equal ldpc's, except on shots where ours made a choice
-          ldpc makes from an order that cannot be reproduced (equal keys in a long std::sort,
-          or merging three or more clusters at once, which ldpc orders by hashed pointers);
-          those are counted as ties. Also: each untied final cluster's bits, in the order
-          ldpc's statistics list them (its robin-set order), must be listed in the same order.
+          both BP methods, LSD-E 6 and LSD-CS 10. Every correction must equal ldpc's or be
+          one ours reaches by merging clusters in another order: ldpc merges three or more
+          clusters at once, and clusters met while merging, in the order of their hashed
+          pointers, which varies from decode to decode, so where the corrections differ ldpc's
+          must be among those ours reaches over the merge orders ldpc can take (at most 4,096
+          of them, fewest departures from ours first: `_merge_order_outcomes`); those shots are
+          counted as ties. Also: each untied final cluster's bits, in the order ldpc's
+          statistics list them (its robin-set order), must be listed in the same order.
 
   relay   Relay-BP against IBM's relay_bp (RelayDecoderF64) on the gross code's check matrix
           (2 and 6 cycles at p = 0.3%): explicit memory strengths, seeded random ones (its sinter
@@ -116,7 +119,7 @@ def check_lsd(quick):
                 row["ours_s"] += time.perf_counter() - t1
                 if np.array_equal(a, b):
                     row["agree"] += 1
-                elif ours.last_tied:
+                elif np.asarray(b, dtype=np.uint8).tobytes() in ours._merge_order_outcomes(s):
                     row["tied"] += 1
                 else:
                     row["untied"] += 1

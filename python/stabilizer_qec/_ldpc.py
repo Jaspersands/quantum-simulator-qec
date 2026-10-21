@@ -928,6 +928,22 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
         statistics."""
         return call(self._x.decode, [int(x != 0) for x in np.asarray(syndrome)], True)[5]
 
+    def _merge_order_outcomes(self, syndrome: np.ndarray, max_leaves: int = 4096) -> set[bytes]:
+        """Every correction a decode of ``syndrome`` reaches over the merge orders ldpc can take,
+        each as ``np.uint8`` bytes, one per column: for checking against ldpc. ldpc merges the
+        clusters a growth step meets in the order of their hashed heap addresses, so one syndrome
+        can decode two ways in one process; ``decode`` takes one of the orders, and its answer is
+        always in the set. BP runs once. The orders (any order of the clusters met, and whether
+        each cluster met while merging is merged) are walked for at most ``max_leaves`` of them,
+        fewest departures from ``decode``'s order first. ``_merge_search`` then says how far:
+        (orders walked, the departures up to which every order was walked, whether all were)."""
+        syndrome = np.asarray(syndrome)
+        if not len(syndrome) == self.m:
+            raise ValueError(f"The syndrome must have length {self.m}. Not {len(syndrome)}.")
+        found, paths, departures, complete = call(self._x.merge_order_outcomes, [int(x != 0) for x in syndrome], count(max_leaves, "max_leaves", 1))
+        self._merge_search = (paths, departures, complete)
+        return {np.asarray(c, dtype=np.uint8).tobytes() for c in found}
+
     @property
     def bp_decoding(self) -> np.ndarray:
         return self._bp_decoding.astype(int)
