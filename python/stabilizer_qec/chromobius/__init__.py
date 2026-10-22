@@ -3,19 +3,23 @@
 # decoder is this package's port (``ColorMatching``, src/color/).
 """Chromobius under its own names (``import stabilizer_qec.chromobius as chromobius``): the
 colour-code decoder compiled for a model, its weighted predictions, and its sinter decoder.
-Weights are Chromobius's (PyMatching's discretized Möbius matching weight, as float32) bit for
-bit. Predictions are Chromobius's except on some shots (about 2% of a d = 3 colour code's at
-p = 1%, fewer at lower noise or larger distance) where the matching, of the same weight, comes
-out with its edges in another order (rarely, another matching of that weight): Chromobius's
-lifting depends on that order, and this package's matcher does not list edges in PyMatching's
-order. Handed PyMatching's edges, the lifting is Chromobius's.
+The Möbius matching is PyMatching 2.2.2's sparse blossom, which Chromobius links, to the edge
+and its order (``pm_exact``), so weights (PyMatching's discretized matching weight, as float32)
+are Chromobius's bit for bit and predictions are Chromobius's: on macOS on every one of 65,000
+colour-code shots checked. (Chromobius walks some tables in std::unordered_map order, which is
+the C++ library's own; with another library it may drag charge another way on some shots.)
+
+Chromobius's command-line program is ``python -m stabilizer_qec.chromobius`` (``predict``,
+``benchmark``, ``describe_decoder``; see its ``__main__``).
 
 Where it differs from Chromobius:
 
 - A model with a fault of probability 1 is refused (Chromobius's weights are then NaN);
   probabilities above 1/2 are negative-weight edges, as in Chromobius.
-- No command line: Chromobius's command-line program, built from its C++ sources, is not
-  ported; the decoder is, through Python and sinter.
+- A model declaring an observable past L63 that no error names (``logical_observable L64``) is
+  refused with this package's 64-observable message, where Chromobius compiles it (its
+  predictions past L63 are undefined). An error naming one is refused with Chromobius's
+  message.
 - ``decode_via_files`` with records wider than the model refuses a set bit past its detectors,
   as Chromobius does, but may name another detector."""
 

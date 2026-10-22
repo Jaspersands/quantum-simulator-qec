@@ -1228,17 +1228,22 @@ class RelayBp(_DemDecoder):
         return out
 
 
+# A colour shot's status from ``DemColorMatcher.decode_batch`` (src/batch.rs ``color_shots``):
+# 3 where the Möbius matcher found no perfect matching, and PyMatching's message for it.
+_COLOR_UNMATCHABLE = 3
+_NO_PERFECT_MATCHING = "No perfect matching could be found. This likely means that the syndrome has odd parity in the support of a connected component without a boundary."
+
+
 class ColorMatching(_DemDecoder):
     """Colour-code decoding by matching, Chromobius's construction (Gidney and Jones, 2023):
     each detector doubled into the two sub-graphs leaving out a colour other than its own,
     every fault split into basic faults drawn as edges of that doubled (Möbius) graph, a
-    minimum-weight matching of it found by this package's matcher, and the matching lifted
-    back to the code by carrying colour charge around its cycles. Predictions equal to the
-    ``chromobius`` package's except on some shots where the matching has the same weight as
-    Chromobius's but its edges come out in another order (or, rarely, it is another matching
-    of that weight): the lifting depends on that order, and this package's matcher does not
-    list edges in PyMatching's order. Edges of probability above 1/2 are negative-weight edges,
-    as in Chromobius; probability 1 is refused.
+    minimum-weight matching of it found by PyMatching 2.2.2's sparse blossom (the matcher
+    Chromobius links, ported exactly), and the matching lifted back to the code by carrying
+    colour charge around its cycles. Predictions and weights equal to the ``chromobius``
+    package's (on macOS on every shot checked; elsewhere Chromobius's std::unordered_map
+    order may drag charge another way on some shots). Edges of probability above 1/2 are
+    negative-weight edges, as in Chromobius; probability 1 is refused.
 
     The model's detectors need Chromobius's annotation, a 4th coordinate giving the basis and
     colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; -1 to ignore a detector):
@@ -1269,8 +1274,9 @@ class ColorMatching(_DemDecoder):
         """As ``Matching.decode_batch``; ``return_weights`` also returns each shot's Möbius
         matching weight (as ``chromobius``'s ``predict_weighted_obs_flips_from_dets_bit_packed``)."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
-        preds, weights, _tied, failed = call(self._x.decode_batch, packed, n, threads)
-        _failed(failed, "no lifting of the matching explains the detection events (are the colour annotations right?)")
+        preds, weights, status, failed, _tours = call(self._x.decode_batch, packed, n, threads)
+        if failed:
+            _failed(failed, _NO_PERFECT_MATCHING if status[failed[0]] == _COLOR_UNMATCHABLE else "no lifting of the matching explains the detection events (are the colour annotations right?)")
         out = self._predictions(preds, n, bit_packed_predictions)
         if return_weights:
             return out, np.frombuffer(weights, dtype="<f8").copy()
@@ -1278,8 +1284,8 @@ class ColorMatching(_DemDecoder):
 
     def _decode_with_ties(self, shots: Any) -> tuple:
         packed, n, _ = self._shots(shots, False, 1)
-        preds, weights, tied, failed = call(self._x.decode_batch, packed, n, 1)
-        return self._predictions(preds, n, False), np.frombuffer(weights, dtype="<f8").copy(), np.frombuffer(tied, dtype=np.uint8).astype(bool), failed
+        preds, weights, status, failed, _tours = call(self._x.decode_batch, packed, n, 1)
+        return self._predictions(preds, n, False), np.frombuffer(weights, dtype="<f8").copy(), np.frombuffer(status, dtype=np.uint8) == 1, failed
 
 
 class SearchDecoder(_DemDecoder):

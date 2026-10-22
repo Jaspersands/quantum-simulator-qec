@@ -200,7 +200,10 @@ Copyright 2023 Google LLC. Licensed under the Apache License, Version 2.0
 The colour-code decoder (`src/color/`) ports Chromobius (`src/chromobius`) in its order,
 modified to fit this crate.
 `python/stabilizer_qec/chromobius/` ports Chromobius's Python bindings
-(`src/chromobius/pybind/`) onto that decoder.
+(`src/chromobius/pybind/`) onto that decoder, and its `__main__.py` Chromobius's command-line
+program (`src/main.cc`, `src/chromobius/commands/`) with the argument parsing and record
+readers and writers it takes from Stim (at 1320ad7: `src/stim/util_bot/arg_parse.cc`,
+`src/stim/io/measure_record_reader.inl`, `measure_record_writer.cc`; Stim's notice above).
 
 ## beliefmatching
 

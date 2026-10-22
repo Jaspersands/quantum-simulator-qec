@@ -1,5 +1,5 @@
 {
- "version": "1.7.0",
+ "version": "2.1.0",
  "sections": {
   "lsd": {
    "reference": "ldpc 2.4.1",
@@ -765,52 +765,52 @@
     {
      "case": "Chromobius's colour repetition code (its test)",
      "shots": 20000,
-     "agree": 19923,
-     "tied": 77,
+     "agree": 20000,
+     "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.013661707984283566,
-     "chromobius_s": 0.015894917072728276
+     "ours_s": 0.025217957969289273,
+     "chromobius_s": 0.020680124987848103
     },
     {
      "case": "colour code d=3 z p=0.001",
      "shots": 20000,
-     "agree": 19995,
-     "tied": 5,
+     "agree": 20000,
+     "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.0037075000582262874,
-     "chromobius_s": 0.004526207922026515
+     "ours_s": 0.004886791983153671,
+     "chromobius_s": 0.005235542019363493
     },
     {
      "case": "colour code d=3 z p=0.003",
      "shots": 20000,
-     "agree": 19973,
-     "tied": 27,
+     "agree": 20000,
+     "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.010022750007919967,
-     "chromobius_s": 0.012916874955408275
+     "ours_s": 0.013667124963831156,
+     "chromobius_s": 0.01417825004318729
     },
     {
      "case": "colour code d=3 x p=0.001",
      "shots": 20000,
-     "agree": 19997,
-     "tied": 3,
+     "agree": 20000,
+     "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.003591375076211989,
-     "chromobius_s": 0.004560875007882714
+     "ours_s": 0.005122042028233409,
+     "chromobius_s": 0.005226125009357929
     },
     {
      "case": "colour code d=3 x p=0.003",
      "shots": 20000,
-     "agree": 19958,
-     "tied": 42,
+     "agree": 20000,
+     "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.010027540964074433,
-     "chromobius_s": 0.013319084071554244
+     "ours_s": 0.014207832980901003,
+     "chromobius_s": 0.015363833052106202
     },
     {
      "case": "colour code d=5 z p=0.001",
@@ -819,18 +819,18 @@
      "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.02990612492430955,
-     "chromobius_s": 0.04197779204696417
+     "ours_s": 0.037263707956299186,
+     "chromobius_s": 0.046702333027496934
     },
     {
      "case": "colour code d=5 z p=0.003",
      "shots": 20000,
-     "agree": 19993,
-     "tied": 7,
+     "agree": 20000,
+     "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.09409604105167091,
-     "chromobius_s": 0.1356812498997897
+     "ours_s": 0.11599408404435962,
+     "chromobius_s": 0.14986420795321465
     },
     {
      "case": "colour code d=5 x p=0.001",
@@ -839,18 +839,18 @@
      "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.029735959018580616,
-     "chromobius_s": 0.043842790997587144
+     "ours_s": 0.03625508298864588,
+     "chromobius_s": 0.04793316702125594
     },
     {
      "case": "colour code d=5 x p=0.003",
      "shots": 20000,
-     "agree": 19994,
-     "tied": 6,
+     "agree": 20000,
+     "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.0938092500437051,
-     "chromobius_s": 0.13805720792151988
+     "ours_s": 0.1284887079964392,
+     "chromobius_s": 0.1615953749860637
     },
     {
      "case": "colour code d=7 z p=0.001",
@@ -859,8 +859,8 @@
      "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.09880716598127037,
-     "chromobius_s": 0.13598791707772762
+     "ours_s": 0.12280799995642155,
+     "chromobius_s": 0.16205733304377645
     },
     {
      "case": "colour code d=7 z p=0.003",
@@ -869,8 +869,8 @@
      "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.32810620905365795,
-     "chromobius_s": 0.45875912497285753
+     "ours_s": 0.40240195801015943,
+     "chromobius_s": 0.7060706249903888
     },
     {
      "case": "colour code d=7 x p=0.001",
@@ -879,18 +879,18 @@
      "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.09710033307783306,
-     "chromobius_s": 0.13778874999843538
+     "ours_s": 0.10904287500306964,
+     "chromobius_s": 0.14977833401644602
     },
     {
      "case": "colour code d=7 x p=0.003",
      "shots": 20000,
-     "agree": 19999,
-     "tied": 1,
+     "agree": 20000,
+     "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.32581829198170453,
-     "chromobius_s": 0.4673052500002086
+     "ours_s": 0.4554382500355132,
+     "chromobius_s": 0.7638729159953073
     },
     {
      "case": "colour code d=9 z p=0.001",
@@ -899,18 +899,18 @@
      "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.23293229204136878,
-     "chromobius_s": 0.305856249993667
+     "ours_s": 0.2748480419977568,
+     "chromobius_s": 0.43859958299435675
     },
     {
      "case": "colour code d=9 z p=0.003",
      "shots": 20000,
-     "agree": 19998,
-     "tied": 2,
+     "agree": 20000,
+     "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.8138255409430712,
-     "chromobius_s": 1.0953480419702828
+     "ours_s": 2.200832041038666,
+     "chromobius_s": 2.1161719999508932
     },
     {
      "case": "colour code d=9 x p=0.001",
@@ -919,18 +919,18 @@
      "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.2283085830276832,
-     "chromobius_s": 0.3083572080358863
+     "ours_s": 0.5736335829715244,
+     "chromobius_s": 1.9811543330433778
     },
     {
      "case": "colour code d=9 x p=0.003",
      "shots": 20000,
-     "agree": 19999,
-     "tied": 1,
+     "agree": 20000,
+     "tied": 0,
      "untied": 0,
      "weights_differ": 0,
-     "ours_s": 0.7964368340326473,
-     "chromobius_s": 1.1131662499392405
+     "ours_s": 1.711408625007607,
+     "chromobius_s": 2.814851415983867
     }
    ]
   },

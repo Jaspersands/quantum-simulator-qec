@@ -149,10 +149,13 @@ def test_color_matching_equals_chromobius():
         dets, _ = stim.Circuit(str(c)).compile_detector_sampler(seed=2).sample(3000, separate_observables=True, bit_packed=True)
         theirs, tw = chromobius.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(dets)
         ours, w = sq.ColorMatching(str(dem)).decode_batch(dets, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
-        # The Möbius matchings weigh the same on every shot, and the predictions differ only
-        # where two matchings of that weight differ (ties).
-        assert np.allclose(w, tw, rtol=1e-4, atol=1e-3)
-        assert np.mean(np.all(ours == theirs, axis=1)) > 0.99
+        # The Möbius matching is PyMatching 2.2.2's, which Chromobius links: the same weight to the
+        # bit (Chromobius's is ours as float32) on every shot, and on macOS the same prediction.
+        # (Elsewhere Chromobius walks its std::unordered_map in the C++ library's own order and
+        # may drag charge another way.)
+        assert np.array_equal(w.astype(np.float32), tw)
+        agree = np.all(ours == theirs, axis=1)
+        assert agree.all() if sys.platform == "darwin" else agree.mean() > 0.99
 
 
 def test_search_decoder(d3):

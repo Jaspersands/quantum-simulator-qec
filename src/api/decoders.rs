@@ -540,14 +540,19 @@ impl RelayBp {
 /// Colour-code decoding by matching, Chromobius's construction (Gidney and Jones, 2023): each
 /// detector doubled into the two sub-graphs that leave out a colour other than its own, every
 /// fault split into basic faults drawn as edges of that doubled (Möbius) graph, a minimum-
-/// weight matching of it found by this crate's matcher, and the matching lifted back to the
-/// code by carrying colour charge around its cycles. Predictions equal to the `chromobius`
-/// package's but for ties between equally light matchings.
+/// weight matching of it found by PyMatching 2.2.2's sparse blossom (the matcher Chromobius
+/// 1.1.1 links, ported exactly: its edges in its order, which the lifting depends on), and the
+/// matching lifted back to the code by carrying colour charge around its cycles. Predictions
+/// and weights equal to the `chromobius` package's (on macOS on every shot checked; elsewhere
+/// Chromobius's `std::unordered_map` order may drag charge another way on some shots).
 ///
 /// The model's detectors need Chromobius's annotation: a 4th coordinate giving the basis and
 /// colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; −1 to ignore the detector), as
 /// [`CssCode::memory_circuit_with_colors`](crate::CssCode::memory_circuit_with_colors) writes
-/// it. Give it the undecomposed model.
+/// it. Both constructors refuse a model with a detector declared without a whole 4th
+/// coordinate from −1 to 5 with Chromobius's message ("Expected all detectors to have at least
+/// 4 coordinates, ..."); that includes a detector declared with no coordinates (`detector D0`),
+/// which before 2.2 was decoded as uncoloured. Give it the undecomposed model.
 ///
 /// ```
 /// use stabilizer_qec::{Basis, ColorMatching, CssCode, DemOptions};
@@ -566,8 +571,10 @@ pub struct ColorMatching {
 }
 
 impl ColorMatching {
-    /// The decoder for an annotated model; an error where a fault cannot be split into the
-    /// code's basic faults (as in Chromobius).
+    /// The decoder for an annotated model; an error, as in Chromobius and with its messages,
+    /// where a detector is declared without the annotation, a fault names a detector no
+    /// declaration colours or an observable past L63, or a fault cannot be split into the
+    /// code's basic faults.
     pub fn new(dem: &DetectorErrorModel) -> Result<ColorMatching> {
         ColorMatching::build(dem, false)
     }
@@ -578,8 +585,9 @@ impl ColorMatching {
     }
 
     fn build(dem: &DetectorErrorModel, ignore: bool) -> Result<ColorMatching> {
-        let d = dem.flat()?;
-        Ok(ColorMatching { inner: crate::color::ColorDecoder::from_dem(d, ignore)?, num_detectors: d.num_detectors })
+        // (A model naming an observable past L63 has no flat form; Chromobius's refusal first.)
+        let d = dem.flat().map_err(|e| crate::color::refusal_past_l63(dem.program()).map_or(e, Error::new))?;
+        Ok(ColorMatching { inner: crate::color::ColorDecoder::from_dem(d, dem.program(), ignore)?, num_detectors: d.num_detectors })
     }
 
     /// The Möbius model the matching is found on: two detectors per detector, edges only.
@@ -597,16 +605,20 @@ impl ColorMatching {
         Ok(self.decode_batch(&row, 1)?.remove(0))
     }
 
-    /// A batch of shots across `threads` threads (`0` is every core). A shot no lifting of
-    /// the matching explains (wrong annotations, or a model Chromobius cannot decode either)
-    /// is an error naming it.
+    /// A batch of shots across `threads` threads (`0` is every core). A shot the Möbius
+    /// matcher finds no perfect matching for (a component without a boundary holding an odd
+    /// number of detection events), or that no lifting of the matching explains (wrong
+    /// annotations, or a model Chromobius cannot decode either), is an error naming it.
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
         let out = crate::batch::color_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
-        if let Some(s) = out.iter().position(|x| x.2 == 2) {
+        if let Some(s) = out.iter().position(|x| x.2 >= 2) {
+            if out[s].2 == 3 {
+                return Err(Error::new(format!("shot {s}: {}", crate::pm_exact::NO_PERFECT_MATCHING)));
+            }
             return Err(Error::new(format!("shot {s}: no lifting of the matching explains its detection events (are the colour annotations right?)")));
         }
-        Ok(out.into_iter().map(|(o, w, _)| Prediction { observables: o, weight: Some(w), bp_converged: None }).collect())
+        Ok(out.into_iter().map(|(o, w, _, _)| Prediction { observables: o, weight: Some(w), bp_converged: None }).collect())
     }
 }
 

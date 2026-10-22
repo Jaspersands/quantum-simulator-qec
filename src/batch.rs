@@ -3,7 +3,7 @@
 
 use crate::ambiguity::{AcOutcome, AmbiguityClustering};
 use crate::belief::BeliefMatching;
-use crate::color::ColorDecoder;
+use crate::color::{ColorDecoder, ColorError};
 use crate::lsd::BpLsd;
 use crate::osd::BpOsd;
 use crate::relay::Relay;
@@ -256,11 +256,20 @@ pub(crate) fn shot_seed(seed: u64, s: u64) -> u64 {
     z ^ (z >> 31)
 }
 
+/// One colour shot from [`color_shots`]: (observables, the Möbius matching's weight, a status,
+/// and for a shot no lifting explains the tour that failed, its detectors in order).
+pub type ColorShot = (u64, f64, u8, Option<Box<[u32]>>);
+
 /// Colour-code matching of b8 shots: per shot (observables, the Möbius matching's weight,
-/// 0 decoded / 1 decoded through an ambiguous table entry / 2 failed).
-pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(u64, f64, u8)> {
+/// a status: 0 decoded / 1 decoded through an ambiguous table entry / 2 no lifting of the
+/// matching explains the shot (Chromobius's "Failed to lift", with the tour no start charge
+/// explains; or, with no tour, the matched edges did not fall into closed tours) / 3 the
+/// matcher found no perfect matching (PyMatching's
+/// [`NO_PERFECT_MATCHING`](crate::pm_exact::NO_PERFECT_MATCHING))).
+/// Each thread has 64 MiB of stack for PyMatching's recursive blossom shattering.
+pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<ColorShot> {
     let stride = nd.div_ceil(8);
-    parallel(num_shots, threads, |range| {
+    crate::parallel::parallel_with_stack(num_shots, threads, 64 << 20, |range| {
         let mut work = dec.work();
         let mut defects = Vec::new();
         range
@@ -270,8 +279,10 @@ pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usiz
                 crate::shots::defects_from_b8(row, nd, &mut defects);
                 let fired = |d: u32| (row[d as usize / 8] >> (d % 8)) & 1 == 1;
                 match dec.decode(&defects, &fired, &mut work) {
-                    Ok((o, w)) => (o, w, u8::from(work.tied)),
-                    Err(_) => (u64::MAX, f64::NAN, 2),
+                    Ok((o, w)) => (o, w, u8::from(work.tied), None),
+                    Err(ColorError::Unmatchable) => (u64::MAX, f64::NAN, 3, None),
+                    Err(ColorError::NotEulerian) => (u64::MAX, f64::NAN, 2, None),
+                    Err(ColorError::Unliftable(tour)) => (u64::MAX, f64::NAN, 2, Some(tour.into_boxed_slice())),
                 }
             })
             .collect()

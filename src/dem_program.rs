@@ -132,6 +132,14 @@ pub fn fmt_g16(x: f64) -> String {
     fmt_g(x, STIM_PRECISION)
 }
 
+/// A number as a fresh C++ stream prints it (precision 6), keeping a negative zero's sign.
+pub fn fmt_g6(x: f64) -> String {
+    if x == 0.0 && x.is_sign_negative() {
+        return "-0".into();
+    }
+    fmt_g(x, 6)
+}
+
 /// C++'s default stream format at precision `digits` (`%.{digits}g`): that many significant
 /// digits, trailing zeros dropped, and an exponent below 10⁻⁴ or from 10^digits.
 pub fn fmt_g(x: f64, digits: usize) -> String {
@@ -234,6 +242,14 @@ impl DemProgram {
         s
     }
 
+    /// The model's text with each number as `fmt` writes it (`fmt_g6` for Stim's
+    /// `DemInstruction::str()`, which prints on a fresh stream).
+    pub fn to_text_with(&self, fmt: fn(f64) -> String) -> String {
+        let mut s = String::new();
+        emit(&self.instrs, "", &mut s, fmt);
+        s
+    }
+
     pub fn parse(text: &str) -> Result<DemProgram, String> {
         let lines: Vec<&str> = text.lines().collect();
         let mut pos = 0usize;
@@ -249,6 +265,13 @@ impl DemProgram {
         let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES };
         unroll(&self.instrs, &mut st, &mut |ins| out.push(ins))?;
         Ok(DemProgram { instrs: out })
+    }
+
+    /// Whether the program unrolls within the flat model's limits (`flattened`'s), without
+    /// keeping what it unrolls into.
+    pub fn check_unrolls(&self) -> Result<(), String> {
+        let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES };
+        unroll(&self.instrs, &mut st, &mut |_| {})
     }
 
     /// Every detector's time (its last coordinate, shifts applied), by detector, walking the

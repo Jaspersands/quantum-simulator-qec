@@ -1370,7 +1370,7 @@ this package's matcher finds):
 |---|---|---|---|---|---|---|---|
 | BP+LSD (LSD-0, -E, -CS) | ldpc 2.4.1 | 52 | 24,000 | 23,989 | 11 | 0 | 0.67 |
 | Relay-BP | IBM's relay_bp 0.2.2 | 8 | 8,000 | 8,000 | 0 | 0 | 0.77 |
-| Colour-code matching | Chromobius 1.1.1 | 17 | 340,000 | 339,829 | 171 | 0 | 0.72 |
+| Colour-code matching | Chromobius 1.1.1 | 17 | 340,000 | 340,000 | 0 | 0 | 0.65 |
 | Search decoder | Tesseract 0.1.1.dev20260910235247 | 12 | 30,000 | 30,000 | 0 | 0 | 1.00 |
 
 The time is this package's over the reference's on the same shots, one thread, Apple M2 Pro,

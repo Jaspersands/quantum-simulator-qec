@@ -435,6 +435,7 @@ impl UserGraph {
     }
 
     /// PyMatching's `get_edge_weight_normalising_constant` (before doubling).
+    #[cfg(test)]
     pub(crate) fn normalising_constant(&self) -> Result<f64, String> {
         crate::pm_exact::normalising_constant_v2_4(self, NUM_DISTINCT_WEIGHTS)
     }
