@@ -33,6 +33,9 @@ modified to fit this crate. That covers:
 
 Stim's own docstring examples are run as a conformance suite (`tests/stim_doctests.py`); they
 are read from an installed copy of Stim at test time, not distributed.
+`tests/data/search_corpus.json.gz` (written by `tools/search_corpus.py`) records Stim 1.16.0's
+answers to `search_for_undetectable_logical_errors` on 1,200 random models at five sets of
+limits, which the tests compare against.
 
 ## sinter
 
@@ -172,6 +175,9 @@ graph in PyMatching 2.4.0's and 2.2.2's neighbour orders (their `driver/user_gra
 `src/pm_exact/LICENSE`, each file marked as modified. `src/pm_exact/diagram.rs` and the
 `animate` command in `python/stabilizer_qec/pymatching.py` port PyMatching 2.4.0's `animate`
 (`diagram/mwpm_diagram.cc`, `diagram/animation_main.cc`), under the same notice.
+`tests/pymatching_port/animate/` (written by `tools/pymatching_animate_fixtures.py`) records the
+frames, messages and exit codes of PyMatching 2.4.0's `animate` (its macOS arm64 wheel, and its
+C++ command line built from its sdist), which the tests compare against.
 
 ## Tesseract
 
@@ -191,6 +197,9 @@ errors and help of the library it is built with, p-ranav/argparse 3.1 (Copyright
 Pranav Srinivas Kumar; MIT License; https://github.com/p-ranav/argparse), and the way the
 library it writes its `--stats-out` JSON with, nlohmann/json (Copyright Niels Lohmann; MIT
 License; https://github.com/nlohmann/json), writes numbers and objects.
+`tests/data/tesseract_cli_reference.json` and `tests/data/tesseract_wide_reference.json` record
+outputs of Tesseract's 0.1.1.dev20261013012529 build through its Python API (for its program's
+flag sets on stored shots, and on a model of 100 observables), which the tests compare against.
 
 ## Chromobius
 
@@ -204,6 +213,11 @@ modified to fit this crate.
 program (`src/main.cc`, `src/chromobius/commands/`) with the argument parsing and record
 readers and writers it takes from Stim (at 1320ad7: `src/stim/util_bot/arg_parse.cc`,
 `src/stim/io/measure_record_reader.inl`, `measure_record_writer.cc`; Stim's notice above).
+Its Möbius matching runs on `src/pm_exact/` in PyMatching 2.2.2's neighbour order (PyMatching's
+notice above). `tests/data/chromobius_cli_reference.json.gz` (written by
+`tools/chromobius_cli_reference.py`) records the outputs and messages of Chromobius 1.1.1's
+program, built from source with Stim 1320ad7 and PyMatching 2.2.2, on 184 cases, which the tests
+compare against.
 
 ## beliefmatching
 
@@ -256,9 +270,11 @@ https://github.com/onnx/onnx-tensorrt). `tests/cudaq_qec_port/models/surface_cod
 is CUDA-Q's own model (`assets/tests/`, a git-lfs object of https://github.com/NVIDIA/cudaq-qec,
 as cudaqx is now named); the other models there are built by `tools/cudaq_trt_models.py`, among
 them `qdq_int8.onnx`, `qdq_fp8.onnx`, `identity_dynamic.onnx`, `identity_uint8.onnx` and
-`cast_uint8_float.onnx` by CUDA-Q's own generators.
+`cast_uint8_float.onnx` by CUDA-Q's own generators, which that tool mirrors.
 `tests/cudaq_qec_port/` holds CUDA-Q QEC's decoder, code and configuration tests (the C++ code
-tests in Python) with their import pointed at this package.
+tests in Python) with their import pointed at this package, among them, from CUDA-Q QEC 0.8.1,
+its extended-DEM and DEM-construction tests (`test_extended_dem.py`), its chunk-form YAML tests
+(`test_decoders_yaml_chunks.py`) and its `trt_decoder` tests (`test_trt_decoder.py`).
 
 ## onnxruntime
 
@@ -355,7 +371,10 @@ pycollada or numpy, with tqec's Steane-encoding Collada file packaged as data.
 `plaquette`, `templates` and `compile` packages and the `utils` modules they use), on this
 package's Stim, with the detector database kept in memory. tqec is the TQEC community's,
 licensed under the Apache License, Version 2.0; the licence is in
-`python/stabilizer_qec/tqec/LICENSE`.
+`python/stabilizer_qec/tqec/LICENSE`. `tests/tqec_port/fixtures/` (written by
+`tools/tqec_fixtures.py`) records the circuits tqec 0.2.0 and tqecd 0.2.1 write, and the
+refusals they raise, on 57 cases (`manifest.json`), which the tests compare against byte for
+byte.
 
 `python/stabilizer_qec/tqec/noise_model.py` is a port of tqec's `utils/noise_model.py`, which
 tqec recovered from Gidney, C. (2022), Data for "Inplace Access to the Surface Code Y Basis",
@@ -379,12 +398,22 @@ Copyright the TQEC community. Licensed under the Apache License, Version 2.0
 operators, stabilizers, blocks, syndrome circuits, the circuit IR and the operations), its
 interpreter (`loom.interpreter` and the rotated surface code's grow, shrink, merge and split
 applicators), its validator (`loom.validator`), its rotated-surface-code factory
-(`loom_rotated_surface_code`) and its Stim, OpenQASM 3, PennyLane and CUDA-Q executors
-(`loom.executor`) from el-loom 0.4.0 (https://github.com/entropicalabs/el-loom), rewritten on
-plain dataclasses and this package's tableau simulator without pydantic, igraph, plotly, scipy
-or numpy. Loom is Copyright 2024 Entropica Labs Pte Ltd and licensed under the Apache License,
-Version 2.0; the licence is in `python/stabilizer_qec/loom/LICENSE`. `tests/loom_port/
-fixtures.json` records outputs of el-loom 0.4.0 the tests compare against.
+(`loom_rotated_surface_code`, with its move, rotate, move-corners, Y-wall, state-injection,
+transversal-Hadamard and auxiliary-CNOT applicators), its other code factories (the repetition
+chain with its grow, shrink, merge and split, and the Shor, Steane and five-qubit codes), its
+circuit error models (`loom.executor.circuit_error_model`) and its Stim, OpenQASM 3, PennyLane,
+CUDA-Q, Mimiq and Guppy executors (`loom.executor`) from el-loom 0.4.0
+(https://github.com/entropicalabs/el-loom), rewritten on plain dataclasses and this package's
+tableau simulator without pydantic, igraph, plotly, scipy or numpy. Loom is Copyright 2024
+Entropica Labs Pte Ltd and licensed under the Apache License, Version 2.0; the licence is in
+`python/stabilizer_qec/loom/LICENSE`. `tests/loom_port/fixtures.json`, `fixtures_executor.json`,
+`fixtures_gaps.json`, `fixtures_ops_a.json` and `fixtures_ops_b.json` record outputs of el-loom
+0.4.0 the tests compare against.
+
+Loom's if/else circuits are not ported. In el-loom 0.4.0 the file that defines them,
+`src/loom/eka/ifelse_circuit.py`, carries in place of the Apache-2.0 header a notice that
+prohibits its use, distribution and reproduction in source or compiled form without the express
+written consent of Entropica Labs Pte Ltd; nothing of it is in this package.
 
 ## Qualtran
 
