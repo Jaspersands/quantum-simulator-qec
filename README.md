@@ -501,7 +501,8 @@ among equally light matchings it can pick another one than PyMatching's: correla
 `stream_memory`; `LeakageAwareDecoder`, `ArgumentReweighting` and `PreDecoder` (unless
 `reweight=False`) with `decoder="matching"`, their default; the Rust crate's `Matching` and
 `BeliefMatching`; and the extension's `decode_b8`, `decode_b8_own`, `decode_b8_window`,
-`decode_b8_belief` and `stream_decode`, which the repository's tools call.
+`decode_b8_belief`, `stream_decode` and `Decoder` class, which the repository's tools call, and
+its `stream_circuit_decode`, which `stream_memory(circuit=...)` runs.
 
 The other tools' command lines are here too: PyMatching's `animate` (`stabilizer-qec animate`,
 `python -m stabilizer_qec.pymatching animate`), checked frame for frame against PyMatching

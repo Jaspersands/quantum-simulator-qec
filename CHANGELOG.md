@@ -199,11 +199,12 @@ contraction width (`CoherentSampler.contraction_width`).
   the first measurement (`M 0` then `DETECTOR rec[-2]`) raises `MeasurementRecordError`, an
   `IndexError` as Tsim's is and a `ValueError` naming the instruction. `to_matrix` of a circuit
   that does not need the ZX tensor is the unitary engine's, Tsim's up to a global phase
-  (`SQRT_X_DAG 0` gives Tsim's times e^(iπ/4)), and so is that of a circuit with an instruction
-  Tsim's graph builders cannot read (a tag the core leaves inert, `I[foo(x)] 0`), where Tsim's
-  raises its parse error (as it is raised here too when a product rotation names a qubit
-  twice). `to_matrix` refuses more than 2^22 entries, a spider of more than 24 legs and an
-  intermediate tensor of more than 2^26 entries, where Tsim allocates.
+  (`SQRT_X_DAG 0` gives Tsim's times e^(iπ/4)), and so is that of such a circuit with an
+  instruction Tsim's graph builders cannot read (a tag the core leaves inert, `I[foo(x)] 0`),
+  where Tsim's raises its parse error (as it is raised here too when the circuit needs the ZX
+  tensor or a product rotation names a qubit twice). `to_matrix` refuses more than 2^22
+  entries, a spider of more than 24 legs and an intermediate tensor of more than 2^26 entries,
+  where Tsim allocates.
 - **CUDA-Q QEC: `dem_chunks` and `trt_decoder`.** CUDA-Q QEC 0.8.1's extended detector error
   models (`SeamId`, `ExtendedDem`, `DemChunksSpec` and every other name of `py_extended_dem.cpp`;
   `dem_stitch`, `dem_close`, `dem_chunks_to_pcm`, ...) and its CSS model construction
@@ -249,8 +250,8 @@ contraction width (`CoherentSampler.contraction_width`).
   the same layout and runs the same callback. That page loads the installed plotly's
   plotly.js, or without plotly cdn.plot.ly's plotly.js 3.7.0, pinned by its hash. Importing
   `ui` imports neither dash nor plotly (Qualtran's `ui` does not import without dash). Without
-  dash, `ui.app` raises `make_app`'s ImportError, and so does `hasattr(ui, "app")`, where it
-  would give False.
+  dash, `ui.app` raises `make_app`'s ImportError, and so does `hasattr(ui, "app")`, where
+  `hasattr` gives False for a missing attribute.
 - **Fusion Blossom's `helper.bottle`.** fusion_blossom 0.2.13's vendored Bottle (0.14-dev) is
   `stabilizer_qec.fusion_blossom.helper.bottle`, byte for byte, and `helper.serve` is
   fusion_blossom's server on it: 55 recorded requests (18 paths by GET, HEAD and POST, and a
