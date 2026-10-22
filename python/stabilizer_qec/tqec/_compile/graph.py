@@ -130,6 +130,29 @@ class TopologicalComputationGraph:
         self._observables: list[AbstractObservable] | None = observables
         self._observable_builder = observable_builder
 
+    def __getstate__(self):
+        # The built-in observable builders contain lambdas. Rebuild just that
+        # stateless convention object, retaining all mutable plaquette schedules:
+        # dropping/recompiling the graph would change its next generated circuit.
+        from stabilizer_qec.tqec._compile.convention import ALL_CONVENTIONS
+
+        state = self.__dict__.copy()
+        for name, convention in ALL_CONVENTIONS.items():
+            if self._observable_builder is convention.triplet.observable_builder:
+                state.pop("_observable_builder")
+                state["_observable_builder_convention"] = name
+                break
+        return state
+
+    def __setstate__(self, state):
+        from stabilizer_qec.tqec._compile.convention import ALL_CONVENTIONS
+
+        state = state.copy()
+        name = state.pop("_observable_builder_convention", None)
+        if name is not None:
+            state["_observable_builder"] = ALL_CONVENTIONS[name].triplet.observable_builder
+        self.__dict__.update(state)
+
     def add_cube(self, position: BlockPosition3D, block: Block) -> None:
         """Add a new cube at ``position`` implemented by the provided ``block``."""
         if not block.is_cube:
