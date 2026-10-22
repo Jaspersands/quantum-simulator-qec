@@ -104,3 +104,36 @@ def test_parsed_large_correlated_chain_is_readable():
     assert probs[0] == pytest.approx(0.75 ** 63, rel=1e-14, abs=0)
     assert probs[1] == 0.25
     assert probs[-1] == 0
+
+
+def test_correlated_finalization_only_visits_current_chain(monkeypatch):
+    from stabilizer_qec.tsim.zx.instructions import GraphRepresentation, correlated_error, finalize_correlated_error
+
+    built = GraphRepresentation()
+    def refuse_scan():
+        raise AssertionError("correlated finalization scanned the entire graph")
+    monkeypatch.setattr(built.graph, "vertices", refuse_scan)
+    for _ in range(100):
+        correlated_error(built, [0], ["Y"], 0.1)
+        finalize_correlated_error(built)
+    assert built.num_error_bits == 100
+    assert not built._correlated_vertices
+
+
+def test_annotation_row_work_is_linear(monkeypatch):
+    from stabilizer_qec.tsim.zx.instructions import GraphRepresentation, detector, m, observable_include
+
+    built = GraphRepresentation()
+    m(built, 0)
+    original = built.graph.row
+    calls = [0]
+    def row(vertex):
+        calls[0] += 1
+        return original(vertex)
+    monkeypatch.setattr(built.graph, "row", row)
+    for i in range(200):
+        detector(built, [-1])
+        observable_include(built, [-1], i)
+    assert calls[0] == 400
+    rows = [original(v) for v in built.detectors + built.observables]
+    assert sorted(rows) == [original(built.rec[-1]) - 0.5 + i for i in range(400)]

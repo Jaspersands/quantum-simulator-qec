@@ -110,6 +110,10 @@ class GraphRepresentation:
     num_error_bits: int = 0
     num_correlated_error_bits: int = 0
     track_classical_wires: bool = False
+    # Mutable builder state: avoid rescanning all prior vertices and annotation rows.
+    _correlated_vertices: List[int] = field(default_factory=list, repr=False)
+    _annotation_next_row: Dict[float, float] = field(default_factory=dict, repr=False)
+    _annotation_max_row: Any = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         self.vt, self.et = _types_of(self.graph)
@@ -690,6 +694,8 @@ def _error(b: GraphRepresentation, qubit: int, error_type: int, phase: str) -> N
 
     b.graph.set_type(v1, error_type)
     b.graph.set_phase(v1, phase)
+    if phase.startswith("c"):
+        b._correlated_vertices.append(v1)
 
 
 def pauli_channel_1(
@@ -835,7 +841,7 @@ def finalize_correlated_error(b: GraphRepresentation) -> None:
         return
 
     # Rename "c{i}" phases to "e{num_error_bits + i}" in the graph
-    for v in b.graph.vertices():
+    for v in b._correlated_vertices:
         phase_vars = b.graph._phaseVars.get(v, set())
         new_phase_vars = set()
         for var in phase_vars:
@@ -859,6 +865,7 @@ def finalize_correlated_error(b: GraphRepresentation) -> None:
     # Reset correlated error state
     b.num_correlated_error_bits = 0
     b.correlated_error_probs = []
+    b._correlated_vertices.clear()
 
 
 def correlated_error(
@@ -1228,13 +1235,20 @@ def _annotation_row(b: GraphRepresentation, rec: list[int]) -> float:
     fall back to a row above existing annotations rather than `min()` on an
     empty set.
     """
-    d_rows = {b.graph.row(d) for d in b.detectors + b.observables}
     if rec:
         row: float = min(b.graph.row(b.rec[r]) for r in rec) - 0.5
     else:
-        row = (max(d_rows) + 1) if d_rows else 0
-    while row in d_rows:
-        row += 1
+        row = b._annotation_max_row + 1 if b._annotation_max_row is not None else 0
+    # Successor links preserve the original first-free-row choice, including repeated
+    # annotations of the same record, without walking the occupied prefix each time.
+    traversed = []
+    while row in b._annotation_next_row:
+        traversed.append(row)
+        row = b._annotation_next_row[row]
+    b._annotation_next_row[row] = row + 1
+    for previous in traversed:
+        b._annotation_next_row[previous] = row + 1
+    b._annotation_max_row = row if b._annotation_max_row is None else max(row, b._annotation_max_row)
     return row
 
 

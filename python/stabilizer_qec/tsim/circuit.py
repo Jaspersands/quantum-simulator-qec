@@ -767,7 +767,10 @@ class Circuit(_Base):
         circuit's ZX graph with a non-Clifford phase (one for each ``T``, ``T_DAG`` and ``TPP``
         and each rotation by an angle that is not a multiple of 0.5 half-turns, three for a
         ``U3`` whose angles are none). A coherent error (``I_ERROR[R_Z(...)]``) is no gate, as in
-        Tsim; ``stabilizer_qec.Circuit.tcount`` counts it."""
+        Tsim; ``stabilizer_qec.Circuit.tcount`` counts it. This builds the unrolled Python
+        ZX graph and propagates its errors (including sweep targets, malformed tags,
+        unsupported products and record lookbacks). In 2.1 this used the engine's fast
+        count, which remains available on ``stabilizer_qec.Circuit``."""
         from stabilizer_qec.tsim.zx import parse_stim_circuit
         from stabilizer_qec.tsim.zx import tcount as graph_tcount
 
