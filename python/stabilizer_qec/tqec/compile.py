@@ -530,7 +530,9 @@ class TopologicalComputationGraph:
     a Y half cube's ``NotImplementedError``, a constant ``block_temporal_height``); the engine's
     when ``compile`` is called. ``surfaces`` are the correlation surfaces compiled into
     observables and ``stabilizers`` the Pauli string each measures on the graph's ports (or leaf
-    cubes)."""
+    cubes). ``rounds`` and ``merged`` control the engine. Direct generation checks them
+    against tqec's ``2k + 1`` layout and refuses any time slices it cannot honour,
+    just as ``CompiledBlockGraph.generate_stim_circuit`` does."""
 
     def __init__(self, block_graph: "BlockGraph", *, convention: object = FIXED_BULK_CONVENTION, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto", block_temporal_height: object = None, rounds: Optional[int] = None, merged: Optional[int] = None, _engine_only: bool = False) -> None:
         self.convention = _convention(convention)
@@ -632,9 +634,19 @@ class TopologicalComputationGraph:
         ``do_not_use_database``), and ``database_path`` (by default tqec's database file,
         ``DEFAULT_DETECTOR_DATABASE_PATH``) is taken for tqec's signature and never read or
         written. With ``only_use_database`` a situation missing from a database that has entries is
-        an error, as in tqec; an empty database (or none) is filled, as tqec fills it."""
+        an error, as in tqec; an empty database (or none) is filled, as tqec fills it.
+        Engine ``rounds``/``merged`` overrides are checked against ``2k + 1`` and
+        refused when tqec's layout cannot honour them; use ``compile(distance).circuit``
+        for those engine controls."""
         from ._compile.detectors.database import DetectorDatabase
 
+        k = _scale(k)
+        if self._rounds is not None or self._merged is not None:
+            # Use the same time-slice/merge checks as the distance-based wrapper;
+            # an unused merged override on a memory graph is harmless.
+            program = _compile(self._graph, 2 * k + 1, rounds=self._rounds, merged=self._merged, observables=self._observables, write=False)
+            program.computation = self
+            program._in_tqecs_layout(k)
         if detector_database is not None and not isinstance(detector_database, DetectorDatabase):
             raise TQECError(f"detector_database must be None or this package's DetectorDatabase (stabilizer_qec.tqec._compile.detectors.database), not {type(detector_database).__name__}: tqec's is kept in files, which this package does not read")
         circuit = self._tqec_graph().generate_stim_circuit(_scale(k), None, manhattan_radius, detector_database, database_path, do_not_use_database, only_use_database, reschedule_measurements)
