@@ -206,13 +206,13 @@ def _products_of(targets: list) -> list:
 
 
 def _lane_scan(circuit: Any) -> tuple:
-    """``(needs_zx, lanes, targeted, products, repeated)``: whether a measurement-free circuit's matrix
-    still needs Tsim's ZX tensor, the qubits Tsim's ZX graph of the circuit has a lane for (its
+    """``(needs_zx, lanes, targeted, products, repeated)``: whether a circuit's matrix
+    needs Tsim's ZX tensor, the qubits Tsim's ZX graph of the circuit has a lane for (its
     ``first_vertex``, the qubits of ``to_matrix`` either way), the qubits its instructions target,
     whether it has what Tsim's graph builders can refuse where the engine does not, and whether a
     product rotation names a qubit twice.
 
-    It needs the ZX tensor when a reset follows the first instruction that names a qubit and that
+    It needs the ZX tensor for any measurement or record target, or when a reset follows the first instruction that names a qubit and that
     instruction is not a reset (an operation, noise, an identity or coordinates: Tsim's graph gives the
     qubit an input, where the engine counts only an operation as one), when there is a ``DETECTOR``
     or an ``OBSERVABLE_INCLUDE`` (an X spider of Tsim's graph, standing alone when it XORs no
@@ -264,9 +264,13 @@ def _lane_scan(circuit: Any) -> tuple:
                 found[0] = True
                 named = (set() if name == "MPAD" else named if named is not None else {_stim.GateTarget._raw(v).value for v in targets}) | ({-2} if targets else set())
             if name not in flags:
-                flags[name] = bool(_stim.GateData(name).is_reset)
-            reset = flags[name]
+                data = _stim.GateData(name)
+                flags[name] = (bool(data.is_reset), bool(data.produces_measurements))
+            reset, measured = flags[name]
+            found[0] = found[0] or measured
             for v in targets:
+                if _stim.GateTarget._raw(v).is_measurement_record_target:
+                    found[0] = True
                 if v & _stim._TARGET_SWEEP:
                     found[1] = True
                 q = _stim.GateTarget._raw(v).qubit_value

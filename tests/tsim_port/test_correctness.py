@@ -47,3 +47,29 @@ def test_tagged_alias_sampler_is_non_clifford(gate):
     assert samples.dtype == np.bool_
     # T and T_DAG give sin(pi/8)^2; the old S execution gave 1/2.
     assert abs(samples.mean() - np.sin(np.pi / 8) ** 2) < 0.025
+
+
+@pytest.mark.parametrize("name", ["CX", "CZ"])
+def test_measured_feedback_reports_record_error(name):
+    from stabilizer_qec.tsim.zx.parse import MeasurementRecordError
+
+    with pytest.raises(MeasurementRecordError, match=name):
+        tsim.Circuit("M 0\n" + name + " rec[-3] 1").to_matrix()
+
+
+@pytest.mark.parametrize("text", ["M 0", "H 0\nI[RL] 0\nM 0", "M 100000", "M 0\nCX rec[-1] 1"])
+def test_measured_matrix_never_calls_unitary_engine(text, monkeypatch):
+    import stabilizer_qec.tsim.circuit as module
+
+    original = module.call
+
+    def guard(fn, *args):
+        assert getattr(fn, "__name__", "") != "tsim_matrix"
+        return original(fn, *args)
+
+    monkeypatch.setattr(module, "call", guard)
+    matrix = tsim.Circuit(text).to_matrix()
+    # A sparse high index has one lane: this remains small regardless of index.
+    assert matrix.size <= 16
+    if text == "M 100000":
+        assert np.array_equal(matrix, tsim.Circuit("M 0").to_matrix())
