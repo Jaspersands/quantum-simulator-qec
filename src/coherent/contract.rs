@@ -191,6 +191,10 @@ impl ContractionPlan {
         let phases: Vec<u8> = generators.iter().map(phase).collect();
         let mut factors: Vec<Factor> = (0..k).map(|i| Factor { scope: vec![i], locations: by_scope.remove(&vec![i]).unwrap_or_default(), generator: Some((i, phases[i])) }).collect();
         factors.extend(by_scope.into_iter().map(|(scope, locations)| Factor { scope, locations, generator: None }));
+        // A factor scope is already a clique. Refuse it before materializing its edges.
+        if factors.iter().any(|f| f.scope.len() > MAX_DEGREE) {
+            return Err(Refusal::Width);
+        }
         let mut adj: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); k];
         for f in &factors {
             for &a in &f.scope {
@@ -404,11 +408,39 @@ impl ContractionPlan {
     }
 }
 
-/// A min-fill elimination order of the graph `adj` (ties to fewer neighbours, then the lower
-/// vertex) and its tables' entries in all, 2^{1 + neighbours} each; or None once those pass
-/// `max_entries`, or a vertex has `MAX_DEGREE` neighbours or more when it goes, whatever the
-/// budget. The order does not depend on `max_entries`, only whether it is returned.
+/// Whether the graph has a nonempty MAX_DEGREE-core. Peeling vertices below the
+/// threshold visits each vertex and edge once. A surviving core has minimum degree
+/// MAX_DEGREE, hence treewidth at least MAX_DEGREE, so no legal order could fit.
+fn has_wide_core(adj: &[BTreeSet<usize>]) -> bool {
+    let mut degrees: Vec<usize> = adj.iter().map(BTreeSet::len).collect();
+    let mut peel: Vec<usize> = (0..adj.len()).filter(|&v| degrees[v] < MAX_DEGREE).collect();
+    let mut removed = vec![false; adj.len()];
+    let mut next = 0;
+    while next < peel.len() {
+        let v = peel[next];
+        next += 1;
+        removed[v] = true;
+        for &u in &adj[v] {
+            if !removed[u] {
+                degrees[u] -= 1;
+                if degrees[u] == MAX_DEGREE - 1 {
+                    peel.push(u);
+                }
+            }
+        }
+    }
+    peel.len() != adj.len()
+}
+
+/// A min-fill elimination order (ties to degree, then vertex), with total table entries.
+/// Refuses provably excessive width before scoring, or excessive width/budget in the order.
+/// The order does not depend on `max_entries`, only whether it is returned.
 fn min_fill(mut adj: Vec<BTreeSet<usize>>, max_entries: usize) -> Option<(Vec<usize>, usize)> {
+    // Avoid quadratic fill scores on graphs that already prove a width refusal.
+    // This does not select an order: accepted graphs retain the min-fill tie rules.
+    if has_wide_core(&adj) {
+        return None;
+    }
     let fill = |adj: &[BTreeSet<usize>], v: usize| {
         let nb: Vec<usize> = adj[v].iter().copied().collect();
         (0..nb.len()).map(|a| nb[a + 1..].iter().filter(|&&b| !adj[nb[a]].contains(&b)).count()).sum::<usize>()
@@ -816,6 +848,34 @@ mod tests {
         let plan = k.plan().unwrap();
         assert_eq!((plan.width(), ContractionPlan::build(&p, &solver, &k, plan.entries()).is_some()), (3, true));
         assert!(ContractionPlan::build(&p, &solver, &k, plan.entries() - 1).is_none());
+        // A genuinely wide completion: shared scopes force a clique before any fill scores.
+        let text = crate::coherent::kernel::nonlocal::surface(3, 100, 0.05);
+        let (_, _, wide) = kernel(&text, CoherentOptions::default());
+        assert_eq!(wide.contraction_refusal(), Some(Refusal::Width));
+    }
+
+    #[test]
+    fn core_refusal_preserves_trees_components_and_width_boundary() {
+        let clique = |n: usize| -> Vec<BTreeSet<usize>> { (0..n).map(|v| (0..n).filter(|&u| u != v).collect()).collect() };
+        assert!(!has_wide_core(&clique(32)));
+        assert!(has_wide_core(&clique(33)));
+        assert!(has_wide_core(&clique(300)));
+        // Large degree alone proves nothing: this star is a width-one tree.
+        let mut star = vec![BTreeSet::new(); 200];
+        for v in 1..star.len() {
+            star[0].insert(v);
+            star[v].insert(0);
+        }
+        assert!(!has_wide_core(&star));
+        let (order, entries) = min_fill(star, usize::MAX).unwrap();
+        assert_eq!(&order[..198], &(1..199).collect::<Vec<_>>());
+        assert_eq!(&order[198..], &[0, 199]);
+        assert_eq!(entries, 199 * 4 + 2);
+        // The dense component must survive even after the separate leaves are peeled.
+        let mut disconnected = clique(33);
+        disconnected.extend([BTreeSet::from([34]), BTreeSet::from([33]), BTreeSet::new()]);
+        assert!(has_wide_core(&disconnected));
+        assert!(min_fill(disconnected, usize::MAX).is_none());
     }
 
     /// A refusal says what budget would plan the kernel: none at 0 (the contraction off); past
