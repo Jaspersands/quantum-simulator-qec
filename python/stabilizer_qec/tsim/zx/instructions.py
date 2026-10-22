@@ -30,7 +30,8 @@ class CorrelatedChainProbs:
     """The probabilities of the 2^k outcomes of a chain of k correlated errors (``E`` and its
     ``ELSE_CORRELATED_ERROR``s) for k over 24, where Tsim's ``channel_probs`` entry is an array of 2^k
     floats: kept as the chain's k conditional probabilities. ``len`` is 2^k and an entry (``probs[i]``)
-    is Tsim's value; read as a whole (``numpy.asarray``, iteration) it raises ``ValueError`` instead
+    is Tsim's value even when 2^k exceeds ``sys.maxsize`` (the native limit of ``len``, which
+    then raises ``OverflowError``); read as a whole (``numpy.asarray``, iteration) it raises ``ValueError`` instead
     of allocating 2^k floats. Nothing that builds or contracts the graph reads it."""
 
     __slots__ = ("probabilities",)
@@ -47,9 +48,10 @@ class CorrelatedChainProbs:
     def __getitem__(self, index: Any) -> np.float64:
         if not isinstance(index, (int, np.integer)) or isinstance(index, bool):
             self._refuse()
-        i = int(index) + len(self) if index < 0 else int(index)
-        if not 0 <= i < len(self):
-            raise IndexError(f"index {index} is out of bounds for {len(self)} outcomes")
+        outcomes = 1 << len(self.probabilities)
+        i = int(index) + outcomes if index < 0 else int(index)
+        if not 0 <= i < outcomes:
+            raise IndexError(f"index {index} is out of bounds for {outcomes} outcomes")
         no_error_so_far = 1.0
         for k, p in enumerate(self.probabilities):
             if i == 1 << k:

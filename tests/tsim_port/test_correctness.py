@@ -73,3 +73,34 @@ def test_measured_matrix_never_calls_unitary_engine(text, monkeypatch):
     assert matrix.size <= 16
     if text == "M 100000":
         assert np.array_equal(matrix, tsim.Circuit("M 0").to_matrix())
+
+
+@pytest.mark.parametrize("k", [62, 63, 64])
+def test_lazy_correlated_probabilities_above_native_len(k):
+    import sys
+    from stabilizer_qec.tsim.zx.instructions import CorrelatedChainProbs
+
+    probs = CorrelatedChainProbs([0.25] * k)
+    assert probs[0] == pytest.approx(0.75 ** k, rel=1e-14, abs=0)
+    assert probs[1] == 0.25
+    assert probs[-1] == 0
+    assert probs[(1 << k) - 1] == 0
+    assert probs[-(1 << k)] == probs[0]
+    for index in (1 << k, -(1 << k) - 1):
+        with pytest.raises(IndexError):
+            probs[index]
+    if 1 << k > sys.maxsize:
+        with pytest.raises(OverflowError):
+            len(probs)
+    else:
+        assert len(probs) == 1 << k
+
+
+def test_parsed_large_correlated_chain_is_readable():
+    from stabilizer_qec.tsim.zx import parse_stim_circuit
+
+    text = "E(0.25) X0\n" + "ELSE_CORRELATED_ERROR(0.25) X0\n" * 62
+    probs = parse_stim_circuit(tsim.Circuit(text), backend="own").channel_probs[0]
+    assert probs[0] == pytest.approx(0.75 ** 63, rel=1e-14, abs=0)
+    assert probs[1] == 0.25
+    assert probs[-1] == 0
