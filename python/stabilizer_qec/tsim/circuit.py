@@ -16,7 +16,7 @@ import numpy as np
 
 from stabilizer_qec import _circuit, _core, _stim
 from stabilizer_qec._util import call, open_file
-from stabilizer_qec.tsim._native import tsim_to_native
+from stabilizer_qec.tsim._native import canonical_gate, tsim_to_native
 from stabilizer_qec.tsim.utils.program_text import (
     _NATIVE_LINE,
     _NATIVE_TAG,
@@ -494,6 +494,7 @@ class Circuit(_Base):
             else:
                 call(self._c.append_text, native)
             return
+        name = canonical_gate(name)
         if not isinstance(tag, str):
             raise TypeError(f"tag must be a str, not {type(tag).__name__}")
         if name in ("CCZ", "CCX"):

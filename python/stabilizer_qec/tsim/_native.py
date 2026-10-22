@@ -22,7 +22,18 @@ from typing import List, Optional
 from stabilizer_qec.tsim.utils.program_text import _product_rotation, _stored_radians
 
 _LINE = re.compile(r"^(\s*)(S|S_DAG|SPP|SPP_DAG|I)\[([^\]\n]*)\]\s+(.*?)\s*$")
+_GATE = re.compile(r"^(\s*)([A-Za-z][A-Za-z0-9_]*)(?=[\s\[(]|$)")
 _ARG = re.compile(r"(\w+)\s*=\s*([^,()]+?)\s*\*\s*pi")
+
+
+def canonical_gate(name: str) -> str:
+    """Resolve Stim aliases before interpreting Tsim's tags; leave unknown names to the parser."""
+    from stabilizer_qec._stim import gate_data
+
+    try:
+        return gate_data(name).name
+    except IndexError:
+        return name
 
 
 def _literals(tag: str) -> dict:
@@ -121,6 +132,11 @@ def tsim_to_native(text: str) -> str:
     lines = []
     for line in text.splitlines():
         body, sep, comment = line.partition("#")
+        gate_match = _GATE.match(body)
+        if gate_match:
+            name = canonical_gate(gate_match.group(2))
+            body = body[:gate_match.start(2)] + name + body[gate_match.end(2):]
+            line = body + (sep + comment if sep else "")
         m = _LINE.match(body)
         if not m:
             lines.append(line)
