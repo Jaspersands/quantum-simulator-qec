@@ -7,7 +7,9 @@ convention=..., observables=..., block_temporal_height=...)`` is a
 circuit at distance 2k + 1, byte for byte, Hadamard pipes and spatial junctions included. Each
 compilation starts from fresh plaquette caches: tqec reschedules the measurements of the
 plaquettes it caches in place, so its circuit for a graph can depend on what the process compiled
-before; here it is always the circuit of a fresh process.
+before; here the first generation of each compilation is the circuit of a fresh process,
+including when separate graphs compile concurrently. Later generations of one compilation
+retain tqec's in-place rescheduling and can differ from its first generation.
 
 This package's lattice-surgery engine: ``compile_block_graph(graph, distance, p=...)``,
 ``TopologicalComputationGraph.compile(distance)`` and ``BlockGraph.compile(distance)``. A block

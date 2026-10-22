@@ -1,10 +1,12 @@
 # Ported from tqec (tqec/tqec 0.2.0, src/tqec/compile/compile.py; Apache License 2.0, see LICENSE in stabilizer_qec/tqec),
 # modified for stabilizer_qec: compile_block_graph empties the plaquette and block caches first
-# (_start_from_fresh_caches).
+# (_start_from_fresh_caches), with reset and compilation under one lock.
 """Defines :func:`~.compile.compile_block_graph`."""
 
 from __future__ import annotations
 
+from functools import wraps
+from threading import RLock
 from typing import Final, Literal
 
 from stabilizer_qec.tqec._compile.blocks.layers.atomic.base import BaseLayer
@@ -92,6 +94,21 @@ def _start_from_fresh_caches() -> None:
         builder._call_impl.cache_clear()
 
 
+# Cache reset and the whole build form one transaction. Once returned, a graph owns
+# the objects from that cache generation; the next transaction clears all caches
+# before it can obtain any plaquettes, so generation needs no process-wide lock.
+_COMPILATION_LOCK = RLock()
+
+
+def _isolated_compilation(function):
+    @wraps(function)
+    def isolated(*args, **kwargs):
+        with _COMPILATION_LOCK:
+            return function(*args, **kwargs)
+    return isolated
+
+
+@_isolated_compilation
 def compile_block_graph(
     block_graph: BlockGraph,
     convention: Convention = FIXED_BULK_CONVENTION,
