@@ -67,7 +67,7 @@ pub enum MatcherEvent {
 pub struct DetectorNode {
     pub region_that_arrived: u32,
     pub region_that_arrived_top: u32,
-    pub wrapped_radius_cached: i32,
+    pub wrapped_radius_cached: i64,
     pub reached_from_source: u32,
     pub observables_crossed_from_source: u64,
     pub radius_of_arrival: i64,
@@ -190,23 +190,24 @@ pub(crate) fn local_radius(nodes: &[DetectorNode], regions: &[GraphFillRegion], 
     if d.region_that_arrived_top == NONE {
         return Varying(0);
     }
-    regions[d.region_that_arrived_top as usize].radius.plus(d.wrapped_radius_cached as i64)
+    regions[d.region_that_arrived_top as usize].radius.plus(d.wrapped_radius_cached)
 }
 
-/// `DetectorNode::compute_wrapped_radius`, in its 32-bit arithmetic.
+/// The radius offset relative to the top region, in the same 64-bit units as arrivals.
+/// Long paths can exceed i32 even when every individual edge weight fits.
 #[inline]
-pub(crate) fn compute_wrapped_radius(nodes: &[DetectorNode], regions: &[GraphFillRegion], n: u32) -> i32 {
+pub(crate) fn compute_wrapped_radius(nodes: &[DetectorNode], regions: &[GraphFillRegion], n: u32) -> i64 {
     let d = &nodes[n as usize];
     if d.reached_from_source == NONE {
         return 0;
     }
-    let mut total: i32 = 0;
+    let mut total: i64 = 0;
     let mut r = d.region_that_arrived;
     while r != d.region_that_arrived_top {
-        total = (total as i64 + regions[r as usize].radius.y_intercept()) as i32;
+        total += regions[r as usize].radius.y_intercept();
         r = regions[r as usize].blossom_parent;
     }
-    (total as i64 - d.radius_of_arrival) as i32
+    total - d.radius_of_arrival
 }
 
 /// `do_op_for_each_node_in_total_area`'s order: the shell newest first, then each child's area.

@@ -254,6 +254,27 @@ mod tests {
     }
 
     #[test]
+    fn long_uniform_paths_keep_64_bit_radius_offsets() {
+        for n in [130, 131, 300, 1000] {
+            for weight in [1.5, 16_777_214.5] {
+                let mut g = UserGraph::new(n, 0);
+                for i in 0..n - 1 {
+                    g.add_edge(i, i + 1, &[i % 5], weight, -1.0, Merge::Disallow).unwrap();
+                }
+                let mut m = Mwpm::new(Graph::from_user_graph(&g, NeighbourOrder::V2_4));
+                let mut expected = vec![0; 5];
+                for i in 0..n - 1 {
+                    expected[i % 5] ^= 1;
+                }
+                assert_eq!(m.decode(&[0, n as u64 - 1]), (expected.clone(), (n - 1) as f64 * weight));
+                assert_eq!(m.try_decode(&[0]).unwrap_err(), NO_PERFECT_MATCHING);
+                // A failed shot must leave the engine reusable.
+                assert_eq!(m.decode(&[0, n as u64 - 1]), (expected, (n - 1) as f64 * weight));
+            }
+        }
+    }
+
+    #[test]
     fn negative_weights() {
         let mut g = UserGraph::new(2, 0);
         g.add_edge(0, 1, &[0], -2.0, -1.0, Merge::Disallow).unwrap();
