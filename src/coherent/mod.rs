@@ -640,8 +640,12 @@ impl Program {
         }
         let (s0, s1) = ((plus + minus).scale(0.5).norm2(), (plus - minus).scale(0.5).norm2());
         let coherent = if s0 + s1 > 0.0 { s1 / (s0 + s1) } else { 0.0 };
-        let twirl = (nplus - nminus) / (nplus + nminus);
-        COHERENT_SHARE * coherent + (1.0 - COHERENT_SHARE) * twirl
+        // The odd subsets have norm (nplus - nminus) / 2, out of total norm nplus.
+        // Dividing by the even norm instead gives odds, which can exceed one.
+        let twirl = 0.5 * (1.0 - nminus / nplus);
+        let probability = COHERENT_SHARE * coherent + (1.0 - COHERENT_SHARE) * twirl;
+        debug_assert!(probability.is_finite() && (0.0..=1.0).contains(&probability));
+        probability.clamp(0.0, 1.0)
     }
 }
 
@@ -958,6 +962,19 @@ mod tests {
 
     fn prog(text: &str) -> Program {
         Program::new(&Circuit::parse(text).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn merged_proposal_uses_twirl_probability_not_odds() {
+        for angles in [[1.6_f64, 0.2], [1.0, 0.5], [-1.6, -0.2], [0.75, 0.75], [0.0, 0.0]] {
+            let [a, b] = angles;
+            let taus = angles.map(|theta| C::new(0.0, theta.tan()));
+            let twirl = a.sin().powi(2) * b.cos().powi(2) + a.cos().powi(2) * b.sin().powi(2);
+            let expected = COHERENT_SHARE * (a + b).sin().powi(2) + (1.0 - COHERENT_SHARE) * twirl;
+            let got = Program::odd_proposal(&taus);
+            assert!((0.0..=1.0).contains(&got));
+            assert!((got - expected).abs() < 1e-14, "{angles:?}: {got} != {expected}");
+        }
     }
 
     #[test]

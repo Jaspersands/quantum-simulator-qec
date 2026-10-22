@@ -56,6 +56,20 @@ def test_weighted_marginals_equal_the_exact(text):
     assert np.all(np.abs(mean - exact) < 5 * se + 1e-9), (mean, exact, se)
 
 
+@pytest.mark.parametrize("a,b", [(1.6, 0.2), (1.0, 0.5), (-1.6, -0.2), (0.75, 0.75)])
+def test_merged_large_rotations_keep_both_parities(a, b):
+    """The twirl contribution is a probability, including when tan(theta)^2 exceeds one."""
+    c = sq.Circuit(f"R 0 1\nI_ERROR[R_X(theta={a})] 0\nI_ERROR[R_X(theta={b})] 0\nM 0 1\nDETECTOR rec[-2]")
+    sampler = c.compile_coherent_sampler(seed=42)
+    assert sampler.exact_weights
+    d, _, w = sampler.sample(200_000, threads=1)
+    assert d.any() and not d.all()
+    assert np.isfinite(w).all() and (w >= 0).all()
+    rate, se = sq.weighted_rate(d[:, 0], w)
+    assert abs(rate - exact_marginals(c)[0]) < 5 * se
+    assert abs(w.mean() - 1) < 5 * w.std() / np.sqrt(len(w))
+
+
 def test_coherent_errors_are_not_their_twirl():
     """Rotations that add: the coherent flip rate is sin²(θ₁+θ₂), the twirl's not."""
     c = sq.Circuit(CASES[0])
