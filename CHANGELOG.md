@@ -74,7 +74,7 @@ width (`CoherentSampler.contraction_width`).
   θ = 0.35, the effective sample size is 0.34% of the shots, where 2.1's truncation kept 25%.
   `tools/coherent.py` now samples until each rate's error bar is worth 300 failures over at
   least 100,000 unweighted shots, which for unit weights is 2.1's rule exactly. The capacity
-  rows took up to 28,700,000 shots each, and their error bars are 0.4 to 0.63 of 2.1's.
+  rows took up to 28,700,000 shots each, and their error bars are 0.40 to 0.66 of 2.1's.
 
 ### Added
 
