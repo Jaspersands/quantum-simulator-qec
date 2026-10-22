@@ -50,3 +50,22 @@ def test_repeat_generation_keeps_compilation_local_state():
     control = tqec.compile_block_graph(move(), convention="fixed_boundary")
     for k in (1, 1, 2):
         assert str(first.generate_stim_circuit(k)) == str(control.generate_stim_circuit(k))
+
+
+@pytest.mark.parametrize("engine", [False, True])
+def test_observable_iterator_matches_list_metadata(engine):
+    graph = tqec.gallery.memory(tqec.Basis.Z)
+    surfaces = graph.find_correlation_surfaces()
+    def compile(observables):
+        return tqec.compile_block_graph(graph, 3, observables=observables) if engine else tqec.compile_block_graph(graph, observables=observables)
+    control = compile(surfaces)
+    generated = compile(iter(surfaces))
+    if engine:
+        assert generated.observables == control.observables
+        generated, control = generated.computation, control.computation
+    assert generated.num_observables == control.num_observables == len(surfaces)
+    assert generated.stabilizers == control.stabilizers
+    actual = generated.generate_stim_circuit(1)
+    assert actual.num_observables == generated.num_observables
+    assert str(actual) == str(control.generate_stim_circuit(1))
+

@@ -539,6 +539,9 @@ class TopologicalComputationGraph:
         if isinstance(observables, str) and observables != "auto":
             raise TQECError(f"observables must be 'auto', None or a list of correlation surfaces, not {observables!r}")
         self._graph = block_graph
+        # One-shot iterables must serve both compilation and public metadata.
+        if observables is not None and not isinstance(observables, str):
+            observables = list(observables)
         self._observables = observables
         self._height = block_temporal_height
         self._rounds = rounds
@@ -559,8 +562,6 @@ class TopologicalComputationGraph:
             if height is not None:
                 kwargs["block_temporal_height"] = height
             observables = self._observables
-            if observables is not None and not isinstance(observables, str):
-                observables = list(observables)
             try:
                 self._tqec = tqec_compile_block_graph(self._graph, convention=TQEC_CONVENTIONS[self.convention.name], observables=observables, **kwargs)
             except TQECError as error:
