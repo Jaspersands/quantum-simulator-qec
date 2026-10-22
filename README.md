@@ -233,9 +233,9 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   constraints, its Pareto frontier), each returning the number its original returns — Qualtran's
   pinned values and the QDK's results on 55 configurations, physical qubits to runtime to the
   factory's output error rate. With them, the QDK's parameter classes (`EstimatorParams` and its
-  sections) and its report (`summary`, `diagram`, the space and scatter charts as SVG), and
-  Qualtran's Dash app (`stabilizer_qec.estimate.qualtran.ui`, on Dash where it is installed and on
-  the standard library's HTTP server otherwise).
+  sections) and its report (`summary`, `diagram`, the space and scatter charts as static SVG,
+  not the QDK's live widgets), and Qualtran's Dash app (`stabilizer_qec.estimate.qualtran.ui`,
+  on Dash where it is installed and on the standard library's HTTP server otherwise).
 - **Noise beyond Pauli channels, exactly**: a density-matrix simulator (equal to Quantumsim's)
   with amplitude and phase damping and T1/T2 relaxation, process matrices (Choi, Pauli transfer,
   χ), and QuantumClifford.jl's perturbative expansion run on detection events: a decoder's
@@ -488,11 +488,20 @@ SVG diagrams are this package's own drawings.
 Where several answers are equally good, PyMatching's class here, `Matching`, returns
 PyMatching's: from 2.2 it decodes on PyMatching 2.4.0's own sparse blossom, transliterated
 (`src/pm_exact/`, see [An exact sparse matcher](#an-exact-sparse-matcher)), so its
-predictions, weights, edges and matched pairs are PyMatching's, ties and orders included.
-Correlated matching (`enable_correlations=True`), the detector-error-model decoders and
-`LeakageAwareDecoder` decode on this package's own sparse blossom (`src/sparse/`), which grows
-its regions in its own order: among equally light matchings it can pick another one than
-PyMatching's, and correlated matching reweights from it.
+predictions, weights, edges and matched pairs are PyMatching's, ties and orders included. So
+does everything built on `Matching`: the ports that call PyMatching's API, PyMatching's
+`predict` and `count_mistakes`, sinter's `pymatching` decoder and `Decoder("matching")`, the
+`matching` decoder of `stabilizer-qec decode`, `stabilizer-qec serve` and
+`realtime.make_decoder`, CUDA-Q QEC's `pymatching`, and `SubgraphDecoder`, `CompositeDecoder`
+and `PreDecoder(reweight=False)` with `decoder="matching"`. The following decode on this
+package's own sparse blossom (`src/sparse/`), which grows its regions in its own order, so
+among equally light matchings it can pick another one than PyMatching's: correlated matching
+(`enable_correlations=True`, the `correlated_matching` decoder, sinter's
+`pymatching-correlated`), which also reweights from it; `BeliefMatching`; `WindowMatching` and
+`stream_memory`; `LeakageAwareDecoder`, `ArgumentReweighting` and `PreDecoder` (unless
+`reweight=False`) with `decoder="matching"`, their default; the Rust crate's `Matching` and
+`BeliefMatching`; and the extension's `decode_b8`, `decode_b8_own`, `decode_b8_window`,
+`decode_b8_belief` and `stream_decode`, which the repository's tools call.
 
 The other tools' command lines are here too: PyMatching's `animate` (`stabilizer-qec animate`,
 `python -m stabilizer_qec.pymatching animate`), checked frame for frame against PyMatching
@@ -606,12 +615,16 @@ the same flooder, alternating trees and blossom cycles, arenas that reuse the mo
 freed slot first, and the same extraction and path search. `Matching`, PyMatching's class here,
 decodes on it, and so does Chromobius's decoder (see [More decoders](#more-decoders)), so their
 edges, matched pairs, predictions and weights are PyMatching's, in PyMatching's order. Checked
-shot by shot against PyMatching 2.4.0 on 1,550,000 shots of 19 models (surface codes d = 3 to 7
+shot by shot against PyMatching 2.4.0 on 950,000 shots of 19 models (surface codes d = 3 to 7
 at p = 0.001 to 0.02, colour-code Möbius graphs, repetition codes, unit and negative weights)
-and 3,000 hand-built graphs (merges, boundaries, zero and negative weights, more than 64 fault
-ids): 0 differences. It takes 1.00 to 1.04 times PyMatching's time (`decode_batch` with
-weights, d = 5 memory over 5 rounds, 100,000 shots, one thread). The detector-error-model
-decoders, correlated matching and `LeakageAwareDecoder` keep `src/sparse/`, timed above.
+and 600,000 of 3,000 hand-built graphs (merges, boundaries, zero and negative weights, more
+than 64 fault ids): 0 differences. It takes 1.00 to 1.04 times PyMatching's time
+(`decode_batch` with weights, d = 5 memory over 5 rounds, 100,000 shots, one thread).
+Everything built on `Matching` decodes on it too. Correlated matching, `BeliefMatching`,
+`WindowMatching`, `stream_memory`, `LeakageAwareDecoder`, `ArgumentReweighting` and
+`PreDecoder` (unless `reweight=False`) with matching, the Rust crate's `Matching` and
+`BeliefMatching`, and the extension's `decode_b8` family keep `src/sparse/`, timed above (the
+whole list is under [Stim's Python API](#stims-python-api)).
 
 ## Correlated matching
 
@@ -1107,7 +1120,9 @@ local decoder's shot for shot, over TCP and over a subprocess's pipes. CUDA-Q QE
 decoder gets, with every name of its `py_extended_dem.cpp` and its 101 extended-model tests
 ported) and its `trt_decoder`, which runs the ONNX model on the CPU with numpy, its outputs equal
 to onnxruntime 1.31.0's bit for bit on 157 recorded cases of 17 models. TensorRT's engines
-(`engine_load_path`, `engine_save_path`) are refused by name.
+(`engine_load_path`, `engine_save_path`) are refused by name, and the `dispatch` and
+`transport` settings are kept and written but ignored on the host, as CUDA-Q's host library
+ignores them.
 
 **Sampling and BP on the GPU** (`device="gpu"`; wgpu on Metal, Vulkan and DX12, in every wheel;
 `stabilizer_qec.gpu_device()` names the device). cuStabilizer samples frames on NVIDIA GPUs at
@@ -1677,7 +1692,10 @@ Stim's conventions. From 2.2 `tsim.Circuit` also builds Tsim 0.1.5's ZX graphs, 
 vertex and edge for edge (`get_graph`, `get_sampling_graph`, and `diagram("pyzx")`,
 `"pyzx-dets"` and `"pyzx-meas"`), on pyzx_param's `GraphS` where it imports and on this
 package's numpy `ZXGraph` otherwise, and its `to_matrix` of a circuit with measurements,
-detectors, observables, feedback or noise before a reset is Tsim's ZX tensor, where 2.1 raised.
+detectors, observables, feedback, a reset after a qubit's first operation or noise before a
+reset is Tsim's ZX tensor, where 2.1 raised (measurements, feedback, later resets) or gave the
+wrong matrix (the wrong shape for noise before a reset and, without measurements, a factor of
+2 too few for each target-less detector and each observable).
 Tsim's shots are not reproduced bit for bit: Tsim draws its noise with numpy's PCG64 and its
 outcomes with JAX's threefry, from probabilities whose last bits follow pyzx_param's rewrite
 order, and is itself reproducible only at a fixed `batch_size`. The shots here are this
@@ -1957,9 +1975,9 @@ whole circuit that flip an observable and set off no detector. It is measured th
   90 bytes for the usual sets of two to four detectors. A larger budget never keeps fewer sets.
   Out of budget it raises Stim's message for a search that finds nothing, then "(memory budget
   of N bytes reached after M states)". Limits of (2, 2) take Stim's graph-like search, which
-  the budget does not cover. On QUITS's [[72, 8, 8]] (the whole process) it takes 0.64 to
-  0.66 s of user time and a 144 to 148 MB peak footprint, against Stim's 4.25 to 4.54 s and
-  530 MB;
+  the budget does not cover. On QUITS's [[72, 8, 8]] (PYTHONHASHSEED 0, the whole process) it
+  takes 0.64 to 0.66 s of user time and a 144 to 148 MB peak footprint, against Stim's 4.25 to
+  4.54 s and 530 MB;
 - `DetectorErrorModel.distance()`: an integer program over every fault, which proves the
   distance exactly when it finishes (scipy's HiGHS). When it does not, the best solution it
   found is still a real undetectable logical error, and so an upper bound.

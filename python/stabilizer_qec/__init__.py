@@ -184,7 +184,7 @@ this package's decoders under `sq_` names.
   without unrolling them. Generated circuits are written out round by round, up to 10,000
   rounds.
 - **Stability.** Semantic versioning: everything importable from `stabilizer_qec` without a
-  leading underscore keeps working, with the same meaning, through every 1.x release. A name
+  leading underscore keeps working, with the same meaning, through every 2.x release. A name
   is deprecated (with a `DeprecationWarning` naming its replacement) for at least one minor
   release before a major release removes it. `stabilizer_qec._core` is the engine's
   extension, used by the repository's own tools, and carries no such promise.

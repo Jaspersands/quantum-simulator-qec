@@ -21,9 +21,9 @@ every fault set no record tells apart from the shot's: its class, a coset of the
 spacetime kernel, 2^k sets for k generators. 2.1 summed the whole class up to twelve generators
 and truncated it past that. 2.2 writes the sum over c ∈ GF(2)^k as a product of small factors
 (one for each group of generators that share locations, a phase and a sign for each generator,
-and (−1)^(c_i c_j) for each pair whose operators meet: a quadratic form) and contracts it one
-generator at a time along a min-fill elimination order, in O(k·2^w) a shot, w the contraction
-width (`CoherentSampler.contraction_width`).
+and (−1)^(c_i c_j) for each pair whose operators anticommute: a quadratic form) and contracts it
+one generator at a time along a min-fill elimination order, in O(k·2^w) a shot, w the
+contraction width (`CoherentSampler.contraction_width`).
 
 - **When it is exact.** Whenever the contraction's tables fit
   `compile_coherent_sampler(max_contraction=65536)`, table entries in all. 0 turns the
@@ -84,12 +84,12 @@ width (`CoherentSampler.contraction_width`).
   (`sq.Matching`, `stabilizer_qec.pymatching.Matching`, sinter's `pymatching` decoder), decodes
   on it: `decode`, `decode_batch`, `decode_to_edges_array` and `decode_to_matched_dets_array`
   give PyMatching's answers on every shot, ties and orders included. Checked shot by shot on
-  1,550,000 shots of 19 models (surface codes d = 3 to 7 at p = 0.001 to 0.02, colour-code
-  Möbius graphs, repetition codes, unit and negative weights) and on 3,000 hand-built graphs:
-  0 differences. It takes 1.00 to 1.04 times PyMatching's time (`decode_batch` with weights,
-  d = 5 memory over 5 rounds, 100,000 shots, one thread). The tie tolerances in the PyMatching,
-  sinter, PanQEC, beliefmatching (min-sum BP) and folding comparisons are gone: they are
-  exact. One divergence is deliberate. When a bit-packed batch fails on a padding bit,
+  950,000 shots of 19 models (surface codes d = 3 to 7 at p = 0.001 to 0.02, colour-code
+  Möbius graphs, repetition codes, unit and negative weights) and 600,000 of 3,000 hand-built
+  graphs: 0 differences. It takes 1.00 to 1.04 times PyMatching's time (`decode_batch` with
+  weights, d = 5 memory over 5 rounds, 100,000 shots, one thread). The tie tolerances in the
+  PyMatching, sinter, PanQEC, beliefmatching (min-sum BP) and folding comparisons are gone:
+  they are exact. One divergence is deliberate. When a bit-packed batch fails on a padding bit,
   PyMatching's later decodes raise "!mwpm.flooder.queue.empty()" if the failing shot had
   earlier detection events at non-boundary nodes; this decoder refuses the shot before it
   makes any region, and keeps decoding. A failed batch still names its shot ("shot k: " and
@@ -122,9 +122,11 @@ width (`CoherentSampler.contraction_width`).
   observable past L63 gets this package's 64-observable message (Chromobius decodes it, its
   predictions past L63 undefined); records are read whole before decoding (the output is the
   same); `predict` decodes on every core; an index whose digits overflow Stim's 64-bit read
-  prints the C++ library's message and exits 134 without raising SIGABRT; and a bit past the
+  prints the C++ library's message and exits 134 without raising SIGABRT; a bit past the
   last detector, where Chromobius's result is undefined, is refused with PyMatching's message
-  every time.
+  every time; and the matcher's weight scale counts a self-loop given more than once at its
+  merged weight alone, where PyMatching 2.2.2's also counts its first weight (no Möbius graph
+  has a self-loop).
 - **Tesseract's command line, and any number of observables.** `python -m
   stabilizer_qec.tesseract_decoder` is Tesseract's `tesseract` program: its flags (`--circuit`,
   `--dem`, `--sample-num-shots`, `--in`, `--out`, the detector-order flags, `--beam`,
@@ -160,9 +162,12 @@ width (`CoherentSampler.contraction_width`).
   circuit is a fresh tqec process's (tqec's caches hand out shared plaquettes whose schedules a
   compilation changes, so tqec's circuit for a graph can depend on what the process compiled
   before); the detector database is kept in memory (`database_path` is taken and never read or
-  written); there are no worker processes (the output is the same); and `k` must be a positive
-  integer (tqec raises IndexError for 0 and writes a circuit for 1.5). tqec 0.2.0's own bugs
-  come with its circuits: `cz(["XI -> XZ", "IZ -> IZ"])` and `cz(["ZI -> ZI", "IX -> ZX"])`
+  written); there are no worker processes (the output is the same); `k` must be a positive
+  integer (tqec raises IndexError for 0 and writes a circuit for 1.5); and a
+  `block_temporal_height` that is not a `LinearFunction` raises a TQECError (for a number, the
+  one tqec raises for the constant height the number stands for), where tqec 0.2.0 fails with
+  an AttributeError (a TypeError for an unhashable value). tqec 0.2.0's own bugs come with its
+  circuits: `cz(["XI -> XZ", "IZ -> IZ"])` and `cz(["ZI -> ZI", "IX -> ZX"])`
   have non-deterministic observables at k = 1 (tqec issue #1034); `cz("ZZ -> ZZ")` in the
   fixed-boundary convention at k = 2 has a non-deterministic detector; and so do two L-shaped
   spatial-junction memories stacked with no pipe between them (#1062, fixed after 0.2.0). The
@@ -177,16 +182,27 @@ width (`CoherentSampler.contraction_width`).
   `ZXGraph` otherwise. `diagram("pyzx")`, `"pyzx-dets"` and `"pyzx-meas"` draw them, and
   `to_matrix` and `to_tensor` of a circuit with measurements, detectors, observables, feedback,
   a reset after a qubit's first operation or noise before a reset are Tsim's ZX tensor, where
-  2.1 raised. Checked against 40 circuits recorded from Tsim (every gate, noise channel and
-  annotation) on both backends, and against live Tsim on 4,200 random circuits (five graphs
-  each), 8,000 random `to_matrix` and 60 circuits' diagrams: 0 differences. Where it differs:
-  the shots stay this package's (see Not ported); an angle appended as an int prints as a
-  float, the spacing inside a tag is not kept, and a `stim.Circuit`'s angle literals are read
-  as floats; two product rotations with the same angle in a row print as two lines, and so do
-  a pair rotation's `TPP`s on several pairs (Tsim fuses them, and its shorthand misprints
-  them: `TPP X3*X2 X1*X0`); and a product naming a qubit twice prints as `R_PAULI(0.3) X0*X0`
-  (Tsim's `R_XX(0.3) 0 0` does not read back). Tsim reads each of these prints as its own
-  circuit. `to_matrix` refuses more than 2^22 entries, a spider of more than 24 legs and an
+  2.1 raised (measurements, feedback, later resets) or gave the wrong matrix (see Fixed).
+  Checked against 40 circuits recorded from Tsim (every gate, noise channel and annotation) on
+  both backends, and against live Tsim on 4,200 random circuits (five graphs each), 8,000
+  random `to_matrix` (902 of them equal up to a global phase, the unitary engine's, below) and
+  60 circuits' diagrams: 0 differences. Where it differs: the shots stay this package's (see
+  Not ported); an angle appended as an int prints as a float, the spacing inside a tag is not
+  kept, and a `stim.Circuit`'s angle literals are read as floats; two product rotations with
+  the same angle in a row print as two lines, and so do a pair rotation's `TPP`s on several
+  pairs and an undaggered pair rotation on several pairs (the inverse of an `SPP_DAG` one
+  prints `R_ZZ(a) 3 2` then `R_ZZ(a) 1 0`), where Tsim prints each as one line
+  (`R_ZZ(0.3) 0 1 Z2*Z3`, `TPP X3*X2 X1*X0`, `R_ZZ(a) 3 2 Z1*Z0`); and a product naming a qubit
+  twice prints as `R_PAULI(0.3) X0*X0` (Tsim's `R_XX(0.3) 0 0` does not read back). Tsim reads
+  each of these prints as its own circuit. An angle whose radians are past a float's range
+  (from about 5.7e307 half-turns) is refused, where Tsim takes it. A record entry from before
+  the first measurement (`M 0` then `DETECTOR rec[-2]`) raises `MeasurementRecordError`, an
+  `IndexError` as Tsim's is and a `ValueError` naming the instruction. `to_matrix` of a circuit
+  that does not need the ZX tensor is the unitary engine's, Tsim's up to a global phase
+  (`SQRT_X_DAG 0` gives Tsim's times e^(iπ/4)), and so is that of a circuit with an instruction
+  Tsim's graph builders cannot read (a tag the core leaves inert, `I[foo(x)] 0`), where Tsim's
+  raises its parse error (as it is raised here too when a product rotation names a qubit
+  twice). `to_matrix` refuses more than 2^22 entries, a spider of more than 24 legs and an
   intermediate tensor of more than 2^26 entries, where Tsim allocates.
 - **CUDA-Q QEC: `dem_chunks` and `trt_decoder`.** CUDA-Q QEC 0.8.1's extended detector error
   models (`SeamId`, `ExtendedDem`, `DemChunksSpec` and every other name of `py_extended_dem.cpp`;
@@ -204,7 +220,10 @@ width (`CoherentSampler.contraction_width`).
   arm64; CUDA-Q 0.8.1's three models among them, equal to its git-lfs pointers' sha256).
   TensorRT's import rules are onnx-tensorrt's, and the messages and warnings CUDA-Q's. onnxruntime
   itself can differ by an ulp on CPUs whose MLAS kernels block differently; the tests compare with
-  the recordings.
+  the recordings. Where it differs: an `O` that CUDA-Q's Python binding refuses before it makes a
+  decoder (None, a tuple, a list nested three deep) or drops (an empty list) gets the message
+  CUDA-Q gives any other `O` that is not a tensor, "TensorRT initialization failed:
+  heterogeneous_map::get() error - Invalid type or key (O).".
 - **Azure: the QDK's parameter classes and its report.** qdk 1.33.1's `EstimatorParams` and its
   sections (`EstimatorQubitParams`, `EstimatorQecScheme`, `DistillationUnitSpecification`,
   `ErrorBudgetPartition`, `EstimatorConstraints`, ...), the QDK's code for Python 3.9, are taken
@@ -217,10 +236,10 @@ width (`CoherentSampler.contraction_width`).
   results, plain and with markdown, and the charts against the widgets' own functions run in node,
   to 4 ulps. `QECScheme.SURFACE_CODE` and `FLOQUET_CODE` are in. Kept from 2.1: `EstimatorError`
   and `QSharpError` are `ValueError`s (the QDK's `EstimatorError` derives from BaseException
-  alone), and `LogicalCounts.estimate` takes any object with `as_dict` as its one dictionary (the
-  QDK refuses an `EstimatorInputParamsItem` with a TypeError). A batch keeps its `summary` and
-  single results their `summary_data_frame`, which the QDK lacks, and the tables are drawn when
-  first asked for.
+  alone), and `LogicalCounts.estimate` takes any object with `as_dict` (a batch when it
+  `has_items`, else its one dictionary; the QDK refuses an `EstimatorInputParamsItem` with a
+  TypeError). A batch keeps its `summary` and single results their `summary_data_frame`, which
+  the QDK lacks, and the tables are drawn when first asked for.
 - **Qualtran's Dash app.** `stabilizer_qec.estimate.qualtran.ui` has Qualtran 0.7.0's layout
   builders and callback. `ui.make_app()` (and `ui.app`) is Qualtran's Dash app: its layout and
   callback equal Qualtran's, and so do its answers through Flask's test client. `ui.serve()`
@@ -229,12 +248,16 @@ width (`CoherentSampler.contraction_width`).
   otherwise on the standard library's HTTP server, with a page of this package's own that draws
   the same layout and runs the same callback. That page loads the installed plotly's
   plotly.js, or without plotly cdn.plot.ly's plotly.js 3.7.0, pinned by its hash. Importing
-  `ui` imports neither dash nor plotly.
+  `ui` imports neither dash nor plotly (Qualtran's `ui` does not import without dash). Without
+  dash, `ui.app` raises `make_app`'s ImportError, and so does `hasattr(ui, "app")`, where it
+  would give False.
 - **Fusion Blossom's `helper.bottle`.** fusion_blossom 0.2.13's vendored Bottle (0.14-dev) is
   `stabilizer_qec.fusion_blossom.helper.bottle`, byte for byte, and `helper.serve` is
   fusion_blossom's server on it: 55 recorded requests (18 paths by GET, HEAD and POST, and a
   range request) are answered as fusion_blossom's server answers them, headers and bodies. It
   is imported with `stabilizer_qec.fusion_blossom`, as fusion_blossom imports its own.
+  fusion_blossom also installs its Bottle and its helper as the top-level modules `bottle` and
+  `helper` (so `import bottle` gives fusion_blossom's); this package installs neither.
 - **Stim: a memory budget for the undetectable-error search.**
   `search_for_undetectable_logical_errors(..., max_memory_bytes=None)`, on `Circuit` and
   `DetectorErrorModel` (in Rust, the `*_with_budget` methods), keeps the sets it visits in
@@ -311,11 +334,12 @@ width (`CoherentSampler.contraction_width`).
   so their circuits are tqec's: the CNOT at k = 1 has 81 qubits, where 2.1's engine layout had
   113.
   - `compile_block_graph(g, block_temporal_height=5)` without a distance, or with a callable
-    of k, ran the engine's rounds in 2.1 (height + 2 in every time slice). It now raises tqec's
-    TQECError (tqec's height is a `LinearFunction` of k), followed by a sentence pointing at the
-    engine, which still takes numbers and callables at a distance: `compile_block_graph(g,
-    distance, block_temporal_height=...)` and `BlockGraph.compile`. The engine now also takes
-    NumPy integers, which 2.1 refused.
+    of k, ran the engine's rounds in 2.1 (height + 2 in every time slice). It now raises a
+    TQECError (tqec's height is a `LinearFunction` of k): for a number, the one tqec raises for
+    that constant height, and for a callable, one saying the height must be a `LinearFunction`.
+    Each is followed by a sentence pointing at the engine, which still takes numbers and
+    callables at a distance: `compile_block_graph(g, distance, block_temporal_height=...)` and
+    `BlockGraph.compile`. The engine now also takes NumPy integers, which 2.1 refused.
   - `CompiledBlockGraph.generate_stim_circuit` (on `compile_block_graph(g, distance)`) wrote
     the engine's layout at distance 2k + 1 with the program's `rounds` and `merged`. It now
     writes tqec's layout and takes tqec's keyword parameters (an unknown keyword is a
@@ -429,10 +453,12 @@ These remain, each in the README and the inventory:
   model on the CPU and refuses `engine_load_path` and `engine_save_path` by name; `dispatch` and
   `transport` are kept and written, and ignored on the host, as CUDA-Q's host library ignores
   them.
-- **PyMatching's ties outside its API.** The DEM decoders, correlated matching
-  (`enable_correlations=True`) and `LeakageAwareDecoder` decode on this package's own sparse
-  blossom (`src/sparse`), whose answer among equally light matchings can differ from
-  PyMatching's.
+- **PyMatching's ties outside its API.** Correlated matching (`enable_correlations=True`),
+  `BeliefMatching`, `WindowMatching` and `stream_memory`, `LeakageAwareDecoder`,
+  `ArgumentReweighting` and `PreDecoder` (unless `reweight=False`) with `decoder="matching"`,
+  their default, and the Rust crate's `Matching` decode on this package's own sparse blossom
+  (`src/sparse`), whose answer among equally light matchings can differ from PyMatching's (the
+  README lists what decodes on which).
 - **Chromobius off macOS.** Chromobius walks a table in `std::unordered_map` order, which is the
   C++ library's own: with libstdc++ it may drag charge another way on some shots. Off macOS
   the tests hold the predictions to 99% equal.
