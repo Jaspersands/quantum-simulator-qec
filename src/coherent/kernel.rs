@@ -41,7 +41,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use super::contract::{ContractionPlan, Refusal, ShotFactors};
-use super::{Element, GaugeSolver, Program, Shot, Slot};
+use super::{Element, GaugeSolver, ParitySums, Program, Shot, Slot};
 use crate::statevec::C;
 
 /// Options for the coherent sampler's kernel.
@@ -501,35 +501,30 @@ impl Kernel {
         let mut w = 1.0;
         let mut eff: Vec<Option<(C, f64)>> = vec![None; self.rep_of.len()];
         for g in &self.groups {
-            let (mut plus, mut minus, mut nplus, mut nminus) = (C::ONE, C::ONE, 1.0, 1.0);
-            for (&l, &mu) in g.members.iter().zip(&g.mu) {
-                let tau = p.toggle(shot, l) * mu;
-                plus = plus * (C::ONE + tau);
-                minus = minus * (C::ONE - tau);
-                nplus *= 1.0 + tau.norm2();
-                nminus *= 1.0 - tau.norm2();
-            }
-            let (even, odd) = ((plus + minus).scale(0.5), (plus - minus).scale(0.5));
+            let sums = ParitySums::new(g.members.iter().zip(&g.mu).map(|(&l, &mu)| p.toggle(shot, l) * mu));
+            let (even, odd) = (sums.even, sums.odd);
             // A class that cancels exactly (even = 0) has weight 0 unless an element moves it
-            // to the odd sum; a tiny stand-in keeps that limit finite.
+            // to the odd sum; a tiny stand-in keeps that limit finite, as for the raw sums.
             let even = if even.norm2() < 1e-200 { C::new(1e-100, 0.0) } else { even };
-            let (mut neven, mut nodd) = ((nplus + nminus) / 2.0, (nplus - nminus) / 2.0);
+            let (mut neven, mut nodd) = (sums.neven, sums.nodd);
             if !p.merge.is_empty() {
-                // Drawn as one, the group's parity came from the proposal, not the twirl: the
-                // twirl's class sum over the drawn configuration (neven) becomes ρ over q, the
-                // proposal's probability of the drawn parity over the twirl's of the drawn
-                // configuration, and nodd/neven the proposal's odds of the other parity.
-                let taus: Vec<C> = g.members.iter().zip(&g.mu).map(|(&l, &mu)| p.unfired_toggle(l, mu, shot.anti[l])).collect();
-                let odd_p = Program::odd_proposal(&taus);
+                let taus = g.members.iter().zip(&g.mu).map(|(&l, &mu)| p.unfired_toggle(l, mu, shot.anti[l]));
+                let odd_p = ParitySums::new(taus).proposal();
                 let last = *g.members.last().unwrap();
                 let fired = shot.fired[last];
-                let cos2: f64 = g.members.iter().map(|&l| p.locations[l].theta.cos().powi(2)).product();
-                let q_drawn = if fired { cos2 * p.locations[last].theta.tan().powi(2) } else { cos2 };
                 let (rho, rho_other) = if fired { (odd_p, 1.0 - odd_p) } else { (1.0 - odd_p, odd_p) };
-                neven = rho / q_drawn;
-                nodd = rho_other / q_drawn;
+                // Raw sums use neven = rho/q_drawn and nodd = rho_other/q_drawn.
+                // For the canonical draw (only the last member may fire),
+                // q_drawn * N = 1, N = product(1 + |toggle|²). Dividing *both*
+                // amplitude norms and twirl masses by N therefore leaves rho and
+                // rho_other directly. No underflowing product of cos² is needed.
+                neven = rho;
+                nodd = rho_other;
             }
-            w *= even.norm2() / neven;
+            // In unmerged shots neven is the twirl's parity mass divided by N;
+            // in merged shots it is rho. The shared amplitude scale cancels out
+            // of odd/even but remains squared in this group's weight factor.
+            w *= (2.0 * sums.log_scale + even.norm2().ln() - neven.ln()).exp();
             let inv = even.conj().scale(1.0 / even.norm2());
             eff[g.members[0]] = Some((odd * inv, nodd / neven));
         }
@@ -991,6 +986,56 @@ pub(crate) fn symmetric_difference(a: &[usize], b: &[usize]) -> Vec<usize> {
 pub(crate) mod tests {
     use super::*;
     use crate::circuit::Circuit;
+
+    #[test]
+    fn long_group_weights_and_factor_ratios_match_both_parities() {
+        let cases = [
+            vec![1.6_f64; 110], vec![1.6; 150], vec![-1.6; 150],
+            [1.6, -0.2, 0.03].repeat(50), [1.6, -1.6].repeat(75), vec![0.001; 150],
+        ];
+        for angles in cases {
+            let text = format!("R 0\n{}M 0\nDETECTOR rec[-1]", angles.iter().map(|a| format!("I_ERROR[R_X(theta={a})] 0\n")).collect::<String>());
+            let mut p = Program::new(&Circuit::parse(&text).unwrap()).unwrap();
+            let solver = GaugeSolver::new(&p);
+            let kernel = Kernel::new(&p, &solver, CoherentOptions::default());
+            assert!(kernel.generators.is_empty() && kernel.groups.len() == 1);
+            let total_angle = angles.iter().sum::<f64>();
+            let physical = [total_angle.cos().powi(2), total_angle.sin().powi(2)];
+            let twirl_odd = 0.5 * (1.0 - angles.iter().map(|a| (2.0 * a).cos()).product::<f64>());
+            for merged in [false, true] {
+                if merged {
+                    p.set_merge(&kernel.merge_groups());
+                }
+                let q_odd = if merged { super::super::COHERENT_SHARE * physical[1] + (1.0 - super::super::COHERENT_SHARE) * twirl_odd } else { twirl_odd };
+                let q = [1.0 - q_odd, q_odd];
+                let mut normalization = 0.0;
+                for parity in 0..2 {
+                    let mut shot = Shot { fired: vec![false; angles.len()], anti: vec![false; angles.len()], branch: p.reference.clone(), ..Shot::default() };
+                    // Exercise distributed twirl faults as well as the canonical merged draw.
+                    if !merged {
+                        for i in (0..angles.len() - 1).step_by(3) {
+                            shot.fired[i] = true;
+                        }
+                    }
+                    let prior_parity = shot.fired.iter().filter(|&&b| b).count() % 2;
+                    shot.fired[angles.len() - 1] = prior_parity != parity;
+                    let (weight, eff) = kernel.groups_of(&p, &shot);
+                    let expected = physical[parity] / q[parity];
+                    assert!(weight.is_finite() && weight >= 0.0);
+                    assert!((weight - expected).abs() < 2e-11 * expected.max(1.0), "{} {merged} {parity}: {weight} != {expected}", angles.len());
+                    normalization += q[parity] * weight;
+                    let (toggle, size) = eff[kernel.groups[0].members[0]].unwrap();
+                    assert!((size - q[1 - parity] / q[parity]).abs() < 2e-11 * size.max(1.0));
+                    if physical.iter().all(|v| *v > 1e-20) {
+                        let expected_toggle = if parity == 0 { total_angle.tan() } else { -1.0 / total_angle.tan() };
+                        assert!(toggle.re.abs() < 1e-12);
+                        assert!((toggle.im - expected_toggle).abs() < 2e-11 * expected_toggle.abs().max(1.0));
+                    }
+                }
+                assert!((normalization - 1.0).abs() < 2e-11, "{} {merged}: {normalization}", angles.len());
+            }
+        }
+    }
 
     /// The kernel's exact distribution against the state vector's: the bias, with no sampling
     /// noise.

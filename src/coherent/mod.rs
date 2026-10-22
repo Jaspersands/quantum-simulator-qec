@@ -608,6 +608,50 @@ pub(crate) struct Merge {
 /// no parity is ever impossible.
 const COHERENT_SHARE: f64 = 0.9;
 
+/// Parity sums divided by sqrt(N), N = product(1 + |tau|²), without forming N.
+/// `even` and `odd` share an additional exp(log_scale) amplitude scale. Normalizing
+/// them together at each step preserves their ratio, including destructive interference.
+/// The twirl masses `neven` and `nodd` are separately normalized to sum to one.
+struct ParitySums {
+    even: C,
+    odd: C,
+    log_scale: f64,
+    neven: f64,
+    nodd: f64,
+}
+
+impl ParitySums {
+    fn new(taus: impl IntoIterator<Item = C>) -> Self {
+        let mut sums = Self { even: C::ONE, odd: C::ZERO, log_scale: 0.0, neven: 1.0, nodd: 0.0 };
+        for tau in taus {
+            let a = 1.0 / 1.0_f64.hypot(tau.re.hypot(tau.im));
+            let b = tau.scale(a);
+            let (even, odd) = (sums.even.scale(a) + sums.odd * b, sums.odd.scale(a) + sums.even * b);
+            let scale = even.re.hypot(even.im).hypot(odd.re.hypot(odd.im));
+            if scale > 0.0 {
+                sums.even = even.scale(1.0 / scale);
+                sums.odd = odd.scale(1.0 / scale);
+                sums.log_scale += scale.ln();
+            } else {
+                sums.even = even;
+                sums.odd = odd;
+            }
+            let (e, o) = (a * a, b.norm2());
+            let (neven, nodd) = (sums.neven * e + sums.nodd * o, sums.nodd * e + sums.neven * o);
+            let total = neven + nodd;
+            sums.neven = neven / total;
+            sums.nodd = nodd / total;
+        }
+        sums
+    }
+
+    fn proposal(&self) -> f64 {
+        let total = self.even.norm2() + self.odd.norm2();
+        let coherent = if total > 0.0 { self.odd.norm2() / total } else { 0.0 };
+        COHERENT_SHARE * coherent + (1.0 - COHERENT_SHARE) * self.nodd
+    }
+}
+
 impl Program {
     /// Draw each group (locations that flip the same outcomes, `groups[i].0` with phases
     /// `groups[i].1`) as one: its parity from the coherent sum of its rotations, the fault (if
@@ -631,21 +675,7 @@ impl Program {
     /// The proposal's probability of odd parity for a group, from its members' toggles with
     /// nothing fired: the coherent share |S₁|² / (|S₀|² + |S₁|²), mixed with the twirl's.
     pub(crate) fn odd_proposal(taus: &[C]) -> f64 {
-        let (mut plus, mut minus, mut nplus, mut nminus) = (C::ONE, C::ONE, 1.0, 1.0);
-        for &t in taus {
-            plus = plus * (C::ONE + t);
-            minus = minus * (C::ONE - t);
-            nplus *= 1.0 + t.norm2();
-            nminus *= 1.0 - t.norm2();
-        }
-        let (s0, s1) = ((plus + minus).scale(0.5).norm2(), (plus - minus).scale(0.5).norm2());
-        let coherent = if s0 + s1 > 0.0 { s1 / (s0 + s1) } else { 0.0 };
-        // The odd subsets have norm (nplus - nminus) / 2, out of total norm nplus.
-        // Dividing by the even norm instead gives odds, which can exceed one.
-        let twirl = 0.5 * (1.0 - nminus / nplus);
-        let probability = COHERENT_SHARE * coherent + (1.0 - COHERENT_SHARE) * twirl;
-        debug_assert!(probability.is_finite() && (0.0..=1.0).contains(&probability));
-        probability.clamp(0.0, 1.0)
+        ParitySums::new(taus.iter().copied()).proposal()
     }
 }
 
@@ -975,6 +1005,47 @@ mod tests {
             assert!((0.0..=1.0).contains(&got));
             assert!((got - expected).abs() < 1e-14, "{angles:?}: {got} != {expected}");
         }
+    }
+
+    #[test]
+    fn long_group_proposals_are_analytic_probabilities() {
+        let cases = [
+            vec![1.6_f64; 110], vec![1.6; 150], vec![-1.6; 150],
+            [1.6, -0.2, 0.03].repeat(50), [1.6, -1.6].repeat(75),
+            vec![0.001; 150], [vec![0.75, -0.75].repeat(55), vec![0.2]].concat(),
+        ];
+        for angles in cases {
+            let coherent = angles.iter().sum::<f64>().sin().powi(2);
+            let twirl = 0.5 * (1.0 - angles.iter().map(|a| (2.0 * a).cos()).product::<f64>());
+            let expected = COHERENT_SHARE * coherent + (1.0 - COHERENT_SHARE) * twirl;
+            let taus: Vec<C> = angles.iter().map(|a| C::new(0.0, a.tan())).collect();
+            let got = Program::odd_proposal(&taus);
+            assert!(got.is_finite() && (0.0..=1.0).contains(&got), "{got}");
+            assert!((got - expected).abs() < 2e-12, "{}: {got} != {expected}", angles.len());
+        }
+    }
+
+    #[test]
+    fn scaled_parity_sums_preserve_complex_amplitudes_and_twirl_masses() {
+        let taus = [C::new(0.0, 4.0), C::new(0.3, -0.2), C::new(-1.2, 0.0), C::new(0.0, -2.1)];
+        let mut amplitude = [C::ZERO; 2];
+        let mut mass = [0.0; 2];
+        for mask in 0usize..1 << taus.len() {
+            let value = taus.iter().enumerate().filter(|(i, _)| mask >> i & 1 != 0).fold(C::ONE, |v, (_, t)| v * *t);
+            let parity = mask.count_ones() as usize % 2;
+            amplitude[parity] = amplitude[parity] + value;
+            mass[parity] += value.norm2();
+        }
+        let sums = ParitySums::new(taus);
+        let total = mass[0] + mass[1];
+        for (got, expected) in [sums.even, sums.odd].into_iter().zip(amplitude) {
+            let restored = got.scale(sums.log_scale.exp() * total.sqrt());
+            assert!((restored - expected).norm2() < 1e-26);
+        }
+        assert!((sums.neven - mass[0] / total).abs() < 1e-15);
+        assert!((sums.nodd - mass[1] / total).abs() < 1e-15);
+        let expected = COHERENT_SHARE * amplitude[1].norm2() / (amplitude[0].norm2() + amplitude[1].norm2()) + (1.0 - COHERENT_SHARE) * mass[1] / total;
+        assert!((sums.proposal() - expected).abs() < 1e-15);
     }
 
     #[test]

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import math
 import pathlib
 import shutil
 import subprocess
@@ -68,6 +69,33 @@ def test_merged_large_rotations_keep_both_parities(a, b):
     rate, se = sq.weighted_rate(d[:, 0], w)
     assert abs(rate - exact_marginals(c)[0]) < 5 * se
     assert abs(w.mean() - 1) < 5 * w.std() / np.sqrt(len(w))
+
+
+@pytest.mark.parametrize("angles", [
+    [1.6] * 110,
+    [1.6] * 150,
+    [-1.6] * 150,
+    [1.6, -0.2, 0.03] * 50,
+    [1.6, -1.6] * 75,
+    [0.001] * 150,
+    [0.75, -0.75] * 55 + [0.2],
+], ids=["110-large", "150-large", "150-negative", "mixed", "cancellation", "small", "cancel-then-small"])
+def test_long_merged_groups_have_finite_normalized_analytic_weights(angles):
+    text = "R 0\n" + "".join(f"I_ERROR[R_X(theta={a})] 0\n" for a in angles) + "M 0\nDETECTOR rec[-1]"
+    c = sq.Circuit(text)
+    exact = exact_marginals(c)[0]
+    analytic = math.sin(math.fsum(angles)) ** 2
+    assert abs(exact - analytic) < 1e-11
+    sampler = c.compile_coherent_sampler(seed=42)
+    assert sampler.exact_weights
+    d, _, w = sampler.sample(30_000, threads=1)
+    assert np.isfinite(w).all() and (w >= 0).all()
+    rate, se = sq.weighted_rate(d[:, 0], w)
+    assert abs(rate - exact) < 6 * se + 1e-11, (rate, exact, se)
+    assert abs(w.mean() - 1) < 6 * w.std() / np.sqrt(len(w)) + 1e-11
+    twirl = 0.5 * (1 - math.prod(math.cos(2 * a) for a in angles))
+    proposal = 0.9 * analytic + 0.1 * twirl
+    assert abs(d.mean() - proposal) < 6 * math.sqrt(proposal * (1 - proposal) / len(w)) + 1 / len(w)
 
 
 def test_coherent_errors_are_not_their_twirl():
