@@ -543,8 +543,10 @@ impl RelayBp {
 /// weight matching of it found by PyMatching 2.2.2's sparse blossom (the matcher Chromobius
 /// 1.1.1 links, ported exactly: its edges in its order, which the lifting depends on), and the
 /// matching lifted back to the code by carrying colour charge around its cycles. Predictions
-/// and weights equal to the `chromobius` package's (on macOS on every shot checked; elsewhere
-/// Chromobius's `std::unordered_map` order may drag charge another way on some shots).
+/// and weights agreed with the `chromobius` package on the recorded 65,000-shot macOS colour-
+/// code corpus. Other graphs can choose different equal-weight liftings and observable
+/// predictions on any platform, including macOS: native hash-table traversal and this port's
+/// ordered tables can select different tied paths. This does not establish a worse optimum.
 ///
 /// The model's detectors need Chromobius's annotation: a 4th coordinate giving the basis and
 /// colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; −1 to ignore the detector), as
