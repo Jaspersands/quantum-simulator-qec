@@ -7,7 +7,7 @@ PyMatching draws its regions in heap-address order (``std::set<GraphFillRegion *
 port can reproduce, so a frame is compared as its lines sorted. The frame names, their count,
 stderr and the return value must be PyMatching's.
 
-The frames are exact on macOS arm64, where they were recorded. PyMatching's own wheels draw
+The recorded finite frames are exact on macOS arm64, where they were recorded. PyMatching's own wheels draw
 differently elsewhere, and so does this port, as each does on its platform: a C++ build fuses
 ``a * b + c`` into one rounding on aarch64 but not on x86-64, polygon corners at equal angles
 come out in the order the platform's ``std::sort`` leaves them (libc++, libstdc++, Microsoft's),
@@ -348,3 +348,75 @@ def test_module_and_package_command_lines(tmp_path):
         assert _frames(tmp_path / "out") == rec["frame_names"]
     r = subprocess.run([sys.executable, "-m", "stabilizer_qec", "help", "animate"], capture_output=True)
     assert r.returncode == 0 and b"--pixels_per_unit_length" in r.stdout
+
+
+def _edge_args(tmp_path, raw=MESSAGE_MODEL.encode()):
+    (tmp_path / "edge.dem").write_bytes(raw)
+    (tmp_path / "edge.hits").write_bytes(b"0\n")
+    return ["animate", "--dem_in", str(tmp_path / "edge.dem"), "--dets_in", str(tmp_path / "edge.hits"), "--dets_in_format", "hits", "--out_dir", str(tmp_path / "out"), "--quiet"] + FRAME_FLAGS
+
+
+@pytest.mark.parametrize("raw", [b"error(0.1) D0\vD1\n", b"error(0.1) D0\f\n", b"error(\r0.1) D0\n"])
+def test_command_control_whitespace_is_refused(raw, tmp_path, capsys):
+    assert _run(_edge_args(tmp_path, raw), capsys)[0] == 1
+    assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("raw", [b"\v\ferror(0.1) D0\n", b"error(0.1)\rD0\n", b"# comment\v\f\r\xff\nerror[ordinary](0.1) D0\n", b"repeat 1 {\v\f\nerror(0.1) D0\n}\v\f\n"])
+def test_between_commands_controls_and_tags_are_preserved(raw, tmp_path, capsys):
+    assert _run(_edge_args(tmp_path, raw), capsys) == (0, "")
+    assert _frames(tmp_path / "out")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX ENAMETOOLONG semantics; native MSVC wording is not reproduced")
+def test_stat_failure_is_distinct_from_create_directory(tmp_path, capsys):
+    args = _edge_args(tmp_path)
+    args[args.index("--out_dir") + 1] = str(tmp_path / ("x" * 300))
+    # Native library/OS wording and long diagnostic truncation are not portable; the operation
+    # is status (libstdc++) / posix_stat (libc++), never create_directory.
+    with pytest.raises(RuntimeError, match="status|posix_stat") as ex:
+        pymatching.cli(command_line_args=args)
+    assert "create_directory" not in str(ex.value)
+    assert os.strerror(errno.ENAMETOOLONG) in str(ex.value)
+    assert package_main(args) == 1
+    assert "Traceback" not in capsys.readouterr().err
+
+
+@pytest.mark.skipif(sys.platform == "win32" or getattr(os, "geteuid", lambda: 0)() == 0, reason="requires POSIX directory permissions and a non-root user")
+def test_inaccessible_parent_is_a_stat_failure(tmp_path):
+    args = _edge_args(tmp_path)
+    parent = tmp_path / "private"
+    parent.mkdir()
+    args[args.index("--out_dir") + 1] = str(parent / "out")
+    parent.chmod(0)
+    try:
+        with pytest.raises(RuntimeError, match="status|posix_stat") as ex:
+            pymatching.cli(command_line_args=args)
+        assert os.strerror(errno.EACCES) in str(ex.value)
+    finally:
+        parent.chmod(0o700)
+
+
+def test_large_halfway_coordinate_frame(tmp_path, capsys):
+    # PyMatching 2.4.0 macOS arm64 audit fixture: this creates the f32 value 1000005.
+    raw = b"detector(0,0) D0\ndetector(9896,0) D1\nerror(0.1) D0 D1\nerror(0.1) D0\nerror(0.1) D1\n"
+    args = _edge_args(tmp_path, raw)
+    args[args.index("--pixels_per_unit_length") + 1] = "101"
+    args[args.index("--held_frames_at_start") + 1] = "0"
+    args[args.index("--max_growth_between_frames") + 1] = "50"
+    (tmp_path / "edge.hits").write_bytes(b"1\n")
+    assert _run(args, capsys) == (0, "")
+    got = (tmp_path / "out" / "frame_00000.svg").read_text().splitlines()
+    want = (FIXTURES / "large_tie_frame.svg").read_text().splitlines()
+    assert _same_frame(sorted(got), sorted(want))
+    if sys.platform == "darwin":
+        assert 'cx="1.00000e+06"' in "\n".join(got)
+
+
+def test_overflow_coordinates_have_bounded_success_without_byte_parity(tmp_path, capsys):
+    # Native non-total NaN set ordering is deliberately not imitated or asserted equal.
+    raw = b"error(0.1) D0 D1\nerror(0.1) D0\nerror(0.1) D1\ndetector(-1e39,0) D0\ndetector(1e39,0) D1\n"
+    assert _run(_edge_args(tmp_path, raw), capsys) == (0, "")
+    frames = _frames(tmp_path / "out")
+    assert 0 < len(frames) < 1000
+    assert "nan" in (tmp_path / "out" / frames[0]).read_text()

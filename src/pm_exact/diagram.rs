@@ -21,7 +21,10 @@
 //! PyMatching's own program built from its sdist for arm64 (Apple clang 21) fuses the same
 //! products and draws every recorded frame as the wheel does; built for x86-64 (as an x86-64
 //! `cmake` configures it by default, run under Rosetta), it fuses nothing, and some numbers then
-//! differ in their sixth digit.
+//! differ in their sixth digit. Equality claims cover the recorded finite, bounded coordinate
+//! fixtures, not arbitrary coordinates: projection, growth or f32 conversion can overflow,
+//! producing NaN corners for which native std::set ordering is not a total order. This port
+//! keeps its deterministic sort/dedup behavior instead of imitating that undefined ordering.
 //!
 //! PyMatching draws regions (and their tree nodes) in heap-address order
 //! (`std::set<GraphFillRegion *>`); here they are drawn in arena-slot order. A frame's lines are
@@ -86,6 +89,21 @@ fn put(out: &mut String, x: f32) {
     } else if x == 0.0 && x.is_sign_negative() {
         out.push_str("-0");
     } else {
+        // Apple's %g retains the six-digit mantissa when an exact decimal halfway rounds
+        // down in scientific notation. For f32 this can only occur at integral magnitudes:
+        // each finite f32 integer fits u128, so test the tie exactly without locale/FFI.
+        // Other runtimes keep their existing formatter; no claim of universal libc parity.
+        if cfg!(target_os = "macos") && x.is_finite() && x.abs() >= 1_000_000.0 && x.fract() == 0.0 {
+            let n = x.abs() as u128;
+            let quantum = 10u128.pow(n.ilog10() - 5);
+            if n % quantum == quantum / 2 && (n / quantum) % 2 == 0 {
+                let sci = format!("{x:.5e}");
+                let (mantissa, exp) = sci.split_once('e').expect("an exponent");
+                let exp: u32 = exp.parse().expect("a positive exponent");
+                let _ = write!(out, "{mantissa}e+{exp:02}");
+                return;
+            }
+        }
         out.push_str(&crate::dem_program::fmt_g(x, 6));
     }
 }
@@ -547,6 +565,26 @@ mod tests {
             s.push(' ');
         }
         assert_eq!(s, "4 12.5 184.77 1.23457e+06 0.0001 1e-05 -0 ");
+    }
+
+    #[test]
+    fn large_exact_halfway_numbers() {
+        // Recorded Apple libc behavior; the portable formatter on other hosts trims zeros.
+        for (x, apple, other) in [
+            (1000000.0f32, "1e+06", "1e+06"),
+            (1000004.0, "1e+06", "1e+06"),
+            (1000005.0, "1.00000e+06", "1e+06"),
+            (-1000005.0, "-1.00000e+06", "-1e+06"),
+            (1000006.0, "1.00001e+06", "1.00001e+06"),
+            (1000015.0, "1.00002e+06", "1.00002e+06"),
+            (1000105.0, "1.00010e+06", "1.0001e+06"),
+            (9999995.0, "1e+07", "1e+07"),
+            (10000050.0, "1.00000e+07", "1e+07"),
+        ] {
+            let mut s = String::new();
+            put(&mut s, x);
+            assert_eq!(s, if cfg!(target_os = "macos") { apple } else { other }, "{x}");
+        }
     }
 
     fn line(n: usize) -> Graph {

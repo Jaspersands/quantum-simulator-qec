@@ -564,12 +564,16 @@ DESCRIPTION
     with PyMatching's `Unknown tentative event type.` (exit 1) after the frames before it. An
     --out_dir that cannot be made, or a shot index too big for 64 bits, is reported as
     `stabilizer-qec animate: <message>` (exit 1), where PyMatching's program aborts.
+    Frame write/close failures stop with a diagnostic (exit 1), instead of native ofstream's
+    silent truncated success. Frame equality is limited to supported finite drawing coordinates;
+    float32 overflow can produce NaN polygons whose native ordered-set behavior is not total.
     Also `python -m stabilizer_qec.pymatching animate ...`.
 
 OPTIONS
     --dem_in
         The detector error model whose graph is matched (with 1000 weight levels, as PyMatching's
-        animation builds it); its detectors' first two coordinates place them on the page.
+        animation builds it); all detector coordinates place them on the page: the first two as
+        x/y, further coordinates projected onto them; an unplaced detector uses its index.
 
     --dets_in
         The detection events; only the first shot is drawn, and the file is not read to its end
@@ -788,7 +792,7 @@ def main(argv: Optional[List[str]] = None, *, command_line_args: Optional[List[s
 
         try:
             return _animate([command] + rest)
-        except RuntimeError as ex:  # what PyMatching's program aborts on (and its cli raises), said as ours are
+        except (RuntimeError, OSError) as ex:  # what PyMatching's program aborts on (and its cli raises), said as ours are
             print(f"stabilizer-qec {command}: {ex}", file=sys.stderr)
             return 1
     try:

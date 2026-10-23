@@ -20,6 +20,9 @@ Where it differs from Tesseract's program:
   reports it) with no core dump.
 - ``--out`` to a file that cannot be opened: Tesseract's program writes through a null file
   (and crashes); here it stops with ``Failed to open <path>``, as for ``--dem-out``.
+- Prediction write/close OSError produces a controlled ``tesseract: ...`` diagnostic and
+  exit 1; cleanup preserves the primary failure. Native binary I/O failure policy has not been
+  independently run, so this does not assert exact native behavior.
 - ``--max-errors``: once the shots it takes in order reach the limit, Tesseract's program stops
   its threads from starting more, but keeps taking every shot they had already decoded, how
   many depending on timing (even with ``--threads 1``, as it looks for finished shots every
@@ -763,7 +766,13 @@ def _run(a: _Args, parser: _Parser) -> None:
         _decode(a, dem, sources, dets, obs, writer)
     finally:
         if writer is not None:
-            writer.close()
+            if sys.exc_info()[0] is None:
+                writer.close()
+            else:
+                try:
+                    writer.close()
+                except OSError:
+                    pass  # preserve the decoding/write error already in flight
 
 
 def _decode(a: _Args, dem: Any, sources: Any, dets: np.ndarray, obs: np.ndarray, writer: Optional[_Writer]) -> None:
@@ -909,6 +918,13 @@ def _decode(a: _Args, dem: Any, sources: Any, dets: np.ndarray, obs: np.ndarray,
         )
 
 
+def _flush_before_error() -> None:
+    try:
+        sys.stdout.flush()
+    except OSError:
+        pass  # do not replace the primary failure with a cleanup error
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """Tesseract's program on ``argv`` (the command line's arguments by default): its exit
     status."""
@@ -928,21 +944,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     _redirects[0] += 1
     try:
         _run(args, parser)
-    except _Abort as e:
         sys.stdout.flush()
+    except OSError as e:
+        _flush_before_error()
+        sys.stderr.write(f"tesseract: {e}\n")
+        return 1
+    except _Abort as e:
+        _flush_before_error()
         sys.stderr.write(_terminate(e.kind, str(e)))
         return 134
     except (ValueError, IndexError, OverflowError, UnicodeDecodeError) as e:
-        sys.stdout.flush()
+        _flush_before_error()
         sys.stderr.write(_terminate("std::invalid_argument", str(e)))
         return 134
     except RuntimeError as e:
-        sys.stdout.flush()
+        _flush_before_error()
         sys.stderr.write(_terminate("std::runtime_error", str(e)))
         return 134
     finally:
         _redirects[0] -= 1
-        sys.stdout.flush()
     return 0
 
 

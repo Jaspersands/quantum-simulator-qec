@@ -5,6 +5,7 @@ gives ``Matching`` (this package's, which is PyMatching 2.4's API), ``set_seed``
 
 from __future__ import annotations
 
+import errno
 import os
 import sys
 from typing import List, Optional
@@ -34,6 +35,9 @@ def cli(*, command_line_args: list) -> int:
     file, a shot it cannot read, a frame it cannot write, or a run with no perfect matching
     (``Unknown tentative event type.``, after the frames before it); an ``--out_dir`` it
     cannot create raises RuntimeError with the filesystem's message, as PyMatching's does.
+    Write/close failures are reported instead of native ofstream's silent truncated success.
+    Frame equality is limited to supported finite float32 drawing coordinates: overflow can
+    produce NaN polygon corners, for which the native ordered set has no total comparator.
     (PyMatching's usage line lists ``--max_edge_weight``, which its ``animate`` refuses.)
     """
     args = list(command_line_args)
@@ -390,12 +394,18 @@ def _read_first_shot(s: _Stream, fmt: str, nd: int, no: int) -> Optional[List[in
 
 def _filesystem_error(op: str, ex: OSError, path: str) -> RuntimeError:
     """The ``std::filesystem_error`` PyMatching's program aborts on (its ``cli``, RuntimeError),
-    worded as the platform's C++ library words it, with the reason from the OS's own errno for the
-    same ``mkdir``: libstdc++ on Linux (where ``mkdir("file/")`` fails EEXIST; macOS fails it
+    with operation names following the platform's C++ library and the OS's errno reason for the
+    same operation: libstdc++ on Linux (where ``mkdir("file/")`` fails EEXIST; macOS fails it
     ENOTDIR), libc++ elsewhere. PyMatching's Windows wheel is built with MSVC, whose STL words it
     ``create_directory: <Win32 message>: "<path>"``; that wording is not reproduced, and Windows
-    gets libc++'s."""
+    gets libc++'s. The pinned macOS wheel omits the final bracket for the tested 300-character
+    component (native formatting rule not isolated); this helper retains it. OS text is only
+    checked on the executed host."""
     reason = os.strerror(ex.errno) if ex.errno else str(ex)
+    if op == "posix_stat":
+        if sys.platform.startswith("linux"):
+            return RuntimeError(f"filesystem error: status: {reason} [{path}]")
+        return RuntimeError(f'filesystem error: in posix_stat: failed to determine attributes for the specified path: {reason} ["{path}"]')
     if sys.platform.startswith("linux"):
         return RuntimeError(f"filesystem error: cannot {op.replace('_', ' ')}: {reason} [{path}]")
     return RuntimeError(f'filesystem error: in {op}: {reason} ["{path}"]')
@@ -412,14 +422,46 @@ def _animate(argv: List[str]) -> int:
     return 0
 
 
-# Stim reads a model's bytes: a byte past ASCII is part of a comment or a tag, or is refused,
-# being no space, digit or letter. Each such byte reaches the parsers as a character of its own in
-# the private-use range (0x80 as U+F780, ..., 0xFF as U+F7FF), which they do not read as a space,
-# digit or letter either. So a model with any bytes in its comments and tags, UTF-8 or not, parses
-# as Stim parses it, and one with such a byte elsewhere is refused. (Latin-1 would make 0x85 and
-# 0xA0 spaces, and accept the model.) A refusal shows each byte as its Latin-1 character.
+# Stim reads bytes. Map high bytes away from Unicode whitespace/digits outside comments/tags;
+# leave comment/tag structure unchanged. This follows ASCII/C-locale spacing, not every
+# locale's isspace (notably a leading 0xA0 can be locale-dependent in the native program).
+# The narrow validator below handles ASCII controls Python/Rust otherwise accept too broadly.
 _BYTE_CHARS = {b: 0xF700 + b for b in range(0x80, 0x100)}
 _BYTE_CHARS_BACK = {0xF700 + b: b for b in range(0x80, 0x100)}
+
+
+def _validate_animate_whitespace(text: str) -> None:
+    """Check command spacing only; do not rewrite comment or tag contents."""
+    start, parens, tag, comment, escaped, line = True, False, False, False, False, 1
+    for c in text:
+        if c == "\n":
+            line += 1
+            start, comment = True, False
+            continue
+        if comment:
+            continue
+        if tag:
+            if escaped:
+                escaped = False
+            elif c == "\\":
+                escaped = True
+            elif c == "]":
+                tag = False
+            continue
+        if c == "#":
+            comment = True
+        elif c == "[":
+            tag = True
+        elif (c in "\v\f" and not start) or (c == "\r" and parens):
+            raise _InvalidArgument(f"line {line}: invalid whitespace 0x{ord(c):02X} inside a detector error model instruction")
+        elif c in "{}":
+            start = True
+        elif c == "(":
+            start, parens = False, True
+        elif c == ")":
+            parens = False
+        elif c not in " \t\r\v\f":
+            start = False
 
 
 def _animate_or_raise(argv: List[str]) -> None:
@@ -448,6 +490,7 @@ def _animate_or_raise(argv: List[str]) -> None:
 
         # The model's own text, read whole, as DetectorErrorModel::from_file reads it.
         dem_text = _Stream(opened[1]).read().decode("latin-1").translate(_BYTE_CHARS)
+        _validate_animate_whitespace(dem_text)
         try:
             dem = DetectorErrorModel(dem_text)
         except ValueError as ex:
@@ -464,7 +507,14 @@ def _animate_or_raise(argv: List[str]) -> None:
     # The graph from the file's text, not the model printed again (whose numbers keep 16 digits).
     animation = call(_core.PmAnimation, dem_text, [[float(c) for c in coords.get(k, [])] for k in range(nd)], pixels)
 
-    if not os.path.exists(out_dir):
+    try:
+        os.stat(out_dir)
+        exists = True
+    except OSError as ex:
+        if ex.errno not in (errno.ENOENT, errno.ENOTDIR):
+            raise _filesystem_error("posix_stat", ex, out_dir) from None
+        exists = False
+    if not exists:
         try:
             os.mkdir(out_dir)
         except OSError as ex:
@@ -478,8 +528,20 @@ def _animate_or_raise(argv: List[str]) -> None:
             f = open(path, "w", encoding="utf-8")  # text mode, as PyMatching's ofstream
         except OSError:
             raise _InvalidArgument(f"Failed to open {path} to write.") from None
-        with f:
-            f.write(svg)
+        try:
+            try:
+                f.write(svg)
+            except BaseException:
+                # A second failure while flushing/closing must not hide the write error.
+                try:
+                    f.close()
+                except OSError:
+                    pass
+                raise
+            else:
+                f.close()
+        except OSError as ex:
+            raise _InvalidArgument(f"Failed to write {path}: {ex}") from None
         if not quiet:
             print(f"wrote {path}", file=sys.stderr)
         written[0] += 1

@@ -1,0 +1,9 @@
+<svg width="1000516" height="8" version="1.1" xmlns="http://www.w3.org/2000/svg">
+ <path d="M 0 0 L 1000516 0 L 1000516 8 L 0 8 Z" fill="white" stroke="#CCC"/>
+ <line x1="509" x2="4" y1="4" y2="4" stroke-dasharray="4 2" stroke="#FAA"/>
+ <line x1="509" x2="1.00000e+06" y1="4" y2="4" stroke="#CCC"/>
+ <line x1="1.00000e+06" x2="1.00051e+06" y1="4" y2="4" stroke-dasharray="4 2" stroke="#FAA"/>
+ <circle cx="509" cy="4" r="3" stroke="none" fill="#CCC"/>
+ <path d="M1.00002e+06 4 L974993 4  z" stroke="none" fill="#FF000080"/>
+ <circle cx="1.00000e+06" cy="4" r="3" stroke="none" fill="red"/>
+</svg>
