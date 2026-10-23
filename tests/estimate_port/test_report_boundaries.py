@@ -124,6 +124,27 @@ def test_rich_fragment_policy_and_balance(fragment):
     assert not balanced.stack
 
 
+@pytest.mark.parametrize('error', [ValueError, AssertionError, NotImplementedError])
+def test_rejected_marked_section_discards_partial_markup(error, monkeypatch):
+    # Older Python (including 3.9.13) calls ParserBase.error from parse_marked_section;
+    # recent versions raise AssertionError directly. Force each rejection through feed's
+    # real declaration dispatch, after it has emitted a permitted opening tag.
+    def reject(self, index, report=1):
+        assert self.rawdata[index:].startswith('<![unknown[')
+        assert self.stack == ['p']
+        raise error('unknown status keyword in marked section')
+
+    # New HTMLParser versions no longer dispatch unknown marked sections to this method.
+    monkeypatch.setattr(HTMLParser, 'parse_html_declaration', lambda self, index: self.parse_marked_section(index))
+    monkeypatch.setattr(HTMLParser, 'parse_marked_section', reject)
+    fragment = '<p>prefix & <![unknown[malformed declaration]]><strong>suffix</strong>'
+    result = rep._MarkdownFragment().fragment(fragment)
+    parsed = Parsed(result)
+    assert parsed.starts == []
+    assert ''.join(parsed.text) == fragment
+    assert result == '&lt;p&gt;prefix &amp; &lt;![unknown[malformed declaration]]&gt;&lt;strong&gt;suffix&lt;/strong&gt;'
+
+
 def test_default_math_assumption_and_https_formatting():
     if not rep.has_markdown:
         pytest.skip('optional markdown and mdx_math are absent')

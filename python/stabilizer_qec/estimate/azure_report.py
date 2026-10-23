@@ -140,8 +140,9 @@ class _MarkdownFragment(HTMLParser):
         try:
             self.feed(value)
             self.close()
-        except (ValueError, AssertionError):
-            # HTMLParser rejects some malformed declarations; keep that whole fragment inert.
+        except (ValueError, AssertionError, NotImplementedError):
+            # Python 3.9.13 routes malformed marked sections through ParserBase.error(),
+            # which raises NotImplementedError. Keep the whole fragment inert on every version.
             return _report_text(value)
         self.output.extend("</" + tag + ">" for tag in reversed(self.stack))
         return "".join(self.output)
