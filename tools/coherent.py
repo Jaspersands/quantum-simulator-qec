@@ -127,7 +127,7 @@ def parse_args(argv: list) -> tuple:
             field, eq, values = spec.partition("=")
             if not eq or not field or "" in values.split(","):
                 raise UsageError(f"--only {spec}: expected field=value[,value...], such as --only d=3 or --only theta=0.02,0.04")
-            only[field] = set(values.split(","))
+            only.setdefault(field, set()).update(values.split(","))
         elif arg.startswith("-"):
             raise UsageError(f"unknown option {arg}")
         elif arg not in (*SECTIONS, "all"):

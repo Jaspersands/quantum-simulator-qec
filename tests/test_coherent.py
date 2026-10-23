@@ -673,6 +673,19 @@ def test_the_data_tool_stamps_every_row(tmp_path, monkeypatch):
     tool.KEPT.clear()
 
 
+
+def test_repeated_only_unions_same_field_and_intersects_different_fields():
+    tool = coherent_tool()
+    repeated = ["sweep", "--only", "d=3", "--only", "d=5,7", "--only", "d=3", "--only", "theta=0.01"]
+    names, only = tool.parse_args(repeated)
+    assert (names, only) == tool.parse_args(["sweep", "--only", "d=3,5,7", "--only", "theta=0.01"])
+    tool.ONLY.update(only)
+    assert [key for key in tool.grid("sweep") if tool.wanted(key)] == [
+        {"d": d, "rounds": d, "theta": 0.01} for d in (3, 5, 7)
+    ]
+    with pytest.raises(tool.UsageError, match="expected field=value"):
+        tool.parse_args(["sweep", "--only", "d=3", "--only", "d=5,"])
+
 def test_the_data_tool_refuses_a_bad_only_before_measuring(tmp_path, monkeypatch, capsys):
     """--only names rows by their fields. A field a section's rows lack, a value without '=', a
     value no row has and a row the file lacks are refused with the reason and exit status 2,
