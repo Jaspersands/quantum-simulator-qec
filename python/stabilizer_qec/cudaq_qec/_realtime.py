@@ -208,14 +208,26 @@ def _create(cfg: decoder_config) -> _RealtimeDecoder:
     text = _read_stim_dem(cfg) if cfg.stim_dem_path else ""
 
     # prepare_decoder_params: the parameters (non-schema keys dropped, defaults filled in), the
-    # device, and for PyMatching the observable matrix (so that it decodes to observables).
+    # device, and for PyMatching and TRT the observable matrix (so they decode to observables).
     params = _config._plain(cfg._args_for_decoder())
     if cfg.cuda_device_id is not None:
         params["cuda_device_id"] = cfg.cuda_device_id
+    trt = cfg.type == "trt_decoder"
+    global_decoder = params.get("global_decoder", "") if trt else ""
+    if trt and params.get("batch_size", 1) > 1:
+        _warn("trt_decoder batch_size > 1 has no effect on the realtime decode path "
+              "(one syndrome is decoded per call); the extra batch slots are "
+              "zero-padded and discarded. Use batch_size = 1 for realtime.")
+    if global_decoder:
+        params.setdefault("global_decoder_params", {})
+        if text:
+            params["global_decoder_params"]["stim_dem"] = text
     num_obs = O.count(-1)
-    pymatching_obs = cfg.type == "pymatching" and bool(O) and num_obs > 0
-    if pymatching_obs:
+    decoder_obs = cfg.type in ("pymatching", "trt_decoder") and bool(O) and num_obs > 0
+    if decoder_obs:
         params["O"] = pcm_from_sparse_vec(O, num_obs, cfg.block_size)
+        if global_decoder == "pymatching":
+            params["global_decoder_params"]["O"] = params["O"]
     # The phases carry a prior per fault, which the derived matrices do not. A hand-written flat
     # configuration would have had to pass these through decoder_custom_args, so supply them here
     # for the ones that did not.
@@ -255,11 +267,11 @@ def _create(cfg: decoder_config) -> _RealtimeDecoder:
             model_obs, _cols, O_model = _rows_of(params.pop("O"))
         if "error_rate_vec" in params:
             rates = [float(x) for x in np.asarray(params.pop("error_rate_vec"), dtype=np.float64).reshape(-1)]
-        decoder = _build(cfg.type, _Inputs(m, n, cols, O_model, model_obs, rates), params, pymatching_obs)
+        decoder = _build(cfg.type, _Inputs(m, n, cols, O_model, model_obs, rates), params, decoder_obs)
 
     rt = _RealtimeDecoder(decoder, did)
     if O:
-        if not pymatching_obs:
+        if not decoder_obs:
             rt.set_O_sparse(O)
     elif text and rt.num_observables() == 0:
         # (The DEM form names no O_sparse and a decoder returning errors installs none: the

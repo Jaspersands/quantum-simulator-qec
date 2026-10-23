@@ -125,7 +125,34 @@ def _canonical(col: List[int]) -> List[int]:
 def _from_python(value: Any) -> _Mat:
     """``sparse_binary_matrix_from_python``: a scipy sparse matrix (any format) or a dense array."""
     if hasattr(value, "tocsr"):
-        csr = value.tocsr().copy()
+        csr = value.tocsr()
+        # Validate before scipy normalization: malformed row offsets must never reach its
+        # compiled indexing loops. Keep the reference caster/from_csr exception contract.
+        nrows, ncols = (int(x) for x in csr.shape)
+        for field in ("indptr", "indices"):
+            arr = np.asarray(getattr(csr, field))
+            if arr.ndim != 1 or arr.dtype not in (np.dtype("int32"), np.dtype("int64"), np.dtype("uint32"), np.dtype("uint64")):
+                raise RuntimeError("scipy sparse matrix indptr/indices has unsupported dtype; expected int32, int64, uint32, or uint64.")
+            if np.any(arr < 0):
+                raise RuntimeError(f"{field} contains a negative index")
+            if np.any(arr > _U32):
+                largest = int(arr.max())
+                raise RuntimeError(f"{field} exceeds sparse_binary_matrix index_type (uint32_t) range; got {largest}")
+        indptr, indices = csr.indptr.tolist(), csr.indices.tolist()
+        prefix = "sparse_binary_matrix::from_csr: "
+        if len(indptr) != nrows + 1:
+            raise ValueError(prefix + "row_ptrs must have size num_rows + 1")
+        if indptr[0] != 0:
+            raise ValueError(prefix + "row_ptrs[0] must be zero")
+        if any(a > b for a, b in zip(indptr, indptr[1:])):
+            raise ValueError(prefix + "row_ptrs must be non-decreasing")
+        if indptr[-1] != len(indices):
+            raise ValueError(prefix + "last row_ptr must equal nnz (col_indices.size())")
+        if any(c >= ncols for c in indices):
+            raise ValueError(prefix + "column index out of range")
+        if len(csr.data) != len(indices):
+            raise ValueError(prefix + "data and col_indices must have equal size")
+        csr = csr.copy()
         csr.sum_duplicates()
         csr.eliminate_zeros()
         csr.sort_indices()
@@ -165,7 +192,9 @@ class CssCodes:
 
     Each matrix column corresponds to one data qubit. Assign each matrix from a dense NumPy array
     or a scipy sparse matrix, or build the whole set with ``css_matrices_from_code()``. Reading a
-    matrix back returns a dense uint8 NumPy array."""
+    matrix back returns a dense uint8 NumPy array. Dense array-like values (including nested
+    lists) are converted with ``np.asarray(...).astype(np.uint8)`` before testing nonzero
+    support; this is broader than the upstream dense object's ``astype`` method requirement."""
 
     def __init__(self) -> None:
         self._hz = self._hx = self._lz = self._lx = _Mat()

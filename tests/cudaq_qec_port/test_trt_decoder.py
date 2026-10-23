@@ -198,8 +198,9 @@ def test_load_onnx_reads_the_surface_model():
 # -- The evaluator against onnxruntime ------------------------------------------------------------
 
 # onnxruntime 1.31.0's outputs (CPU, macOS arm64), recorded by tools/cudaq_trt_models.py. The
-# evaluator computes float32 as MLAS does (its order of fused multiply-adds, its logistic), in
-# float64 arithmetic that is the same everywhere: the comparison is exact.
+# comparison is exact for these fixed fixtures and this chosen float32 accumulation order.
+# Computed B, weight-DQ fusion and other precision paths need not match ORT; see ONNX_CONTRACT.md
+# and test_correctness_regressions.py's mathematical oracles and threshold witness.
 RECORDED = np.load(os.path.join(MODELS, "ort_outputs.npz"))
 STEMS = sorted({k.split("__")[0] for k in RECORDED.files if not k.startswith("meta__")})
 
@@ -1086,6 +1087,40 @@ def test_yaml_round_trip():
     assert back.decoder_custom_args == dc.decoder_custom_args
     with pytest.raises(RuntimeError, match=re.escape("Parameter 'batch_size' of 'trt_decoder' expects a non-negative int value.")):
         dc.decoder_custom_args = {"onnx_load_path": "model.onnx", "batch_size": -1}
+
+
+@pytest.mark.parametrize("global_matching", [False, True])
+def test_realtime_predecoder_preserves_observable_output(tmp_path, global_matching):
+    # Output [pre_L, residual_dets], deliberately different from an error frame:
+    # O reads error 3, while the predecoder's first output reads syndrome 0.
+    W = np.array([[1, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.float32)
+    data = onnx_model([node("MatMul", ["x", "W"], ["y"])], [value_info("x", FLOAT, [1, 3])], [value_info("y", FLOAT, [1, 4])], [tensor("W", W, FLOAT)])
+    path = write(tmp_path, "predecoder.onnx", data)
+    H = np.array([[1, 1, 0, 0], [0, 1, 1, 0], [0, 0, 1, 1]], dtype=np.uint8)
+    O = np.array([[0, 0, 0, 1]], dtype=np.uint8)
+    params = dict(onnx_load_path=path, batch_size=1, use_cuda_graph=False)
+    if global_matching:
+        params.update(global_decoder="pymatching", global_decoder_params={})
+    direct_params = dict(params)
+    if global_matching:
+        direct_params["global_decoder_params"] = {"O": O}
+    direct = qec.get_decoder("trt_decoder", H, O=O, **direct_params)
+    dc = qec.decoder_config()
+    dc.id, dc.type, dc.block_size, dc.syndrome_size = 0, "trt_decoder", 4, 3
+    dc.H_sparse = [0, 1, -1, 1, 2, -1, 2, 3, -1]
+    dc.O_sparse = [3, -1]
+    dc.D_sparse = [0, -1, 1, -1, 2, -1]
+    dc.decoder_custom_args = params
+    config = qec.multi_decoder_config()
+    config.decoders = [dc]
+    try:
+        assert qec.configure_decoders(config) == 0
+        for syndrome in ([1, 0, 0], [0, 0, 1], [1, 1, 1], [0, 0, 0]):
+            qec.enqueue_syndromes(0, syndrome)
+            got = list(qec.get_corrections(0, 1, True))
+            assert got == (direct.decode(syndrome).result > 0.5).tolist()
+    finally:
+        qec.finalize_decoders()
 
 
 def test_configure_a_realtime_trt_decoder():

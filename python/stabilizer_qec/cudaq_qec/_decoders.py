@@ -675,7 +675,10 @@ def get_decoder(name: str, H: Any, **options: Any) -> Any:
     """A decoder by name, for the check matrix ``H`` (a dense array or a scipy sparse matrix)
     or a Stim detector error model given as text. ``O`` (the observable matrix) and
     ``error_rate_vec`` describe the model; ``output`` ("errors" or "observables") chooses what
-    a decode returns; the other keywords configure the decoder."""
+    a decode returns; the other keywords configure the decoder. For ``trt_decoder``, two-dimensional
+    numeric/bool O arrays of any memory order, nested lists and scipy sparse matrices use nonzero
+    entries as observable support. These useful coercions exceed CUDA-Q's uint8 tensor binding;
+    see ``ONNX_CONTRACT.md``."""
     return _get_decoder(name, H, options)
 
 

@@ -1345,8 +1345,7 @@ def _read_connection(io: _In, node: _yaml.Node) -> Tuple[SeamId, SeamId]:
     from_name = _read_name(io, node, valid, "from")
     to_name = _read_name(io, node, valid, "to")
     io.end(node, valid)
-    if io.ec:
-        return SeamId(), SeamId()
+    # Reference mapping traits register the names even when mapRequired failed.
     ids = SeamId(from_name), SeamId(to_name)
     _register_name(ids[0], from_name)
     _register_name(ids[1], to_name)
@@ -1375,8 +1374,7 @@ def _read_named(io: _In, node: _yaml.Node, read_spec: Callable[[_In, _yaml.Node]
     if isinstance(v, _yaml.Node):
         spec = read_spec(io, v)
     io.end(node, valid)
-    if io.ec:
-        return SeamId(), spec
+    # Registration is a mapping side effect, including unsuccessful mappings.
     sid = SeamId(name)
     _register_name(sid, name)
     return sid, spec

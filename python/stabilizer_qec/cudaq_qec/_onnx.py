@@ -1,10 +1,12 @@
 # This package's own reader and evaluator of ONNX models. The message and field numbers are those of
 # onnx/onnx.proto (Copyright (c) ONNX Project Contributors, Apache License 2.0); the operators'
-# results are onnxruntime's (its CPU kernels, its float8 conversion: Copyright (c) Microsoft
-# Corporation, MIT License), checked against outputs it recorded; see THIRD_PARTY_NOTICES.md.
+# kernels include arithmetic and float8 conversion adapted from onnxruntime (Copyright (c)
+# Microsoft Corporation, MIT License); see THIRD_PARTY_NOTICES.md and ONNX_CONTRACT.md.
 """ONNX models in numpy: ``load_onnx(path)`` reads a model (the protobuf wire format, read here:
 the ModelProto subset a feed-forward network uses) and ``OnnxModel.run(x)`` evaluates it on the
-CPU, as onnxruntime would.
+CPU with deterministic typed arithmetic. Exact agreement with recorded onnxruntime fixtures
+is a finite regression guarantee, not a general optimizer or TensorRT GPU parity claim. See
+``ONNX_CONTRACT.md`` for precision, supported versions, types and intentional coercions.
 
 The operators are those CUDA-Q QEC's ``trt_decoder`` models use: Gemm, MatMul, Add, Relu, Sigmoid,
 Identity, Cast, Reshape, Flatten, QuantizeLinear and DequantizeLinear (int8, uint8 and
@@ -248,7 +250,7 @@ def _to_fp8(x: np.ndarray, saturate: bool) -> np.ndarray:
     big = 126 if saturate else 0x7F
     out = np.where(e >= 136, big, np.where(e >= 121, v, np.where(e >= 117, s, 0)))
     out = np.where((b & 0x7FFFFFFF) == 0x7F800000, big, out)
-    out = np.where((b & 0x7FC00000) == 0x7FC00000, 0x7F, out)
+    out = np.where((e == 0xFF) & (m != 0), 0x7F, out)
     return (out | sign).astype(np.uint8)
 
 
@@ -376,7 +378,19 @@ def _attribute(m: _Msg, op: str) -> Tuple[str, int, Any]:
     return name, kind, None
 
 
-def _node(m: _Msg, defined: set) -> _Node:
+# Attribute introduction versions within the supported default-domain opsets 13..21.
+# Sources: ONNX 1.20.1 canonical schemas (no ONNX dependency is needed at runtime).
+_ATTR_SINCE = {
+    ("Reshape", "allowzero"): 14,
+    ("Cast", "saturate"): 19,
+    ("QuantizeLinear", "saturate"): 19,
+    ("QuantizeLinear", "block_size"): 21,
+    ("QuantizeLinear", "output_dtype"): 21,
+    ("DequantizeLinear", "block_size"): 21,
+}
+
+
+def _node(m: _Msg, defined: set, opset: int) -> _Node:
     op, domain, name = m.str(4), m.str(7), m.str(3)
     if domain not in ("", "ai.onnx") or op not in _OPS:
         raise ValueError(f"unsupported ONNX op {op if domain in ('', 'ai.onnx') else domain + '.' + op}")
@@ -395,6 +409,9 @@ def _node(m: _Msg, defined: set) -> _Node:
         key, kind, value = _attribute(a, op)
         if key not in kinds:
             raise ValueError(f"{node.label()} has an attribute '{key}', which is not supported")
+        since = _ATTR_SINCE.get((op, key), 13)
+        if opset < since:
+            raise ValueError(f"{node.label()}: attribute '{key}' requires opset {since}, model imports {opset}")
         if kind != kinds[key]:
             raise ValueError(f"{node.label()}: attribute '{key}' must be of kind {_ATTR_KINDS[kinds[key]]}, not {_ATTR_KINDS.get(kind, 'none')}")
         if key in node.attrs:
@@ -404,6 +421,9 @@ def _node(m: _Msg, defined: set) -> _Node:
         if "to" not in node.attrs:
             raise ValueError(f"{node.label()} has no attribute 'to'")
         _numpy(node.attrs["to"], node.label())
+    for flag in ("allowzero", "saturate", "transA", "transB"):
+        if flag in node.attrs and node.attrs[flag] not in (0, 1):
+            raise ValueError(f"{node.label()}: {flag} must be 0 or 1")
     if node.attrs.get("block_size", 0):
         raise ValueError(f"{node.label()}: blocked quantization (block_size) is not supported")
     if node.attrs.get("output_dtype", 0) not in (0, UINT8, INT8, FP8):
@@ -412,6 +432,51 @@ def _node(m: _Msg, defined: set) -> _Node:
         raise ValueError(f"{node.label()} defines '{node.outputs[0]}', which is already defined")
     defined.add(node.outputs[0])
     return node
+
+
+def _node_type(node: _Node, types: Dict[str, int], opset: int) -> int:
+    """Validate the implemented tensor-type subset before any graph evaluation."""
+    args = [types[i] if i else None for i in node.inputs]
+    op, t = node.op, args[0]
+    ordinary = tuple(k for k in _NUMPY if k != FP8)
+    allowed = ordinary + ((FP8,) if opset >= (21 if op == "Flatten" else 19) else ())
+    if op in ("Gemm", "MatMul", "Add", "Relu", "Sigmoid"):
+        allowed = _FLOATS
+        if op in ("Gemm", "MatMul") or (op == "Add" and opset == 13):
+            allowed += (INT32, INT64, 12, 13)
+        elif op == "Add":
+            allowed += (UINT8, INT8, 4, 5, INT32, INT64, 12, 13)
+        elif op == "Relu" and opset >= 14:
+            allowed += (INT8, 5, INT32, INT64)
+        if any(a != t for a in args if a is not None):
+            raise ValueError(f"{node.label()}: inputs must have the same tensor type")
+    elif op in ("QuantizeLinear", "DequantizeLinear"):
+        allowed = ((FLOAT,) if opset < 19 else (FLOAT, FLOAT16)) if op == "QuantizeLinear" else (UINT8, INT8, INT32) + ((FP8,) if opset >= 19 else ())
+        scale = args[1]
+        if scale not in ((FLOAT,) if opset < 19 else (FLOAT, FLOAT16)):
+            raise ValueError(f"{node.label()}: scale type {_type_name(scale)} is not supported at opset {opset}")
+        if op == "QuantizeLinear":
+            if scale != t:
+                raise ValueError(f"{node.label()}: input and scale must have the same type")
+            target = args[2] if len(args) > 2 and args[2] is not None else (node.attrs.get("output_dtype", 0) or UINT8)
+            if target not in (UINT8, INT8) + ((FP8,) if opset >= 19 else ()):
+                raise ValueError(f"{node.label()}: output type {_type_name(target)} is not supported at opset {opset}")
+            if node.attrs.get("output_dtype", 0) not in (0, target):
+                raise ValueError(f"{node.label()}: output_dtype disagrees with zero point type")
+        elif len(args) > 2 and args[2] is not None and args[2] != t:
+            raise ValueError(f"{node.label()}: zero point must have the input type")
+    elif op == "Reshape" and args[1] != INT64:
+        raise ValueError(f"{node.label()}: shape must have type int64")
+    if t not in allowed:
+        raise ValueError(f"{node.label()}: type {_type_name(t)} is not supported at opset {opset}")
+    if op == "Cast":
+        target = node.attrs["to"]
+        if target not in allowed:
+            raise ValueError(f"{node.label()}: target type {_type_name(target)} is not supported at opset {opset}")
+        return target
+    if op == "QuantizeLinear":
+        return target
+    return args[1] if op == "DequantizeLinear" else t
 
 
 class OnnxModel:
@@ -429,12 +494,22 @@ class OnnxModel:
         if graph is None:
             raise ValueError("not an ONNX model: it has no graph")
         self.ir_version = model.int(1)
+        if not 7 <= self.ir_version <= 10:
+            raise ValueError(f"unsupported ONNX IR version {self.ir_version}; supported range is 7..10")
+        if model.has(20) or model.has(25):
+            raise ValueError("ONNX training graphs and local functions are not supported")
         self.producer_name = model.str(2)
         self.graph_name = graph.str(2)
-        opsets = [o.int(2) for o in model.msgs(8, "OperatorSetIdProto") if o.str(1) in ("", "ai.onnx")]
-        if not opsets:
+        imports = model.msgs(8, "OperatorSetIdProto")
+        if any(o.str(1) not in ("", "ai.onnx") for o in imports):
+            raise ValueError("unsupported ONNX operator-set domain")
+        if not imports:
             raise ValueError("ONNX model imports no version of the default operator set")
-        self.opset = opsets[-1]
+        if len(imports) != 1:
+            raise ValueError("ONNX model must import the default operator set exactly once")
+        self.opset = imports[0].int(2)
+        if not 13 <= self.opset <= 21:
+            raise ValueError(f"unsupported ONNX opset {self.opset}; supported range is 13..21")
         if graph.has(15):
             raise ValueError("ONNX model has sparse initializers, which are not supported")
         self._inits: Dict[str, Tuple[np.ndarray, int]] = {}
@@ -451,10 +526,28 @@ class OnnxModel:
             if name in defined:
                 raise ValueError(f"ONNX model has two inputs named '{name}'")
             defined.add(name)
-        self._nodes = [_node(n, defined) for n in graph.msgs(1, "NodeProto")]
+        self._nodes = [_node(n, defined, self.opset) for n in graph.msgs(1, "NodeProto")]
+        types = {name: t for name, (_a, t) in self._inits.items()}
+        types.update({name: t for name, t, _s in self._in})
+        for name, t in types.items():
+            _numpy(t, f"tensor '{name}'")
+            if t == FP8 and (self.ir_version < 9 or self.opset < 19):
+                raise ValueError("float8e4m3fn tensors require IR >= 9 and opset >= 19")
+        for node in self._nodes:
+            types[node.outputs[0]] = _node_type(node, types, self.opset)
+            if types[node.outputs[0]] == FP8 and self.ir_version < 9:
+                raise ValueError("float8e4m3fn tensors require IR >= 9")
+        for name, t, _s in self._out:
+            if t and name in types and types[name] != t:
+                raise ValueError(f"output '{name}' has type {_type_name(types[name])}, declared {_type_name(t)}")
         for name, _t, _s in self._out:
             if name not in defined:
                 raise ValueError(f"graph output '{name}' is not computed by the graph")
+        # Integer Gemm is schema-valid, but this evaluator has no integer Gemm kernel. Defer
+        # this capability error until run so TensorRT's importer can report its original,
+        # more specific integer-input diagnostic first. No node runs before this check.
+        self._unsupported_execution = [n.label() for n in self._nodes
+                                       if n.op == "Gemm" and types[n.inputs[0]] not in _FLOATS]
         self._tensorrt = False  # (set by trt_decoder: quantize as TensorRT imports the model)
 
     @property
@@ -472,6 +565,8 @@ class OnnxModel:
     def run(self, x: Any) -> np.ndarray:
         """The model's output for the input ``x`` (converted to the input's type; its shape must
         be the input's)."""
+        if self._unsupported_execution:
+            raise ValueError(self._unsupported_execution[0] + ": integer Gemm evaluation is not supported")
         if len(self._in) != 1 or len(self._out) != 1:
             raise ValueError(f"this model has {len(self._in)} inputs and {len(self._out)} outputs; run evaluates a model with one of each")
         name, t, _shape = self._in[0]
@@ -530,10 +625,11 @@ def _numeric(t: int, op: str, allowed: Tuple[int, ...]) -> None:
 
 _ARITHMETIC = (FLOAT, FLOAT16, DOUBLE, UINT8, INT8, 4, 5, INT32, INT64, 12, 13)
 
-# float32 as onnxruntime's MLAS computes it. A matrix product accumulates each output by fused
-# multiply-adds in order over k, in blocks of 256 (each from zero, then added into the output
-# as alpha * block + output); a product by a vector (a one-dimensional B) in one block. These are
-# emulated in float64, where a product of float32s is exact.
+# Fixed float32 accumulation order chosen to preserve the recorded MLAS fixtures: fused
+# multiply-adds over k in 256-wide blocks (each from zero, then alpha * block + output); a
+# one-dimensional B uses one block. Float64 holds each float32 product exactly before rounding
+# the sum to float32. ORT can choose different blocking, prepacking and weight-DQ fusion, even
+# on the same CPU. This is not an emulation of those optimizer-dependent paths.
 _MLAS_STRIDE_K = 256
 
 
@@ -546,8 +642,14 @@ def _mlas_product(a: np.ndarray, b: np.ndarray, alpha: float = 1.0, y: Optional[
     K = a.shape[-1]
     if b.shape[-2] != K:
         raise ValueError(f"operands of shapes {a.shape} and {b.shape} do not multiply")
-    a64, b64 = a.astype(np.float64), b.astype(np.float64)
     shape = np.broadcast_shapes(a.shape[:-2], b.shape[:-2]) + (a.shape[-2], b.shape[-1])
+    if y is not None and np.broadcast_shapes(y.shape, shape) != shape:
+        raise ValueError(f"addend of shape {y.shape} does not broadcast to {shape}")
+    # Validate contracting and batch dimensions first, but do no K work or operand copies
+    # for an empty output (K itself can be enormous on zero-element tensors).
+    if 0 in shape:
+        return np.empty(shape, dtype=np.float32)
+    a64, b64 = a.astype(np.float64), b.astype(np.float64)
     alpha32 = np.float32(alpha)
     for start in range(0, max(K, 1), max(block, 1)):
         acc = np.zeros(shape, dtype=np.float32)
