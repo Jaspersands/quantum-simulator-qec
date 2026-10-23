@@ -1,5 +1,6 @@
 """Independent inert parser assertions for intentional QDK report safety differences."""
 import copy
+import _markupbase
 import json
 from html.parser import HTMLParser
 
@@ -132,8 +133,13 @@ def test_rejected_marked_section_discards_partial_markup(error, monkeypatch):
     def reject(self, index, report=1):
         assert self.rawdata[index:].startswith('<![unknown[')
         assert self.stack == ['p']
+        if error is NotImplementedError:
+            return self.error('unknown status keyword in marked section')
         raise error('unknown status keyword in marked section')
 
+    def old_parser_error(self, message):
+        raise NotImplementedError('subclasses of ParserBase must override error()')
+    monkeypatch.setattr(_markupbase.ParserBase, 'error', old_parser_error, raising=False)
     # New HTMLParser versions no longer dispatch unknown marked sections to this method.
     monkeypatch.setattr(HTMLParser, 'parse_html_declaration', lambda self, index: self.parse_marked_section(index))
     monkeypatch.setattr(HTMLParser, 'parse_marked_section', reject)

@@ -16,6 +16,7 @@ import base64
 import gzip
 import io
 import json
+import math
 import os
 import pathlib
 import platform
@@ -88,12 +89,44 @@ def recorded(case):
     return case["returncode"], base64.b64decode(case["stdout"]), case["stderr"], files
 
 
+def output_difference(got: bytes, want: bytes) -> dict:
+    """Bounded failure evidence; this never decides whether outputs are equivalent."""
+    g, w = got.decode('utf-8', 'replace'), want.decode('utf-8', 'replace')
+    gl, wl = g.splitlines(), w.splitlines()
+    first = next((i for i in range(max(len(gl), len(wl))) if gl[i:i + 1] != wl[i:i + 1]), None)
+    evidence = {'got_bytes': len(got), 'want_bytes': len(want)}
+    if first is not None:
+        evidence.update(line=first + 1, got=gl[first][:240] if first < len(gl) else '<missing>',
+                        want=wl[first][:240] if first < len(wl) else '<missing>')
+    evidence['same_non_numeric_text'] = NUMBER.split(g) == NUMBER.split(w)
+    if evidence['same_non_numeric_text']:
+        pairs = [(a, b) for a, b in zip(NUMBER.findall(g), NUMBER.findall(w)) if a != b]
+        evidence['different_numbers'] = len(pairs)
+        evidence['first_numbers'] = pairs[:5]
+        finite = [(float(a), float(b)) for a, b in pairs if math.isfinite(float(a)) and math.isfinite(float(b))]
+        evidence['max_relative_error'] = max((abs(a - b) / abs(b) if b else float('inf') for a, b in finite), default=0)
+        evidence['max_ulp'] = max((abs(a - b) / math.ulp(b) for a, b in finite), default=0)
+    return evidence
+
+
+def case_output_difference(got, want):
+    evidence = {}
+    if got[1] != want[1]:
+        evidence['stdout'] = output_difference(got[1], want[1])
+    if sorted(got[3]) != sorted(want[3]):
+        evidence['file_names'] = (sorted(got[3]), sorted(want[3]))
+    for name in sorted(set(got[3]) & set(want[3]))[:4]:
+        if got[3][name] != want[3][name]:
+            evidence[name] = output_difference(got[3][name], want[3][name])
+    return evidence
+
+
 def mismatches(names, tmp_path, compare):
     bad = []
     for name in names:
         got, want = run(CASES[name], tmp_path), recorded(CASES[name])
         if not compare(name, got, want):
-            bad.append((name, got[0], got[2][:300], want[0], want[2][:300]))
+            bad.append((name, got[0], got[2][:300], want[0], want[2][:300], case_output_difference(got, want)))
     return bad
 
 
@@ -166,6 +199,20 @@ def same_text_and_numbers(got: str, want: str) -> bool:
     if NUMBER.split(got) != NUMBER.split(want):
         return False
     return all(np.isclose(float(a), float(b), rtol=1e-15, atol=0) for a, b in zip(NUMBER.findall(got), NUMBER.findall(want)))
+
+
+def test_describe_failure_diagnostics_keep_numeric_and_structural_evidence():
+    want = b'graph\nerror(0.001) D0\n'
+    probability = b'graph\nerror(0.00100001) D0\n'
+    evidence = output_difference(probability, want)
+    assert evidence['line'] == 2 and evidence['first_numbers'] == [('0.00100001', '0.001')]
+    assert evidence['same_non_numeric_text'] and evidence['different_numbers'] == 1
+    assert evidence['max_relative_error'] > 1e-15 and evidence['max_ulp'] > 8
+    assert not same_text_and_numbers(probability.decode(), want.decode())
+    wrong_target = b'graph\nerror(0.001) D1\n'
+    evidence = output_difference(wrong_target, want)
+    assert evidence['got'] == 'error(0.001) D1' and evidence['want'] == 'error(0.001) D0'
+    assert not same_text_and_numbers(wrong_target.decode(), want.decode())
 
 
 def test_describe_decoder_text(tmp_path):
