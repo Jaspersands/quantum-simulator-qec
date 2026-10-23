@@ -2388,8 +2388,8 @@ class CoherentSampler:
     @property
     def contraction_width(self) -> Union[int, None]:
         """With the class sums contracted, the most generators any of the contraction's tables
-        holds besides the one it sums out: a shot's work is about ``num_generators`` · 2^(width
-        + 1). Width is for the selected completed basis and elimination heuristic, not the
+        holds besides the one it sums out: a shot's work is about `num_generators * 2^(width + 1)`.
+        Width is for the selected completed basis and elimination heuristic, not the
         minimum over equivalent circuit representations. None when not contracted (the joint
         sampler, or past ``max_contraction``)."""
         return getattr(self._s, "contraction_width", None)
