@@ -96,6 +96,34 @@ def test_fusion_symlinks_unicode_and_cwd(tmp_path, monkeypatch):
             assert status == 403 and b'synthetic outside' not in body
 
 
+@pytest.mark.parametrize('method,headers', [
+    ('GET', {}), ('HEAD', {}),
+    ('GET', {'Range': 'bytes=0-8'}), ('GET', {'Range': 'bytes=999-1000'}),
+])
+def test_fusion_symlink_parent_normalization_matches_served_candidate(tmp_path, method, headers):
+    root = tmp_path / 'data'
+    (root / 'sub' / 'deep').mkdir(parents=True)
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    marker = b'synthetic outside marker'
+    (outside / 'marker.txt').write_bytes(marker)
+    (root / 'link').symlink_to(root / 'sub' / 'deep', target_is_directory=True)
+    (root / 'escape').symlink_to(outside, target_is_directory=True)
+    (root / 'safe.txt').write_bytes(b'lexical safe candidate')
+    (root / 'alias.json').symlink_to(root / 'safe.txt')
+    (root / 'sub' / 'safe.txt').write_bytes(b'different resolved-before-parent candidate')
+    with fusion_server(root) as port:
+        # Direct external link is a negative control; the following .. must not select an
+        # outside file through a mismatch between validation and Bottle's lexical abspath.
+        for path in ('/data/escape/marker.txt', '/data/link/../escape/marker.txt'):
+            status, _, body = request(port, method, path, headers=headers)
+            assert status == 403 and marker not in body, (method, path, status, body)
+        assert request(port, 'GET', '/data/link/../safe.txt')[::2] == (200, b'lexical safe candidate')
+        status, response_headers, body = request(port, 'GET', '/data/alias.json')
+        assert status == 200 and body == b'lexical safe candidate'
+        assert response_headers['Content-Type'].startswith('application/json')
+
+
 def test_fusion_invalid_utf8_has_bounded_error(tmp_path, capsys):
     with fusion_server(tmp_path) as port:
         for target in (b'/data/%ff', b'/data/%c0%af', b'/missing/\xff'):

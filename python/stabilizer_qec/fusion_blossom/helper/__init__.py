@@ -66,9 +66,13 @@ def serve(host='localhost', port=51665, data_folder=".", return_server=False, qu
     @route('/data/<filename:path>')
     def send_data(filename):
         try:
-            resolved = os.path.realpath(os.path.join(data_root, filename.strip("/\\")))
+            # Match static_file's lexical normalization before following any symlink: resolving
+            # link/../name first can check a different file from the one Bottle would open.
+            candidate = os.path.abspath(os.path.join(data_root, filename.strip("/\\")))
+            resolved = os.path.realpath(candidate)
             if os.path.commonpath((data_root, resolved)) != data_root:
                 abort(403, "Access denied.")
+            checked_filename = os.path.relpath(candidate, data_root)
         except (ValueError, OSError):
             abort(403, "Access denied.")
         # Bottle opens a GET body before discovering an unsatisfiable Range. A HEAD preflight
@@ -76,12 +80,12 @@ def serve(host='localhost', port=51665, data_folder=".", return_server=False, qu
         if request.method == "GET" and request.environ.get("HTTP_RANGE"):
             request.environ["REQUEST_METHOD"] = "HEAD"
             try:
-                checked = static_file(filename, root=data_root)
+                checked = static_file(checked_filename, root=data_root)
             finally:
                 request.environ["REQUEST_METHOD"] = "GET"
             if checked.status_code not in (200, 206):
                 return checked
-        return static_file(filename, root=data_root)
+        return static_file(checked_filename, root=data_root)
 
     @route('/')
     @route('/<filename:path>')
