@@ -198,7 +198,8 @@ def test_mqt_circuits_take_stim_circuits():
 
 
 def test_mqt_dem_to_matrices_takes_stim_models():
-    needs((3, 10), "scipy")
+    # cc_decoder exports qecsim's comparison decoder too; mpmath is a declared mqt extra.
+    needs((3, 10), "scipy", "mpmath")
     from stabilizer_qec.mqt_qecc.cc_decoder.stim_interface.dem_to_matrices import detector_error_model_to_check_matrices
 
     model = real_circuit("color_code:memory_xyz", 3, 2).detector_error_model(decompose_errors=True)
