@@ -8,6 +8,8 @@ import functools
 import json
 import os
 import pathlib
+import socket
+from contextlib import contextmanager
 import subprocess
 import sys
 
@@ -16,6 +18,18 @@ import pytest
 _GUARD = 'STABILIZER_QEC_OWNED_SERVER_TEST'
 _RESULT = 'QEC_SERVER_TEST_RESULT='
 PROCESS_TIMEOUT = 20
+
+
+@contextmanager
+def loopback_resolver():
+    # Apply inside the process actually starting the loopback server. A fixture in
+    # another pytest module is not collected by an isolated single-node child.
+    def local_name(host=''):
+        assert host in ('localhost', '127.0.0.1', '::1'), host
+        return host
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(socket, 'getfqdn', local_name)
+        yield
 
 
 def in_owned_server_process():

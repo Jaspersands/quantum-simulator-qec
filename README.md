@@ -256,6 +256,11 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   from Python (see [Install](#install)). The other tools' APIs are there under their own names;
   Fusion Blossom's (`stabilizer_qec.fusion_blossom`) serves its visualiser on its own vendored
   Bottle, byte for byte, answering 55 recorded requests as fusion_blossom 0.2.13's server does.
+  Recorded responses stay exact. On older HTTP handlers, GET/HEAD `//index.js` returns 200 here
+  while the live upstream returns 404; the port is compared with that live upstream's
+  canonical `/index.js` response after checking that exact upstream 404. Windows upstream
+  website CRLF is compared as LF, with raw upstream body/length and installed LF resource checks. These are explicit
+  limits on raw live-response parity.
   The helper binds when run, uses the latest process-wide serve root and needs `server_close()`
   after shutdown to release its socket. It validates UTF-8 and stable-filesystem containment
   of Bottle's strip+abspath candidate while preserving original stripped component spelling

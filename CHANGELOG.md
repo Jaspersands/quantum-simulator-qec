@@ -271,8 +271,12 @@ contraction width (`CoherentSampler.contraction_width`).
 - **Fusion Blossom's `helper.bottle`.** fusion_blossom 0.2.13's vendored Bottle (0.14-dev) is
   `stabilizer_qec.fusion_blossom.helper.bottle`, byte for byte, and `helper.serve` is
   fusion_blossom's server on it: 55 recorded requests (18 paths by GET, HEAD and POST, and a
-  range request) are answered as fusion_blossom's server answers them, headers and bodies. It
-  is imported with `stabilizer_qec.fusion_blossom`, as fusion_blossom imports its own.
+  range request) retain exact recorded headers and bodies. Raw live parity also has two platform limits:
+  GET/HEAD `//index.js` keeps the recorded 200 on older HTTP handlers whose upstream returns
+  404; that exact 404 is checked separately, and the port must match the same live upstream's
+  canonical `/index.js`. Windows upstream website CRLF is compared as LF after raw body/length
+  checks, while installed resources must contain LF. It is imported with
+  `stabilizer_qec.fusion_blossom`, as fusion_blossom imports its own.
   LF bytes and the raw upstream SHA are enforced for the vendored path; a Windows wheel
   byte comparison remains unexecuted. Data serving now validates UTF-8 and stable-filesystem
   containment of Bottle's strip+abspath candidate while preserving original stripped spelling

@@ -10,7 +10,7 @@ from contextlib import contextmanager
 
 import pytest
 
-from server_process_helpers import in_owned_server_process, isolated_server_test
+from server_process_helpers import in_owned_server_process, isolated_server_test, loopback_resolver
 
 from stabilizer_qec.fusion_blossom import helper
 from stabilizer_qec.estimate.qualtran import ui
@@ -29,11 +29,12 @@ def fusion_server(folder):
             errors.append(error)
 
     thread = threading.Thread(target=worker, daemon=True)
-    thread.start()
-    deadline = time.monotonic() + 3
-    while not hasattr(server, 'srv') and thread.is_alive() and time.monotonic() < deadline:
-        thread.join(.01)
-    assert not errors and hasattr(server, 'srv')
+    with loopback_resolver():
+        thread.start()
+        deadline = time.monotonic() + 3
+        while not hasattr(server, 'srv') and thread.is_alive() and time.monotonic() < deadline:
+            thread.join(.01)
+        assert not errors and hasattr(server, 'srv')
     try:
         yield server.port
     finally:
@@ -80,6 +81,23 @@ def raw(port, target, method=b'GET', headers=b''):
                 break
             chunks.append(chunk)
     return b''.join(chunks)
+
+
+@isolated_server_test
+def test_fusion_startup_resolver_scope_in_its_own_child(tmp_path, monkeypatch):
+    # This Safety node is collected alone by its owned child: it cannot inherit
+    # Bottle's module-local autouse fixture. Fail immediately if real startup calls
+    # the outside resolver, then verify exact restoration after startup completes.
+    calls = []
+    def outside_resolver(host):
+        calls.append(host)
+        raise AssertionError('outside resolver must not be called')
+    monkeypatch.setattr(socket, 'getfqdn', outside_resolver)
+    (tmp_path / 'safe.txt').write_bytes(b'scoped resolver')
+    with fusion_server(tmp_path) as port:
+        assert socket.getfqdn is outside_resolver
+        assert request(port, 'GET', '/data/safe.txt')[::2] == (200, b'scoped resolver')
+    assert calls == [] and socket.getfqdn is outside_resolver
 
 
 @isolated_server_test

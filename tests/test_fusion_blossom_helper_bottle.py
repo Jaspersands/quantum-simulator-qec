@@ -3,7 +3,8 @@ Bottle 0.14-dev that fusion_blossom 0.2.13 embeds (its ``src/bottle.py``), uncha
 visualizer website on it as fusion_blossom's does. The server's answers (status, headers and body) equal
 fusion_blossom's, as recorded in ``tests/fusion_blossom_port/helper_server.json`` (``python
 tests/test_fusion_blossom_helper_bottle.py`` records it with fusion_blossom 0.2.13 installed), and side by side with
-fusion_blossom where it is installed. Deliberate resolved-path, malformed-UTF-8 and refused-Range safety
+fusion_blossom where it is installed. Legacy live double-slash responses and Windows asset
+CRLF have explicit comparisons below; recorded responses stay exact. Resolved-path, malformed-UTF-8 and refused-Range safety
 differences are checked independently in test_local_server_boundaries.py; the recorded corpus stays immutable."""
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ from wsgiref.simple_server import WSGIServer, WSGIRequestHandler
 import pytest
 
 from conftest import reference
-from server_process_helpers import in_owned_server_process, isolated_server_test, run_owned
+from server_process_helpers import in_owned_server_process, isolated_server_test, loopback_resolver, run_owned
 
 import stabilizer_qec.fusion_blossom as fb
 
@@ -48,13 +49,21 @@ VOLATILE = ("Date", "Server", "Last-Modified", "Etag")
 
 
 @pytest.fixture(autouse=True)
-def loopback_reverse_name(monkeypatch):
+def loopback_reverse_name():
     # HTTPServer.server_bind otherwise performs reverse DNS before Bottle assigns srv.
     # These real loopback HTTP tests exercise no external resolver: Host is sent explicitly.
-    def local_name(host=''):
-        assert host in ('localhost', '127.0.0.1', '::1'), host
-        return host
-    monkeypatch.setattr(socket, 'getfqdn', local_name)
+    with loopback_resolver():
+        yield
+
+
+class LegacyHandler(WSGIRequestHandler):
+    def parse_request(self):
+        good = super().parse_request()
+        if good:
+            self.path = self.raw_requestline.decode('iso-8859-1').split()[1]
+        return good
+    def log_message(self, *args):
+        pass
 
 
 def write_data(folder):
@@ -90,9 +99,11 @@ def running(server, run_server, timeout=3):
     return thread
 
 
-def start(module, folder):
+def start(module, folder, handler_class=None):
     """``module.helper.serve`` on a port the system picks, running."""
     server, run_server = module.helper.serve("localhost", 0, str(folder), return_server=True)
+    if handler_class is not None:
+        server.options["handler_class"] = handler_class
     return server, running(server, run_server)
 
 
@@ -107,9 +118,9 @@ def stop(server, thread):
     assert not shutdown.is_alive() and not thread.is_alive(), "the owned server threads did not stop"
 
 
-def answers(port):
+def answers(port, cases=CASES):
     out = []
-    for method, path, headers in CASES:
+    for method, path, headers in cases:
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=30)
         try:
             conn.request(method, path, headers={"Host": HOST, **headers})
@@ -335,14 +346,6 @@ def test_later_serve_changes_what_servers_serve(tmp_path, which):
 @isolated_server_test
 def test_legacy_double_slash_routes_keep_containment(tmp_path):
     # Emulate the old HTTP handler's retained request target, on a real loopback server.
-    class LegacyHandler(WSGIRequestHandler):
-        def parse_request(self):
-            good = super().parse_request()
-            if good:
-                self.path = self.raw_requestline.decode('iso-8859-1').split()[1]
-            return good
-        def log_message(self, *args):
-            pass
     (tmp_path / 'safe.txt').write_bytes(b'safe')
     outside = tmp_path.parent / (tmp_path.name + '-outside.txt')
     outside.write_bytes(b'outside marker')
@@ -430,6 +433,74 @@ def test_reference_asset_normalization_is_narrow(monkeypatch):
     assert reference_asset_lf(case, answer, asset) is answer
 
 
+def reference_for_legacy_path(case, answer, canonical):
+    # Ruling 19: retain recorded port200 while preserving the old upstream404 as
+    # separate exact evidence. No other path, method or error enters this branch.
+    method, path, headers = case
+    if method not in ('GET', 'HEAD') or path != '//index.js' or headers or answer[0] != 404:
+        return answer
+    recorded = json.loads(FIXTURE.read_text())
+    missing = next(c for c in recorded['cases'] if c['request'] == ['GET', '/missing.js', {}])
+    body = missing['body'].replace('http://localhost:51665/missing.js', 'http://localhost:51665/index.js')
+    expected = {key: value for key, value in missing.items() if key != 'request'}
+    expected['headers'] = [[key, str(len(body.encode())) if key == 'Content-Length' else value] for key, value in missing['headers']]
+    expected['body'] = body if method == 'GET' else ''
+    assert summary(answer) == expected, case
+    assert canonical is not None and canonical[0] == 200
+    assert dict(answer[2])['Server'] == dict(canonical[2])['Server']
+    return canonical
+
+
+def assert_reference_answers(cases, theirs, ours, website):
+    assert len(cases) == len(theirs) == len(ours)
+    canonical = {case[0]: answer for case, answer in zip(cases, theirs) if case[1] == '/index.js' and not case[2]}
+    for case, a, b in zip(cases, theirs, ours):
+        a = reference_for_legacy_path(case, a, canonical.get(case[0]))
+        a = reference_asset_lf(case, a, website)
+        assert summary(a, ('Date',)) == summary(b, ('Date',)) and a[3] == b[3], case
+
+
+@isolated_server_test
+def test_live_reference_legacy_path_is_pinned_and_canonical(tmp_path):
+    ref = reference('fusion_blossom')
+    cases = [(method, path, {}) for method in ('GET', 'HEAD', 'POST') for path in ('//index.js', '/index.js')]
+    started = []
+    try:
+        for module in (ref, fb):
+            started.append(start(module, tmp_path, LegacyHandler))
+        theirs, ours = (answers(server.port, cases) for server, _ in started)
+    finally:
+        for server, thread in started:
+            stop(server, thread)
+    assert [a[0] for a in theirs] == [404, 200, 404, 200, 405, 405]
+    assert [a[0] for a in ours] == [200, 200, 200, 200, 405, 405]
+    assert_reference_answers(cases, theirs, ours, ref.helper.visualizer_website)
+
+
+@pytest.mark.parametrize('method', ['GET', 'HEAD'])
+def test_legacy_path_comparison_rejects_misidentification_and_wrong_canonical(method):
+    missing = next(c for c in json.loads(FIXTURE.read_text())['cases'] if c['request'] == ['GET', '/missing.js', {}])
+    body = missing['body'].replace('http://localhost:51665/missing.js', 'http://localhost:51665/index.js').encode()
+    assert len(body) == 725 and hashlib.sha256(body).hexdigest() == 'a38cf89eea7b27c9013db23d876f52775e025c9092704e14119ad7712129fc87'
+    raw = (404, 'Not Found', [('Date', 'test date'), ('Server', 'test server'), ('Content-Length', '725'), ('Content-Type', 'text/html; charset=UTF-8')], body if method == 'GET' else b'')
+    canonical = (200, 'OK', [('Date', 'test date'), ('Server', 'test server'), ('Content-Length', '9')], b'canonical' if method == 'GET' else b'')
+    cases = [(method, '//index.js', {}), (method, '/index.js', {})]
+    assert_reference_answers(cases, [raw, canonical], [canonical, canonical], {})
+    for bad in ((404, 'Wrong reason', raw[2], raw[3]),
+                (404, raw[1], raw[2], b'wrong body'),
+                (404, raw[1], [(k, '1' if k == 'Content-Length' else v) for k, v in raw[2]], raw[3])):
+        with pytest.raises(AssertionError):
+            reference_for_legacy_path(cases[0], bad, canonical)
+    with pytest.raises(AssertionError):
+        reference_for_legacy_path(cases[0], raw, (500, *canonical[1:]))
+    wrong = (200, 'OK', canonical[2], b'wrong canonical body')
+    with pytest.raises(AssertionError):
+        assert_reference_answers(cases, [raw, canonical], [wrong, canonical], {})
+    assert reference_for_legacy_path(('GET', '/missing.js', {}), raw, canonical) is raw
+    assert reference_for_legacy_path(('POST', '//index.js', {}), raw, canonical) is raw
+    assert reference_for_legacy_path(cases[0], canonical, raw) is canonical
+
+
 @isolated_server_test
 def test_serve_responses_equal_reference(tmp_path):
     ref = reference("fusion_blossom")
@@ -442,9 +513,7 @@ def test_serve_responses_equal_reference(tmp_path):
     finally:
         for server, thread in started:
             stop(server, thread)
-    for case, a, b in zip(CASES, theirs, ours):
-        a = reference_asset_lf(case, a, ref.helper.visualizer_website)
-        assert summary(a, ("Date",)) == summary(b, ("Date",)) and a[3] == b[3], case
+    assert_reference_answers(CASES, theirs, ours, ref.helper.visualizer_website)
 
 
 if __name__ == "__main__":
