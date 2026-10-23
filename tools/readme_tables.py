@@ -5,7 +5,7 @@ behind what was measured.
     python3 tools/readme_tables.py --write    # replace them in README.md
     python3 tools/readme_tables.py --check    # exit 1 if any differs (CI)
 """
-import json, math, pathlib, re, sys
+import html, json, math, pathlib, re, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 load = lambda path: json.loads((ROOT / path).read_text())
@@ -442,7 +442,7 @@ def clifford_t_tsim():
         p = f"p = {r['p_value']:.2f}" if r.get("p_value") is not None else ""
         rows.append(f"| {label} | 5 | {gates} | {d['shots']:,} | χ² = {r['chi2']:.1f} on {r['dof']} ({p}) | {time_us(r['ours_s_per_shot'] * 1e6)} | {time_us(r['tsim_s_per_shot'] * 1e6)} |")
     r = c["encoded_distillation"]
-    tsim = f"χ² = {r['chi2']:.1f} on {r['dof']}" if "chi2" in r else "Tsim's compilation is killed for memory on a 16 GB machine"
+    tsim = f"χ² = {r['chi2']:.1f} on {r['dof']}" if "chi2" in r else html.escape(" ".join(str(r.get("tsim", "not measured")).splitlines()), quote=False).replace("\\", "\\\\").replace("|", r"\|")
     shots = f"{r['shots']:,}" if "chi2" in r else f"{r['shots']:,} (ours; Tsim did not run)"
     rows.append(f"| distillation in the [[17,1,5]] colour code | {r['qubits']} | {r['non_clifford_gates']} | {shots} | {tsim} | {time_us(r['ours_s_per_shot'] * 1e6)} | {time_us(r['tsim_s_per_shot'] * 1e6) if 'tsim_s_per_shot' in r else '—'} |")
     return rows

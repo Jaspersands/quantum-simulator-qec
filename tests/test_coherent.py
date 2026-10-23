@@ -7,6 +7,7 @@ import importlib.util
 import json
 import math
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -837,3 +838,37 @@ def test_current_coherent_tables_only_include_remeasured_rows(monkeypatch):
         assert table() == tables.coherent_pending(columns)
         assert len(table()[0].split("|")) == columns + 2
     assert "generation_revision" not in old
+
+
+def test_tsim_table_keeps_the_recorded_reference_status(monkeypatch):
+    """An omitted/failed comparison is not a newly observed memory failure."""
+    path = DATA.parent.parent / "tools" / "readme_tables.py"
+    spec = importlib.util.spec_from_file_location("readme_tables_status", path)
+    tables = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tables)
+    timing = {"ours_s_per_shot": 1e-6, "tsim_s_per_shot": 2e-6}
+    compared = dict(timing, chi2=2.0, dof=3, p_value=0.5)
+    encoded = {"shots": 2000, "qubits": 85, "non_clifford_gates": 10, "ours_s_per_shot": 1e-3}
+    payload = {"shots": 50000, "cases": {
+        "prep": dict(timing, tsim_infidelity=0.03, exact_infidelity=0.03, z=0),
+        "distillation": compared, "distillation_noisy": compared, "encoded_distillation": encoded,
+    }}
+    monkeypatch.setattr(tables, "load", lambda name: payload)
+    for status in ("not run (--tsim-encoded); historical memory failure", "failed: exit 1; x|y\n<diagnostic>"):
+        encoded["tsim"] = status
+        rows = tables.clifford_t_tsim()
+        last = rows[-1]
+        assert len(rows) == 4 and "\n" not in last
+        assert "2,000 (ours; Tsim did not run)" in last
+        assert "compilation is killed" not in last
+        if status.startswith("not run"):
+            assert status in last
+        else:
+            assert r"failed: exit 1; x\|y &lt;diagnostic&gt;" in last
+        assert len(re.split(r"(?<!\\)\|", last)) == 9
+    del encoded["tsim"]
+    assert "not measured" in tables.clifford_t_tsim()[-1]
+    encoded.update(chi2=4.0, dof=5, tsim_s_per_shot=2e-3)
+    last = tables.clifford_t_tsim()[-1]
+    assert "χ² = 4.0 on 5" in last and "Tsim did not run" not in last
+    assert "2.00 ms" in last
