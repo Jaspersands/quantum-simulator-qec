@@ -122,6 +122,8 @@ math { font-size: 1.05em; }
   figure { break-inside: avoid; }
   table { break-inside: auto; }
   thead, tr { break-inside: avoid; }
+  /* Chrome can clip a repeated multi-line header on a continued table. */
+  thead { display: table-row-group; }
   /* Numeric columns also contain explanatory refusals and resource breakdowns. */
   td[style*="right"], th[style*="right"] { white-space: normal; }
   pre { white-space: pre-wrap; overflow-wrap: anywhere; }
