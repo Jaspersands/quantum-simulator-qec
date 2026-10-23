@@ -103,7 +103,7 @@ def test_bottle_is_verbatim():
 
     assert fb.helper.bottle is bottle and "bottle" in dir(fb.helper)
     # A Windows checkout ends the file's lines CRLF; fusion_blossom's ends them LF.
-    assert hashlib.sha256(pathlib.Path(bottle.__file__).read_bytes().replace(b"\r\n", b"\n")).hexdigest() == BOTTLE_SHA256
+    assert hashlib.sha256(pathlib.Path(bottle.__file__).read_bytes()).hexdigest() == BOTTLE_SHA256
     assert (bottle.__version__, bottle.__name__) == ("0.14-dev", "stabilizer_qec.fusion_blossom.helper.bottle")
     # fusion_blossom also installs its copies as the modules `bottle` and `helper`; this package does not.
     assert sys.modules.get("bottle") is not bottle and sys.modules.get("helper") is not fb.helper
