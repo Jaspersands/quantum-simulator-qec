@@ -15,11 +15,13 @@ import json
 import os
 import pathlib
 import platform
+import socket
+import traceback
 import subprocess
 import sys
 import threading
 import time
-from wsgiref.simple_server import WSGIServer
+from wsgiref.simple_server import WSGIServer, WSGIRequestHandler
 
 import pytest
 
@@ -44,6 +46,16 @@ HOST = "localhost:51665"
 VOLATILE = ("Date", "Server", "Last-Modified", "Etag")
 
 
+@pytest.fixture(autouse=True)
+def loopback_reverse_name(monkeypatch):
+    # HTTPServer.server_bind otherwise performs reverse DNS before Bottle assigns srv.
+    # These real loopback HTTP tests exercise no external resolver: Host is sent explicitly.
+    def local_name(host=''):
+        assert host in ('localhost', '127.0.0.1', '::1'), host
+        return host
+    monkeypatch.setattr(socket, 'getfqdn', local_name)
+
+
 def write_data(folder):
     for name, text in DATA.items():
         (folder / name).parent.mkdir(parents=True, exist_ok=True)
@@ -52,13 +64,27 @@ def write_data(folder):
 
 def running(server, run_server):
     """``run_server`` in a thread, once it has made the server's ``srv``."""
-    thread = threading.Thread(target=run_server, daemon=True)
+    errors = []
+    def worker():
+        try:
+            run_server()
+        except BaseException as error:
+            errors.append(error)
+    thread = threading.Thread(target=worker, daemon=True)
     thread.start()
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + 3
     while not hasattr(server, "srv"):
-        assert thread.is_alive(), "the server thread died"
-        assert time.monotonic() < deadline, "the server did not start"
-        time.sleep(0.01)
+        if errors:
+            raise errors[0]
+        if not thread.is_alive():
+            if errors:
+                raise errors[0]
+            raise AssertionError("the server thread died")
+        if time.monotonic() >= deadline:
+            frame = sys._current_frames().get(thread.ident)
+            stack = ''.join(traceback.format_stack(frame)) if frame else 'no worker frame'
+            raise AssertionError("the server did not start; worker stack:\n" + stack)
+        thread.join(0.01)
     return thread
 
 
@@ -69,9 +95,14 @@ def start(module, folder):
 
 
 def stop(server, thread):
-    server.srv.shutdown()
-    thread.join()
+    # shutdown waits for serve_forever; bound that wait too, so a worker failure cannot
+    # strand pytest in cleanup. Both workers belong to this test, and the socket is closed.
+    shutdown = threading.Thread(target=server.srv.shutdown, daemon=True)
+    shutdown.start()
+    shutdown.join(3)
+    thread.join(3)
     server.srv.server_close()
+    assert not shutdown.is_alive() and not thread.is_alive(), "the owned server threads did not stop"
 
 
 def answers(port):
@@ -162,6 +193,45 @@ def test_running_fails_at_once_when_the_server_thread_dies(tmp_path):
     assert len(errors) == 1 and not hasattr(server, "srv")
 
 
+def test_startup_reverse_lookup_precedes_srv_assignment(tmp_path, monkeypatch):
+    # A deterministic blocked lookup demonstrates this possible preassignment path;
+    # the old CI logs have no stack, so it does not establish their timeout's cause.
+    entered, release = threading.Event(), threading.Event()
+    errors = []
+    def blocked(host):
+        entered.set()
+        assert release.wait(2), 'test did not release its resolver'
+        raise OSError('synthetic reverse lookup failure')
+    monkeypatch.setattr(socket, 'getfqdn', blocked)
+    server, run = fb.helper.serve('127.0.0.1', 0, str(tmp_path), return_server=True)
+    def worker():
+        try:
+            run()
+        except OSError as error:
+            errors.append(error)
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+    try:
+        assert entered.wait(1)
+        assert thread.is_alive() and not hasattr(server, 'srv')
+    finally:
+        release.set()
+        thread.join(3)
+    assert not thread.is_alive()
+    assert len(errors) == 1 and str(errors[0]) == 'synthetic reverse lookup failure'
+    assert not hasattr(server, 'srv')
+
+
+def test_startup_preserves_worker_exception(tmp_path):
+    server, _ = fb.helper.serve('127.0.0.1', 0, str(tmp_path), return_server=True)
+    error = OSError('synthetic startup failure')
+    def fail():
+        raise error
+    with pytest.raises(OSError) as info:
+        running(server, fail)
+    assert info.value is error
+
+
 def test_return_server_is_bottle_wsgiref(tmp_path):
     server, run_server = fb.helper.serve("localhost", 0, str(tmp_path), return_server=True)
     assert type(server) is fb.helper.bottle.WSGIRefServer
@@ -200,6 +270,43 @@ def test_later_serve_changes_what_servers_serve(tmp_path, which):
     assert (before, after) == (b"A", b"B")
 
 
+def test_legacy_double_slash_routes_keep_containment(tmp_path):
+    # Emulate the old HTTP handler's retained request target, on a real loopback server.
+    class LegacyHandler(WSGIRequestHandler):
+        def parse_request(self):
+            good = super().parse_request()
+            if good:
+                self.path = self.raw_requestline.decode('iso-8859-1').split()[1]
+            return good
+        def log_message(self, *args):
+            pass
+    (tmp_path / 'safe.txt').write_bytes(b'safe')
+    outside = tmp_path.parent / (tmp_path.name + '-outside.txt')
+    outside.write_bytes(b'outside marker')
+    server, run = fb.helper.serve('127.0.0.1', 0, str(tmp_path), return_server=True)
+    server.options['handler_class'] = LegacyHandler
+    thread = running(server, run)
+    try:
+        for path, status, body in (('//index.js', 200, fb.helper.visualizer_website['index.js'].encode()),
+                                   ('//data/safe.txt', 200, b'safe'),
+                                   ('//data/../' + outside.name, 403, None),
+                                   ('//data/%2e%2e/' + outside.name, 403, None),
+                                   ('//missing.js', 404, None)):
+            conn = http.client.HTTPConnection('127.0.0.1', server.port, timeout=3)
+            try:
+                conn.request('GET', path)
+                answer = conn.getresponse()
+                got = answer.read()
+                assert answer.status == status, path
+                if body is not None:
+                    assert got == body
+                assert b'outside marker' not in got
+            finally:
+                conn.close()
+    finally:
+        stop(server, thread)
+
+
 def test_serve_responses_equal_recorded(tmp_path):
     recorded = json.loads(FIXTURE.read_text())
     assert (recorded["host"], recorded["data"], [c["request"] for c in recorded["cases"]]) == (HOST, DATA, [list(c) for c in CASES])
@@ -211,6 +318,52 @@ def test_serve_responses_equal_recorded(tmp_path):
         stop(server, thread)
     for case, answer in zip(recorded["cases"], ours):
         assert summary(answer) == {k: v for k, v in case.items() if k != "request"}, case["request"]
+
+
+def reference_asset_lf(case, answer, website):
+    # Only the Windows upstream wheel's embedded website has CRLF (its Rust include_str!
+    # preserves checkout bytes). Our installed assets and frozen corpus stay LF. Check
+    # the raw upstream body and length before this explicitly scoped comparison transform.
+    method, path, _ = case
+    name = path.split('?')[0].lstrip('/') or 'index.html'
+    status, reason, headers, body = answer
+    if sys.platform != 'win32' or status != 200 or method not in ('GET', 'HEAD') or name not in website:
+        return answer
+    raw_asset = website[name].encode('utf-8')
+    assert dict(headers)['Content-Length'] == str(len(raw_asset))
+    assert body == (raw_asset if method == 'GET' else b'')
+    normalized = raw_asset.replace(b'\r\n', b'\n')
+    assert b'\r' not in normalized
+    headers = [(key, str(len(normalized)) if key == 'Content-Length' else value) for key, value in headers]
+    return status, reason, headers, normalized if method == 'GET' else b''
+
+
+def test_installed_website_resources_are_lf():
+    folder = pathlib.Path(fb.helper.__file__).parent.parent / 'visualizer'
+    assert len(fb.helper.visualizer_website) == 11
+    for name, text in fb.helper.visualizer_website.items():
+        raw = (folder / name).read_bytes()
+        assert b'\r' not in raw, name
+        assert raw == text.encode('utf-8'), name
+
+
+def test_reference_asset_normalization_is_narrow(monkeypatch):
+    monkeypatch.setattr(sys, 'platform', 'win32')
+    asset = {'index.js': 'a\r\nb\r\n'}
+    case = ('GET', '/index.js', {})
+    answer = (200, 'OK', [('Content-Length', '6'), ('Content-Type', 'text/javascript')], b'a\r\nb\r\n')
+    normalized = reference_asset_lf(case, answer, asset)
+    assert normalized == (200, 'OK', [('Content-Length', '4'), ('Content-Type', 'text/javascript')], b'a\nb\n')
+    for bad in ((200, 'OK', [('Content-Length', '4')], answer[3]),
+                (200, 'OK', answer[2], b'wrong!')):
+        with pytest.raises(AssertionError):
+            reference_asset_lf(case, bad, asset)
+    for method, path, status in (('GET', '/data/index.js', 200), ('GET', '/missing', 404),
+                                 ('GET', '/index.js', 206), ('POST', '/index.js', 200)):
+        unchanged = (status, *answer[1:])
+        assert reference_asset_lf((method, path, {}), unchanged, asset) is unchanged
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    assert reference_asset_lf(case, answer, asset) is answer
 
 
 def test_serve_responses_equal_reference(tmp_path):
@@ -225,6 +378,7 @@ def test_serve_responses_equal_reference(tmp_path):
         for server, thread in started:
             stop(server, thread)
     for case, a, b in zip(CASES, theirs, ours):
+        a = reference_asset_lf(case, a, ref.helper.visualizer_website)
         assert summary(a, ("Date",)) == summary(b, ("Date",)) and a[3] == b[3], case
 
 

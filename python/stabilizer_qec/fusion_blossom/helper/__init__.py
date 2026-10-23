@@ -113,6 +113,12 @@ def serve(host='localhost', port=51665, data_folder=".", return_server=False, qu
                 body = b"400 Bad Request\n"
                 start_response("400 Bad Request", [("Content-Type", "text/plain; charset=utf-8"), ("Content-Length", str(len(body)))])
                 return [] if environ.get("REQUEST_METHOD") == "HEAD" else [body]
+            # Python 3.9.13 keeps an HTTP target beginning //; newer HTTP handlers
+            # collapse its leading slashes. Match that origin-path behavior before
+            # routing, without changing any filename checked and opened by send_data.
+            path = environ.get("PATH_INFO", "")
+            if path.startswith("//"):
+                environ["PATH_INFO"] = "/" + path.lstrip("/")
             return app(environ, start_response)
 
         run(app=validated_app, server=server, quiet=quiet)

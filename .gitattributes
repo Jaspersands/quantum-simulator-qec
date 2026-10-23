@@ -1,2 +1,5 @@
 # Keep the vendored upstream SHA identical in checkouts and built packages.
 /python/stabilizer_qec/fusion_blossom/helper/bottle.py text eol=lf
+
+# The visualizer is embedded upstream as LF text; keep installed resource bytes stable.
+/python/stabilizer_qec/fusion_blossom/visualizer/* text eol=lf
