@@ -150,3 +150,18 @@ def test_drawing_names_the_missing_dependency(monkeypatch, missing, draw):
     monkeypatch.setitem(sys.modules, missing, None)  # as if not installed
     with pytest.raises(ImportError, match=rf"requires the optional dependency '{missing}'\. Install with: pip install {missing}$"):
         draw()
+
+
+def test_comb_preserves_numpy_scalar_and_broadcast_arrays():
+    from stabilizer_qec.qsample.math import comb
+
+    for n, k, expected in ((3, 1, 3.0), (0, 0, 1.0)):
+        got = comb(n, k)
+        assert isinstance(got, np.float64) and got.dtype == np.dtype("float64")
+        assert got == expected
+    got = comb(np.array([[3], [4]]), np.array([0, 1, 2]))
+    assert got.shape == (2, 3) and got.dtype == np.dtype("float64")
+    np.testing.assert_array_equal(got, [[1, 3, 3], [1, 4, 6]])
+    got = comb([3, 4], 1)
+    assert got.shape == (2,) and got.dtype == np.dtype("float64")
+    np.testing.assert_array_equal(got, [3, 4])

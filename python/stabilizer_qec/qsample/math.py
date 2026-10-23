@@ -29,7 +29,7 @@ def comb(n, k):
     """
     # Exact binomial coefficients (qsample divides scipy's floating factorials).
     out = np.vectorize(lambda a, b: float(_math.comb(int(a), int(b))) if 0 <= b <= a else 0.0, otypes=[float])(np.asarray(n), np.asarray(k))
-    return out if out.ndim else float(out)
+    return out if out.ndim else out[()]
 
 def binom(k, n, p):
     """Vectorized binomial distribution
