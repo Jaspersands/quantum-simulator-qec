@@ -3,7 +3,14 @@
 # Bottle fusion_blossom embeds is the submodule ``helper.bottle`` (unchanged), not installed as the
 # modules ``bottle`` and ``helper``.
 """The visualizer website, its server (on ``helper.bottle``, the Bottle 0.14-dev web framework
-fusion_blossom embeds), and helpers for viewing a code or rendering a snapshot."""
+fusion_blossom embeds), and helpers for viewing a code or rendering a snapshot.
+
+The package import loads this helper and Bottle, without registering top-level ``bottle`` or
+``helper`` modules. ``serve`` binds only when its runner starts; routes use Bottle's process-wide
+default app and the latest call's data folder. Data paths are resolved within that folder (this
+check is not a defense against concurrent filesystem replacement). Bottle supplies data MIME
+types: JSON is application/json and extensionless files default to text/html. ``quiet`` suppresses
+request logs, not every server error or malformed HTTP syntax message."""
 
 import os
 import shutil
@@ -11,7 +18,6 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 import webbrowser
 
 # As fusion_blossom's helper module, this one gets its Bottle when the package is imported.
@@ -42,10 +48,12 @@ def register(module):
 
 
 def serve(host='localhost', port=51665, data_folder=".", return_server=False, quiet=True):
-    """start a server to host the visualizer websites locally"""
+    """Host the visualizer locally; with return_server, return its unbound adapter and runner."""
     # As fusion_blossom's, the routes go on Bottle's default app: the latest call's data_folder is
     # the one every server of the process serves.
-    from .bottle import WSGIRefServer, route, abort, run, response, static_file
+    from .bottle import WSGIRefServer, route, abort, run, response, request, static_file
+
+    data_root = os.path.realpath(os.path.abspath(data_folder))
 
     def guess_mime(filename):
         if filename.endswith("html"):
@@ -57,7 +65,23 @@ def serve(host='localhost', port=51665, data_folder=".", return_server=False, qu
 
     @route('/data/<filename:path>')
     def send_data(filename):
-        return static_file(filename, root=data_folder)
+        try:
+            resolved = os.path.realpath(os.path.join(data_root, filename.strip("/\\")))
+            if os.path.commonpath((data_root, resolved)) != data_root:
+                abort(403, "Access denied.")
+        except (ValueError, OSError):
+            abort(403, "Access denied.")
+        # Bottle opens a GET body before discovering an unsatisfiable Range. A HEAD preflight
+        # preserves its conditional/Range decisions without opening that body on refused requests.
+        if request.method == "GET" and request.environ.get("HTTP_RANGE"):
+            request.environ["REQUEST_METHOD"] = "HEAD"
+            try:
+                checked = static_file(filename, root=data_root)
+            finally:
+                request.environ["REQUEST_METHOD"] = "GET"
+            if checked.status_code not in (200, 206):
+                return checked
+        return static_file(filename, root=data_root)
 
     @route('/')
     @route('/<filename:path>')
@@ -71,24 +95,78 @@ def serve(host='localhost', port=51665, data_folder=".", return_server=False, qu
     server = WSGIRefServer(host=host, port=port)
 
     def run_server():
-        run(server=server, quiet=quiet)
+        app = bottle.default_app()
+
+        def validated_app(environ, start_response):
+            # WSGI carries the original path bytes through Latin-1. Reject invalid UTF-8 before
+            # Bottle's error renderer attempts to interpolate a surrogate-containing URL.
+            try:
+                environ.get("PATH_INFO", "").encode("latin-1").decode("utf-8")
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                body = b"400 Bad Request\n"
+                start_response("400 Bad Request", [("Content-Type", "text/plain; charset=utf-8"), ("Content-Length", str(len(body)))])
+                return [] if environ.get("REQUEST_METHOD") == "HEAD" else [body]
+            return app(environ, start_response)
+
+        run(app=validated_app, server=server, quiet=quiet)
     if return_server:
         return server, run_server
     run_server()
 
 
 def open_visualizer(filename, host='localhost', port=51666, data_folder=".", open_browser=True, quiet=True):
-    """open the website directly after starting the browser"""
+    """Run the visualizer until ENTER (or an input interruption), closing this server's worker.
+
+    Bind errors are raised before prompting or opening a browser. Browser startup waits for binding.
+    """
     server, run_server = serve(host, port, data_folder, return_server=True, quiet=quiet)
-    threading.Thread(target=run_server).start()
-    if open_browser:
-        def open_browser():
-            webbrowser.open(f"http://{host}:{port}/?filename={filename}")
-        threading.Timer(0.5, open_browser).start()  # wait 500ms for the server to start
-    print("Hit ENTER to exit server.")
-    input()
-    server.srv.shutdown()
-    time.sleep(0.3)
+    from wsgiref.simple_server import WSGIServer
+
+    serving = threading.Event()
+
+    class VisualizerServer(WSGIServer):
+        def service_actions(self):
+            # Called inside BaseServer's serving loop, after its shutdown event was initialized.
+            serving.set()
+            super().service_actions()
+
+    server.options["server_class"] = VisualizerServer
+    errors = []
+
+    def worker():
+        try:
+            run_server()
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            if hasattr(server, "srv"):
+                server.srv.server_close()
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+
+    def wait_for_start():
+        while thread.is_alive() and not serving.is_set():
+            thread.join(0.01)
+
+    try:
+        wait_for_start()
+        if errors:
+            raise errors[0]
+        if not serving.is_set():
+            raise RuntimeError("The visualizer server did not initialize")
+        if open_browser:
+            webbrowser.open(f"http://{host}:{server.port}/?filename={filename}")
+        print("Hit ENTER to exit server.")
+        input()
+    finally:
+        # Also handle interruption during startup; never access srv when binding failed.
+        wait_for_start()
+        if thread.is_alive() and serving.is_set():
+            server.srv.shutdown()
+        thread.join(timeout=5)
+        if thread.is_alive():
+            raise RuntimeError("The visualizer server worker did not stop")
 
 
 def peek_code(code, host='localhost', port=51667, data_folder=".", open_browser=True, quiet=True):

@@ -3,7 +3,8 @@ Bottle 0.14-dev that fusion_blossom 0.2.13 embeds (its ``src/bottle.py``), uncha
 visualizer website on it as fusion_blossom's does. The server's answers (status, headers and body) equal
 fusion_blossom's, as recorded in ``tests/fusion_blossom_port/helper_server.json`` (``python
 tests/test_fusion_blossom_helper_bottle.py`` records it with fusion_blossom 0.2.13 installed), and side by side with
-fusion_blossom where it is installed."""
+fusion_blossom where it is installed. Deliberate resolved-path, malformed-UTF-8 and refused-Range safety
+differences are checked independently in test_local_server_boundaries.py; the recorded corpus stays immutable."""
 
 from __future__ import annotations
 

@@ -14,12 +14,20 @@ the ImportError `make_app` raises, so ``hasattr(ui, "app")`` and ``getattr(ui, "
 it too rather than giving False or None; ``importlib.util.find_spec("dash")`` says whether dash is
 installed. `serve()` runs the app, as ``python -m stabilizer_qec.estimate.qualtran.ui`` does (Qualtran's
 ``python -m qualtran.surface_code.ui``); without dash it serves a page of its own from the standard
-library's HTTP server, which draws the same layout with plotly.js and calls `update`.
+library's HTTP server, which draws the layout with plotly.js and calls `update`. Its figures omit
+Plotly's default template, so colors, backgrounds and fonts can differ from the Dash presentation.
+
+Public layout builders and dependency lists always return lightweight mirrors, even with Dash
+installed. Mirrors expose ``.props`` and ``to_plotly_json()`` (dependencies expose their stored
+IDs/properties), not Dash's component attribute, mutation, serialization or callback APIs. They
+cannot be reused directly as Dash components or callback dependencies; `make_app` converts them.
+Numerical parity was checked on finite recorded inputs; very large 15-to-1 gate counts can differ
+from Qualtran in the last bits of factory cycle counts and callback durations.
 
 A figure comes back as a `Figure`: plotly's figure dict (``{"data": [...], "layout": {...}}``) with
 the traces and layout ``plotly.express`` gives Qualtran's, less plotly's default template;
 ``Figure.to_plotly()`` makes it a ``plotly.graph_objects.Figure`` when plotly is installed (the Dash
-app sends these, so its figures are Qualtran's). `create_runtime_plot` draws its factory counts from
+app sends these with Plotly's template). `create_runtime_plot` draws its factory counts from
 numpy's global random state as Qualtran's does, so the same seed gives the same plot.
 
 >>> from stabilizer_qec.estimate.qualtran import ui
@@ -225,7 +233,8 @@ def _algorithm_input(name: str, placeholder: str):
 
 def algorithm_summary_components():
     """The algorithm's six inputs (qubits, measurements, Ts, Toffolis, rotations, rotation depth), each 10 at
-    first, with their pattern-matching ids ``{"type": "algorithm", "property": ...}``."""
+    first, with their pattern-matching ids ``{"type": "algorithm", "property": ...}``.
+    Returns mirrors with .props/to_plotly_json(), converted to Dash components by `make_app`."""
     return [
         html.P("Enter a summary of the quantum algorithm/circuit"),
         html.Table(
@@ -242,7 +251,7 @@ def algorithm_summary_components():
 
 
 def _MAGIC_FACTORIES_components():
-    """The factory's choice, the number of factories, and the factories' table."""
+    """The factory's choice, number and table, as mirrors for `make_app`, not Dash components."""
     return [
         html.P("Enter number of magic state factories:"),
         dcc.RadioItems(id="_MAGIC_FACTORIES", options=sorted(_MAGIC_FACTORIES), value=next(iter(_MAGIC_FACTORIES.keys()))),
@@ -252,7 +261,7 @@ def _MAGIC_FACTORIES_components():
 
 
 def qec_summary_components():
-    """The QEC scheme's choice and the schemes' table."""
+    """The QEC scheme's choice/table as mirrors for `make_app`, not Dash components."""
     return [
         html.P("Select a QEC algorithm:"),
         dcc.RadioItems(id="QEC", options=sorted(_QEC_SCHEMES), value=next(iter(_QEC_SCHEMES.keys()))),
@@ -261,7 +270,7 @@ def qec_summary_components():
 
 
 def rotation_cost_model_components():
-    """The rotation cost model's choice and the models' table."""
+    """The rotation model's choice/table as mirrors for `make_app`, not Dash components."""
     return [
         html.P("Select Rotation Cost Model:"),
         dcc.RadioItems(id="rotation-cost-model", options=sorted(_ROTATION_MODELS), value=next(iter(_ROTATION_MODELS.keys()))),
@@ -271,7 +280,7 @@ def rotation_cost_model_components():
 
 def input_components():
     """The app's inputs: the physical error rate and the error budget, the estimation model, and the
-    components above."""
+    components above, as .props/to_plotly_json() mirrors for `make_app`, not Dash components."""
     return [
         html.Table(
             [
@@ -290,7 +299,8 @@ def input_components():
 
 def create_ouputs():
     """The app's outputs other than its figures: the magic-state count, the minimum factory count and the
-    duration (Qualtran's name, its typo kept)."""
+    duration (Qualtran's name, its typo kept). Returns .props/to_plotly_json() mirrors for `make_app`,
+    not reusable Dash components."""
     return [
         html.Table(
             [
@@ -532,7 +542,15 @@ def serve(host: str = "127.0.0.1", port: int = 8050, dash: Optional[bool] = None
     that is not finite as null, as Dash's are), or 204 No Content where `update` raises `PreventUpdate` (the page
     then keeps its outputs, as Dash's does). plotly.js is the installed plotly package's copy, served at
     ``/plotly.min.js`` as Dash serves it, or without plotly cdn.plot.ly's plotly.js 3.7.0, pinned by its hash.
-    With ``port=0`` the system picks a free port; the first line printed gives the address.
+    On this page path only, ``port=0`` binds an ephemeral port and the first line printed gives its address.
+    The Dash path forwards ``port`` unchanged: Dash 4.4.1 treats zero as its PORT environment variable or 8050.
+    The page sends template-free figures, so Plotly.js defaults can differ from Dash's Plotly template.
+    Public builders are mirrors converted by `make_app`, not reusable Dash components/dependencies.
+    At very large gate counts, the 15-to-1 model can differ in the last bits from Qualtran.
+
+    The page caps each declared request body at 1 MiB, bounds Content-Length conversion to 20
+    characters, and validates JSON media types. It provides no CORS
+    permission. It does not bound update computation, connection count or slow-client duration; keep it local.
 
     With ``dash=None``, where dash is installed but does not import, it serves the page and says why on stderr
     in one line; ``dash=True`` raises `make_app`'s ImportError instead.
@@ -622,28 +640,61 @@ def _page_server(host: str, port: int):
             if status != 204:
                 self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(body)
+            if self.command != "HEAD":
+                self.wfile.write(body)
 
         def _refuse(self, status: int, reason: str = "", allow: Optional[str] = None) -> None:
             text = f"{status} {self.responses[status][0]}" + (f": {reason}" if reason else "")
             self._send(status, (text + "\n").encode(), "text/plain; charset=utf-8", allow)
 
+        def _route(self):
+            try:
+                path = urlsplit(self.path).path
+            except ValueError:
+                self._refuse(400, "the request target is malformed")
+                return None
+            if path in gets:
+                return path, "GET, HEAD, OPTIONS"
+            if path == "/update":
+                return path, "POST, OPTIONS"
+            self._refuse(404)
+            return None
+
         def do_GET(self) -> None:
-            path = urlsplit(self.path).path
+            route = self._route()
+            if route is None:
+                return
+            path, allow = route
             if path in gets:
                 self._send(200, *gets[path])
-            elif path == "/update":
-                self._refuse(405, "update takes a POST", allow="POST")
             else:
-                self._refuse(404)
+                self._refuse(405, "update takes a POST", allow=allow)
+
+        do_HEAD = do_GET
+
+        def do_OPTIONS(self) -> None:
+            route = self._route()
+            if route is not None:
+                self._send(200, allow=route[1])
+
+        def _unsupported(self) -> None:
+            route = self._route()
+            if route is not None:
+                self._refuse(405, allow=route[1])
+
+        def __getattr__(self, name):
+            # BaseHTTPRequestHandler dispatches arbitrary method tokens through do_<method>.
+            if name.startswith("do_"):
+                return self._unsupported
+            raise AttributeError(name)
 
         def do_POST(self) -> None:
-            path = urlsplit(self.path).path
+            route = self._route()
+            if route is None:
+                return
+            path, allow = route
             if path != "/update":
-                if path in gets:
-                    self._refuse(405, allow="GET")
-                else:
-                    self._refuse(404)
+                self._refuse(405, allow=allow)
                 return
             value = self.headers.get("Content-Length")
             if value is None:
@@ -653,12 +704,27 @@ def _page_server(host: str, port: int):
             if not _CONTENT_LENGTH.fullmatch(value):
                 self._refuse(400, "the Content-Length is not a number")
                 return
-            length = int(value)
+            # Bound conversion even on interpreters with an integer-string digit limit disabled.
+            if len(value) > 20:
+                if not value.startswith("-") and len(value.lstrip("0")) > len(str(_MAX_BODY)):
+                    self._refuse(413, f"the body is over {_MAX_BODY} bytes")
+                else:
+                    self._refuse(400, "the Content-Length is too long")
+                return
+            try:
+                length = int(value)
+            except ValueError:
+                self._refuse(400, "the Content-Length is not a number")
+                return
             if length < 0:
                 self._refuse(400, "the Content-Length is negative")
                 return
             if length > _MAX_BODY:
                 self._refuse(413, f"the body is over {_MAX_BODY} bytes")
+                return
+            media_type = self.headers.get_content_type()
+            if not (media_type == "application/json" or (media_type.startswith("application/") and media_type.endswith("+json"))):
+                self._refuse(415, "update requires a JSON media type")
                 return
             try:
                 args = json.loads(self.rfile.read(length))

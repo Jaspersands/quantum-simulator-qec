@@ -5,9 +5,12 @@ serial and parallel minimum-weight perfect matching solvers (``SolverSerial``,
 partitions, the example codes with their random errors, the visualizer and its website
 (``fb.helper.open_visualizer``), with the same matchings as fusion_blossom's.
 
-Two differences: weights are 64-bit (fusion_blossom's wheels use 32-bit ones), and where
+Weights are 64-bit (fusion_blossom's wheels use 32-bit ones), and where
 fusion_blossom would call the Blossom V library, which its wheels leave out, this package's own
-exact matcher runs."""
+exact matcher runs. The helper and unchanged embedded Bottle live below this package rather than
+registering top-level modules. Its server binds when run, uses the latest process-wide data folder,
+and checks resolved data-path containment and malformed UTF-8; see ``helper`` for lifecycle,
+MIME, logging and filesystem-race limits."""
 
 from .. import _core
 
