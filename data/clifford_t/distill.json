@@ -5,8 +5,8 @@
   "0.01": {
    "qubits": 5,
    "timing": {
-    "twirl_s": 0.7494845410110429,
-    "coherent_s": 6.880011416011257,
+    "twirl_s": 0.9042857500026003,
+    "coherent_s": 6.977989874998457,
     "locations": 34,
     "exact_gates": 12,
     "generators": 54,
@@ -18,7 +18,7 @@
     "ess": 20000.0
    },
    "coherent": {
-    "infidelity": 0.0006108562660286272,
+    "infidelity": 0.0006108562660286271,
     "acceptance": 0.16551497712958566,
     "ess": 19809.25130946931
    },
@@ -30,8 +30,8 @@
   "0.02": {
    "qubits": 5,
    "timing": {
-    "twirl_s": 0.8293944170000032,
-    "coherent_s": 6.87596495798789,
+    "twirl_s": 0.7787628750011208,
+    "coherent_s": 7.047627375002776,
     "locations": 34,
     "exact_gates": 12,
     "generators": 54,
@@ -55,8 +55,8 @@
   "0.05": {
    "qubits": 5,
    "timing": {
-    "twirl_s": 0.7684026249917224,
-    "coherent_s": 7.2573726670088945,
+    "twirl_s": 0.8306339170012507,
+    "coherent_s": 7.323020958996494,
     "locations": 34,
     "exact_gates": 12,
     "generators": 54,
@@ -82,11 +82,11 @@
   "0.01": {
    "qubits": 85,
    "timing": {
-    "twirl_s": 0.7823170409974409,
-    "coherent_s": 259.3704608340049,
+    "twirl_s": 0.8439060829987284,
+    "coherent_s": 287.94742770800076,
     "locations": 801,
     "exact_gates": 10,
-    "generators": 911,
+    "generators": 921,
     "twirl_peak_terms": 32
    },
    "twirl": {
@@ -95,19 +95,19 @@
     "ess": 2000.0
    },
    "coherent": {
-    "infidelity": 0.2155021218978093,
-    "acceptance": 0.15121682885086307,
-    "ess": 1884.1412476744038
+    "infidelity": 0.21550212189644272,
+    "acceptance": 0.1512169343234937,
+    "ess": 1884.1412597711596
    }
   },
   "0.02": {
    "qubits": 85,
    "timing": {
-    "twirl_s": 0.7726339579967316,
-    "coherent_s": 258.50192387499555,
+    "twirl_s": 0.928498542001762,
+    "coherent_s": 283.54257879099896,
     "locations": 801,
     "exact_gates": 10,
-    "generators": 911,
+    "generators": 921,
     "twirl_peak_terms": 32
    },
    "twirl": {
@@ -116,19 +116,19 @@
     "ess": 2000.0
    },
    "coherent": {
-    "infidelity": 0.2116876471656377,
-    "acceptance": 0.12923211144155308,
-    "ess": 1578.650885737319
+    "infidelity": 0.21168764706190016,
+    "acceptance": 0.12923296831571265,
+    "ess": 1578.6370922496285
    }
   },
   "0.05": {
    "qubits": 85,
    "timing": {
-    "twirl_s": 1.1074299159954535,
-    "coherent_s": 300.60991345898947,
+    "twirl_s": 0.9831136659995536,
+    "coherent_s": 327.40429250000307,
     "locations": 801,
     "exact_gates": 10,
-    "generators": 911,
+    "generators": 921,
     "twirl_peak_terms": 32
    },
    "twirl": {
@@ -137,9 +137,9 @@
     "ess": 2000.0
    },
    "coherent": {
-    "infidelity": 0.27565532699337825,
-    "acceptance": 0.046994684361686294,
-    "ess": 559.5456321451276
+    "infidelity": 0.27565533596992464,
+    "acceptance": 0.046974057940228575,
+    "ess": 558.6670483148848
    }
   }
  }

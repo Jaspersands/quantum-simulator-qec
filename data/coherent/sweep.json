@@ -8,12 +8,12 @@
    "theta": 0.0025,
    "coherent": {
     "shots": 200000,
-    "ess": 0.9965060947470328,
-    "rate": 0.0023027187715305582,
-    "stderr": 0.00011071982651621548,
-    "rate_merged": 0.0023027187715305582,
-    "stderr_merged": 0.00011071982651621548,
-    "seconds": 1.6,
+    "ess": 0.9965060896058867,
+    "rate": 0.002302718893745053,
+    "stderr": 0.00011071983675344238,
+    "rate_merged": 0.002302718893745053,
+    "stderr_merged": 0.00011071983675344238,
+    "seconds": 1.4,
     "generators": 28,
     "locations": 189,
     "exact": true,
@@ -25,7 +25,8 @@
     "rate": 0.002148,
     "stderr": 4.62967179830277e-05
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 3,
@@ -33,12 +34,12 @@
    "theta": 0.005,
    "coherent": {
     "shots": 200000,
-    "ess": 0.9867879889499014,
-    "rate": 0.0030206863272084603,
-    "stderr": 0.00013952282850761264,
-    "rate_merged": 0.0030253792046954,
-    "stderr_merged": 0.00013939165794611748,
-    "seconds": 2.3,
+    "ess": 0.9867879090692719,
+    "rate": 0.003020688969181892,
+    "stderr": 0.00013952303056798232,
+    "rate_merged": 0.00302538183089053,
+    "stderr_merged": 0.00013939185846315405,
+    "seconds": 1.1,
     "generators": 28,
     "locations": 189,
     "exact": true,
@@ -50,7 +51,8 @@
     "rate": 0.002212,
     "stderr": 4.6979857981905397e-05
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 3,
@@ -58,12 +60,12 @@
    "theta": 0.01,
    "coherent": {
     "shots": 200000,
-    "ess": 0.946518786873924,
-    "rate": 0.0066550175634062835,
-    "stderr": 0.000246094912323279,
-    "rate_merged": 0.006663101637763841,
-    "stderr_merged": 0.0002499050158857462,
-    "seconds": 1.7,
+    "ess": 0.9465174273763124,
+    "rate": 0.006655079905059294,
+    "stderr": 0.000246098109003721,
+    "rate_merged": 0.006663163023498235,
+    "stderr_merged": 0.00024990838698224683,
+    "seconds": 1.4,
     "generators": 28,
     "locations": 189,
     "exact": true,
@@ -75,7 +77,8 @@
     "rate": 0.002752,
     "stderr": 5.238727417989984e-05
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 3,
@@ -83,12 +86,12 @@
    "theta": 0.015,
    "coherent": {
     "shots": 300000,
-    "ess": 0.8810072906163207,
-    "rate": 0.01577031834356735,
-    "stderr": 0.00035183890842330066,
-    "rate_merged": 0.014926229191336546,
-    "stderr_merged": 0.0003405811577833872,
-    "seconds": 3.1,
+    "ess": 0.8810021581691325,
+    "rate": 0.015770852693098043,
+    "stderr": 0.0003518534541196578,
+    "rate_merged": 0.014926715860163982,
+    "stderr_merged": 0.00034059538555314596,
+    "seconds": 1.9,
     "generators": 28,
     "locations": 189,
     "exact": true,
@@ -100,7 +103,8 @@
     "rate": 0.003665,
     "stderr": 6.042820347321274e-05
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 3,
@@ -108,12 +112,12 @@
    "theta": 0.02,
    "coherent": {
     "shots": 400000,
-    "ess": 0.7878207722303219,
-    "rate": 0.032503364774820236,
-    "stderr": 0.0004810661989327682,
-    "rate_merged": 0.03036639828761143,
-    "stderr_merged": 0.00046952137652968973,
-    "seconds": 4.6,
+    "ess": 0.7878002163797596,
+    "rate": 0.03250364192608095,
+    "stderr": 0.00048110099104580893,
+    "rate_merged": 0.030368173794618956,
+    "stderr_merged": 0.00046955927716197044,
+    "seconds": 2.8,
     "generators": 28,
     "locations": 189,
     "exact": true,
@@ -125,7 +129,8 @@
     "rate": 0.005167,
     "stderr": 7.169590023843763e-05
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 3,
@@ -133,12 +138,12 @@
    "theta": 0.03,
    "coherent": {
     "shots": 500000,
-    "ess": 0.5542630290619065,
-    "rate": 0.08948360166743727,
-    "stderr": 0.0008364057254704807,
-    "rate_merged": 0.08827243172423134,
-    "stderr_merged": 0.0008445910846681602,
-    "seconds": 6.6,
+    "ess": 0.554184397138169,
+    "rate": 0.08949912376400583,
+    "stderr": 0.0008366037325144312,
+    "rate_merged": 0.0882866145844961,
+    "stderr_merged": 0.0008447945987919228,
+    "seconds": 3.6,
     "generators": 28,
     "locations": 189,
     "exact": true,
@@ -150,7 +155,8 @@
     "rate": 0.010171,
     "stderr": 0.00010033718532528207
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 5,

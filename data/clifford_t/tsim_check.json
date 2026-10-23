@@ -6,18 +6,18 @@
    "exact_infidelity": 0.03333333333333333,
    "tsim_infidelity": 0.03442,
    "z": 1.3328515248132233,
-   "ours_s_per_shot": 3.145455000048969e-06,
-   "tsim_s_per_shot": 2.7447224999195895e-06,
-   "tsim_first_call_s": 2.008153458999004,
+   "ours_s_per_shot": 2.4955516800400803e-06,
+   "tsim_s_per_shot": 1.646914180018939e-06,
+   "tsim_first_call_s": 1.134681791998446,
    "peak_terms": 2
   },
   "distillation": {
-   "chi2": 36.95192104354102,
+   "chi2": 36.951921043541745,
    "dof": 31,
-   "p_value": 0.21306626152867014,
+   "p_value": 0.21306626152864627,
    "exact": {
-    "infidelity": 0.0059090094149913015,
-    "acceptance": 0.14154526748971188
+    "infidelity": 0.005909009414991299,
+    "acceptance": 0.14154526748971194
    },
    "ours": {
     "infidelity": 0.006462731581214994,
@@ -27,9 +27,9 @@
     "infidelity": 0.006346967559943582,
     "acceptance": 0.1418
    },
-   "ours_s_per_shot": 6.573253417998785e-05,
-   "tsim_s_per_shot": 0.002236507556659926,
-   "tsim_first_call_s": 129.82382054199843,
+   "ours_s_per_shot": 6.543718167988117e-05,
+   "tsim_s_per_shot": 0.0044871621658401275,
+   "tsim_first_call_s": 79.70887662499445,
    "peak_terms": 32
   },
   "distillation_noisy": {
@@ -44,9 +44,9 @@
     "infidelity": 0.03596894311519569,
     "acceptance": 0.12622
    },
-   "ours_s_per_shot": 6.549303916006465e-05,
-   "tsim_s_per_shot": 0.00304164915500005,
-   "tsim_first_call_s": 166.052523499995,
+   "ours_s_per_shot": 6.285456083991449e-05,
+   "tsim_s_per_shot": 0.002408388655000017,
+   "tsim_first_call_s": 144.35974179199548,
    "peak_terms": 32
   },
   "encoded_distillation": {
@@ -100,7 +100,7 @@
     0.5245
    ],
    "shots": 2000,
-   "ours_s_per_shot": 0.002135840062499483,
+   "ours_s_per_shot": 0.002024272104499687,
    "peak_terms": 32,
    "tsim": "not run (--tsim-encoded): Tsim's compilation of the 85-qubit circuit was killed for memory here"
   }

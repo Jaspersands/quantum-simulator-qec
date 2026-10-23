@@ -23,7 +23,8 @@
     "rate": 0.02376,
     "stderr": 0.00015230056598712955
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 5,
@@ -35,7 +36,7 @@
     "stderr": 0.00034970319353917013,
     "rate_merged": 0.013240071768736662,
     "stderr_merged": 0.00034970319353917013,
-    "seconds": 0.5,
+    "seconds": 0.4,
     "generators": 12,
     "locations": 25,
     "exact": true,
@@ -47,7 +48,8 @@
     "rate": 0.013166,
     "stderr": 0.00011398533433736114
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 7,
@@ -59,7 +61,7 @@
     "stderr": 0.0002649687690909844,
     "rate_merged": 0.00717085678216435,
     "stderr_merged": 0.0002649687690909844,
-    "seconds": 1.5,
+    "seconds": 0.8,
     "generators": 24,
     "locations": 49,
     "exact": true,
@@ -71,7 +73,8 @@
     "rate": 0.007305,
     "stderr": 8.515654393527252e-05
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 9,
@@ -83,7 +86,7 @@
     "stderr": 0.00020377225893844278,
     "rate_merged": 0.004247445773686168,
     "stderr_merged": 0.00020377225893844278,
-    "seconds": 6.8,
+    "seconds": 2.8,
     "generators": 40,
     "locations": 81,
     "exact": true,
@@ -95,7 +98,8 @@
     "rate": 0.003907,
     "stderr": 6.238377474151431e-05
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 11,
@@ -107,7 +111,7 @@
     "stderr": 0.00011464800424472236,
     "rate_merged": 0.0019966053154068216,
     "stderr_merged": 0.00011464800424472236,
-    "seconds": 20.9,
+    "seconds": 7.1,
     "generators": 60,
     "locations": 121,
     "exact": true,
@@ -119,7 +123,8 @@
     "rate": 0.002106,
     "stderr": 4.584282674530444e-05
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 13,
@@ -131,7 +136,7 @@
     "stderr": 5.698228007991027e-05,
     "rate_merged": 0.0009907677835508679,
     "stderr_merged": 5.698228007991027e-05,
-    "seconds": 107.3,
+    "seconds": 40.1,
     "generators": 84,
     "locations": 169,
     "exact": true,
@@ -143,7 +148,8 @@
     "rate": 0.00113,
     "stderr": 3.3596474517425185e-05
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 15,
@@ -155,7 +161,7 @@
     "stderr": 3.706415526085769e-05,
     "rate_merged": 0.0006451513538442686,
     "stderr_merged": 3.706415526085769e-05,
-    "seconds": 1808.6,
+    "seconds": 588.1,
     "generators": 112,
     "locations": 225,
     "exact": true,
@@ -167,7 +173,8 @@
     "rate": 0.000624,
     "stderr": 2.4972197019885934e-05
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 3,
@@ -191,7 +198,8 @@
     "rate": 0.052962,
     "stderr": 0.00022395764455807263
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 5,
@@ -203,7 +211,7 @@
     "stderr": 0.0006101482578668598,
     "rate_merged": 0.04123299749745967,
     "stderr_merged": 0.0006101482578668598,
-    "seconds": 0.6,
+    "seconds": 0.5,
     "generators": 12,
     "locations": 25,
     "exact": true,
@@ -215,7 +223,8 @@
     "rate": 0.04066,
     "stderr": 0.00019750130227418755
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 7,
@@ -227,7 +236,7 @@
     "stderr": 0.000533068703971894,
     "rate_merged": 0.0318498327434357,
     "stderr_merged": 0.000533068703971894,
-    "seconds": 2.9,
+    "seconds": 1.6,
     "generators": 24,
     "locations": 49,
     "exact": true,
@@ -239,7 +248,8 @@
     "rate": 0.031567,
     "stderr": 0.00017484428646941826
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 9,
@@ -251,7 +261,7 @@
     "stderr": 0.0004850153095485646,
     "rate_merged": 0.024169984301377793,
     "stderr_merged": 0.0004850153095485646,
-    "seconds": 10.5,
+    "seconds": 3.3,
     "generators": 40,
     "locations": 81,
     "exact": true,
@@ -263,7 +273,8 @@
     "rate": 0.024181,
     "stderr": 0.00015361080443445377
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 11,
@@ -275,7 +286,7 @@
     "stderr": 0.0004134880491689459,
     "rate_merged": 0.018096723168337648,
     "stderr_merged": 0.0004134880491689459,
-    "seconds": 42.1,
+    "seconds": 10.1,
     "generators": 60,
     "locations": 121,
     "exact": true,
@@ -287,7 +298,8 @@
     "rate": 0.018262,
     "stderr": 0.00013389734633666197
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 13,
@@ -299,7 +311,7 @@
     "stderr": 0.00036645023327406574,
     "rate_merged": 0.013956899709726857,
     "stderr_merged": 0.00036645023327406574,
-    "seconds": 121.4,
+    "seconds": 35.7,
     "generators": 84,
     "locations": 169,
     "exact": true,
@@ -311,7 +323,8 @@
     "rate": 0.014349,
     "stderr": 0.00011892479219658112
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 15,
@@ -323,7 +336,7 @@
     "stderr": 0.0003201092746801491,
     "rate_merged": 0.010457422358161852,
     "stderr_merged": 0.0003201092746801491,
-    "seconds": 328.1,
+    "seconds": 120.8,
     "generators": 112,
     "locations": 225,
     "exact": true,
@@ -335,7 +348,8 @@
     "rate": 0.010861,
     "stderr": 0.00010364863085926413
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 3,
@@ -347,7 +361,7 @@
     "stderr": 0.0008590778668137542,
     "rate_merged": 0.09664463078804054,
     "stderr_merged": 0.0008590778668137542,
-    "seconds": 0.3,
+    "seconds": 0.2,
     "generators": 4,
     "locations": 9,
     "exact": true,
@@ -359,7 +373,8 @@
     "rate": 0.096172,
     "stderr": 0.0002948269770831699
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 5,
@@ -371,7 +386,7 @@
     "stderr": 0.0008856853273991413,
     "rate_merged": 0.09280690470136753,
     "stderr_merged": 0.0008856853273991413,
-    "seconds": 0.7,
+    "seconds": 0.5,
     "generators": 12,
     "locations": 25,
     "exact": true,
@@ -383,7 +398,8 @@
     "rate": 0.093482,
     "stderr": 0.00029110670840088864
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 7,
@@ -395,7 +411,7 @@
     "stderr": 0.0008450700959027074,
     "rate_merged": 0.08949601009729492,
     "stderr_merged": 0.0008450700959027074,
-    "seconds": 1.6,
+    "seconds": 1.4,
     "generators": 24,
     "locations": 49,
     "exact": true,
@@ -407,7 +423,8 @@
     "rate": 0.089714,
     "stderr": 0.00028577158396873544
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 9,
@@ -419,7 +436,7 @@
     "stderr": 0.0008593983553070909,
     "rate_merged": 0.0863184459705337,
     "stderr_merged": 0.0008593983553070909,
-    "seconds": 8.0,
+    "seconds": 4.4,
     "generators": 40,
     "locations": 81,
     "exact": true,
@@ -431,7 +448,8 @@
     "rate": 0.085115,
     "stderr": 0.0002790527490905617
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 11,
@@ -443,7 +461,7 @@
     "stderr": 0.0008626230180695388,
     "rate_merged": 0.08237441418217105,
     "stderr_merged": 0.0008626230180695388,
-    "seconds": 40.9,
+    "seconds": 19.1,
     "generators": 60,
     "locations": 121,
     "exact": true,
@@ -455,7 +473,8 @@
     "rate": 0.080748,
     "stderr": 0.00027244772066581873
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 13,
@@ -467,7 +486,7 @@
     "stderr": 0.0008314150126850138,
     "rate_merged": 0.07571874112803152,
     "stderr_merged": 0.0008314150126850138,
-    "seconds": 229.6,
+    "seconds": 51.3,
     "generators": 84,
     "locations": 169,
     "exact": true,
@@ -479,7 +498,8 @@
     "rate": 0.076292,
     "stderr": 0.00026546474480804416
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 15,
@@ -491,7 +511,7 @@
     "stderr": 0.0008091766180962493,
     "rate_merged": 0.0706010349386673,
     "stderr_merged": 0.0008091766180962493,
-    "seconds": 827.5,
+    "seconds": 303.0,
     "generators": 112,
     "locations": 225,
     "exact": true,
@@ -503,7 +523,8 @@
     "rate": 0.07252,
     "stderr": 0.0002593469675936081
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 3,
@@ -527,7 +548,8 @@
     "rate": 0.153571,
     "stderr": 0.00036053702716780703
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 5,
@@ -551,7 +573,8 @@
     "rate": 0.170581,
     "stderr": 0.00037614242307801445
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 7,
@@ -563,7 +586,7 @@
     "stderr": 0.00120136514948584,
     "rate_merged": 0.18574238490675704,
     "stderr_merged": 0.00120136514948584,
-    "seconds": 2.4,
+    "seconds": 1.9,
     "generators": 24,
     "locations": 49,
     "exact": true,
@@ -575,7 +598,8 @@
     "rate": 0.184304,
     "stderr": 0.00038773191200106293
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 9,
@@ -587,7 +611,7 @@
     "stderr": 0.001259641068854594,
     "rate_merged": 0.19815856461931108,
     "stderr_merged": 0.001259641068854594,
-    "seconds": 9.1,
+    "seconds": 6.8,
     "generators": 40,
     "locations": 81,
     "exact": true,
@@ -599,7 +623,8 @@
     "rate": 0.196148,
     "stderr": 0.00039708180781294927
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 11,
@@ -611,7 +636,7 @@
     "stderr": 0.001264361706495803,
     "rate_merged": 0.20599598735615404,
     "stderr_merged": 0.001264361706495803,
-    "seconds": 52.2,
+    "seconds": 21.9,
     "generators": 60,
     "locations": 121,
     "exact": true,
@@ -623,7 +648,8 @@
     "rate": 0.206796,
     "stderr": 0.0004050079189151738
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 13,
@@ -635,7 +661,7 @@
     "stderr": 0.0013059309830894122,
     "rate_merged": 0.21826658025080098,
     "stderr_merged": 0.0013059309830894122,
-    "seconds": 481.8,
+    "seconds": 229.0,
     "generators": 84,
     "locations": 169,
     "exact": true,
@@ -647,7 +673,8 @@
     "rate": 0.216598,
     "stderr": 0.0004119263361281966
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   },
   {
    "d": 15,
@@ -659,7 +686,7 @@
     "stderr": 0.0013165596250469347,
     "rate_merged": 0.2237970536424801,
     "stderr_merged": 0.0013165596250469347,
-    "seconds": 2475.2,
+    "seconds": 745.8,
     "generators": 112,
     "locations": 225,
     "exact": true,
@@ -671,7 +698,8 @@
     "rate": 0.22573,
     "stderr": 0.00041806215698147087
    },
-   "version": "2.2.0"
+   "version": "2.2.0",
+   "generation_revision": "coherent-merged-proposal-v1"
   }
  ]
 }

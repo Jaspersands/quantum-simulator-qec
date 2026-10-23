@@ -1130,5 +1130,142 @@
     "ratio": 1.0325612717214778
    }
   }
+ },
+ {
+  "version": "2.2.0",
+  "date": "2026-10-23",
+  "machine": "Darwin arm64, Python 3.13.5",
+  "cores": 10,
+  "kind": "Darwin arm64",
+  "references": {
+   "stim": "1.16.0",
+   "pymatching": "2.4.0",
+   "ldpc": "2.4.1",
+   "relay-bp": "0.2.2",
+   "chromobius": "1.1.1",
+   "tesseract-decoder": "0.1.1.dev20261013012529"
+  },
+  "quick": false,
+  "results": {
+   "error_model": {
+    "what": "Error model of a d = 11 rotated memory, 11 rounds (decomposed)",
+    "unit": "model",
+    "ours_us": 13462.542003253475,
+    "reference_us": 23137.084004702047,
+    "ratio": 0.5818599267097592
+   },
+   "shortest_graphlike": {
+    "what": "Its graph-like distance (shortest_graphlike_error on the model)",
+    "unit": "model",
+    "ours_us": 369.95799746364355,
+    "reference_us": 3558.334006811492,
+    "ratio": 0.10396944096744615
+   },
+   "sample": {
+    "what": "Sampling its detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 2.4516229503205977,
+    "reference_us": 2.55036669987021,
+    "ratio": 0.9612825286831742
+   },
+   "m2d": {
+    "what": "Measurements to detection events, 20,000 shots",
+    "unit": "shot",
+    "ours_us": 0.7394228996417951,
+    "reference_us": 3.043875000003027,
+    "ratio": 0.24292157189144095
+   },
+   "matching": {
+    "what": "Matching at p = 0.1%, 20,000 shots (against PyMatching)",
+    "unit": "shot",
+    "ours_us": 4.227464600262465,
+    "reference_us": 4.135581250011455,
+    "ratio": 1.0222177596560955
+   },
+   "correlated_matching": {
+    "what": "Correlated matching, 20,000 shots (against PyMatching's)",
+    "unit": "shot",
+    "ours_us": 11.814579150086502,
+    "reference_us": 11.480195799958892,
+    "ratio": 1.0291269727410752
+   },
+   "union_find": {
+    "what": "Union-find on the same shots",
+    "unit": "shot",
+    "ours_us": 11.766056250053225,
+    "reference_us": null,
+    "ratio": null
+   },
+   "sample@4": {
+    "what": "Sampling, 20,000 shots, on 4 threads",
+    "unit": "shot",
+    "ours_us": 0.8578396002121735,
+    "reference_us": null,
+    "ratio": null
+   },
+   "sample@all": {
+    "what": "Sampling, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 0.6794875000196043,
+    "reference_us": null,
+    "ratio": null
+   },
+   "matching@4": {
+    "what": "Matching, 20,000 shots, on 4 threads",
+    "unit": "shot",
+    "ours_us": 1.468864550406579,
+    "reference_us": null,
+    "ratio": null
+   },
+   "matching@all": {
+    "what": "Matching, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 1.2441062499419786,
+    "reference_us": null,
+    "ratio": null
+   },
+   "correlated_matching@all": {
+    "what": "Correlated matching, 20,000 shots, on every core",
+    "unit": "shot",
+    "ours_us": 2.5639125000452623,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bposd_gross": {
+    "what": "BP+OSD on the gross code, 6 cycles at p = 0.3%, 300 shots",
+    "unit": "shot",
+    "ours_us": 1734.5737499999814,
+    "reference_us": null,
+    "ratio": null
+   },
+   "bplsd_gross": {
+    "what": "BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc)",
+    "unit": "shot",
+    "ours_us": 2067.9704150097677,
+    "reference_us": 2767.7262500219513,
+    "ratio": 0.7471730323739085
+   },
+   "relay_gross": {
+    "what": "Relay-BP on the same shots (against IBM's relay_bp)",
+    "unit": "shot",
+    "ours_us": 7361.542290018406,
+    "reference_us": 8382.436039973982,
+    "ratio": 0.878210374038387
+   },
+   "color_matching": {
+    "what": "Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius)",
+    "unit": "shot",
+    "ours_us": 10.582393749791663,
+    "reference_us": 13.976287499826867,
+    "ratio": 0.7571677206785246
+   },
+   "search_color": {
+    "what": "The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract)",
+    "unit": "shot",
+    "ours_us": 3614.03304200212,
+    "reference_us": 3506.888000003528,
+    "ratio": 1.0305527413474522
+   }
+  }
  }
 ]

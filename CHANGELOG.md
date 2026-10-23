@@ -4,7 +4,7 @@ All notable changes to `stabilizer-qec`. The Python package follows
 [semantic versioning](https://semver.org) from 1.0. Anything deprecated warns for at least one
 minor release before a major release removes it. The Rust crate is versioned on its own.
 
-## 2.2.0 — 2026-10-22
+## 2.2.0 — 2026-10-23
 
 The coherent sampler sums the selected completed kernel in floating-point arithmetic when
 its contraction plan fits the entry budget, where 2.1 summed each shot's whole class only

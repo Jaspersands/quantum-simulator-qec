@@ -2162,11 +2162,11 @@
       The raw coherent data archive (<a href="data/coherent/sweep.json">sweep</a>,
       <a href="data/coherent/validate.json">validation</a>, <a href="data/coherent/capacity.json">capacity</a>,
       <a href="data/coherent/crosstalk.json">crosstalk</a>) preserves measurements made before the inherited
-      merged-proposal correction, including development rows stamped 2.2.0 or exact. They are not current
-      quantitative validation. Current figures accept only <span class="mono">generation_revision=coherent-merged-proposal-v1</span>;
-      the marker records provenance, independently of exactness or successful validation. Final-wheel remeasurement
-      will refresh the d = 3 sweep/crosstalk, validation and capacity grids. Larger-distance ratios, merged-decoder
-      gains, ESS and distance-scaling claims await suitable new measurements; no replacement values are inferred.
+      merged-proposal correction. Earlier development-2.2 data remain in Git history and preserved evidence;
+      unrefreshed rows are not current quantitative validation. Current figures accept only <span class="mono">generation_revision=coherent-merged-proposal-v1</span>;
+      the marker records provenance, independently of exactness or successful validation. The actual final 2.2.0 wheel
+      refreshed all eight validation, six d = 3 sweep, four d = 3 crosstalk and 28 capacity rows. The 17 unchanged
+      larger-distance sweep/crosstalk rows remain archival and are excluded from current distance-scaling conclusions.
     </p>
   </div>
 
@@ -2234,9 +2234,9 @@
       <p class="note" data-cap-status></p>
       <p class="note">Perfect measurements and one Z over-rotation by θ on every data qubit, the setting of Bravyi et
         al., npj Quantum Information 4, 55 (2018), who found that at large distance the logical noise is close to the
-        twirled noise's. Current agreement and ratios await corrected-proposal capacity measurements. A single
-        round of rotations does not probe the inter-round interference of circuit-level noise. Bars, when current
-        data are available: two standard errors.</p>
+        twirled noise's. The plotted ratios are the corrected-proposal capacity measurements on this finite grid. A single
+        round of rotations does not probe the inter-round interference of circuit-level noise. Bars: two
+        standard errors.</p>
     </div>
   </figure>
 

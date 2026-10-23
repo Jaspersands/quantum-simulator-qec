@@ -297,17 +297,17 @@ runners, `.github/workflows/bench.yml`); every push is held to them, and the
 
 | benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
 |---|---|---|---|
-| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.59 | 0.38 | 0.51 |
-| Its graph-like distance (shortest_graphlike_error on the model) | 0.13 | 0.14 | 0.18 |
-| Sampling its detection events, 20,000 shots | 0.98 | 0.74 | 0.57 |
+| Error model of a d = 11 rotated memory, 11 rounds (decomposed) | 0.58 | 0.38 | 0.51 |
+| Its graph-like distance (shortest_graphlike_error on the model) | 0.10 | 0.14 | 0.18 |
+| Sampling its detection events, 20,000 shots | 0.96 | 0.74 | 0.57 |
 | Measurements to detection events, 20,000 shots | 0.24 | 0.12 | 0.12 |
-| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 0.98 | 1.22 | 1.10 |
-| Correlated matching, 20,000 shots (against PyMatching's) | 1.01 | 1.21 | 0.86 |
-| BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc) | 0.74 | 0.61 | 0.63 |
-| Relay-BP on the same shots (against IBM's relay_bp) | 0.89 | 0.96 | 0.99 |
-| Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius) | 0.74 | 0.92 | 0.74 |
+| Matching at p = 0.1%, 20,000 shots (against PyMatching) | 1.02 | 1.22 | 1.10 |
+| Correlated matching, 20,000 shots (against PyMatching's) | 1.03 | 1.21 | 0.86 |
+| BP+LSD on the gross code, 6 cycles at p = 0.3%, 200 shots (against ldpc) | 0.75 | 0.61 | 0.63 |
+| Relay-BP on the same shots (against IBM's relay_bp) | 0.88 | 0.96 | 0.99 |
+| Colour-code matching, d = 7 colour code at p = 0.2%, 20,000 shots (against Chromobius) | 0.76 | 0.92 | 0.74 |
 | The search decoder, d = 5 colour code at p = 0.2%, 1,000 shots (against Tesseract) | 1.03 | 0.66 | — |
-| *recorded with* | 2.0.0 | 1.8.0 | 1.8.0 |
+| *recorded with* | 2.2.0 | 1.8.0 | 1.8.0 |
 
 ## A note on quoted figures
 
@@ -1495,20 +1495,17 @@ cluster's faults in `ldpc`'s order; Relay-BP on the gross code with explicit str
 strengths and no memory, correction, convergence and iteration count; colour-code matching on
 annotated colour codes (d = 3 to 9) and Chromobius's own test code, the Möbius matching's
 weight on every shot and the predictions; the search on surface, colour and gross-code models
-with Tesseract's defaults, literal orders and beam climbing, the faults found. The BP+LSD,
-Relay-BP and search rows are 1.7.0's measurements, not re-run since. They count a BP+LSD shot as
-tied as 1.7.0 did, when it met a choice 1.7.0 did not reproduce (equal keys in a long sort, or a
-merge of three or more clusters); 2.2's `tools/decoder_check.py` counts one only when `ldpc`'s
-answer is among the corrections the merge orders reach. The colour rows were re-recorded in 2.2,
-by a build whose version still read 2.1.0, the version at the top of `data/decoders/check.json`,
-and have no ties, the matcher now listing PyMatching's edges in PyMatching's order:
+with Tesseract's defaults, literal orders and beam climbing, the faults found. All four decoder sections below were re-recorded with the actual final 2.2.0 wheel.
+A BP+LSD difference counts as a tie only when the reference's correction is among the actual
+merge-order outcomes searched by `tools/decoder_check.py`; it is not a blanket tie waiver.
+The table reports the finite recorded corpus and its actual installed reference versions:
 
 | decoder | against | cases | shots | equal | ties | otherwise | time (× theirs) |
 |---|---|---|---|---|---|---|---|
-| BP+LSD (LSD-0, -E, -CS) | ldpc 2.4.1 | 52 | 24,000 | 23,989 | 11 | 0 | 0.67 |
-| Relay-BP | IBM's relay_bp 0.2.2 | 8 | 8,000 | 8,000 | 0 | 0 | 0.77 |
-| Colour-code matching | Chromobius 1.1.1 | 17 | 340,000 | 340,000 | 0 | 0 | 0.65 |
-| Search decoder | Tesseract 0.1.1.dev20260910235247 | 12 | 30,000 | 30,000 | 0 | 0 | 1.00 |
+| BP+LSD (LSD-0, -E, -CS) | ldpc 2.4.1 | 52 | 24,000 | 23,994 | 6 | 0 | 0.86 |
+| Relay-BP | IBM's relay_bp 0.2.2 | 8 | 8,000 | 8,000 | 0 | 0 | 0.79 |
+| Colour-code matching | Chromobius 1.1.1 | 17 | 340,000 | 340,000 | 0 | 0 | 0.72 |
+| Search decoder | Tesseract 0.1.1.dev20261013012529 | 12 | 30,000 | 30,000 | 0 | 0 | 1.04 |
 
 The time is this package's over the reference's on the same shots, one thread, Apple M2 Pro,
 both decoders built beforehand. Tutorial 04 runs every decoder on a colour code and the gross
@@ -1600,13 +1597,15 @@ literature audit or a universal novelty/advantage claim.
 - **Leakage** (`I_ERROR[LEAK(p=…)]`, `SEEP`, `II_ERROR[LEAK_TRANSPORT(p=…)]`) runs in a frame
   sampler with heralds (`Circuit.compile_leakage_sampler`) and in the state vector, which agree.
 
-**Checked on finite controls.** The numerical measurement tables below are pending regeneration.
-Raw [coherent data](data/coherent/) includes pre-correction measurements, including rows stamped
-2.2.0. They predate the inherited merged-proposal correction and are not current quantitative
-validation. Current generators accept only `generation_revision=coherent-merged-proposal-v1`;
-this records provenance, independently of `coherent.exact` or successful validation. Never infer
-the marker from a version or manually add it to old rows. Final-wheel remeasurement will refresh
-the d = 3 sweep/crosstalk, validation and capacity grids; larger-distance archive rows stay archived.
+**Checked on finite controls.** The tables below were regenerated with the actual 2.2.0 wheel
+built from source `283f834`, using `tools/coherent.py`. All eight state-vector controls are within
+0.78 combined standard errors: repetition uses deterministic exact distributions; each surface
+row uses a separate 60,000-shot state-vector estimate, combined in quadrature with the weighted
+sampler's standard error. This is a finite sampling control, not a proof over all numerical ranges.
+The current tables select only `generation_revision=coherent-merged-proposal-v1`; lineage, exact
+coverage and agreement are separate checks. The 12 larger-distance sweep and 5 crosstalk rows
+remain unchanged pre-correction archives and are excluded from current tables and plots. Earlier
+measurements, including development-2.2 rows, remain in Git history and the preserved raw evidence.
 
 - On every branch of 150 random small circuits (stochastic noise, resets, mid-circuit and X-basis
   measurements, random outcomes), the weighted twirl equals the state vector's distribution to
@@ -1616,14 +1615,14 @@ the d = 3 sweep/crosstalk, validation and capacity grids; larger-distance archiv
 
 | circuit | θ | exact | coherent sampler | apart | Pauli twirl |
 |---|---|---|---|---|---|
-| repetition, d = 3, 2 rounds | 0.1 | 0.02320 | 0.02324 ± 0.00019 | +0.2σ | 0.00418 |
+| repetition, d = 3, 2 rounds | 0.1 | 0.02320 | 0.02322 ± 0.00019 | +0.1σ | 0.00418 |
 | repetition, d = 3, 3 rounds | 0.1 | 0.05093 | 0.05112 ± 0.00031 | +0.6σ | 0.00739 |
-| repetition, d = 5, 2 rounds | 0.1 | 0.00322 | 0.00316 ± 0.00008 | -0.7σ | 0.00032 |
+| repetition, d = 5, 2 rounds | 0.1 | 0.00322 | 0.00317 ± 0.00008 | -0.7σ | 0.00032 |
 | repetition, d = 3, 3 rounds | 0.05 | 0.00354 | 0.00356 ± 0.00008 | +0.3σ | 0.00050 |
 | repetition, d = 5, 2 rounds | 0.05 | 0.00006 | 0.00006 ± 0.00001 | +0.8σ | 0.00001 |
 | repetition, d = 3, 4 rounds | 0.05 | 0.00559 | 0.00555 ± 0.00010 | -0.4σ | 0.00071 |
 | surface, d = 3, 2 rounds | 0.02 | 0.01742 ± 0.00053 | 0.01782 ± 0.00011 | +0.7σ | 0.00343 |
-| surface, d = 3, 2 rounds | 0.04 | 0.11247 ± 0.00129 | 0.11312 ± 0.00030 | +0.5σ | 0.01207 |
+| surface, d = 3, 2 rounds | 0.04 | 0.11247 ± 0.00129 | 0.11311 ± 0.00030 | +0.5σ | 0.01207 |
 
 Logical error, decoded by matching on the twirled model. The repetition codes have no noise besides
 X over-rotations on every data qubit after every tick, and their exact answer is the state vector's
@@ -1662,32 +1661,12 @@ the same circuit twirled. The last column decodes the same shots on the merged m
 | 3 | 0.015 | 1.6 × 10⁻² ± 3.5 × 10⁻⁴ | 3.7 × 10⁻³ | 4.3 | 1.5 × 10⁻² | 88% |
 | 3 | 0.02 | 3.3 × 10⁻² ± 4.8 × 10⁻⁴ | 5.2 × 10⁻³ | 6.3 | 3.0 × 10⁻² | 79% |
 | 3 | 0.03 | 8.9 × 10⁻² ± 8.4 × 10⁻⁴ | 1.0 × 10⁻² | 8.8 | 8.8 × 10⁻² | 55% |
-| 5 | 0.0025 | 6.1 × 10⁻⁴ ± 3.8 × 10⁻⁵ | 5.5 × 10⁻⁴ | 1.1 | 6.1 × 10⁻⁴ | 99% |
-| 5 | 0.005 | 8.6 × 10⁻⁴ ± 5.4 × 10⁻⁵ | 6.1 × 10⁻⁴ | 1.4 | 8.9 × 10⁻⁴ | 95% |
-| 5 | 0.01 | 2.8 × 10⁻³ ± 1.7 × 10⁻⁴ | 9.0 × 10⁻⁴ | 3.1 | 2.8 × 10⁻³ | 84% |
-| 5 | 0.015 | 9.3 × 10⁻³ ± 5.1 × 10⁻⁴ | 1.2 × 10⁻³ | 7.6 | 8.7 × 10⁻³ | 69% |
-| 5 | 0.02 | 2.5 × 10⁻² ± 8.5 × 10⁻⁴ | 2.1 × 10⁻³ | 11.9 | 2.2 × 10⁻² | 55% |
-| 7 | 0.0025 | 1.4 × 10⁻⁴ ± 8.4 × 10⁻⁶ | 1.2 × 10⁻⁴ | 1.2 | 1.5 × 10⁻⁴ | 97% |
-| 7 | 0.005 | 2.0 × 10⁻⁴ ± 1.3 × 10⁻⁵ | 1.5 × 10⁻⁴ | 1.4 | 2.1 × 10⁻⁴ | 90% |
-| 7 | 0.01 | 8.8 × 10⁻⁴ ± 6.7 × 10⁻⁵ | 2.2 × 10⁻⁴ | 4.0 | 8.4 × 10⁻⁴ | 68% |
-| 7 | 0.015 | 4.3 × 10⁻³ ± 3.8 × 10⁻⁴ | 3.7 × 10⁻⁴ | 11.5 | 4.0 × 10⁻³ | 47% |
-| 9 | 0.0025 | 2.8 × 10⁻⁵ ± 2.8 × 10⁻⁶ | 2.6 × 10⁻⁵ | 1.1 | 2.9 × 10⁻⁵ | 96% |
-| 9 | 0.005 | 5.6 × 10⁻⁵ ± 4.6 × 10⁻⁶ | 3.0 × 10⁻⁵ | 1.8 | 6.1 × 10⁻⁵ | 84% |
-| 9 | 0.01 | 3.6 × 10⁻⁴ ± 3.2 × 10⁻⁵ | 5.3 × 10⁻⁵ | 6.8 | 3.8 × 10⁻⁴ | 52% |
 
-These circuits, with a rotation after every tick, need no completion: their local generators
-already span the whole kernel at every distance from 3 to 11 (`num_nonlocal_generators` is 0),
-so completion alone did not change those rows. The archived development-2.2 d = 3 rows
-used whole-class contraction (28 generators, width 6) but predate the proposal correction.
-From d = 5 (152 generators and up) the classes are
-past the default budget (d = 5 would need 97,178,638 table entries, d = 7 and 9 more than 2^31),
-and those rows keep 1.8.0's truncated measurements.
-
-Rotations repeated between gates that would tell them apart can add as amplitudes.
-Quantitative circuit-level ratios, merged-decoder gains and distance scaling require new
-measurements after the proposal correction. The final measurement pass will refresh the d = 3
-sweep and ZZ-crosstalk grids; unrefreshed larger-distance rows remain archival, including
-the truncated d ≥ 5 sweep and d = 5/7 crosstalk data.
+The current d = 3 rows use whole-class contraction (28 generators, width 6).
+The larger-distance raw sweep and crosstalk measurements predate the proposal correction and
+remain archival. Their truncated estimates do not support current quantitative distance scaling.
+Rotations repeated between gates that leave their effects indistinguishable can add as amplitudes;
+the current table reports the finite d = 3 comparison and its merged-decoder results.
 
 And at code capacity, Bravyi et al.'s setting: perfect measurements and one over-rotation by θ.
 Coherent over twirled logical error, by distance:
@@ -1699,10 +1678,13 @@ Coherent over twirled logical error, by distance:
 | 0.3 | 1.00 ± 0.01 | 0.99 ± 0.01 | 1.00 ± 0.01 | 1.01 ± 0.01 | 1.02 ± 0.01 | 0.99 ± 0.01 | 0.97 ± 0.01 |
 | 0.35 | 1.00 ± 0.01 | 0.99 ± 0.01 | 1.01 ± 0.01 | 1.01 ± 0.01 | 1.00 ± 0.01 | 1.01 ± 0.01 | 0.99 ± 0.01 |
 
-The archived capacity rows used whole-class sums (4–112 generators, widths 1–10), but
-predate the merged-proposal correction. Their ESS, error-bar and shot-count comparisons are
-historical, not current validation. New capacity measurements are required. The measurement
-tool stops against a weighted-error target worth 300 failures, with at least 100,000 shots.
+The 28 current capacity rows use whole-class sums (4–112 generators, widths 1–10).
+Their coherent/twirl ratios range from 0.88 to 1.09; the table reports their
+propagated sampling standard errors. Effective sample size ranges from 0.34% to
+84.3% of the shots. These are results for this grid and decoder, not a general
+noise-equivalence statement. The tool stops against a weighted-error target worth 300 failures,
+with at least 100,000 variance-equivalent unweighted shots and at most 40 million sampled shots per
+row. This stopping rule uses the weighted rate variance; it is not a threshold on Kish ESS.
 
 **Limits.**
 - Past `max_contraction` (and twelve generators) the class sum is truncated, and the sampler
@@ -1716,8 +1698,8 @@ tool stops against a weighted-error target worth 300 failures, with at least 100
 - Past `max_complete` rotations the kernel is the local one alone, and the sampler warns.
   Completion costs one elimination over the rotations. The old d = 11 timing comparison
   predates the proposal correction and is not a current performance result.
-- Weight spread can reduce effective sample size. Its quantitative distance/angle dependence
-  must be remeasured; the old ESS rows predate the proposal correction.
+- Weight spread can reduce effective sample size, as the current capacity grid records.
+  The archived larger-distance circuit-level ESS rows do not establish current scaling.
 - The coherent sampler takes Pauli rotations as its errors. A circuit with T gates (or any
   non-Clifford gate) gets the joint sampler of the next section; amplitude damping and feedback
   go to the state vector.
@@ -1746,10 +1728,15 @@ in every basis, resets and feedback. Against Tsim itself on Tsim's own demonstra
 
 | circuit | qubits | non-Clifford gates | shots | agreement | ours, per shot | Tsim, per shot |
 |---|---|---|---|---|---|---|
-| magic-state preparation, 1 qubit | 1 | 4 | 50,000 | infidelity 0.0344 against the exact 0.0333 (1.3σ) | 3.1 µs | 2.7 µs |
-| distillation, 5 qubits | 5 | 12 | 50,000 | χ² = 37.0 on 31 (p = 0.21) | 65.7 µs | 2.24 ms |
-| distillation with noise on its gates | 5 | 12 | 50,000 | χ² = 36.9 on 31 (p = 0.21) | 65.5 µs | 3.04 ms |
-| distillation in the [[17,1,5]] colour code | 85 | 10 | 2,000 (ours; Tsim did not run) | Tsim's compilation is killed for memory on a 16 GB machine | 2.14 ms | — |
+| magic-state preparation, 1 qubit | 1 | 4 | 50,000 | infidelity 0.0344 against the exact 0.0333 (1.3σ) | 2.5 µs | 1.6 µs |
+| distillation, 5 qubits | 5 | 12 | 50,000 | χ² = 37.0 on 31 (p = 0.21) | 65.4 µs | 4.49 ms |
+| distillation with noise on its gates | 5 | 12 | 50,000 | χ² = 36.9 on 31 (p = 0.21) | 62.9 µs | 2.41 ms |
+| distillation in the [[17,1,5]] colour code | 85 | 10 | 2,000 (ours; Tsim did not run) | not run (--tsim-encoded): Tsim's compilation of the 85-qubit circuit was killed for memory here | 2.02 ms | — |
+
+The timing columns use one measured batch after warmup (Tsim's second call after its first
+sampling/compilation call). The encoded row measures this package alone; its independent
+Tsim reference was explicitly skipped in this run, with the earlier memory failure retained
+as historical context in the raw status.
 
 Tsim's circuit surface came with it: `Circuit.tcount()`, `Circuit.is_clifford`,
 `Circuit.to_matrix()`, `Circuit.inverse()` of tagged gates,
@@ -1802,20 +1789,18 @@ generators it is truncated to the products of a few generators each shot's error
 2.1's coherent sampler was, and that is what runs at size: its cross terms are overlaps of the
 exact engine's states, not products of factors, so 2.2's contraction does not apply to it.
 
-**Historical joint-sampler measurements.** The injection/distillation tables and interpretations
-below predate the inherited merged-proposal correction. They are preserved with their original
-shot counts and limits, not current quantitative validation. New measurements and independent
-state-vector checks are required before carrying their ratios, cancellation explanations, ESS
-or timing claims into a current conclusion; not every old value is thereby proven wrong.
-The final artifact pass must reconcile these anchors separately from the four coherent grids.
+**Joint-sampler measurements.** The tables below were refreshed with the same actual 2.2.0
+wheel as the coherent grids (`tools/clifford_t.py inject|distill`). They compare the Pauli twirl,
+the joint sampler and the state vector where it fits. The joint sampler still truncates larger
+kernel sums: agreement on a derived infidelity does not establish unbiased component means.
+The raw files retain X/Y components, acceptance, ESS and timings; original measurements remain
+in Git history and the preserved evidence.
 
-Two historical experiments, both under an over-rotation after every gate — exp(−iεZ) after each one-qubit
-gate, exp(−iεZZ) after each two-qubit gate, exp(−iεX) after each reset — by the Pauli twirl of
-those errors (what every Stim-based tool assumes), by the joint sampler, and by the state
-vector where it fits (`tools/clifford_t.py inject|distill`, `data/clifford_t/`).
+Both experiments apply exp(−iεZ) after each one-qubit gate, exp(−iεZZ) after each two-qubit
+gate and exp(−iεX) after each reset.
 
 *Magic-state injection.* A |T⟩ state encoded into the Steane code (7 qubits) and the [[17,1,5]]
-colour code (17 qubits); the encoded state's infidelity from its X_L and Y_L expectations,
+colour code (17 qubits); a derived infidelity estimate from its separately sampled X_L and Y_L expectations,
 postselected on no detected error:
 
 | code | ε | Pauli twirl | joint sampler (sample size kept) | state vector |
@@ -1829,54 +1814,60 @@ postselected on no detected error:
 | colour [[17,1,5]] | 0.05 | 0.0089 | 0.0244 (55%) | 0.0246 |
 | colour [[17,1,5]] | 0.1 | 0.0437 | 0.0945 (24%) | 0.0960 |
 
-The historical injection run reported an encoded-state infidelity two to three times the
-twirl estimate from
-ε = 0.02 on the Steane code and ε = 0.05 on the colour code up (on the Steane code, 0.0015
-against the true 0.0043 at ε = 0.02; 0.040 against 0.094 at ε = 0.1); at ε = 0.01 the twirl and
-the truth agree within the run's sampling error. That run reported joint-sampler infidelity within
-sampling error at every angle; its two parts, ⟨X_L⟩ and ⟨Y_L⟩, each drift from the truth by up
-to 0.08 at ε = 0.1 in opposite directions and cancel in the sum (a second-order term of the
-truncation, see Limits).
+At ε = 0.1, state-vector infidelity is 0.0941 for Steane and
+0.0960 for the colour code; the joint estimates are
+0.0939 and 0.0945. Individual joint X/Y
+expectations differ from their state-vector values by up to 0.084 across this grid.
+At ε = 0.1 the signed joint-minus-exact X/Y differences are
+-0.08162/+0.08204 for Steane and
++0.08411/-0.07969 for the colour code;
+the colour X-basis acceptance differs by -0.03515.
+The separately sampled component sum can be closer than either component. Close scalar infidelity
+does not establish agreement of the state components or postselection. These outputs alone
+do not identify the cause of a remaining discrepancy or provide pointwise uncertainty for the
+derived infidelity; ESS measures weight spread, not truncation bias. The estimator is
+1 − [1 + (⟨X_L⟩ + ⟨Y_L⟩)/√2]/2 from separately sampled, postselected means; it need not stay
+inside the physical infidelity range at finite sample size. Negative estimates are retained
+without assigning their cause. The stored exact control is for the coherent channel, not an
+exact twirl value, and the file does not store both accepted-basis counts or a derived-infidelity
+variance.
 
 *Magic-state distillation.* Tsim's 5-qubit distillation protocol (Rodriguez et al. 2025, Tsim's
 own demonstration), which accepts on a syndrome and leaves a better |T⟩ on its first qubit —
 unencoded, where the state vector is the truth, and encoded in the [[17,1,5]] colour code (85
-data qubits, 801 coherent rotations, 10 non-Clifford gates), where no state vector reaches and,
-on this machine, Tsim's compilation of the circuit is killed for memory:
+data qubits, 801 coherent rotations, 10 non-Clifford gates), where no state vector reaches and the independent encoded Tsim run is excluded on this 16 GB machine:
 
 | circuit | ε | qubits | rotations | acceptance: twirl / joint / exact | output infidelity: twirl / joint / exact | sample size kept | per shot |
 |---|---|---|---|---|---|---|---|
-| 5 qubits | 0.01 | 5 | 34 | 0.116 / 0.166 / 0.168 | 2.0 × 10⁻² / 6.1 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 344 µs |
-| 5 qubits | 0.02 | 5 | 34 | 0.116 / 0.166 / 0.168 | 2.2 × 10⁻² / 1.3 × 10⁻³ / 5.2 × 10⁻⁵ | 96% | 344 µs |
-| 5 qubits | 0.05 | 5 | 34 | 0.112 / 0.161 / 0.167 | 3.5 × 10⁻² / 9.3 × 10⁻³ / 1.0 × 10⁻⁵ | 77% | 363 µs |
-| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.107 / 0.151 / — | 3.0 × 10⁻¹ / 2.2 × 10⁻¹ / — | 94% | 129.7 ms |
-| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.087 / 0.129 / — | 3.2 × 10⁻¹ / 2.1 × 10⁻¹ / — | 79% | 129.3 ms |
-| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.018 / 0.047 / — | 4.6 × 10⁻¹ / 2.8 × 10⁻¹ / — | 28% | 150.3 ms |
+| 5 qubits | 0.01 | 5 | 34 | 0.116 / 0.166 / 0.168 | 2.0 × 10⁻² / 6.1 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 349 µs |
+| 5 qubits | 0.02 | 5 | 34 | 0.116 / 0.166 / 0.168 | 2.2 × 10⁻² / 1.3 × 10⁻³ / 5.2 × 10⁻⁵ | 96% | 352 µs |
+| 5 qubits | 0.05 | 5 | 34 | 0.112 / 0.161 / 0.167 | 3.5 × 10⁻² / 9.3 × 10⁻³ / 1.0 × 10⁻⁵ | 77% | 366 µs |
+| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.107 / 0.151 / — | 3.0 × 10⁻¹ / 2.2 × 10⁻¹ / — | 94% | 144.0 ms |
+| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.087 / 0.129 / — | 3.2 × 10⁻¹ / 2.1 × 10⁻¹ / — | 79% | 141.8 ms |
+| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.018 / 0.047 / — | 4.6 × 10⁻¹ / 2.8 × 10⁻¹ / — | 28% | 163.7 ms |
 
-The unencoded rows are 20,000 shots each; the encoded rows 2,000 shots each (`--encoded-shots`),
-so their acceptances carry about one per cent of sampling error.
+The unencoded rows use 20,000 shots each; encoded rows use 2,000 shots each. All six
+selected truncated weights (`exact_weights=False`): the unencoded circuits have 54 kernel
+generators and the encoded circuits 921, confirmed by compile-only inspection with no new
+samples. The `exact_gates` field counts non-Clifford gates and does not describe weight coverage.
+At ε = 0.01, unencoded acceptance (twirl / joint / state vector) is
+0.1162 /
+0.1655 /
+0.1676, while output infidelity is
+0.0198 /
+0.000611 /
+2.48e-05. The table preserves any remaining joint/state-vector
+gap. The old attribution to truncation alone is not established by this remeasurement.
+The per-shot column is coherent compilation-plus-sampling wall time divided by input shots,
+with `threads=0` (all cores). The encoded circuit has no state-vector control; its weighted
+estimates and timings do not validate the approximation.
 
-The historical interpretation was that the twirl made this distillation appear broken. Unencoded at
-ε = 0.01 the protocol accepts 16.8% of runs and leaves an output infidelity of 2 × 10⁻⁵ (the
-coherent errors on the Clifford gates nearly cancel); the twirl says 11.6% and 2 × 10⁻². The
-joint sampler puts the acceptance back within sampling error (16.6%) and the infidelity within
-a factor of 25 of the truth at ε ≤ 0.02 (6 × 10⁻⁴ against 2.5 × 10⁻⁵) — not all the way: an
-observable that coherent cancellation drives three orders of magnitude below the twirl's value
-needs products of kernel generators no fault touched, which the truncation leaves out (raising
-its `order` or reach does not change the estimate, nor does adding every pair of untouched
-generators, `pairs=True`: the missing terms are higher products). The kernel there is not
-incomplete: its local generators span it (`num_nonlocal_generators` is 0). The old attribution
-of the gap to truncation alone has not been established after the proposal correction.
-The historical encoded run retained 79–94% of its sample size at ε ≤ 0.02 and took 130 ms
-per shot; these values await remeasurement.
-
-**Limits.** The historical injection/distillation interpretation above needs revalidation.
-The joint sampler's truncation is the one the coherent sampler used past twelve
-generators in 2.1 (and uses past its budget in 2.2). Omitted products can bias the estimate;
-the historical attribution of the injection/distillation difference to those products needs
-revalidation after the proposal correction. The whole kernel is affordable for a
-few dozen rotations only (`exact_distribution(method="coherent")`). Weights can be negative
-when the truncation misses interference; `effective_sample_size` reports the spread.
+**Limits.** The joint sampler still omits products beyond its twelve-generator whole-sum route.
+Omitted interference can bias an estimate, including acceptance and individual X/Y components;
+a close derived infidelity does not bound that bias. Full-kernel checks are affordable only for
+small circuits (`exact_distribution(method="coherent")`). Truncation can produce negative weights;
+`effective_sample_size` describes their spread and does not supply pointwise error bars or a bias
+bound for these tables. No new encoded Tsim comparison was attempted.
 
 ## Lattice surgery
 

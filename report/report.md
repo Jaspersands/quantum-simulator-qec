@@ -677,15 +677,17 @@ audited 20/40-round crosstalk memories took 0.3060–0.3078 / 2.1947–2.2014 CP
 work). Summation can change last bits even at ≤12 generators; corrected merged proposals
 and normalized group arithmetic can change seeded outcomes, including with contraction off.
 
-**Measurement provenance.** Raw [coherent data](../data/coherent/) includes pre-correction
-measurements, including development rows labeled 2.2.0 or exact. These predate the inherited
-merged-proposal correction and are archival, not current quantitative validation. Current
-tables require `generation_revision=coherent-merged-proposal-v1`, independently of exactness
-and validation; a version stamp does not supply it. The final-wheel measurement pass must
-refresh the d = 3 sweep/crosstalk, validation and capacity grids. Unrefreshed larger-distance
-rows remain archived. Old inter-round, ESS/error-bar/timing ratios share that boundary.
+**Measurement provenance.** The current validation, d = 3 sweep/crosstalk and full capacity
+grids were regenerated with the actual 2.2.0 wheel built from source `283f834`.
+Only rows marked `generation_revision=coherent-merged-proposal-v1` enter current tables;
+lineage, exact coverage and validation agreement remain separate checks. The 17 larger-distance
+sweep/crosstalk rows are unchanged pre-correction archives and excluded from current conclusions.
+Original development-2.2 and older measurements remain in Git history and preserved evidence;
+the manual inter-round comparison remains historical.
 
-State-vector comparison table (awaiting corrected-proposal measurements):
+All eight state-vector controls differ by at most 0.78 combined sampling standard errors.
+Repetition compares deterministic exact distributions; surface controls combine each fresh
+60,000-shot state-vector error with the weighted sampler's error in quadrature:
 
 {{table:coherent_valid}}
 
@@ -701,10 +703,9 @@ qubit). Coherent over twirled logical error:
 
 {{table:coherent_capacity}}
 
-Repeated rotations can add coherently before intervening gates distinguish them. Current
-quantitative ratios to the twirl, merged-decoder gains, code-capacity agreement and distance
-scaling must come from the corrected-proposal remeasurement. Historical larger-distance
-results alone do not establish these conclusions.
+Repeated rotations can add coherently before intervening gates distinguish them. The current capacity ratios span 0.88–1.09, with the sampling errors shown.
+The circuit-level comparison is limited to d = 3. Historical larger-distance results do not
+establish current distance scaling.
 
 ## What it would take
 
@@ -784,9 +785,13 @@ and API modes; it is not universal compatibility or an exhaustive novelty claim:
   the same distributions), and the headline: magic-state injection and distillation with a
   coherent over-rotation after every gate, sampled by a joint sampler that runs the gates exactly
   and the errors twirled and reweighted. Its whole-class rule holds up to twelve generators;
-  larger joint sums remain truncated. The old quantitative injection/distillation results
-  predate the merged-proposal correction and require revalidation. The historical 85-qubit,
-  801-rotation [[17,1,5]] run is not a universal advantage or reach claim.
+  larger joint sums remain truncated. Fresh 2.2 injection/distillation measurements retain that
+  boundary: the unencoded distillation circuits have 54 kernel generators and the encoded
+  circuits 921, with exact_weights=False in all six cases. The unencoded estimates still
+  differ from the state vector; these runs do not establish the cause. Injection also retains
+  component/postselection discrepancies despite closer scalar infidelity, without stored pointwise
+  uncertainty. The 85-qubit, 801-rotation
+  [[17,1,5]] run has no state-vector control and is not a universal advantage or reach claim.
 - **Fault-tolerant compilation**: tqec's block graphs and correlation surfaces checked on the
   recorded gallery. Current 2.2 `generate_stim_circuit` uses tqec 0.2.0's pipeline with tqecd
   0.2.1 detector search (51 recorded circuits/6 refusals), while distance compilation's
@@ -822,8 +827,8 @@ its status. Four tutorials cover the release (`tutorials/06` to `09`).
 - **The gross code's measurement schedule is not optimised.** It is correct by construction and
   its fault distance is only bounded above; Cross et al. optimise theirs.
 - **Coherent sampling has a reach.** Entry budgets, completion limits and weight spread limit
-  usable circuits. Quantitative ESS versus distance/angle must be remeasured after the merged-
-  proposal correction; the archived ESS rows are not current validation.
+  usable circuits. The current capacity grid records weight spread across distance and angle; archived
+  larger-distance circuit-level ESS rows are not current validation.
 - **The estimate is a model.** It prices every tile as an idle patch, consumes Toffolis in
   sequence unless told otherwise, and extrapolates the decoder's latency and cores past d = 7. It
   is meant to show what the measured numbers imply, and which of them the answer depends on.

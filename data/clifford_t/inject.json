@@ -27,15 +27,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.046707624998816755,
-       "coherent_s": 1.6196786669970606,
+       "twirl_s": 0.09575670899357647,
+       "coherent_s": 4.428888082999038,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
       },
       "Y": {
-       "twirl_s": 0.05162333300540922,
-       "coherent_s": 1.8314755000028526,
+       "twirl_s": 0.055663541999820154,
+       "coherent_s": 1.891402957997343,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
@@ -65,15 +65,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.04933595900365617,
-       "coherent_s": 1.673428750000312,
+       "twirl_s": 0.05337587499525398,
+       "coherent_s": 1.856609374997788,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
       },
       "Y": {
-       "twirl_s": 0.04902533400309039,
-       "coherent_s": 1.8318855420002365,
+       "twirl_s": 0.05942266700003529,
+       "coherent_s": 1.9918258339966997,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
@@ -103,15 +103,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.04664174999925308,
-       "coherent_s": 1.7387118340047891,
+       "twirl_s": 0.055799624999053776,
+       "coherent_s": 1.7171623750036815,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
       },
       "Y": {
-       "twirl_s": 0.053214416999253444,
-       "coherent_s": 2.01503320899792,
+       "twirl_s": 0.052358332999574486,
+       "coherent_s": 2.360480417002691,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
@@ -141,15 +141,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.04826574999606237,
-       "coherent_s": 2.136024457999156,
+       "twirl_s": 0.05197308300557779,
+       "coherent_s": 2.067428958005621,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
       },
       "Y": {
-       "twirl_s": 0.058698749999166466,
-       "coherent_s": 2.0515897500008577,
+       "twirl_s": 0.05612745899998117,
+       "coherent_s": 2.135574291998637,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
@@ -184,15 +184,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.13020645899814554,
-       "coherent_s": 11.828210750005383,
+       "twirl_s": 0.19971000000077765,
+       "coherent_s": 12.267322209001577,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
       },
       "Y": {
-       "twirl_s": 0.14669166700332426,
-       "coherent_s": 12.833321541998885,
+       "twirl_s": 0.18061433299590135,
+       "coherent_s": 13.67837587500253,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
@@ -222,15 +222,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.1389757079887204,
-       "coherent_s": 12.024161666995496,
+       "twirl_s": 0.13541958399582654,
+       "coherent_s": 12.22788841700094,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
       },
       "Y": {
-       "twirl_s": 0.16268983299960382,
-       "coherent_s": 12.566820249994635,
+       "twirl_s": 0.148275833002117,
+       "coherent_s": 12.590568542000256,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
@@ -260,15 +260,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.12915624999732245,
-       "coherent_s": 12.137088291012333,
+       "twirl_s": 0.14071437499660533,
+       "coherent_s": 13.675166166998679,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
       },
       "Y": {
-       "twirl_s": 0.14498774999810848,
-       "coherent_s": 13.193789666009252,
+       "twirl_s": 0.1464845000009518,
+       "coherent_s": 13.614952208998147,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
@@ -298,15 +298,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.12752766600169707,
-       "coherent_s": 13.092611250001937,
+       "twirl_s": 0.1488725839953986,
+       "coherent_s": 13.220692874994711,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
       },
       "Y": {
-       "twirl_s": 0.15080837499408517,
-       "coherent_s": 15.345610042000772,
+       "twirl_s": 0.14907949999906123,
+       "coherent_s": 15.559034291996795,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
