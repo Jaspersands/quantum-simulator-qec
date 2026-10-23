@@ -110,7 +110,7 @@ def check_refusal(case_id: str) -> None:
         compile_case(case)
 
     def normal(message: str) -> str:
-        return re.sub(r"<[\w.]+\.(\w+) object at 0x[0-9a-f]+>", r"<\1 object>", message)
+        return re.sub(r"<[\w.]+\.(\w+) object at 0x[0-9a-fA-F]+>", r"<\1 object>", message)
 
     assert type(info.value).__name__ == case["error"]["type"]
     assert normal(str(info.value)) == normal(case["error"]["message"])

@@ -127,7 +127,9 @@ def test_help_output_failure_keeps_caller_stream(kind, stage, monkeypatch, capsy
 @pytest.mark.parametrize("unbuffered", [False, True])
 @pytest.mark.parametrize("kind", ["chromobius", "tesseract_decoder"])
 def test_help_closed_reader_process(kind, unbuffered):
-    # Close the reader before spawning: deterministic EPIPE at the write (-u) or flush.
+    # Close the reader before spawning: failure at the write (-u) or flush.
+    # Windows CRT reports EINVAL for this closed pipe; POSIX reports EPIPE. Both
+    # must produce one controlled diagnostic and exit 1, including buffered shutdown.
     reader, writer = os.pipe()
     os.close(reader)
     try:
@@ -136,7 +138,8 @@ def test_help_closed_reader_process(kind, unbuffered):
         os.close(writer)
     prefix = "chromobius" if kind == "chromobius" else "tesseract"
     assert proc.returncode == 1, proc.stderr
-    assert proc.stderr == f"{prefix}: [Errno {errno.EPIPE}] {os.strerror(errno.EPIPE)}\n"
+    code = errno.EINVAL if sys.platform == "win32" else errno.EPIPE
+    assert proc.stderr == f"{prefix}: [Errno {code}] {os.strerror(code)}\n"
 
 
 def _color_inputs(tmp_path):

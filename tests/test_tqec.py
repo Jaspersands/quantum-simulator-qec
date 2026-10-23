@@ -627,10 +627,10 @@ def test_tqecs_call_shape():
     def refusal(height) -> str:
         with pytest.raises(TQECError) as info:
             compile_block_graph(m, block_temporal_height=height)
-        return re.sub(r"<[\w.]+\.(\w+) object at 0x[0-9a-f]+>", r"<\1 object>", str(info.value))
+        return re.sub(r"<[\w.]+\.(\w+) object at 0x[0-9a-fA-F]+>", r"<\1 object>", str(info.value))
 
     manifest = json.loads((pathlib.Path(__file__).parent / "tqec_port" / "fixtures" / "manifest.json").read_text())
-    constant = re.sub(r"<[\w.]+\.(\w+) object at 0x[0-9a-f]+>", r"<\1 object>", next(c for c in manifest["cases"] if c["id"] == "memory_Z_fixed_bulk_k1_height1")["error"]["message"])
+    constant = re.sub(r"<[\w.]+\.(\w+) object at 0x[0-9a-fA-F]+>", r"<\1 object>", next(c for c in manifest["cases"] if c["id"] == "memory_Z_fixed_bulk_k1_height1")["error"]["message"])
     assert constant == "Cannot add the block as a cube. The provided block(<Block object>) has at least one non-scalable dimension."
     hint = "2.1 took a number or a callable of k here, and its engine ran height + 2 rounds in every time slice (height 5: 7 rounds); the engine still takes them, at a distance: compile_block_graph(graph, distance, block_temporal_height=...)."
     assert refusal(LinearFunction(0, 5)) == constant
