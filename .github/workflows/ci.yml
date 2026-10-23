@@ -112,7 +112,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           python -m pip install scipy chromobius relay-bp
-          python -m pip install --pre tesseract-decoder
+          python -m pip install tesseract-decoder==0.1.1.dev20261013012529
           python tools/decoder_check.py --quick
       - name: The gross code and BP+OSD against Bravyi et al.'s construction, Stim and ldpc
         if: matrix.os == 'ubuntu-latest'

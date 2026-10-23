@@ -1,7 +1,8 @@
 """The 1.8 decoders against their authors' packages, shot for shot.
 
 Run from the repository root, with the package built and the references installed
-(`pip install ldpc chromobius relay-bp` and `pip install --pre tesseract-decoder`):
+(`pip install ldpc chromobius relay-bp` and
+`pip install tesseract-decoder==0.1.1.dev20261013012529`):
 
     python tools/decoder_check.py                 # every check; writes data/decoders/check.json
     python tools/decoder_check.py --quick         # fewer shots, writes nothing (CI)
@@ -40,6 +41,9 @@ Sections (each skipped, and said so, when its reference is not installed):
           the faults found, shot for shot, must be identical (both break ties as this
           platform's C++ library does).
 
+Tesseract is also skipped if a bounded, isolated reference-only capability probe dies of
+SIGILL (some native wheels require CPU instructions absent on a runner). Other probe errors,
+timeouts and all comparison failures remain failures. Skipped sections are not passed checks.
 Exits non-zero if any check fails.
 """
 
@@ -48,6 +52,8 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import signal
+import subprocess
 import sys
 import time
 
@@ -57,6 +63,29 @@ import stabilizer_qec as sq
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "decoders" / "check.json"
+
+# Exercise the reference's native import, constructor and decode before using it in this
+# process. No stabilizer_qec code or comparisons run here: only a reference-only SIGILL can
+# mean an unavailable CPU capability, never a product crash or a mismatched result.
+TESSERACT_PROBE = """
+import stim
+from tesseract_decoder import tesseract
+dem = stim.Circuit.generated('repetition_code:memory', distance=3, rounds=2, after_clifford_depolarization=0.01).detector_error_model()
+tesseract.TesseractDecoder(tesseract.TesseractConfig(dem)).decode_to_errors([False] * dem.num_detectors)
+"""
+
+
+def reference_probe(code, timeout=30):
+    """Return false only for SIGILL; ordinary errors, unknown crashes and timeouts fail."""
+    # Set this in the child, before importing native code, rather than a threaded parent's
+    # preexec_fn. Windows has no resource module or POSIX core dumps.
+    no_core = "import os\nif os.name == 'posix':\n import resource\n resource.setrlimit(resource.RLIMIT_CORE, (0, 0))\n"
+    result = subprocess.run([sys.executable, "-I", "-c", no_core + code], capture_output=True, text=True, timeout=timeout)
+    if result.returncode == -signal.SIGILL:
+        return False
+    if result.returncode:
+        raise RuntimeError(f"Reference capability probe failed (exit {result.returncode}):\n{result.stdout}{result.stderr}")
+    return True
 
 
 def check_matrix(dem):
@@ -281,7 +310,7 @@ def main():
     from importlib.metadata import PackageNotFoundError, version
 
     only = [x for x in args.only.split(",") if x]
-    ok, results = True, {}
+    ok, results, skipped = True, {}, []
     for key, (title, package, run) in SECTIONS.items():
         if only and key not in only:
             continue
@@ -289,6 +318,13 @@ def main():
             print(f"{title} ({package} {version(package)})")
         except PackageNotFoundError:
             print(f"{title}: skipped, {package} is not installed")
+            skipped.append(key)
+            continue
+        if key == "search" and not reference_probe(TESSERACT_PROBE):
+            reason = "reference-only capability probe terminated by SIGILL; reference unavailable on this runner"
+            print(f"  {key}: skipped, {reason}", flush=True)
+            results[key] = dict(reference=f"{package} {version(package)}", skipped=reason)
+            skipped.append(key)
             continue
         good, rows = run(args.quick)
         ok &= good
@@ -298,7 +334,7 @@ def main():
         OUT.parent.mkdir(parents=True, exist_ok=True)
         old = json.loads(OUT.read_text())["sections"] if OUT.exists() else {}
         OUT.write_text(json.dumps(dict(version=sq.__version__, sections={**old, **results}), indent=1) + "\n")
-    print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")
+    print((f"ALL AVAILABLE CHECKS PASSED (skipped: {', '.join(skipped)})" if skipped else "ALL CHECKS PASSED") if ok else "SOME CHECKS FAILED")
     return 0 if ok else 1
 
 

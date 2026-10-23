@@ -369,6 +369,9 @@ def decoder_checks():
     for key, (decoder, against) in names.items():
         sec = data[key]
         version = sec["reference"].split()[-1]
+        if sec.get("skipped"):
+            rows.append(f"| {decoder} | {against} {version} | Skipped: {sec['skipped']} | — | — | — | — | — |")
+            continue
         rs = sec["rows"]
         shots = sum(r["shots"] for r in rs)
         equal = sum(r.get("agree", r.get("identical", 0)) for r in rs)
