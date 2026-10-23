@@ -119,7 +119,8 @@ math { font-size: 1.05em; }
   body { background: #fff; font-size: 10.5pt; }
   .paper { max-width: none; margin: 0; padding: 0; border: 0; box-shadow: none; }
   h1, h2, h3 { break-after: avoid; }
-  table, figure { break-inside: avoid; }
+  figure { break-inside: avoid; }
+  table { break-inside: auto; }
   thead, tr { break-inside: avoid; }
   /* Numeric columns also contain explanatory refusals and resource breakdowns. */
   td[style*="right"], th[style*="right"] { white-space: normal; }
