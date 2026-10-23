@@ -8,7 +8,9 @@ tesseract_main.cc and p-ranav/argparse 3.1, which it parses its flags with."""
 
 from __future__ import annotations
 
+import errno
 import gc
+import io
 import json
 import os
 import re
@@ -346,3 +348,56 @@ def test_cli_python_m(tmp_path):
     assert r.returncode == 1 and r.stderr.startswith("Unknown argument: --nope\nUsage: tesseract [--help]")
     r = subprocess.run(exe, capture_output=True, text=True)
     assert r.returncode != 0 and r.stderr == failure("Must provide at least one of --circuit or --dem")
+
+
+
+def _prediction_stdout_args(tmp_path):
+    dem, shots = tmp_path / "stdout.dem", tmp_path / "stdout.01"
+    dem.write_text("error(0.1) D0 L0\n")
+    shots.write_text("1\n" * 8)
+    return ["--dem", str(dem), "--in", str(shots), "--in-format", "01", "--out", "-", "--out-format", "01"]
+
+
+@pytest.mark.parametrize("limited", [False, True], ids=["success", "file-size-failure"])
+def test_prediction_stdout_process_shutdown(limited, tmp_path):
+    if limited:
+        resource = pytest.importorskip("resource")
+        if not hasattr(resource, "RLIMIT_FSIZE"):
+            pytest.skip("platform has no RLIMIT_FSIZE")
+    args = _prediction_stdout_args(tmp_path)
+    # Import before applying a tiny, child-only limit. Execute the actual module boundary,
+    # then inspect final process status and complete stderr after interpreter shutdown.
+    script = """
+import runpy, sys
+import stabilizer_qec.tesseract_decoder
+if sys.argv[1] == 'limited':
+    import resource, signal
+    signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+    resource.setrlimit(resource.RLIMIT_FSIZE, (1, resource.getrlimit(resource.RLIMIT_FSIZE)[1]))
+sys.argv = ['stabilizer_qec.tesseract_decoder', *sys.argv[2:]]
+runpy.run_module('stabilizer_qec.tesseract_decoder', run_name='__main__')
+"""
+    path = tmp_path / "predictions.01"
+    with path.open("wb") as stdout:
+        proc = subprocess.run([sys.executable, "-c", script, "limited" if limited else "success", *args], stdout=stdout, stderr=subprocess.PIPE, timeout=15)
+    if limited:
+        expected = f"tesseract: {OSError(errno.EFBIG, os.strerror(errno.EFBIG))}\n".encode()
+        assert (proc.returncode, proc.stderr, path.read_bytes()) == (1, expected, b"1")
+    else:
+        assert (proc.returncode, proc.stderr) == (0, b"")
+        out = path.read_text()
+        assert out.splitlines()[:8] == ["1"] * 8
+        assert final_line(out)["num_shots"] == 8
+
+
+def test_prediction_stdout_callable_preserves_stream_ownership(tmp_path, monkeypatch, capsys):
+    class FailedStdout(io.StringIO):
+        def flush(self):
+            raise OSError(errno.EFBIG, "caller-owned flush failure")
+    stream = FailedStdout()
+    with monkeypatch.context() as patch:
+        patch.setattr(sys, "stdout", stream)
+        assert main(_prediction_stdout_args(tmp_path)) == 1
+        assert sys.stdout is stream and not stream.closed
+    assert capsys.readouterr().err == f"tesseract: {OSError(errno.EFBIG, 'caller-owned flush failure')}\n"
+    stream.close()  # cleanup belongs to the caller

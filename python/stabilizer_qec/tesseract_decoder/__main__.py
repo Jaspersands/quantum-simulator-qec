@@ -22,7 +22,9 @@ Where it differs from Tesseract's program:
   (and crashes); here it stops with ``Failed to open <path>``, as for ``--dem-out``.
 - Prediction write/close OSError produces a controlled ``tesseract: ...`` diagnostic and
   exit 1; cleanup preserves the primary failure. Native binary I/O failure policy has not been
-  independently run, so this does not assert exact native behavior.
+  independently run, so this does not assert exact native behavior. The module executable
+  redirects failed stdout to the null device before shutdown; callable ``main`` leaves its
+  caller-owned streams open and unchanged.
 - ``--max-errors``: once the shots it takes in order reach the limit, Tesseract's program stops
   its threads from starting more, but keeps taking every shot they had already decoded, how
   many depending on timing (even with ``--threads 1``, as it looks for finished shots every
@@ -927,7 +929,7 @@ def _flush_before_error() -> None:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """Tesseract's program on ``argv`` (the command line's arguments by default): its exit
-    status."""
+    status. Caller-owned standard streams are not closed or replaced."""
     from .common import _redirects
 
     args = _Args()
@@ -966,5 +968,27 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     return 0
 
 
+def _cli_main() -> int:
+    """Executable boundary: prevent CPython retrying a failed stdout buffer at shutdown."""
+    status = main()
+    try:
+        sys.stdout.flush()
+    except OSError as e:
+        if status == 0:
+            sys.stderr.write(f"tesseract: {e}\n")
+            status = 1
+        # main() already reported any primary failure. Only the executable owns this stream;
+        # drain its pending buffer to a safe sink instead of letting shutdown fail with 120.
+        stdout_fd = sys.stdout.fileno()
+        sink_fd = os.open(os.devnull, os.O_WRONLY)
+        try:
+            if sink_fd != stdout_fd:
+                os.dup2(sink_fd, stdout_fd)
+        finally:
+            if sink_fd != stdout_fd:
+                os.close(sink_fd)
+    return status
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_cli_main())
