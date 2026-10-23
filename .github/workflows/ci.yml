@@ -88,9 +88,10 @@ jobs:
         with:
           name: wheel-${{ matrix.os }}
           path: dist
+      # Exact matching ties/order target PyMatching 2.4.0; generated Stim fixtures use 1.16.0.
       - name: Install it with Stim and PyMatching
         shell: bash
-        run: python -m pip install dist/*.whl numpy stim pymatching
+        run: python -m pip install dist/*.whl numpy stim==1.16.0 pymatching==2.4.0
       - name: Smoke test, from outside the repository
         shell: bash
         working-directory: ${{ runner.temp }}
@@ -161,10 +162,11 @@ jobs:
           python -m pip install dist/*.whl pytest hypothesis
       - name: Install the reference packages that build for this Python (tests skip the rest)
         shell: bash
+        # PyMatching exact edges/ties target 2.4.0; Stim fixture generation targets 1.16.0.
         # dash runs Qualtran's Dash app (estimate.qualtran.ui.make_app), which its tests check without qualtran,
         # against tests/estimate_port/qualtran_layout.json: pinned to 4.4.1, the dash that file was recorded with.
         run: |
-          for p in stim pymatching ldpc beliefmatching scipy sinter matplotlib networkx qec-util galois sympy cvxpy diskcache platformdirs pyperclip tqdm mpmath click "qiskit[qasm3-import]" z3-solver numba multiprocess qldpc==0.4.1 quits==1.2.0 panqec==0.1.7 pandas psutil python-dotenv flask deltakit-stim==0.2.7 deltakit-circuit==0.9.2 deltakit-core==0.9.2 deltakit-decode==0.9.2 deltakit-explorer==0.9.4 seaborn plotly dash==4.4.1 pathos uncertainties adjustText "gql[requests]" pytest-mock pytest-lazy-fixtures chromobius==1.1.1 relay-bp==0.2.2 fusion-blossom==0.2.13 "mwpf[stim]==0.2.12" tesseract-decoder==0.1.1.dev20261013012529 pyzx-param==0.9.3; do
+          for p in stim==1.16.0 pymatching==2.4.0 ldpc beliefmatching scipy sinter matplotlib networkx qec-util galois sympy cvxpy diskcache platformdirs pyperclip tqdm mpmath click "qiskit[qasm3-import]" z3-solver numba multiprocess qldpc==0.4.1 quits==1.2.0 panqec==0.1.7 pandas psutil python-dotenv flask deltakit-stim==0.2.7 deltakit-circuit==0.9.2 deltakit-core==0.9.2 deltakit-decode==0.9.2 deltakit-explorer==0.9.4 seaborn plotly dash==4.4.1 pathos uncertainties adjustText "gql[requests]" pytest-mock pytest-lazy-fixtures chromobius==1.1.1 relay-bp==0.2.2 fusion-blossom==0.2.13 "mwpf[stim]==0.2.12" tesseract-decoder==0.1.1.dev20261013012529 pyzx-param==0.9.3; do
             python -m pip install --only-binary=:all: "$p" || echo "::notice::$p is not available for Python ${{ matrix.python }} on ${{ matrix.os }}"
           done
           # Quantumsim 0.2.0, the density matrix's reference, without the dependencies the test does not use.
@@ -175,6 +177,36 @@ jobs:
           python -m pip install --only-binary=:all: markdown==3.11.2 python-markdown-math==0.9 || echo "::notice::markdown 3.11.2 is not available for Python ${{ matrix.python }} on ${{ matrix.os }}"
       - name: Tests
         run: python -m pytest tests -q
+
+  # One bounded extended corpus on every push/PR and workflow_dispatch, sharing this
+  # checkout's Linux wheel. The 18-entry default test matrix keeps its existing scope.
+  extended-regression:
+    name: Extended 2.2 reference corpus (Python 3.12, Linux)
+    needs: wheel
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v5
+        with:
+          name: wheel-ubuntu-latest
+          path: dist
+      - name: Install the wheel and required pinned references
+        shell: bash
+        # PyMatching's exact edges/order and Stim's fixture circuits/samples depend on
+        # these versions. Chromobius weights and beliefmatching target their recorded
+        # versions too. Installation failures must fail this job, never become skips.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install dist/*.whl pytest hypothesis stim==1.16.0 pymatching==2.4.0 chromobius==1.1.1 beliefmatching==0.2.0 ldpc==2.4.1 scipy==1.13.1
+          python -c "import stim, pymatching, chromobius, beliefmatching, ldpc, scipy"
+      - name: Extended matching, decoder-package and tqec fixture corpus
+        env:
+          STABILIZER_QEC_SLOW: "1"
+        run: python -m pytest tests/test_pm_exact.py tests/test_chromobius_beliefmatching_packages.py tests/tqec_port/test_compile_fixtures.py -q
 
   free-threaded:
     name: Tests (free-threaded Python 3.14t, ${{ matrix.os }})
@@ -207,10 +239,11 @@ jobs:
           "$VPY" -m pip install dist/*.whl pytest hypothesis
           # Fail rather than quietly turn the GIL back on, should an import need it.
           PYTHON_GIL=0 "$VPY" -c "import sys, stabilizer_qec; assert not sys._is_gil_enabled(), 'the GIL came back on'; print(stabilizer_qec.__version__)"
+      # Keep the same exact-reference targets; unavailable free-threaded wheels still skip.
       - name: Install the reference packages that build for it (tests skip the rest)
         shell: bash
         run: |
-          for p in stim pymatching scipy; do
+          for p in stim==1.16.0 pymatching==2.4.0 scipy; do
             "$VPY" -m pip install --only-binary=:all: "$p" || echo "::notice::$p is not available for free-threaded Python on ${{ matrix.os }}"
           done
       - name: Tests, the GIL held off
