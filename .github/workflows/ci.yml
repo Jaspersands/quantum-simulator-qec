@@ -42,6 +42,7 @@ jobs:
       - name: Site tests
         run: |
           node tools/site-tests.mjs
+          node tools/coherent-tests.mjs
           node tools/contrast.mjs
       - name: README tables match their data
         run: python3 tools/readme_tables.py --check

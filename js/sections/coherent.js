@@ -12,6 +12,13 @@ import { $, fill, el, whenNear } from '../dom.js';
 import { Plot, plotLegend } from '../plot.js';
 
 const DATA = new URL('../../data/coherent/', import.meta.url);
+// Generation lineage only; exact weights and validation agreement are separate claims.
+const GENERATION_REVISION = 'coherent-merged-proposal-v1';
+
+export function currentCoherentRows(rows) {
+  return rows.filter((r) => r.generation_revision === GENERATION_REVISION);
+}
+
 const COLORS = ['var(--x)', 'var(--z)', 'var(--y)', 'var(--ok)'];
 
 function sci(x) {
@@ -33,8 +40,14 @@ async function load(name, status) {
     const response = await fetch(new URL(name, DATA));
     if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
     const doc = await response.json();
-    status.textContent = '';
-    return doc;
+    const rows = currentCoherentRows(doc.rows);
+    const archived = doc.rows.length - rows.length;
+    if (!rows.length) {
+      status.textContent = 'Awaiting measurements with the corrected proposal. Historical rows are archived in the raw data.';
+      return null;
+    }
+    status.textContent = archived ? `${rows.length} current measurements; ${archived} historical rows await remeasurement.` : '';
+    return { ...doc, rows };
   } catch (error) {
     status.textContent = `Recorded measurements unavailable (${error.message}).`;
     return null;

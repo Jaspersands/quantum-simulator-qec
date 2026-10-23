@@ -18,10 +18,13 @@ code.
 A weighted rate is sampled until its error bar is as narrow as an unweighted run's when that run
 stops (300 failures, and at least one batch of 100,000 shots): see `enough`.
 
-Every row says what measured it: `version`, the version of the core that measured it (a row
---only keeps keeps its own), and `coherent.exact`, whether its weights summed each shot's whole
-class (the sampler's `exact_weights`; validate's own `exact` is the exact answer). A file's
-`version` is the core that last wrote it.
+Every row says what measured it: `version` is the actual package metadata version (a row
+--only keeps retains its own), and `coherent.exact` says whether its weights summed each shot's
+whole class (`exact_weights`; validate's own `exact` is the state-vector answer). A file's
+`version` is the package metadata version that last wrote it. Newly measured rows also carry
+`generation_revision = "coherent-merged-proposal-v1"`, identifying generation after the merged
+proposal correction. This marker is independent of exact weights or validation agreement;
+older rows, including ones stamped 2.2.0, remain archival until remeasured.
 """
 
 from __future__ import annotations
@@ -40,6 +43,8 @@ import stabilizer_qec as sq
 OUT = Path(__file__).resolve().parent.parent / "data" / "coherent"
 NOISE = 0.002  # SD-style circuit noise besides the rotations
 THREADS = 0
+# Generation lineage only: neither an exactness flag nor a validation result.
+GENERATION_REVISION = "coherent-merged-proposal-v1"
 # With --only field=value[,value...]: the rows to re-measure (added, where the file lacks them);
 # every other row is kept as the file has it.
 ONLY: dict = {}
@@ -103,16 +108,13 @@ def previous(name: str, key: dict) -> dict:
 
 
 def measured_by() -> str:
-    """The version of the core measuring, for the rows' stamps. 2.2's development core reports
-    the last release, 2.1.0, until 2.2.0's version bump; this tool needs a core that contracts
-    (the sampler's `contraction_width`, new in 2.2), so a core that reports an earlier version is
-    that one, and a row it measures is stamped 2.2.0, never 2.1.0's truncating sampler."""
-    version = sq.__version__
-    try:
-        release = tuple(int(part) for part in version.split("+")[0].split(".")[:2])
-    except ValueError:
-        return version
-    return "2.2.0" if release < (2, 2) else version
+    """The actual package metadata version; development overlays may report 0+unknown."""
+    return sq.__version__
+
+
+def measured(row: dict) -> dict:
+    """Stamp a newly measured row, never a retained historical row."""
+    return {**row, "version": measured_by(), "generation_revision": GENERATION_REVISION}
 
 
 def parse_args(argv: list) -> tuple:
@@ -331,7 +333,7 @@ def validate() -> None:
         exact = float((probs * (dec.decode_batch(dets) != obs).any(axis=1)).sum())
         coh = coherent_rates(c, min_failures=1e9, max_shots=1_000_000)
         tr = twirl_rate(c, tw, min_failures=10**9, max_shots=2_000_000)
-        rows.append({"code": "repetition", "d": d, "rounds": rounds, "theta": theta, "noise": 0.0, "exact": exact, "exact_stderr": 0.0, "coherent": coh, "twirl": tr})
+        rows.append(measured({"code": "repetition", "d": d, "rounds": rounds, "theta": theta, "noise": 0.0, "exact": exact, "exact_stderr": 0.0, "coherent": coh, "twirl": tr}))
         print(f"repetition d{d} r{rounds} θ{theta}: exact {exact:.5f} coherent {coh['rate']:.5f}±{coh['stderr']:.5f} twirl {tr['rate']:.5f}", flush=True)
     # The d = 3 surface code: state-vector samples (17 qubits).
     for theta, shots in SURFACE:
@@ -355,7 +357,7 @@ def validate() -> None:
         # would widen its error bar.
         coh = coherent_rates(c, min_failures=1e9, max_shots=4_000_000)
         tr = twirl_rate(c, tw, min_failures=10**9, max_shots=2_000_000)
-        rows.append({"code": "surface", "d": 3, "rounds": 2, "theta": theta, "noise": NOISE, "exact": pe, "exact_stderr": float(np.sqrt(pe * (1 - pe) / shots)), "exact_shots": shots, "coherent": coh, "twirl": tr})
+        rows.append(measured({"code": "surface", "d": 3, "rounds": 2, "theta": theta, "noise": NOISE, "exact": pe, "exact_stderr": float(np.sqrt(pe * (1 - pe) / shots)), "exact_shots": shots, "coherent": coh, "twirl": tr}))
         print(f"surface d3 θ{theta}: exact {pe:.5f} coherent {coh['rate']:.5f}±{coh['stderr']:.5f} twirl {tr['rate']:.5f}", flush=True)
     save("validate", {"rows": rows})
 
@@ -371,7 +373,7 @@ def sweep(crosstalk: bool = False) -> None:
             c, tw = memory(d, theta, crosstalk=crosstalk)
             coh = coherent_rates(c)
             tr = twirl_rate(c, tw)
-            rows.append({"d": d, "rounds": d, "theta": theta, "coherent": coh, "twirl": tr})
+            rows.append(measured({"d": d, "rounds": d, "theta": theta, "coherent": coh, "twirl": tr}))
             print(f"{'crosstalk' if crosstalk else 'sweep'} d{d} θ{theta}: coherent {coh['rate']:.3e}±{coh['stderr']:.1e} (merged {coh['rate_merged']:.3e}) twirl {tr['rate']:.3e}  ESS {coh['ess']:.2f}  {coh['seconds']}s", flush=True)
             save("crosstalk" if crosstalk else "sweep", {"noise": NOISE, "rows": rows})
 
@@ -389,7 +391,7 @@ def code_capacity() -> None:
             # took 28,700,000 of them.
             coh = coherent_rates(c, max_shots=40_000_000)
             tr = twirl_rate(c, tw, max_shots=4_000_000)
-            rows.append({"d": d, "theta": theta, "coherent": coh, "twirl": tr})
+            rows.append(measured({"d": d, "theta": theta, "coherent": coh, "twirl": tr}))
             print(f"capacity d{d} θ{theta}: coherent {coh['rate']:.3e}±{coh['stderr']:.1e} twirl {tr['rate']:.3e}  ESS {coh['ess']:.2f}", flush=True)
             save("capacity", {"rows": rows})
 

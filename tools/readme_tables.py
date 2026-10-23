@@ -380,29 +380,42 @@ def decoder_checks():
     return rows
 
 
+# Must match tools/coherent.py and js/sections/coherent.js. A version/exact stamp
+# alone predates the confirmed merged-proposal defect and cannot certify remeasurement.
+COHERENT_GENERATION_REVISION = "coherent-merged-proposal-v1"
+
+
+def coherent_rows(name):
+    return [r for r in load(f"data/coherent/{name}.json")["rows"] if r.get("generation_revision") == COHERENT_GENERATION_REVISION]
+
+
+def coherent_pending(columns):
+    return ["| Awaiting measurements with the corrected proposal |" + " — |" * (columns - 1)]
+
+
 def coherent_validation():
     """tools/coherent.py validate: the coherent sampler against the state vector."""
     rows = []
-    for r in load("data/coherent/validate.json")["rows"]:
+    for r in coherent_rows("validate"):
         z = (r["coherent"]["rate"] - r["exact"]) / math.hypot(r["coherent"]["stderr"], r["exact_stderr"])
         exact = f"{r['exact']:.5f}" + (f" ± {r['exact_stderr']:.5f}" if r["exact_stderr"] else "")
         rows.append(f"| {r['code']}, d = {r['d']}, {r['rounds']} rounds | {r['theta']} | {exact} | {r['coherent']['rate']:.5f} ± {r['coherent']['stderr']:.5f} | {z:+.1f}σ | {r['twirl']['rate']:.5f} |")
-    return rows
+    return rows or coherent_pending(6)
 
 
 def coherent_sweep():
     """tools/coherent.py sweep: coherent against twirled logical error, by d and θ."""
     rows = []
-    for r in load("data/coherent/sweep.json")["rows"]:
+    for r in coherent_rows("sweep"):
         c, t = r["coherent"], r["twirl"]
         ratio = f"{c['rate'] / t['rate']:.1f}" if t["rate"] > 0 else "—"
         rows.append(f"| {r['d']} | {r['theta']} | {sci(c['rate'])} ± {sci(c['stderr'])} | {sci(t['rate'])} | {ratio} | {sci(c['rate_merged'])} | {round(100 * c['ess'])}% |")
-    return rows
+    return rows or coherent_pending(7)
 
 
 def coherent_capacity():
     """tools/coherent.py capacity: coherent over twirled logical error, by θ and d."""
-    data = load("data/coherent/capacity.json")["rows"]
+    data = coherent_rows("capacity")
     rows = []
     for theta in sorted({r["theta"] for r in data}):
         cells = []
@@ -415,7 +428,7 @@ def coherent_capacity():
                 rel = math.hypot(r["coherent"]["stderr"] / r["coherent"]["rate"], r["twirl"]["stderr"] / r["twirl"]["rate"])
                 cells.append(f"{ratio:.2f} ± {ratio * rel:.2f}")
         rows.append(f"| {theta} | " + " | ".join(cells) + " |")
-    return rows
+    return rows or coherent_pending(8)
 
 
 def clifford_t_tsim():

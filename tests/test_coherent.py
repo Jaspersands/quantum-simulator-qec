@@ -644,14 +644,12 @@ def test_every_data_row_says_what_measured_it():
 
 
 def test_the_data_tool_stamps_every_row(tmp_path, monkeypatch):
-    """save() stamps a row it measured with this core's version (2.2's development core, which
-    reports 2.1.0, as 2.2.0) and keeps a kept row's own stamp, or the file's for a row without
-    one; a row that does not say whether its weights were exact is refused."""
+    """save() records the actual metadata version and keeps retained stamps; exactness is
+    required independently of the new-measurement generation revision."""
     tool = coherent_tool()
     monkeypatch.setattr(tool, "OUT", tmp_path)
-    release = tuple(int(x) for x in sq.__version__.split("+")[0].split(".")[:2])
     now = tool.measured_by()
-    assert now == ("2.2.0" if release < (2, 2) else sq.__version__)
+    assert now == sq.__version__
     row = lambda d, exact, **stamp: {"d": d, "theta": 0.2, "coherent": {"exact": exact}, **stamp}  # noqa: E731
     tool.KEPT["capacity"] = {"version": "1.8.0", "rows": [row(3, False), row(5, False, version="2.0.0"), row(7, False)]}
     tool.save("capacity", {"rows": [row(7, True)]})
@@ -782,6 +780,7 @@ def test_only_adds_a_row_the_file_lacks(tmp_path, monkeypatch, capsys):
         for old, new in zip(before["rows"], after["rows"]):
             if tool.wanted({f: old[f] for f in tool.KEYS[name]}):
                 assert new["version"] == now and new["coherent"] == fake, (name, new)
+                assert new["generation_revision"] == tool.GENERATION_REVISION
             else:
                 assert new == old, (name, new)
     # Validate's surface rows: θ = 0.02's samples kept, θ = 0.04's (every shot failing) drawn.
@@ -789,3 +788,52 @@ def test_only_adds_a_row_the_file_lacks(tmp_path, monkeypatch, capsys):
     kept = {r["theta"]: r for r in json.loads((DATA / "validate.json").read_text())["rows"] if r["code"] == "surface"}
     assert sampled == [60_000]
     assert surface[0.02]["exact"] == kept[0.02]["exact"] and (surface[0.04]["exact"], surface[0.04]["exact_stderr"]) == (1.0, 0.0)
+
+
+@pytest.mark.parametrize("version", ["0+unknown", "2.1.0", "2.2.0", "2.3.0.dev1"])
+def test_the_data_tool_records_actual_metadata_version(monkeypatch, version):
+    tool = coherent_tool()
+    monkeypatch.setattr(tool.sq, "__version__", version)
+    assert tool.measured_by() == version
+    # A measurement may have truncated weights; lineage still does not promise exactness.
+    row = tool.measured({"coherent": {"exact": False}})
+    assert row == {"coherent": {"exact": False}, "version": version, "generation_revision": tool.GENERATION_REVISION}
+
+
+def test_retained_old_22_rows_are_not_promoted_to_current(tmp_path, monkeypatch):
+    tool = coherent_tool()
+    monkeypatch.setattr(tool, "OUT", tmp_path)
+    old = {"d": 5, "theta": 0.2, "coherent": {"exact": True}, "version": "2.2.0", "historical_note": "keep"}
+    outside = dict(old, d=4, generation_revision="prior-experiment")
+    tool.KEPT["capacity"] = {"version": "2.2.0", "rows": [old, outside]}
+    new = tool.measured({"d": 3, "theta": 0.2, "coherent": {"exact": False}})
+    tool.save("capacity", {"rows": [new]})
+    got = json.loads((tmp_path / "capacity.json").read_text())["rows"]
+    assert got == [new, old, outside]
+    # save is a serializer, and must not infer a generation marker from any version.
+    tool.KEPT.clear()
+    tool.save("capacity", {"rows": [old]})
+    assert json.loads((tmp_path / "capacity.json").read_text())["rows"] == [old]
+
+
+def test_current_coherent_tables_only_include_remeasured_rows(monkeypatch):
+    path = DATA.parent.parent / "tools" / "readme_tables.py"
+    spec = importlib.util.spec_from_file_location("readme_tables", path)
+    tables = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tables)
+    tool = coherent_tool()
+    assert tables.COHERENT_GENERATION_REVISION == tool.GENERATION_REVISION
+    old = {"d": 5, "rounds": 5, "theta": 0.2, "code": "historical", "version": "2.2.0", "exact": 0.1, "exact_stderr": 0,
+           "coherent": {"rate": 0.1, "stderr": 0.01, "rate_merged": 0.09, "ess": 0.5, "exact": True},
+           "twirl": {"rate": 0.1, "stderr": 0.01, "failures": 100}}
+    new = tool.measured(dict(old, d=3, code="current", theta=0.3, coherent=dict(old["coherent"], exact=False)))
+    for table, columns in ((tables.coherent_validation, 6), (tables.coherent_sweep, 7), (tables.coherent_capacity, 8)):
+        monkeypatch.setattr(tables, "load", lambda name: {"rows": [old, new]})
+        got = table()
+        monkeypatch.setattr(tables, "load", lambda name: {"rows": [new]})
+        assert table() == got and len(got) == 1
+        assert "historical" not in str(got)
+        monkeypatch.setattr(tables, "load", lambda name: {"rows": [old, dict(old, generation_revision="wrong")]})
+        assert table() == tables.coherent_pending(columns)
+        assert len(table()[0].split("|")) == columns + 2
+    assert "generation_revision" not in old
