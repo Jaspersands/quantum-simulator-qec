@@ -379,8 +379,8 @@ class Matching:
             warnings.warn(f"Weight {weight} of edge ({node1}, {node2}) exceeds maximum edge weight {int(_MAX_WEIGHT)} and has not been added to the matching graph.", stacklevel=2)
             return
         p = -1.0 if error_probability is None else float(error_probability)
-        call(self._g.add_edge, int(node1), int(node2), sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy)
-        self._corr = None
+        if call(self._g.add_edge, int(node1), int(node2), sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
+            self._corr = None
 
     def add_boundary_edge(self, node: int, fault_ids: Any = None, weight: float = 1.0, error_probability: Optional[float] = None, *, merge_strategy: str = "disallow", **kwargs: Any) -> None:
         """Adds an edge from ``node`` to the boundary (PyMatching's ``add_boundary_edge``)."""
@@ -390,8 +390,8 @@ class Matching:
             warnings.warn(f"Weight {weight} of edge ({node}, None) exceeds maximum edge weight {int(_MAX_WEIGHT)} and has not been added to the matching graph.", stacklevel=2)
             return
         p = -1.0 if error_probability is None else float(error_probability)
-        call(self._g.add_boundary_edge, int(node), sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy)
-        self._corr = None
+        if call(self._g.add_boundary_edge, int(node), sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
+            self._corr = None
 
     def set_boundary_nodes(self, nodes: Set[int]) -> None:
         """The boundary nodes: decoding treats an edge to one as an edge to the boundary."""
@@ -450,7 +450,7 @@ class Matching:
 
     def edges(self) -> List[Tuple[int, Optional[int], Dict[str, Any]]]:
         """Every edge, as ``(node1, node2 or None for the boundary, attributes)``."""
-        return [(u, v, {"fault_ids": set(f), "weight": w, "error_probability": p if 0 <= p <= 1 else -1.0}) for u, v, f, w, p in self._g.edges()]
+        return [(u, v, {"fault_ids": set(f), "weight": w, "error_probability": -1.0 if p < 0 or p > 1 else p}) for u, v, f, w, p in self._g.edges()]
 
     def to_networkx(self) -> Any:
         """A networkx graph of the edges; the boundary is node ``num_nodes`` if any edge meets it."""
@@ -568,7 +568,7 @@ class Matching:
         else:
             if not nd <= shots.shape[1] <= nn:
                 raise ValueError(f"`shots` array should have at least {nd} columns (the number of detectors), and no more than {nn} columns (the number of nodes), but instead has {shots.shape[1]} columns")
-            packed = np.packbits(shots.astype(bool), axis=1, bitorder="little")
+            packed = np.packbits(shots.astype(np.uint8).astype(bool), axis=1, bitorder="little")
         if self._check_correlations(enable_correlations):
             dets = np.unpackbits(packed, axis=1, count=nd, bitorder="little")
             raw = np.packbits(dets, axis=1, bitorder="little").tobytes()
@@ -577,7 +577,10 @@ class Matching:
                 raise ValueError("No perfect matching could be found. This likely means that the syndrome has odd parity in the support of a connected component without a boundary.")
             from ._util import u64_to_rows
 
-            out = u64_to_rows(preds, n, nf, bit_packed_predictions)
+            out = u64_to_rows(preds, n, min(nf, 64), bit_packed_predictions)
+            width = (nf + 7) // 8 if bit_packed_predictions else nf
+            if out.shape[1] < width:
+                out = np.pad(out, ((0, 0), (0, width - out.shape[1])))
             w = np.frombuffer(weights, dtype="<f8").copy()
             return (out, w) if return_weights else out
         preds, weights = call(self._g.decode_batch, packed.tobytes(), n, packed.shape[1], count(threads, "threads"))
@@ -681,7 +684,9 @@ class Matching:
 
 def _rebuild(num_nodes: int, num_fault_ids: int, boundary: list, edges: list, correlated_dem: Optional[str], implied: Any = ()) -> Matching:
     if correlated_dem is not None:
-        return Matching.from_detector_error_model(correlated_dem, enable_correlations=True)
+        m = Matching.from_detector_error_model(correlated_dem, enable_correlations=True)
+        m.ensure_num_fault_ids(num_fault_ids)
+        return m
     m = Matching()
     g = _core.UserGraph(num_nodes, num_fault_ids)
     g.set_boundary(boundary)

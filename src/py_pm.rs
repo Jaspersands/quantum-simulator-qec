@@ -1,19 +1,25 @@
 //! Python bindings for PyMatching's graph API (`user_graph`): the graph, built and queried, and
 //! its decoder (`pm_exact`, PyMatching's sparse blossom), rebuilt on first use after any change.
-//! Single shots decode on one kept `Mwpm`, as PyMatching keeps one; `decode_batch` gives each
-//! thread its own.
+//! Calls lease independent mutable scratch from a bounded idle pool over one immutable build;
+//! `decode_batch` also gives each worker its own scratch.
 
-use std::sync::Mutex;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyMemoryError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crate::pm_exact::Mwpm;
-use crate::user_graph::{ImpliedWeight, Merge, UserDecoder, UserGraph};
+use crate::user_graph::{DecoderCache, Engine, ImpliedWeight, Merge, UserGraph};
 
 fn err(e: String) -> PyErr {
-    PyValueError::new_err(e)
+    if e.contains("cannot allocate observable output") || e.starts_with("cannot allocate decoding workers") {
+        PyMemoryError::new_err(e)
+    } else if e.starts_with("cannot start decoding thread") || e.starts_with("decoding thread panicked") {
+        PyRuntimeError::new_err(e)
+    } else {
+        PyValueError::new_err(e)
+    }
 }
 
 type EdgeRow = (usize, Option<usize>, Vec<usize>, f64, f64);
@@ -21,23 +27,26 @@ type EdgeRow = (usize, Option<usize>, Vec<usize>, f64, f64);
 /// The sparse blossom's recursions (shattering nested blossoms) get room on decoding threads.
 const DECODE_THREAD_STACK: usize = 64 << 20;
 
-struct Engine {
-    decoder: UserDecoder,
-    mwpm: Mwpm,
-    /// Whether PyMatching's mwpm would carry its search graph: built by
-    /// `get_mwpm_with_search_graph`, or over 64 fault ids (`to_mwpm`).
-    search: bool,
+fn zeroed<T: Clone + Default>(len: usize) -> PyResult<Vec<T>> {
+    let mut out = Vec::new();
+    out.try_reserve_exact(len).map_err(|e| PyMemoryError::new_err(format!("cannot allocate matching output: {e}")))?;
+    out.resize(len, T::default());
+    Ok(out)
+}
+
+fn byte_copy<'py>(py: Python<'py>, bytes: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
+    PyBytes::new_with(py, bytes.len(), |out| { out.copy_from_slice(bytes); Ok(()) })
 }
 
 #[pyclass(name = "UserGraph", module = "stabilizer_qec._core")]
 pub struct PyUserGraph {
     g: UserGraph,
-    engine: Mutex<Option<Engine>>,
+    engine: DecoderCache,
 }
 
 impl PyUserGraph {
     fn changed(&mut self) {
-        *self.engine.get_mut().expect("not poisoned") = None;
+        self.engine = DecoderCache::default();
     }
 
     /// Runs `f` on the kept decoder, without the GIL: PyMatching's `get_mwpm`, or with `search`
@@ -47,23 +56,11 @@ impl PyUserGraph {
     /// kept mwpm does not after `ensure_num_fault_ids`. A failed build keeps the old one, as
     /// PyMatching's `_mwpm = to_mwpm(...)` does when `to_mwpm` throws.
     fn with_engine<R: Send>(&self, py: Python<'_>, search: bool, f: impl FnOnce(&mut Engine) -> Result<R, String> + Send) -> PyResult<R> {
-        let g = &self.g;
-        let engine = &self.engine;
-        py.detach(|| {
-            let mut slot = engine.lock().map_err(|_| "the decoder's lock was poisoned".to_string())?;
-            let rebuild = match slot.as_ref() {
-                None => true,
-                Some(e) => search && !e.search && e.decoder.num_nodes() != 0,
-            };
-            if rebuild {
-                let decoder = g.decoder()?;
-                let mwpm = decoder.mwpm();
-                let search = search || decoder.num_fault_ids() > 64;
-                *slot = Some(Engine { decoder, mwpm, search });
-            }
-            f(slot.as_mut().expect("just built"))
-        })
-        .map_err(err)
+        // PyO3 retains the shared borrow across detach; graph mutation requires &mut self
+        // and cannot overlap this core call. Independent shared decode/search calls can.
+        py.detach(|| catch_unwind(AssertUnwindSafe(|| self.engine.run(&self.g, search, f))))
+            .map_err(|_| PyRuntimeError::new_err("matching decoder panicked; its scratch was discarded"))?
+            .map_err(err)
     }
 }
 
@@ -72,7 +69,7 @@ impl PyUserGraph {
     #[new]
     #[pyo3(signature = (num_nodes=0, num_fault_ids=0))]
     fn new(num_nodes: usize, num_fault_ids: usize) -> Self {
-        PyUserGraph { g: UserGraph::new(num_nodes, num_fault_ids), engine: Mutex::new(None) }
+        PyUserGraph { g: UserGraph::new(num_nodes, num_fault_ids), engine: DecoderCache::default() }
     }
 
     /// PyMatching's graph of a model (see `UserGraph::from_dem`), or with `enable_correlations`
@@ -82,25 +79,25 @@ impl PyUserGraph {
     fn from_dem(text: &str, enable_correlations: bool) -> PyResult<Self> {
         let dem = crate::dem_program::DemProgram::parse(text).map_err(err)?;
         let g = if enable_correlations { UserGraph::from_dem_with_correlations(&dem) } else { UserGraph::from_dem(&dem) };
-        Ok(PyUserGraph { g: g.map_err(err)?, engine: Mutex::new(None) })
+        Ok(PyUserGraph { g: g.map_err(err)?, engine: DecoderCache::default() })
     }
 
     fn copy(&self) -> Self {
-        PyUserGraph { g: self.g.clone(), engine: Mutex::new(None) }
+        PyUserGraph { g: self.g.clone(), engine: DecoderCache::default() }
     }
 
-    fn add_edge(&mut self, node1: usize, node2: usize, fault_ids: Vec<usize>, weight: f64, error_probability: f64, merge_strategy: &str) -> PyResult<()> {
+    fn add_edge(&mut self, node1: usize, node2: usize, fault_ids: Vec<usize>, weight: f64, error_probability: f64, merge_strategy: &str) -> PyResult<bool> {
         let how = Merge::parse(merge_strategy).map_err(err)?;
-        self.g.add_edge(node1, node2, &fault_ids, weight, error_probability, how).map_err(err)?;
-        self.changed();
-        Ok(())
+        let changed = self.g.add_edge_changed(node1, node2, &fault_ids, weight, error_probability, how).map_err(err)?;
+        if changed { self.changed(); }
+        Ok(changed)
     }
 
-    fn add_boundary_edge(&mut self, node: usize, fault_ids: Vec<usize>, weight: f64, error_probability: f64, merge_strategy: &str) -> PyResult<()> {
+    fn add_boundary_edge(&mut self, node: usize, fault_ids: Vec<usize>, weight: f64, error_probability: f64, merge_strategy: &str) -> PyResult<bool> {
         let how = Merge::parse(merge_strategy).map_err(err)?;
-        self.g.add_boundary_edge(node, &fault_ids, weight, error_probability, how).map_err(err)?;
-        self.changed();
-        Ok(())
+        let changed = self.g.add_boundary_edge_changed(node, &fault_ids, weight, error_probability, how).map_err(err)?;
+        if changed { self.changed(); }
+        Ok(changed)
     }
 
     fn set_boundary(&mut self, nodes: Vec<usize>) {
@@ -176,12 +173,12 @@ impl PyUserGraph {
     fn decode<'py>(&self, py: Python<'py>, events: Vec<u64>) -> PyResult<(Bound<'py, PyBytes>, f64)> {
         // As long as the graph's count now (`get_num_observables`); the kept decoder fills its own.
         let nf = self.g.num_fault_ids();
+        let mut obs = zeroed::<u8>(nf)?;
         let (bytes, weight) = self.with_engine(py, false, |e| {
-            let mut obs = vec![0u8; nf];
             let w = e.mwpm.decode_into(&events, &mut obs)?;
             Ok((obs, w as f64 / e.decoder.graph().normalising_constant))
         })?;
-        Ok((PyBytes::new(py, &bytes), weight))
+        Ok((byte_copy(py, &bytes)?, weight))
     }
 
     /// PyMatching's `get_mwpm_with_search_graph`, which its correlated calls make before they
@@ -196,81 +193,95 @@ impl PyUserGraph {
     /// Shots are split into contiguous runs, one per thread; a failure is the earliest shot's,
     /// PyMatching's message after `shot k: `.
     fn decode_batch<'py>(&self, py: Python<'py>, packed: &[u8], shots: usize, row_bytes: usize, threads: usize) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
-        if packed.len() != shots * row_bytes {
+        if Some(packed.len()) != shots.checked_mul(row_bytes) {
             return Err(err(format!("{} bytes of shots, not {shots} rows of {row_bytes}", packed.len())));
         }
         // Rows as long as the graph's count now; the kept decoder fills its own (see `decode`).
         let nf = self.g.num_fault_ids();
+        let out_bytes = nf.div_ceil(8);
+        let stride = out_bytes.max(1);
+        let length = shots.checked_mul(stride).ok_or_else(|| PyMemoryError::new_err("matching output size overflow"))?;
+        let mut preds = zeroed::<u8>(length)?;
+        let mut weights = zeroed::<f64>(shots)?;
+        let weight_bytes = shots.checked_mul(8).ok_or_else(|| PyMemoryError::new_err("matching weight size overflow"))?;
         let (preds, weights) = self.with_engine(py, false, |e| {
-            let out_bytes = nf.div_ceil(8);
-            // At least a byte a shot, so a graph with no fault ids still decodes every shot.
-            let stride = out_bytes.max(1);
-            let mut preds = vec![0u8; shots * stride];
-            let mut weights = vec![0f64; shots];
             let threads = if threads == 0 { std::thread::available_parallelism().map_or(1, |n| n.get()) } else { threads }.max(1).min(shots.max(1));
             let chunk = shots.div_ceil(threads).max(1);
             let decoder = &e.decoder;
             let mut kept = Some(&mut e.mwpm);
-            let results: Vec<Result<(), String>> = std::thread::scope(|scope| {
-                let handles: Vec<_> = preds
+            let results: Result<(), String> = std::thread::scope(|scope| {
+                let mut handles = Vec::new();
+                handles.try_reserve_exact(threads).map_err(|e| format!("cannot allocate decoding workers: {e}"))?;
+                let mut spawn_error = None;
+                for (c, (pout, wout)) in preds
                     .chunks_mut(chunk * stride)
                     .zip(weights.chunks_mut(chunk))
                     .enumerate()
-                    .map(|(c, (pout, wout))| {
-                        let kept = kept.take();
-                        std::thread::Builder::new()
-                            .stack_size(DECODE_THREAD_STACK)
-                            .spawn_scoped(scope, move || -> Result<(), String> {
-                                let mut own;
-                                let mwpm = match kept {
-                                    Some(m) => m,
-                                    None => {
-                                        own = decoder.mwpm();
-                                        &mut own
-                                    }
-                                };
-                                let mut events: Vec<u64> = Vec::new();
-                                for (i, w) in wout.iter_mut().enumerate() {
-                                    let shot = c * chunk + i;
-                                    let row = &packed[shot * row_bytes..(shot + 1) * row_bytes];
-                                    events.clear();
-                                    for (b, &byte) in row.iter().enumerate() {
-                                        let mut bits = byte;
-                                        while bits != 0 {
-                                            events.push((b * 8 + bits.trailing_zeros() as usize) as u64);
-                                            bits &= bits - 1;
-                                        }
-                                    }
-                                    let o = &mut pout[i * stride..i * stride + out_bytes];
-                                    // A padding bit past `num_nodes` is refused before any region is
-                                    // made (`Mwpm::begin`), so the next decode works. Deliberately not
-                                    // PyMatching's: it makes a region at each of the shot's earlier
-                                    // detection events, then throws. When the shot has earlier
-                                    // (non-boundary) detection events, every later decode on that mwpm
-                                    // raises "!mwpm.flooder.queue.empty()" until a rebuild; with none,
-                                    // its next decode works, as ours. (An event at a node a negative
-                                    // edge marked only unmarks it, making no region; a region at a node
-                                    // with no edges queues nothing, so only its next decode fails, with
-                                    // "No perfect matching ...", and resets it.)
-                                    *w = decoder.decode_packed_with(mwpm, &events, o).map_err(|e| format!("shot {shot}: {e}"))?;
+                {
+                    let kept = kept.take();
+                    let spawned = std::thread::Builder::new()
+                        .stack_size(DECODE_THREAD_STACK)
+                        .spawn_scoped(scope, move || -> Result<(), String> {
+                            let mut own;
+                            let mwpm = match kept {
+                                Some(m) => m,
+                                None => {
+                                    own = decoder.mwpm();
+                                    &mut own
                                 }
-                                Ok(())
-                            })
-                            .expect("a decoding thread starts")
-                    })
-                    .collect();
-                handles.into_iter().map(|h| h.join().expect("a decoding thread panicked")).collect()
+                            };
+                            let mut events: Vec<u64> = Vec::new();
+                            for (i, w) in wout.iter_mut().enumerate() {
+                                let shot = c * chunk + i;
+                                let row = &packed[shot * row_bytes..(shot + 1) * row_bytes];
+                                events.clear();
+                                for (b, &byte) in row.iter().enumerate() {
+                                    let mut bits = byte;
+                                    while bits != 0 {
+                                        events.push((b * 8 + bits.trailing_zeros() as usize) as u64);
+                                        bits &= bits - 1;
+                                    }
+                                }
+                                let o = &mut pout[i * stride..i * stride + out_bytes];
+                                // A padding bit past `num_nodes` is refused before any region is
+                                // made (`Mwpm::begin`), so the next decode works. Deliberately not
+                                // PyMatching's: it makes a region at each of the shot's earlier
+                                // detection events, then throws. When the shot has earlier
+                                // (non-boundary) detection events, every later decode on that mwpm
+                                // raises "!mwpm.flooder.queue.empty()" until a rebuild; with none,
+                                // its next decode works, as ours. (An event at a node a negative
+                                // edge marked only unmarks it, making no region; a region at a node
+                                // with no edges queues nothing, so only its next decode fails, with
+                                // "No perfect matching ...", and resets it.)
+                                *w = decoder.decode_packed_with(mwpm, &events, o).map_err(|e| format!("shot {shot}: {e}"))?;
+                            }
+                            Ok(())
+                        });
+                    match spawned {
+                        Ok(handle) => handles.push(handle),
+                        Err(e) => { spawn_error = Some(format!("cannot start decoding thread: {e}")); break; }
+                    }
+                }
+                // Join every started worker even after an error. Contiguous handles in shot
+                // order preserve the earliest failing shot, regardless of completion order.
+                let mut failure = None;
+                for handle in handles {
+                    let result = handle.join().unwrap_or_else(|_| Err("decoding thread panicked; scratch discarded".into()));
+                    if failure.is_none() { failure = result.err(); }
+                }
+                failure.or(spawn_error).map_or(Ok(()), Err)
             });
-            if let Some(Err(e)) = results.into_iter().find(|r| r.is_err()) {
-                return Err(e);
-            }
+            results?;
             if out_bytes == 0 {
                 preds.clear();
             }
             Ok((preds, weights))
         })?;
-        let weights: Vec<u8> = weights.iter().flat_map(|w| w.to_le_bytes()).collect();
-        Ok((PyBytes::new(py, &preds), PyBytes::new(py, &weights)))
+        let weight_output = PyBytes::new_with(py, weight_bytes, |out| {
+            for (dst, w) in out.chunks_exact_mut(8).zip(weights) { dst.copy_from_slice(&w.to_le_bytes()); }
+            Ok(())
+        })?;
+        Ok((byte_copy(py, &preds)?, weight_output))
     }
 
     /// The correction's edges, as node pairs (-1: the boundary), in PyMatching's order.

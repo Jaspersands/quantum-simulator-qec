@@ -1,3 +1,7 @@
+// Copyright 2022 PyMatching Contributors
+// Licensed under the Apache License, Version 2.0 (see src/pm_exact/LICENSE). Modified: transliterated
+// to Rust for this crate; owned decoder scratch caching and fallible output allocation added.
+
 //! PyMatching's `UserGraph` (`user_graph.cc`, PyMatching 2.4): a matching graph built by hand.
 //! Nodes, edges carrying sets of fault ids, weights and error probabilities, boundary nodes, and
 //! the five ways a parallel edge merges. It decodes on `pm_exact`, PyMatching's sparse blossom
@@ -98,6 +102,86 @@ pub struct UserGraph {
 #[derive(Clone, Debug)]
 pub struct UserDecoder {
     graph: Arc<Graph>,
+}
+
+/// A published build outlives every scratch lease, including failed ones. In particular,
+/// ensuring a larger public width does not change this decoder's historical tie path.
+#[cfg(any(feature = "python", test))]
+struct DecoderBuild {
+    decoder: UserDecoder,
+    search: bool,
+}
+
+#[cfg(any(feature = "python", test))]
+pub(crate) struct Engine {
+    pub decoder: UserDecoder,
+    pub mwpm: Mwpm,
+}
+
+#[cfg(any(feature = "python", test))]
+#[derive(Default)]
+struct CacheState {
+    build: Option<Arc<DecoderBuild>>,
+    // Bound retained working sets without limiting independent active calls.
+    idle: [Option<Mwpm>; 4],
+}
+
+#[cfg(any(feature = "python", test))]
+#[derive(Default)]
+pub(crate) struct DecoderCache(std::sync::Mutex<CacheState>);
+
+#[cfg(any(feature = "python", test))]
+impl DecoderCache {
+    fn lock(&self) -> std::sync::MutexGuard<'_, CacheState> {
+        self.0.lock().unwrap_or_else(|poison| {
+            let mut state = poison.into_inner();
+            // Only bookkeeping is locked; no possibly-dirty scratch is trusted after poison.
+            state.idle = Default::default();
+            self.0.clear_poison();
+            state
+        })
+    }
+
+    pub fn run<R>(&self, g: &UserGraph, search: bool, f: impl FnOnce(&mut Engine) -> Result<R, String>) -> Result<R, String> {
+        let (build, scratch) = loop {
+            let mut state = self.lock();
+            let rebuild = state.build.as_ref().is_none_or(|b| search && !b.search && b.decoder.num_nodes() != 0);
+            if !rebuild {
+                let build = state.build.as_ref().unwrap().clone();
+                let scratch = state.idle.iter_mut().find_map(Option::take);
+                break (build, scratch);
+            }
+            let previous = state.build.clone();
+            drop(state);
+            // Construction may fail or unwind. Publish only a fully constructed candidate,
+            // outside the bookkeeping lock, and never overwrite another caller's upgrade.
+            let decoder = g.decoder()?;
+            let scratch = decoder.mwpm();
+            let candidate = Arc::new(DecoderBuild { search: search || decoder.num_fault_ids() > 64, decoder });
+            let mut state = self.lock();
+            let unchanged = match (&previous, &state.build) {
+                (None, None) => true,
+                (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                _ => false,
+            };
+            if unchanged {
+                state.build = Some(candidate.clone());
+                state.idle = Default::default();
+                break (candidate, Some(scratch));
+            }
+        };
+        let mut engine = Engine { decoder: build.decoder.clone(), mwpm: scratch.unwrap_or_else(|| build.decoder.mwpm()) };
+        // No cache lock is held during decoding. Errors and unwinds drop this engine;
+        // only successful operations may return scratch to the still-current build.
+        let result = f(&mut engine)?;
+        let mut state = self.lock();
+        if state.build.as_ref().is_some_and(|b| Arc::ptr_eq(b, &build)) {
+            if let Some(slot) = state.idle.iter_mut().find(|slot| slot.is_none()) {
+                *slot = Some(engine.mwpm);
+            }
+        }
+        Ok(result)
+    }
 }
 
 /// One shot's decoding: the fault ids flipped, and the weight (`UserDecoder::decode`).
@@ -211,12 +295,12 @@ impl UserGraph {
         if let Some(&m) = fault_ids.iter().max() {
             self.num_fault_ids = self.num_fault_ids.max(m + 1);
         }
-        if !(0.0..=1.0).contains(&p) {
+        if p < 0.0 || p > 1.0 {
             self.all_have_probabilities = false;
         }
     }
 
-    fn merge(&mut self, e: usize, fault_ids: &[usize], weight: f64, p: f64, how: Merge) -> Result<(), String> {
+    fn merge(&mut self, e: usize, fault_ids: &[usize], weight: f64, p: f64, how: Merge) -> Result<bool, String> {
         let old = &self.edges[e];
         match how {
             Merge::Disallow => {
@@ -226,17 +310,17 @@ impl UserGraph {
                     old.node1
                 ))
             }
-            Merge::KeepOriginal => Ok(()),
-            Merge::SmallestWeight if weight >= old.weight => Ok(()),
+            Merge::KeepOriginal => Ok(false),
+            Merge::SmallestWeight if weight >= old.weight => Ok(false),
             Merge::Replace | Merge::SmallestWeight => {
                 let ed = &mut self.edges[e];
                 ed.weight = weight;
                 ed.error_probability = p;
                 ed.fault_ids = fault_ids.to_vec();
-                if !(0.0..=1.0).contains(&p) {
+                if p < 0.0 || p > 1.0 {
                     self.all_have_probabilities = false;
                 }
-                Ok(())
+                Ok(true)
             }
             Merge::Independent => {
                 let ed = &mut self.edges[e];
@@ -247,13 +331,17 @@ impl UserGraph {
                 if !valid(ed.error_probability) {
                     self.all_have_probabilities = false;
                 }
-                Ok(())
+                Ok(true)
             }
         }
     }
 
     /// PyMatching's `add_or_merge_edge`.
     pub fn add_edge(&mut self, node1: usize, node2: usize, fault_ids: &[usize], weight: f64, p: f64, how: Merge) -> Result<(), String> {
+        self.add_edge_changed(node1, node2, fault_ids, weight, p, how).map(|_| ())
+    }
+
+    pub(crate) fn add_edge_changed(&mut self, node1: usize, node2: usize, fault_ids: &[usize], weight: f64, p: f64, how: Merge) -> Result<bool, String> {
         self.ensure_nodes(node1.max(node2) + 1);
         match self.find(node1, Some(node2)) {
             Some(e) => self.merge(e, fault_ids, weight, p, how),
@@ -265,13 +353,17 @@ impl UserGraph {
                     self.adjacency[node2].push(id);
                 }
                 self.note_new(fault_ids, p);
-                Ok(())
+                Ok(true)
             }
         }
     }
 
     /// PyMatching's `add_or_merge_boundary_edge`.
     pub fn add_boundary_edge(&mut self, node: usize, fault_ids: &[usize], weight: f64, p: f64, how: Merge) -> Result<(), String> {
+        self.add_boundary_edge_changed(node, fault_ids, weight, p, how).map(|_| ())
+    }
+
+    pub(crate) fn add_boundary_edge_changed(&mut self, node: usize, fault_ids: &[usize], weight: f64, p: f64, how: Merge) -> Result<bool, String> {
         self.ensure_nodes(node + 1);
         match self.find(node, None) {
             Some(e) => self.merge(e, fault_ids, weight, p, how),
@@ -280,7 +372,7 @@ impl UserGraph {
                 self.edges.push(UserEdge { node1: node, node2: None, fault_ids: fault_ids.to_vec(), weight, error_probability: p });
                 self.adjacency[node].push(id);
                 self.note_new(fault_ids, p);
-                Ok(())
+                Ok(true)
             }
         }
     }
@@ -477,7 +569,9 @@ impl UserDecoder {
             }
             Ok(w as f64 / g.normalising_constant)
         } else {
-            let mut bytes = vec![0u8; g.num_observables];
+            let mut bytes = Vec::new();
+            bytes.try_reserve_exact(g.num_observables).map_err(|e| format!("cannot allocate observable output: {e}"))?;
+            bytes.resize(g.num_observables, 0u8);
             let w = mwpm.decode_into(events, &mut bytes)?;
             for (k, &b) in bytes.iter().enumerate() {
                 out[k / 8] |= (b & 1) << (k % 8);
@@ -546,6 +640,125 @@ impl UserDecoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tied_square() -> UserGraph {
+        let mut g = UserGraph::new(4, 2);
+        for (u, v, f) in [(0, 1, vec![0]), (1, 2, vec![]), (2, 3, vec![1]), (3, 0, vec![])] {
+            g.add_edge(u, v, &f, 1.0, 0.1, Merge::Disallow).unwrap();
+        }
+        g
+    }
+
+    fn prediction(e: &mut Engine, width: usize) -> Result<Vec<u8>, String> {
+        let mut out = vec![0; width];
+        let weight = e.mwpm.decode_into(&[0, 2], &mut out)?;
+        assert_eq!(weight as f64 / e.decoder.graph().normalising_constant, 2.0);
+        Ok(out)
+    }
+
+    #[test]
+    fn cache_calls_own_overlapping_engines_with_one_published_history() {
+        use std::sync::mpsc::channel;
+        use std::time::Duration;
+        // First use races, and the stale-width case when all idle scratch is leased.
+        for stale in [false, true] {
+            let mut g = tied_square();
+            let cache = DecoderCache::default();
+            if stale {
+                assert_eq!(cache.run(&g, false, |e| prediction(e, 2)).unwrap(), [1, 0]);
+                g.ensure_num_fault_ids(70);
+            }
+            let width = g.num_fault_ids();
+            std::thread::scope(|scope| {
+                let (entered, entry) = channel();
+                let mut release = Vec::new();
+                let mut workers = Vec::new();
+                for _ in 0..3 {
+                    let (go, ready) = channel();
+                    release.push(go);
+                    let entered = entered.clone();
+                    let (g, cache) = (&g, &cache);
+                    workers.push(scope.spawn(move || cache.run(g, false, |e| {
+                        // Synchronize AFTER production checkout, while owning mutable scratch.
+                        // A mutex held across this closure cannot pass this bounded test.
+                        entered.send(()).unwrap();
+                        ready.recv_timeout(Duration::from_secs(5)).map_err(|e| e.to_string())?;
+                        prediction(e, width)
+                    })));
+                }
+                for _ in 0..3 { entry.recv_timeout(Duration::from_secs(5)).unwrap(); }
+                for go in release { go.send(()).unwrap(); }
+                for worker in workers {
+                    let out = worker.join().unwrap().unwrap();
+                    assert_eq!(&out[..2], &[1, 0]);
+                    assert!(out[2..].iter().all(|&b| b == 0));
+                }
+            });
+        }
+    }
+
+    #[test]
+    fn old_inflight_call_cannot_undo_search_upgrade() {
+        use std::sync::mpsc::channel;
+        use std::time::Duration;
+        let mut g = tied_square();
+        let cache = DecoderCache::default();
+        assert_eq!(cache.run(&g, false, |e| prediction(e, 2)).unwrap(), [1, 0]);
+        g.ensure_num_fault_ids(70);
+        std::thread::scope(|scope| {
+            let (entered, entry) = channel();
+            let (release, ready) = channel();
+            let (g, cache) = (&g, &cache);
+            let old = scope.spawn(move || cache.run(g, false, |e| {
+                let out = prediction(e, 70)?;
+                entered.send(()).unwrap();
+                ready.recv_timeout(Duration::from_secs(5)).map_err(|e| e.to_string())?;
+                Ok(out)
+            }));
+            entry.recv_timeout(Duration::from_secs(5)).unwrap();
+            assert_eq!(&cache.run(g, true, |e| prediction(e, 70)).unwrap()[..2], &[0, 1]);
+            release.send(()).unwrap();
+            assert_eq!(&old.join().unwrap().unwrap()[..2], &[1, 0]);
+        });
+        for _ in 0..8 {
+            assert_eq!(&cache.run(&g, false, |e| prediction(e, 70)).unwrap()[..2], &[0, 1]);
+        }
+    }
+
+    #[test]
+    fn failed_or_panicked_scratch_keeps_immutable_stale_build() {
+        let mut g = tied_square();
+        let cache = DecoderCache::default();
+        cache.run(&g, false, |e| prediction(e, 2)).unwrap();
+        g.ensure_num_fault_ids(70);
+        assert!(cache.run(&g, false, |e| e.mwpm.decode_to_mask(&[0])).is_err());
+        assert_eq!(&cache.run(&g, false, |e| prediction(e, 70)).unwrap()[..2], &[1, 0]);
+        let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _: Result<(), String> = cache.run(&g, false, |e| {
+                prediction(e, 70)?;
+                panic!("injected after decoder work")
+            });
+        }));
+        assert!(panic.is_err());
+        assert_eq!(&cache.run(&g, false, |e| prediction(e, 70)).unwrap()[..2], &[1, 0]);
+        // A failed rebuild must not replace the older published graph.
+        g.set_implied_weights(0, vec![ImpliedWeight { node1: 0, node2: Some(2), weight: 1.0 }]).unwrap();
+        assert!(cache.run(&g, true, |_| Ok(())).is_err());
+        assert_eq!(&cache.run(&g, false, |e| prediction(e, 70)).unwrap()[..2], &[1, 0]);
+    }
+
+    #[test]
+    fn no_op_merges_report_no_change_without_growing_metadata() {
+        let mut g = tied_square();
+        for how in [Merge::KeepOriginal, Merge::SmallestWeight] {
+            assert!(!g.add_edge_changed(0, 1, &[99], 10.0, -1.0, how).unwrap());
+            assert_eq!(g.num_fault_ids(), 2);
+            assert!(g.all_edges_have_error_probabilities());
+        }
+        assert!(g.add_edge_changed(0, 1, &[99], 1.0, 0.2, Merge::Replace).unwrap());
+        assert_eq!(g.num_fault_ids(), 2); // Reference merges do not extend the width.
+        assert_eq!(g.edges[0].fault_ids, [99]);
+    }
 
     fn line(n: usize) -> UserGraph {
         let mut g = UserGraph::new(n, 0);
