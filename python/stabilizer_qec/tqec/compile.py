@@ -30,10 +30,11 @@ The graph's shadowed faces are fixed first, as tqec does. The engine's patches f
 horizontal neighbours with X-type walls (a horizontal merge measures Z⊗Z) and their vertical
 neighbours with Z-type walls (X⊗X), so a graph's cubes must all be of one of the two kinds
 ``?X?``/``?Z?`` patterns with the X walls along one axis, which becomes the engine's column
-axis. What the engine cannot express is refused with tqec's way named: Hadamard pipes (CZ),
-spatial cubes (junctions of two spatial directions and one-basis walls: the stability
-experiment, the three CNOTs, move and rotation, the Steane encoding), Y half cubes and open
-ports."""
+axis. Hadamard pipes (CZ) and spatial cubes are available through tqec's pipeline:
+junctions of two spatial directions and one-basis walls (the stability experiment,
+three CNOTs, move and rotation, Steane encoding). Spatial Hadamard pipes along x require
+``convention="fixed_boundary"``; tqec 0.2.0 has no fixed-bulk template for them. Y half cubes
+are unsupported by both routes; fill open ports before compiling."""
 
 from __future__ import annotations
 
@@ -174,10 +175,11 @@ def _compile(graph: "BlockGraph", distance: int, *, p: float = 0.0, rounds: Opti
     cubes = graph.cubes
     for pipe in graph.pipes:
         if pipe.kind.has_hadamard:
-            raise TQECError(f"the pipe {pipe} has a Hadamard; the surgery engine has no Hadamard pipes ({_REFUSED})")
+            hint = "compile_block_graph(graph, convention='fixed_boundary').generate_stim_circuit(k) compiles it as tqec does; fixed_bulk has no template for spatial Hadamard pipes along x" if pipe.kind.is_spatial and pipe.direction == Direction3D.X else _REFUSED
+            raise TQECError(f"the pipe {pipe} has a Hadamard; the surgery engine has no Hadamard pipes ({hint})")
     for cube in cubes:
         if not isinstance(cube.kind, ZXCube):
-            raise TQECError(f"the cube at {cube.position} is a {cube.kind}; the surgery engine has no Y half cubes ({_REFUSED})")
+            raise TQECError(f"the cube at {cube.position} is a {cube.kind}; the surgery engine has no Y half cubes; tqec 0.2.0 also has no Y-cube implementation")
         if cube.kind.is_spatial:
             directions = {pipe.direction for pipe in graph.pipes_at(cube.position) if pipe.direction != Direction3D.Z}
             what = "a junction of two spatial directions" if len(directions) == 2 else "its spatial boundaries all of one basis"

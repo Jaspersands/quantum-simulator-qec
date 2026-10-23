@@ -26,3 +26,21 @@ def test_direct_compatible_or_unused_round_overrides(controls):
     direct = tqec.TopologicalComputationGraph(graph, **controls)
     expected = tqec.compile_block_graph(graph).generate_stim_circuit(1)
     assert str(direct.generate_stim_circuit(1)) == str(expected)
+
+
+def test_y_hint_does_not_recommend_an_unimplemented_route():
+    graph = tqec.BlockGraph()
+    graph.add_cube(tqec.Position3D(0, 0, 0), "Y")
+    graph.add_cube(tqec.Position3D(0, 0, 1), "ZXZ")
+    graph.add_pipe(tqec.Position3D(0, 0, 0), tqec.Position3D(0, 0, 1))
+    with pytest.raises(tqec.TQECError, match="also has no Y-cube implementation"):
+        graph.compile(3)
+
+
+def test_spatial_hadamard_hint_names_supported_convention():
+    graph = tqec.BlockGraph()
+    graph.add_cube(tqec.Position3D(0, 0, 0), "ZXZ")
+    graph.add_cube(tqec.Position3D(1, 0, 0), "XZX")
+    graph.add_pipe(tqec.Position3D(0, 0, 0), tqec.Position3D(1, 0, 0))
+    with pytest.raises(tqec.TQECError, match="fixed_boundary"):
+        graph.compile(3)
