@@ -14,10 +14,10 @@
 <body>
 <main class="paper">
 <header class="masthead">
-  <p class="kicker">Technical report · stabilizer-qec 2.1.0</p>
+  <p class="kicker">Technical report · stabilizer-qec 2.2.0</p>
   <h1>A surface-code simulator and decoder, checked against Stim, PyMatching and Google’s hardware</h1>
   <p class="subtitle">Exact, correlated and belief matching on Google’s Willow and Sycamore data, window decoding at Willow’s cycle, the gross code by BP+OSD and its logical measurement, lattice surgery, and a resource estimate</p>
-  <p class="byline">Jasper Sands · 20 October 2026 · commit <code>74a1405</code></p>
+  <p class="byline">Jasper Sands · 22 October 2026 · commit <code>2b05d9e</code></p>
   <p class="links"><a href="https://qcompiler.jaspersands.com">qcompiler.jaspersands.com</a> · <a href="https://github.com/Jaspersands/quantum-simulator-qec">github.com/Jaspersands/quantum-simulator-qec</a> · <a href="report.pdf">PDF</a></p>
 </header>
 <section class="abstract">
@@ -2102,16 +2102,16 @@
 <td style="text-align: left;">surface, d = 3, 2 rounds</td>
 <td style="text-align: right;">0.02</td>
 <td style="text-align: right;">0.01742 ± 0.00053</td>
-<td style="text-align: right;">0.01777 ± 0.00014</td>
-<td style="text-align: right;">+0.6σ</td>
+<td style="text-align: right;">0.01782 ± 0.00011</td>
+<td style="text-align: right;">+0.7σ</td>
 <td style="text-align: right;">0.00343</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">surface, d = 3, 2 rounds</td>
 <td style="text-align: right;">0.04</td>
 <td style="text-align: right;">0.11247 ± 0.00129</td>
-<td style="text-align: right;">0.11441 ± 0.00034</td>
-<td style="text-align: right;">+1.5σ</td>
+<td style="text-align: right;">0.11312 ± 0.00030</td>
+<td style="text-align: right;">+0.5σ</td>
 <td style="text-align: right;">0.01207</td>
 </tr>
 </tbody>
@@ -2151,38 +2151,38 @@
 <tr class="odd">
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">0.01</td>
-<td style="text-align: right;">6.5 × 10⁻³ ± 3.4 × 10⁻⁴</td>
+<td style="text-align: right;">6.7 × 10⁻³ ± 2.5 × 10⁻⁴</td>
 <td style="text-align: right;">2.8 × 10⁻³</td>
 <td style="text-align: right;">2.4</td>
-<td style="text-align: right;">6.2 × 10⁻³</td>
+<td style="text-align: right;">6.7 × 10⁻³</td>
 <td style="text-align: right;">95%</td>
 </tr>
 <tr class="even">
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">0.015</td>
-<td style="text-align: right;">1.5 × 10⁻² ± 5.6 × 10⁻⁴</td>
+<td style="text-align: right;">1.6 × 10⁻² ± 3.5 × 10⁻⁴</td>
 <td style="text-align: right;">3.7 × 10⁻³</td>
-<td style="text-align: right;">4.2</td>
-<td style="text-align: right;">1.4 × 10⁻²</td>
-<td style="text-align: right;">89%</td>
+<td style="text-align: right;">4.3</td>
+<td style="text-align: right;">1.5 × 10⁻²</td>
+<td style="text-align: right;">88%</td>
 </tr>
 <tr class="odd">
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">0.02</td>
-<td style="text-align: right;">3.2 × 10⁻² ± 8.4 × 10⁻⁴</td>
+<td style="text-align: right;">3.3 × 10⁻² ± 4.8 × 10⁻⁴</td>
 <td style="text-align: right;">5.2 × 10⁻³</td>
 <td style="text-align: right;">6.3</td>
 <td style="text-align: right;">3.0 × 10⁻²</td>
-<td style="text-align: right;">82%</td>
+<td style="text-align: right;">79%</td>
 </tr>
 <tr class="even">
 <td style="text-align: right;">3</td>
 <td style="text-align: right;">0.03</td>
-<td style="text-align: right;">8.9 × 10⁻² ± 1.4 × 10⁻³</td>
+<td style="text-align: right;">8.9 × 10⁻² ± 8.4 × 10⁻⁴</td>
 <td style="text-align: right;">1.0 × 10⁻²</td>
 <td style="text-align: right;">8.8</td>
-<td style="text-align: right;">8.7 × 10⁻²</td>
-<td style="text-align: right;">67%</td>
+<td style="text-align: right;">8.8 × 10⁻²</td>
+<td style="text-align: right;">55%</td>
 </tr>
 <tr class="odd">
 <td style="text-align: right;">5</td>
@@ -2321,42 +2321,42 @@
 <tbody>
 <tr class="odd">
 <td style="text-align: right;">0.2</td>
-<td style="text-align: right;">1.05 ± 0.03</td>
-<td style="text-align: right;">0.94 ± 0.04</td>
-<td style="text-align: right;">1.14 ± 0.07</td>
-<td style="text-align: right;">1.00 ± 0.08</td>
-<td style="text-align: right;">1.16 ± 0.10</td>
-<td style="text-align: right;">0.95 ± 0.10</td>
-<td style="text-align: right;">1.09 ± 0.15</td>
+<td style="text-align: right;">1.01 ± 0.02</td>
+<td style="text-align: right;">1.01 ± 0.03</td>
+<td style="text-align: right;">0.98 ± 0.04</td>
+<td style="text-align: right;">1.09 ± 0.05</td>
+<td style="text-align: right;">0.95 ± 0.06</td>
+<td style="text-align: right;">0.88 ± 0.06</td>
+<td style="text-align: right;">1.03 ± 0.07</td>
 </tr>
 <tr class="even">
 <td style="text-align: right;">0.25</td>
-<td style="text-align: right;">1.02 ± 0.02</td>
-<td style="text-align: right;">0.98 ± 0.02</td>
-<td style="text-align: right;">1.02 ± 0.03</td>
-<td style="text-align: right;">0.99 ± 0.03</td>
-<td style="text-align: right;">1.01 ± 0.04</td>
-<td style="text-align: right;">0.96 ± 0.05</td>
-<td style="text-align: right;">0.95 ± 0.05</td>
+<td style="text-align: right;">1.00 ± 0.01</td>
+<td style="text-align: right;">1.01 ± 0.02</td>
+<td style="text-align: right;">1.01 ± 0.02</td>
+<td style="text-align: right;">1.00 ± 0.02</td>
+<td style="text-align: right;">0.99 ± 0.02</td>
+<td style="text-align: right;">0.97 ± 0.03</td>
+<td style="text-align: right;">0.96 ± 0.03</td>
 </tr>
 <tr class="odd">
 <td style="text-align: right;">0.3</td>
-<td style="text-align: right;">1.01 ± 0.01</td>
-<td style="text-align: right;">1.00 ± 0.02</td>
-<td style="text-align: right;">1.01 ± 0.02</td>
-<td style="text-align: right;">0.98 ± 0.02</td>
-<td style="text-align: right;">0.98 ± 0.02</td>
-<td style="text-align: right;">1.01 ± 0.02</td>
-<td style="text-align: right;">1.01 ± 0.02</td>
-</tr>
-<tr class="even">
-<td style="text-align: right;">0.35</td>
-<td style="text-align: right;">1.01 ± 0.01</td>
+<td style="text-align: right;">1.00 ± 0.01</td>
 <td style="text-align: right;">0.99 ± 0.01</td>
 <td style="text-align: right;">1.00 ± 0.01</td>
 <td style="text-align: right;">1.01 ± 0.01</td>
-<td style="text-align: right;">1.00 ± 0.01</td>
 <td style="text-align: right;">1.02 ± 0.01</td>
+<td style="text-align: right;">0.99 ± 0.01</td>
+<td style="text-align: right;">0.97 ± 0.01</td>
+</tr>
+<tr class="even">
+<td style="text-align: right;">0.35</td>
+<td style="text-align: right;">1.00 ± 0.01</td>
+<td style="text-align: right;">0.99 ± 0.01</td>
+<td style="text-align: right;">1.01 ± 0.01</td>
+<td style="text-align: right;">1.01 ± 0.01</td>
+<td style="text-align: right;">1.00 ± 0.01</td>
+<td style="text-align: right;">1.01 ± 0.01</td>
 <td style="text-align: right;">0.99 ± 0.01</td>
 </tr>
 </tbody>
