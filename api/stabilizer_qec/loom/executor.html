@@ -361,7 +361,7 @@ PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outc
                 <section id="SINGLE_QUBIT">
                     <div class="attr variable">
             <span class="name">SINGLE_QUBIT</span>        =
-<span class="default_value">frozenset({&#39;phaseinv&#39;, &#39;h&#39;, &#39;hadamard&#39;, &#39;x&#39;, &#39;y&#39;, &#39;i&#39;, &#39;phase&#39;, &#39;t&#39;, &#39;z&#39;})</span>
+<span class="default_value">frozenset({&#39;hadamard&#39;, &#39;h&#39;, &#39;z&#39;, &#39;phaseinv&#39;, &#39;x&#39;, &#39;t&#39;, &#39;phase&#39;, &#39;i&#39;, &#39;y&#39;})</span>
 
         
     </div>
@@ -373,7 +373,7 @@ PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outc
                 <section id="TWO_QUBIT">
                     <div class="attr variable">
             <span class="name">TWO_QUBIT</span>        =
-<span class="default_value">frozenset({&#39;cz&#39;, &#39;cy&#39;, &#39;cx&#39;, &#39;cnot&#39;, &#39;swap&#39;})</span>
+<span class="default_value">frozenset({&#39;cy&#39;, &#39;cnot&#39;, &#39;swap&#39;, &#39;cx&#39;, &#39;cz&#39;})</span>
 
         
     </div>
@@ -385,7 +385,7 @@ PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outc
                 <section id="RESETS">
                     <div class="attr variable">
             <span class="name">RESETS</span>        =
-<span class="default_value">frozenset({&#39;reset_1&#39;, &#39;reset_+&#39;, &#39;reset_0&#39;, &#39;reset_-i&#39;, &#39;reset_-&#39;, &#39;reset&#39;, &#39;reset_+i&#39;})</span>
+<span class="default_value">frozenset({&#39;reset_+i&#39;, &#39;reset_-&#39;, &#39;reset&#39;, &#39;reset_-i&#39;, &#39;reset_1&#39;, &#39;reset_0&#39;, &#39;reset_+&#39;})</span>
 
         
     </div>
@@ -397,7 +397,7 @@ PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outc
                 <section id="MEASUREMENTS">
                     <div class="attr variable">
             <span class="name">MEASUREMENTS</span>        =
-<span class="default_value">frozenset({&#39;measure_y&#39;, &#39;measure_z&#39;, &#39;measurement&#39;, &#39;measure_x&#39;})</span>
+<span class="default_value">frozenset({&#39;measurement&#39;, &#39;measure_y&#39;, &#39;measure_z&#39;, &#39;measure_x&#39;})</span>
 
         
     </div>
@@ -410,7 +410,7 @@ PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outc
                     <div class="attr variable">
             <span class="name">CLIFFORD_OPS</span>        =
 <input id="CLIFFORD_OPS-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="CLIFFORD_OPS-view-value"></label><span class="default_value">frozenset({&#39;phaseinv&#39;, &#39;reset_1&#39;, &#39;cnot&#39;, &#39;hadamard&#39;, &#39;swap&#39;, &#39;reset_+i&#39;, &#39;measure_z&#39;, &#39;t&#39;, &#39;cx&#39;, &#39;reset_+&#39;, &#39;reset_-&#39;, &#39;reset&#39;, &#39;measure_x&#39;, &#39;z&#39;, &#39;cz&#39;, &#39;cy&#39;, &#39;h&#39;, &#39;x&#39;, &#39;reset_-i&#39;, &#39;y&#39;, &#39;i&#39;, &#39;phase&#39;, &#39;measure_y&#39;, &#39;measurement&#39;, &#39;reset_0&#39;})</span>
+            <label class="view-value-button pdoc-button" for="CLIFFORD_OPS-view-value"></label><span class="default_value">frozenset({&#39;measure_y&#39;, &#39;reset&#39;, &#39;cnot&#39;, &#39;swap&#39;, &#39;reset_-&#39;, &#39;phaseinv&#39;, &#39;reset_-i&#39;, &#39;measurement&#39;, &#39;x&#39;, &#39;reset_0&#39;, &#39;t&#39;, &#39;phase&#39;, &#39;cx&#39;, &#39;y&#39;, &#39;reset_+i&#39;, &#39;hadamard&#39;, &#39;h&#39;, &#39;measure_x&#39;, &#39;z&#39;, &#39;measure_z&#39;, &#39;cz&#39;, &#39;cy&#39;, &#39;reset_1&#39;, &#39;reset_+&#39;, &#39;i&#39;})</span>
 
         
     </div>
@@ -653,7 +653,7 @@ package's parser refuses when the circuit is made.</p>
                                 <div class="attr variable">
             <span class="name">SUPPORTED_ERROR_TYPES</span>        =
 <input id="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value"></label><span class="default_value">frozenset({&lt;ErrorType.PHASE_FLIP: (&#39;phase-flip&#39;, 1)&gt;, &lt;ErrorType.PAULI_Z: (&#39;pauli_z&#39;, 1)&gt;, &lt;ErrorType.DEPOLARIZING1: (&#39;depolarizing1&#39;, 1)&gt;, &lt;ErrorType.DEPOLARIZING2: (&#39;depolarizing2&#39;, 1)&gt;, &lt;ErrorType.PAULI_CHANNEL: (&#39;pauli_channel&#39;, 3)&gt;, &lt;ErrorType.PAULI_Y: (&#39;pauli_y&#39;, 1)&gt;, &lt;ErrorType.PAULI_X: (&#39;pauli_x&#39;, 1)&gt;, &lt;ErrorType.BIT_FLIP: (&#39;bit-flip&#39;, 1)&gt;})</span>
+            <label class="view-value-button pdoc-button" for="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value"></label><span class="default_value">frozenset({&lt;ErrorType.PAULI_Y: (&#39;pauli_y&#39;, 1)&gt;, &lt;ErrorType.BIT_FLIP: (&#39;bit-flip&#39;, 1)&gt;, &lt;ErrorType.PAULI_CHANNEL: (&#39;pauli_channel&#39;, 3)&gt;, &lt;ErrorType.PHASE_FLIP: (&#39;phase-flip&#39;, 1)&gt;, &lt;ErrorType.DEPOLARIZING1: (&#39;depolarizing1&#39;, 1)&gt;, &lt;ErrorType.PAULI_Z: (&#39;pauli_z&#39;, 1)&gt;, &lt;ErrorType.PAULI_X: (&#39;pauli_x&#39;, 1)&gt;, &lt;ErrorType.DEPOLARIZING2: (&#39;depolarizing2&#39;, 1)&gt;})</span>
 
         
     </div>

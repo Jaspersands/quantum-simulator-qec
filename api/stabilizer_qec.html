@@ -2515,8 +2515,8 @@ stabilizer_qec    </h1>
 formats, a bit-parallel sampler, exact and correlated matching, belief-matching, BP, BP+OSD and
 BP+LSD, Relay-BP, colour-code matching, a search decoder, window decoding, IBM's bivariate
 bicycle codes and lattice surgery, coherent errors at circuit level, and an exact state vector.
-It agrees with Stim, PyMatching, <code>ldpc</code>, <code>beliefmatching</code>,
-IBM's <code>relay_bp</code>, Chromobius and Tesseract on every check in its test suite.</p>
+Finite comparisons against Stim, PyMatching, <code>ldpc</code>, <code>beliefmatching</code>, IBM's <code>relay_bp</code>,
+Chromobius and Tesseract use each suite's documented tolerances, tie and platform limits.</p>
 
 <pre><code>pip install stabilizer-qec
 </code></pre>
@@ -2609,7 +2609,9 @@ Stim's six formats (<code>01</code>, <code>b8</code>, <code>r8</code>, <code>hit
 pickling:</p>
 
 <ul>
-<li><code><a href="#Matching">Matching</a></code> (PyMatching's sparse blossom, transliterated: its results, ties included), with <code>enable_correlations</code>;
+<li><code><a href="#Matching">Matching</a></code> (plain decoding on PyMatching's sparse-blossom port, with finite tied-selection
+parity checks); correlated decoding requires an unedited DEM/circuit loaded with
+<code>enable_correlations=True</code> and actual observable IDs 0–63; ensured wider output is zero-padded;
 <code><a href="#UnionFind">UnionFind</a></code>, <code><a href="#CollisionClustering">CollisionClustering</a></code> and <code><a href="#LocalClustering">LocalClustering</a></code> (Riverlane's hardware union-finds,
 the second with its leakage-adaptive pre-growth); <code><a href="#BeliefMatching">BeliefMatching</a></code>; <code><a href="#WindowMatching">WindowMatching</a></code>
 (sliding or parallel windows): for models whose faults set off at most two detectors, or
@@ -2644,7 +2646,9 @@ every capability question) and certifying, with no solver, any answer shown not 
 <p>Coherent errors are tagged identities that Stim reads as identities, so circuits stay Stim's:
 <code>I_ERROR[R_Z(theta=0.01)] 0</code>, <code>II_ERROR[R_ZZ(theta=0.02)] 0 1</code>, any Pauli product as
 <code>I_ERROR[R_PAULI(theta=…, pauli=XZY)] 0 1 2</code>. <code><a href="#Circuit.compile_coherent_sampler">Circuit.compile_coherent_sampler</a></code> gives shots of
-the twirled circuit with weights that make them the coherent circuit's, at any size:</p>
+the twirled circuit with weights from its interference class. Whole completed-kernel sums
+recover the coherent distribution in floating-point arithmetic; budget truncation and skipped
+completion are approximations (see <code><a href="#Circuit.compile_coherent_sampler">Circuit.compile_coherent_sampler</a></code>):</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">sq</span><span class="o">.</span><span class="n">Circuit</span><span class="p">(</span><span class="s2">"RX 0</span><span class="se">\n</span><span class="s2">I_ERROR[R_Z(theta=0.2)] 0</span><span class="se">\n</span><span class="s2">I_ERROR[R_Z(theta=0.15)] 0</span><span class="se">\n</span><span class="s2">MX 0</span><span class="se">\n</span><span class="s2">DETECTOR rec[-1]"</span><span class="p">)</span>
@@ -2700,10 +2704,12 @@ this package's decoders under <code>sq_</code> names.</p>
 <h2 id="promises">Promises</h2>
 
 <ul>
-<li><strong>Seeds reproduce.</strong> A sampler's shots depend only on its seed and on how many it has drawn,
-not on the machine or the number of threads (<code>threads=0</code> is every core).</li>
-<li><strong>Errors are errors.</strong> Bad input raises <code>ValueError</code> (or <code>TypeError</code> for a wrong type); an
-engine bug raises <code>RuntimeError</code> asking for a report, never a crash.</li>
+<li><strong>Seeds reproduce.</strong> Within a documented sampler/version contract, a seed and shot position
+reproduce shots across supported thread counts (<code>threads=0</code> is every core). Algorithm
+corrections can change seeded outcomes; 2.2's coherent proposal/arithmetic corrections do.</li>
+<li><strong>Errors are errors.</strong> Core validation uses <code>ValueError</code> or <code>TypeError</code>; ports may raise
+documented upstream exception types. Crashes and hangs are bugs to report, not a supported
+response. Resource checks do not make every allocation or OS memory failure recoverable.</li>
 <li><strong>Limits.</strong> Qubit indices up to 2<strong>24 - 1, as in Stim. An error model folds the loops that
 repeat, as Stim folds them, so a d = 11 memory of 10,000 rounds is analysed in a tenth of a
 second; a decoder unrolls its model, up to 2</strong>24 faults and declarations. The m2d converter
@@ -2711,7 +2717,8 @@ holds a circuit unrolled, up to 2**24 instructions and targets; the sampler runs
 without unrolling them. Generated circuits are written out round by round, up to 10,000
 rounds.</li>
 <li><strong>Stability.</strong> Semantic versioning: everything importable from <code><a href="">stabilizer_qec</a></code> without a
-leading underscore keeps working, with the same meaning, through every 2.x release. A name
+leading underscore follows the compatibility policy, with corrections and migration changes
+documented in the changelog. A name
 is deprecated (with a <code>DeprecationWarning</code> naming its replacement) for at least one minor
 release before a major release removes it. <code>stabilizer_qec._core</code> is the engine's
 extension, used by the repository's own tools, and carries no such promise.</li>
@@ -7277,7 +7284,8 @@ taken from (and the converter compares with). Random outcomes take fixed values.
             <div class="docstring"><p>A sampler of raw measurement records, as Stim's: a noiseless reference run with each
 shot's flips (with <code>skip_reference_sample</code>, the flips alone; with
 <code><a href="#Circuit.reference_sample">reference_sample</a></code>, a bool or bit-packed array, the flips on top of that record). The
-same seed gives the same shots on any machine and number of threads; <code>None</code> draws a
+same seed reproduces shots within the documented sampler/version contract and supported
+thread counts; <code>None</code> draws a
 seed. <code>device</code> as <code><a href="#Circuit.compile_detector_sampler">compile_detector_sampler</a></code>'s.</p>
 </div>
 
@@ -7294,7 +7302,8 @@ seed. <code>device</code> as <code><a href="#Circuit.compile_detector_sampler">c
     <a class="headerlink" href="#Circuit.compile_detector_sampler"></a>
     
             <div class="docstring"><p>A sampler of detection events and observable flips. The same seed gives the same
-shots on any machine and any number of threads; <code>None</code> draws a seed. A circuit with
+shots within its documented sampler/version contract and supported thread counts;
+<code>None</code> draws a seed. A circuit with
 non-Clifford gates (<code>I[T]</code>, <code>I[R_Z(theta=…)]</code>, <code>I[U3(…)]</code>) gets the
 stabilizer-rank sampler, which runs them (<code><a href="#Circuit.without_tags">without_tags()</a></code> for Stim's reading, the
 identity). A tagged gate at a Clifford angle (<code>I[R_Z(theta=1.5707963267948966)] 0</code>
@@ -7397,10 +7406,12 @@ trajectories. Its <code>sample</code> has the detector sampler's signature.</p>
     <a class="headerlink" href="#Circuit.compile_coherent_sampler"></a>
     
             <div class="docstring"><p>A sampler for circuits with coherent errors (<code>I_ERROR[R_Z(theta=0.02)] 0</code>,
-<code>II_ERROR[R_ZZ(theta=0.01)] 0 1</code>, any Pauli rotation) at any size: shots of the
+<code>II_ERROR[R_ZZ(theta=0.01)] 0 1</code>, any Pauli rotation): shots of the
 Pauli-twirled circuit, as the detector sampler draws them, each with a weight that puts
-back the interference the twirl leaves out. Weighted, the shots are distributed as the
-coherent circuit's: estimate a rate as <code>(w * hit).sum() / w.sum()</code>.</p>
+back the interference included in the selected class sum. When the completed kernel is
+summed whole, this recovers the coherent distribution in floating-point arithmetic;
+truncated or incomplete sums are approximations. Estimate a rate as
+<code>(w * hit).sum() / w.sum()</code>.</p>
 
 <p>The interference runs between fault sets no record tells apart, a linear space (the
 circuit's spacetime kernel). Its generators are found locally (a fault either side of a
@@ -7408,18 +7419,25 @@ gate, a stabiliser's worth of faults) and then completed to a basis of the whole
 by one elimination over the rotations' effects: the completion holds what no local
 search finds, above all a logical error at one time with the same logical at another,
 whose amplitudes add (coherent logical errors accumulate across rounds).
-<code>num_nonlocal_generators</code> counts them. Every shot then sums its whole class, every
+<code>num_nonlocal_generators</code> counts them. A successful contraction sums its whole class, every
 product of the generators (and of the groups of rotations that are one fault in several
-places), exactly (<code>exact_weights</code>), at any number of generators: the sum is a product
+places), in floating-point arithmetic (<code>exact_weights</code>): the sum is a product
 of small factors (each rotation's, a phase that is a quadratic form in the generators,
 the shot's signs), contracted one generator at a time in O(k·2^w) per shot, w the
 <code>contraction_width</code> (3 on a d = 3 surface memory over three rounds, 9 at d = 7 over
 seven). <code>max_contraction</code> caps the contraction's tables (entries in all, 2^16 by
-default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans more than 32
+default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans 32 or more
 generators at any budget): past it, and with more than twelve generators, a shot sums
 the products of up to <code>order</code> generators its faults touch, a truncation, and the
-sampler warns, saying how large a budget the class sums need or that none up to 2^31
-contracts them. <code>max_complete</code> is the most rotations whose kernel is completed; past it
+sampler warns with an entry lower bound, not a guaranteed sufficient budget, or says
+that the selected plan cannot fit any budget up to 2^31. Width depends on the selected
+completed basis and elimination heuristic, not an optimum over equivalent circuits.
+Building a successful plan can dominate compilation. Sampling scratch per active worker
+is 24*(arena+largest) bytes before factors and other overhead (arena=entries/2; at most
+36*entries), so the entry budget is not a byte limit. Summation can change last bits
+even with at most twelve generators. Corrected merged proposals and normalized group
+arithmetic can change seeded shots, including with max_contraction=0.
+<code>max_complete</code> is the most rotations whose kernel is completed; past it
 the generators are the local ones only, interference between distant faults is left
 out, <code>kernel_complete</code> is False and the sampler warns.</p>
 
@@ -7883,7 +7901,8 @@ coordinates, each graph-like fault an edge; the model must be decomposed) or
     <a class="headerlink" href="#DetectorErrorModel.compile_sampler"></a>
     
             <div class="docstring"><p>A sampler of the model's faults, as Stim's: each fault fires independently with its
-probability. The same seed gives the same shots on any machine and number of threads;
+probability. The seed reproduces shots within its documented sampler/version contract and
+supported thread counts;
 <code>None</code> draws a seed.</p>
 </div>
 
@@ -9200,7 +9219,9 @@ between distant faults is then left out, and the sampler warns when it is made.<
     
             <div class="docstring"><p>Whether every shot sums every element of the kernel (complete, and contracted within
 <code>max_contraction</code> or of at most twelve generators): the weighted shots are then
-distributed exactly as the coherent circuit's. Otherwise a shot sums the products of up
+distributed as the coherent circuit's in floating-point arithmetic. This flag describes
+summation coverage, not a proof of numerical accuracy at every input range. Otherwise
+a shot sums the products of up
 to <code>order</code> generators its faults touch. The joint sampler sums the whole kernel at
 most twelve generators only (its cross terms are overlaps of the exact engine's states,
 not products of factors).</p>
@@ -9220,7 +9241,9 @@ not products of factors).</p>
 holds besides the one it sums out: a shot's work is about <code><a href="#CoherentSampler.num_generators">num_generators</a></code> · 2^(width</p>
 
 <ul>
-<li>1). None when not contracted (the joint sampler, or past <code>max_contraction</code>).</li>
+<li>1). Width is for the selected completed basis and elimination heuristic, not the
+minimum over equivalent circuit representations. None when not contracted (the joint
+sampler, or past <code>max_contraction</code>).</li>
 </ul>
 </div>
 

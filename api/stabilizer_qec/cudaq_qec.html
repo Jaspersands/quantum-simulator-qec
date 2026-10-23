@@ -4216,7 +4216,10 @@ detectors of its round (or, by a coin, of its round and the next), drawn from
             <div class="docstring"><p>A decoder by name, for the check matrix <code>H</code> (a dense array or a scipy sparse matrix)
 or a Stim detector error model given as text. <code>O</code> (the observable matrix) and
 <code>error_rate_vec</code> describe the model; <code>output</code> ("errors" or "observables") chooses what
-a decode returns; the other keywords configure the decoder.</p>
+a decode returns; the other keywords configure the decoder. For <code>trt_decoder</code>, two-dimensional
+numeric/bool O arrays of any memory order, nested lists and scipy sparse matrices use nonzero
+entries as observable support. These useful coercions exceed CUDA-Q's uint8 tensor binding;
+see <code>ONNX_CONTRACT.md</code>.</p>
 </div>
 
 
@@ -4535,7 +4538,9 @@ be the first round's rows (one measurement per row, as C++'s overload takes).</p
 
 <p>Each matrix column corresponds to one data qubit. Assign each matrix from a dense NumPy array
 or a scipy sparse matrix, or build the whole set with <code><a href="#css_matrices_from_code">css_matrices_from_code()</a></code>. Reading a
-matrix back returns a dense uint8 NumPy array.</p>
+matrix back returns a dense uint8 NumPy array. Dense array-like values (including nested
+lists) are converted with <code>np.asarray(...).astype(np.uint8)</code> before testing nonzero
+support; this is broader than the upstream dense object's <code>astype</code> method requirement.</p>
 </div>
 
 

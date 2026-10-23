@@ -266,9 +266,9 @@ so its errors are Tsim's);
 <code>width</code> and <code>zoomable</code> for the notebook view, and draws the ZX graph for <code>"pyzx"</code>,
 <code>"pyzx-dets"</code> and <code>"pyzx-meas"</code>.</li>
 <li><code><a href="#Circuit.get_graph">Circuit.get_graph</a></code> and <code><a href="#Circuit.get_sampling_graph">Circuit.get_sampling_graph</a></code> (<code><a href="tsim/zx.html">stabilizer_qec.tsim.zx</a></code>): Tsim's
-ZX graphs, equal to Tsim's vertex for vertex (numbers, types, phases as Fractions, phase
+ZX graphs, checked against finite reference circuits vertex for vertex (numbers, types, phases as Fractions, phase
 variables, positions, edges, scalar). They are pyzx_param's <code>GraphS</code> when pyzx_param imports,
-else this package's <code>ZXGraph</code> (<code>backend="own"</code> or <code>"pyzx_param"</code> chooses;
+else this package's pure-Python <code>ZXGraph</code> (<code>backend="own"</code> or <code>"pyzx_param"</code> chooses;
 <code>ZXGraph.to_pyzx()</code> gives a pyzx graph). <code>zx.tensorfy</code> contracts a graph in numpy. Choosing
 the default backend (and <code>zx.pyzx_param_available()</code>) imports pyzx_param when it is installed,
 and importing pyzx_param calls <code>numpy.set_printoptions(suppress=True)</code> for the whole process, as
@@ -307,8 +307,10 @@ radians of exp(−iθP)).</li>
 <li>Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
 JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.</li>
 <li>An angle appended as an int prints as a float (<code>R_Z(1.0)</code>, Tsim <code>R_Z(1)</code>); a tag on an
-appended <code>T</code>, <code>T_DAG</code>, <code>TPP</code> or <code>TPP_DAG</code> is not kept, nor the spacing inside a tagged
-rotation's (<code>SPP[R_PAULI( theta=0.3*pi )]</code> is quoted <code>SPP[R_PAULI(theta=0.3*pi)]</code>); the angle
+appended <code>T</code>, <code>T_DAG</code>, <code>TPP</code> or <code>TPP_DAG</code> is not kept. The suffix of a tagged input
+such as <code>S[T:x] 0</code> is also dropped (prints <code>T 0</code>, inverse <code>T_DAG 0</code>, where Tsim
+keeps <code>T[x]</code> and <code>T_DAG[x]</code>). Spacing inside tagged rotations is normalized
+(<code>SPP[R_PAULI( theta=0.3*pi )]</code> is quoted <code>SPP[R_PAULI(theta=0.3*pi)]</code>); the angle
 literals of a <code>stim.Circuit</code> are read as floats, as Tsim reads its program text (Tsim's
 <code>from_stim_program</code> keeps the stim circuit's <code>0.30000000000000001*pi</code>, the phase
 30000000000000001/10^17, where this is 3/10). Text that does not parse raises this package's
@@ -346,14 +348,21 @@ and prints as Tsim's <code>SPP_DAG[R_PAULI(theta=a*pi)] Z3*Z2 Z1*Z0</code>: so t
 rotation, or of a product rotation on <code>II</code>, is one instruction, as Tsim's, and its inverse the
 circuit again.</li>
 <li>Two product rotations with the same angle in a row stay two lines (Tsim's Stim text fuses
-them into one, which its shorthand misprints), as do a pair rotation's <code>TPP</code>s on several pairs
+them into one printed instruction and reads it back), as do a pair rotation's <code>TPP</code>s on several pairs
 (<code>TPP_DAG X0*X1</code> then <code>TPP_DAG X2*X3</code>, the inverse <code>TPP X3*X2</code> then <code>TPP X1*X0</code>, where
 Tsim prints <code>TPP X3*X2 X1*X0</code>), and a product naming one qubit twice prints as
 <code>R_PAULI(0.3) X0*X0</code> (Tsim's shorthand <code>R_XX(0.3) 0 0</code> does not read back). They are one
 instruction to the ZX graph, as in Tsim, so <code>R_PAULI</code>'s limit of 64 qubits is counted over
 them (33 <code>R_ZZ(0.3)</code> lines in a row are Tsim's error, "got 66").</li>
 <li><code>tcount</code> is the graph's, as Tsim's: a coherent error (<code>I_ERROR[R_Z(...)]</code>) is not a gate
-(<code><a href="../stabilizer_qec.html#Circuit.tcount">stabilizer_qec.Circuit.tcount</a></code> counts its phase).</li>
+(<code><a href="../stabilizer_qec.html#Circuit.tcount">stabilizer_qec.Circuit.tcount</a></code> counts its phase). This builds an unrolled Python ZX
+graph, propagating its refusals for sweep bits, malformed tags, unsupported products and
+invalid record lookbacks. In 2.1 the wrapper used the engine's fast count, which is still
+available on <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code>.</li>
+<li>Unknown parametric tags that the core leaves inert (<code>I[foo(bar)]</code>) are also inert on the
+measurement-free matrix fast path and in the inherited <code>inverse</code>. Tsim rejects these;
+this wrapper's <code>get_graph</code> and <code>tcount</code> do too. A measured matrix always uses the ZX
+graph and therefore rejects them.</li>
 <li>An angle is kept as it was written, as Tsim keeps it (the radians this package stores carry
 the digits that give the literal back), so <code>R_Z(0.3)</code> is the phase 3/10 of Tsim's graph and
 <code>R_PAULI(0.25)</code> is Tsim's <code>R_PAULI</code>, not <code>TPP</code>: its graph has the scalar phase -1/8 (+1/8
@@ -769,7 +778,10 @@ qubit, in the order of <code>endian</code>.</p>
 circuit's ZX graph with a non-Clifford phase (one for each <code>T</code>, <code>T_DAG</code> and <code>TPP</code>
 and each rotation by an angle that is not a multiple of 0.5 half-turns, three for a
 <code>U3</code> whose angles are none). A coherent error (<code>I_ERROR[R_Z(...)]</code>) is no gate, as in
-Tsim; <code><a href="../stabilizer_qec.html#Circuit.tcount">stabilizer_qec.Circuit.tcount</a></code> counts it.</p>
+Tsim; <code><a href="../stabilizer_qec.html#Circuit.tcount">stabilizer_qec.Circuit.tcount</a></code> counts it. This builds the unrolled Python
+ZX graph and propagates its errors (including sweep targets, malformed tags,
+unsupported products and record lookbacks). In 2.1 this used the engine's fast
+count, which remains available on <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code>.</p>
 </div>
 
 

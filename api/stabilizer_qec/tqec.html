@@ -1496,9 +1496,10 @@ has the program too): patches for the cubes' lifetimes, merges and splits for th
 pipes, the correlation surfaces as observables (<code>"auto"</code> all of them, <code>None</code> none, or
 a list, as tqec takes them). The size is <code>distance</code> or tqec's <code>k</code> (distance 2k + 1);
 the noise the engine's SD6 noise <code>p</code>, or a <code><a href="#NoiseModel">NoiseModel</a></code> laid over the noiseless
-circuit as tqec lays it. Graphs the engine cannot express (Hadamard pipes, spatial cubes,
-Y cubes, open ports) are refused: <code>compile_block_graph(graph).generate_stim_circuit(k)</code>
-compiles them as tqec does.</p>
+circuit as tqec lays it. For Hadamard pipes and spatial cubes, use
+<code>compile_block_graph(graph).generate_stim_circuit(k)</code>; spatial Hadamard pipes along x
+require <code>convention="fixed_boundary"</code>. Both routes refuse Y cubes. Fill open ports
+before compiling.</p>
 </div>
 
 
@@ -3718,7 +3719,9 @@ engine under its own SD6 noise.</p>
 a Y half cube's <code>NotImplementedError</code>, a constant <code>block_temporal_height</code>); the engine's
 when <code><a href="#TopologicalComputationGraph.compile">compile</a></code> is called. <code><a href="#TopologicalComputationGraph.surfaces">surfaces</a></code> are the correlation surfaces compiled into
 observables and <code><a href="#TopologicalComputationGraph.stabilizers">stabilizers</a></code> the Pauli string each measures on the graph's ports (or leaf
-cubes).</p>
+cubes). <code>rounds</code> and <code>merged</code> control the engine. Direct generation checks them
+against tqec's <code>2k + 1</code> layout and refuses any time slices it cannot honour,
+just as <code><a href="#CompiledBlockGraph.generate_stim_circuit">CompiledBlockGraph.generate_stim_circuit</a></code> does.</p>
 </div>
 
 
@@ -3834,7 +3837,10 @@ detectors it finds in a database file; here a database lives in memory only:
 <code>do_not_use_database</code>), and <code>database_path</code> (by default tqec's database file,
 <code>DEFAULT_DETECTOR_DATABASE_PATH</code>) is taken for tqec's signature and never read or
 written. With <code>only_use_database</code> a situation missing from a database that has entries is
-an error, as in tqec; an empty database (or none) is filled, as tqec fills it.</p>
+an error, as in tqec; an empty database (or none) is filled, as tqec fills it.
+Engine <code>rounds</code>/<code>merged</code> overrides are checked against <code>2k + 1</code> and
+refused when tqec's layout cannot honour them; use <code>compile(distance).circuit</code>
+for those engine controls.</p>
 </div>
 
 
