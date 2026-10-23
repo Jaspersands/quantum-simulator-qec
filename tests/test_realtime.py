@@ -27,19 +27,22 @@ def memory():
 @pytest.mark.parametrize("name", ["matching", "correlated_matching", "union_find", "bposd", "bplsd", "relay_bp", "local_clustering", "search", "belief_matching"])
 def test_queue_equals_decode_batch(memory, name):
     c, dets, obs = memory
+    # This checks the queue contract; decoder accuracy has its own larger corpora.
+    dets, obs = dets[:100], obs[:100]
+    batch_size = 25
     dec = make_decoder(name, circuit=c)
     # Batch by batch, as the queue decodes: Relay-BP seeds a shot's memory strengths from its
     # index in its batch, so its answers depend on the batching; the others' do not.
-    want = np.concatenate([dec.decode_batch(dets[i:i + 500]) for i in range(0, 2000, 500)])
+    want = np.concatenate([dec.decode_batch(dets[i:i + batch_size]) for i in range(0, len(dets), batch_size)])
     if name != "relay_bp":
         assert np.array_equal(want, dec.decode_batch(dets))
     with DecoderQueue(dec, workers=2) as q:
-        tickets = [q.enqueue_syndromes(dets[i:i + 500]) for i in range(0, 2000, 500)]
+        tickets = [q.enqueue_syndromes(dets[i:i + batch_size]) for i in range(0, len(dets), batch_size)]
         got = np.concatenate([q.get_corrections(t) for t in tickets])
         assert q.pending() == 0
         stats = q.stats()
     assert np.array_equal(got, want)
-    assert (stats.decoded, stats.batches, stats.pending) == (2000, 4, 0) and stats.queue_depth_max >= 1
+    assert (stats.decoded, stats.batches, stats.pending) == (len(dets), len(tickets), 0) and stats.queue_depth_max >= 1
     assert 0 < stats.mean_service_s <= stats.mean_latency_s and stats.p50_latency_s <= stats.p99_latency_s <= stats.max_latency_s and stats.throughput_per_s > 0
     assert (dec.decode_batch(dets) != obs).any(axis=1).mean() < 0.5
 

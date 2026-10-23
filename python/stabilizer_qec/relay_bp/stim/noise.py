@@ -11,6 +11,8 @@
 # copyright notice, and modified files need to carry a notice indicating
 # that they have been altered from the originals.
 
+from __future__ import annotations
+
 import stabilizer_qec as stim
 from stabilizer_qec._util import text_of
 
