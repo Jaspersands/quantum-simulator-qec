@@ -18,7 +18,8 @@ Fixes go into the latest 2.x release of the Python package and of the crate.
 
 ## What the code promises
 
-Bad input raises `ValueError` or `TypeError` in Python and returns `Error` in Rust; it does
-not panic, crash or run without bound. Sizes are capped (qubit indices, unrolled loops,
-detectors), each cap stated where it applies. The parsers and decoders are fuzzed in CI
+Core validation uses `ValueError` or `TypeError` in Python and `Error` in Rust; ports may
+raise their documented upstream exception types. Panics, crashes and hangs remain bugs to
+report. Checked sizes do not guarantee recovery from every allocation or OS memory failure.
+Sizes are capped (qubit indices, unrolled loops, detectors), each cap stated where it applies. The parsers and decoders are fuzzed in CI
 (`fuzz/` with cargo-fuzz, and `tests/test_fuzz.py` with Hypothesis).

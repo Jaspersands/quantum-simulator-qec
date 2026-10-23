@@ -859,13 +859,15 @@ class Circuit:
         """A sampler of raw measurement records, as Stim's: a noiseless reference run with each
         shot's flips (with ``skip_reference_sample``, the flips alone; with
         ``reference_sample``, a bool or bit-packed array, the flips on top of that record). The
-        same seed gives the same shots on any machine and number of threads; ``None`` draws a
+        same seed reproduces shots within the documented sampler/version contract and supported
+        thread counts; ``None`` draws a
         seed. ``device`` as ``compile_detector_sampler``'s."""
         return MeasurementSampler(self, seed, skip_reference_sample, reference_sample, device=device)
 
     def compile_detector_sampler(self, *, seed: Union[int, None] = None, device: str = "cpu") -> "DetectorSampler":
         """A sampler of detection events and observable flips. The same seed gives the same
-        shots on any machine and any number of threads; ``None`` draws a seed. A circuit with
+        shots within its documented sampler/version contract and supported thread counts;
+        ``None`` draws a seed. A circuit with
         non-Clifford gates (``I[T]``, ``I[R_Z(theta=…)]``, ``I[U3(…)]``) gets the
         stabilizer-rank sampler, which runs them (``without_tags()`` for Stim's reading, the
         identity). A tagged gate at a Clifford angle (``I[R_Z(theta=1.5707963267948966)] 0``
@@ -926,10 +928,12 @@ class Circuit:
 
     def compile_coherent_sampler(self, *, order: int = 3, seed: Union[int, None] = None, pairs: bool = False, max_complete: int = 50_000, max_contraction: int = 65536) -> "CoherentSampler":
         """A sampler for circuits with coherent errors (``I_ERROR[R_Z(theta=0.02)] 0``,
-        ``II_ERROR[R_ZZ(theta=0.01)] 0 1``, any Pauli rotation) at any size: shots of the
+        ``II_ERROR[R_ZZ(theta=0.01)] 0 1``, any Pauli rotation): shots of the
         Pauli-twirled circuit, as the detector sampler draws them, each with a weight that puts
-        back the interference the twirl leaves out. Weighted, the shots are distributed as the
-        coherent circuit's: estimate a rate as ``(w * hit).sum() / w.sum()``.
+        back the interference included in the selected class sum. When the completed kernel is
+        summed whole, this recovers the coherent distribution in floating-point arithmetic;
+        truncated or incomplete sums are approximations. Estimate a rate as
+        ``(w * hit).sum() / w.sum()``.
 
         The interference runs between fault sets no record tells apart, a linear space (the
         circuit's spacetime kernel). Its generators are found locally (a fault either side of a
@@ -937,18 +941,25 @@ class Circuit:
         by one elimination over the rotations' effects: the completion holds what no local
         search finds, above all a logical error at one time with the same logical at another,
         whose amplitudes add (coherent logical errors accumulate across rounds).
-        ``num_nonlocal_generators`` counts them. Every shot then sums its whole class, every
+        ``num_nonlocal_generators`` counts them. A successful contraction sums its whole class, every
         product of the generators (and of the groups of rotations that are one fault in several
-        places), exactly (``exact_weights``), at any number of generators: the sum is a product
+        places), in floating-point arithmetic (``exact_weights``): the sum is a product
         of small factors (each rotation's, a phase that is a quadratic form in the generators,
         the shot's signs), contracted one generator at a time in O(k·2^w) per shot, w the
         ``contraction_width`` (3 on a d = 3 surface memory over three rounds, 9 at d = 7 over
         seven). ``max_contraction`` caps the contraction's tables (entries in all, 2^16 by
-        default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans more than 32
+        default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans 32 or more
         generators at any budget): past it, and with more than twelve generators, a shot sums
         the products of up to ``order`` generators its faults touch, a truncation, and the
-        sampler warns, saying how large a budget the class sums need or that none up to 2^31
-        contracts them. ``max_complete`` is the most rotations whose kernel is completed; past it
+        sampler warns with an entry lower bound, not a guaranteed sufficient budget, or says
+        that the selected plan cannot fit any budget up to 2^31. Width depends on the selected
+        completed basis and elimination heuristic, not an optimum over equivalent circuits.
+        Building a successful plan can dominate compilation. Sampling scratch per active worker
+        is 24*(arena+largest) bytes before factors and other overhead (arena=entries/2; at most
+        36*entries), so the entry budget is not a byte limit. Summation can change last bits
+        even with at most twelve generators. Corrected merged proposals and normalized group
+        arithmetic can change seeded shots, including with max_contraction=0.
+        ``max_complete`` is the most rotations whose kernel is completed; past it
         the generators are the local ones only, interference between distant faults is left
         out, ``kernel_complete`` is False and the sampler warns.
 
@@ -1645,7 +1656,8 @@ class DetectorErrorModel:
 
     def compile_sampler(self, *, seed: Union[int, None] = None) -> "DemSampler":
         """A sampler of the model's faults, as Stim's: each fault fires independently with its
-        probability. The same seed gives the same shots on any machine and number of threads;
+        probability. The seed reproduces shots within its documented sampler/version contract and
+        supported thread counts;
         ``None`` draws a seed."""
         return DemSampler(self, seed)
 
@@ -2253,9 +2265,9 @@ def _contraction_warning(s: Any, order: int, entries: int) -> Union[str, None]:
     """What the coherent sampler `s` (the core's, of a complete kernel) warns of its class sums:
     a bug, when the core refused to contract them for a reason other than the budget (which
     cannot happen: the products' phases are a quadratic form); or the truncation, when they are
-    not contracted and not listed, with what would contract them: the core's refusal says
-    whether a budget of at most 2^31 entries would ("budget", and the entries it needs at
-    least), none would ("width"), or the contraction is off ("off", max_contraction=0); else
+    not contracted and not listed. The core's refusal gives an entry lower bound, not a
+    guaranteed sufficient budget ("budget"), or says the selected basis/heuristic cannot fit
+    within 2^31 entries ("width"), or the contraction is off ("off", max_contraction=0); else
     nothing."""
     internal = getattr(s, "contraction_internal_error", None)
     if internal is not None:
@@ -2365,7 +2377,9 @@ class CoherentSampler:
     def exact_weights(self) -> bool:
         """Whether every shot sums every element of the kernel (complete, and contracted within
         ``max_contraction`` or of at most twelve generators): the weighted shots are then
-        distributed exactly as the coherent circuit's. Otherwise a shot sums the products of up
+        distributed as the coherent circuit's in floating-point arithmetic. This flag describes
+        summation coverage, not a proof of numerical accuracy at every input range. Otherwise
+        a shot sums the products of up
         to ``order`` generators its faults touch. The joint sampler sums the whole kernel at
         most twelve generators only (its cross terms are overlaps of the exact engine's states,
         not products of factors)."""
@@ -2375,7 +2389,9 @@ class CoherentSampler:
     def contraction_width(self) -> Union[int, None]:
         """With the class sums contracted, the most generators any of the contraction's tables
         holds besides the one it sums out: a shot's work is about ``num_generators`` · 2^(width
-        + 1). None when not contracted (the joint sampler, or past ``max_contraction``)."""
+        + 1). Width is for the selected completed basis and elimination heuristic, not the
+        minimum over equivalent circuit representations. None when not contracted (the joint
+        sampler, or past ``max_contraction``)."""
         return getattr(self._s, "contraction_width", None)
 
     def sample(self, shots: int, *, bit_packed: bool = False, threads: int = 1) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

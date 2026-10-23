@@ -23,9 +23,9 @@
   ``width`` and ``zoomable`` for the notebook view, and draws the ZX graph for ``"pyzx"``,
   ``"pyzx-dets"`` and ``"pyzx-meas"``.
 - ``Circuit.get_graph`` and ``Circuit.get_sampling_graph`` (``stabilizer_qec.tsim.zx``): Tsim's
-  ZX graphs, equal to Tsim's vertex for vertex (numbers, types, phases as Fractions, phase
+  ZX graphs, checked against finite reference circuits vertex for vertex (numbers, types, phases as Fractions, phase
   variables, positions, edges, scalar). They are pyzx_param's ``GraphS`` when pyzx_param imports,
-  else this package's ``ZXGraph`` (``backend="own"`` or ``"pyzx_param"`` chooses;
+  else this package's pure-Python ``ZXGraph`` (``backend="own"`` or ``"pyzx_param"`` chooses;
   ``ZXGraph.to_pyzx()`` gives a pyzx graph). ``zx.tensorfy`` contracts a graph in numpy. Choosing
   the default backend (and ``zx.pyzx_param_available()``) imports pyzx_param when it is installed,
   and importing pyzx_param calls ``numpy.set_printoptions(suppress=True)`` for the whole process, as
@@ -103,7 +103,7 @@ Where it differs from Tsim:
   rotation, or of a product rotation on ``II``, is one instruction, as Tsim's, and its inverse the
   circuit again.
 - Two product rotations with the same angle in a row stay two lines (Tsim's Stim text fuses
-  them into one, which its shorthand misprints), as do a pair rotation's ``TPP``s on several pairs
+  them into one printed instruction and reads it back), as do a pair rotation's ``TPP``s on several pairs
   (``TPP_DAG X0*X1`` then ``TPP_DAG X2*X3``, the inverse ``TPP X3*X2`` then ``TPP X1*X0``, where
   Tsim prints ``TPP X3*X2 X1*X0``), and a product naming one qubit twice prints as
   ``R_PAULI(0.3) X0*X0`` (Tsim's shorthand ``R_XX(0.3) 0 0`` does not read back). They are one

@@ -295,11 +295,13 @@ Copyright (c) Microsoft Corporation. Licensed under the MIT License:
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-`python/stabilizer_qec/cudaq_qec/_onnx.py` computes as onnxruntime's CPU kernels do
-(https://github.com/microsoft/onnxruntime): the order of MLAS's float32 multiply-adds, MLAS's
-logistic (its coefficients) and the float8e4m3fn conversion of `core/framework/float8.h`.
-`tests/cudaq_qec_port/models/ort_outputs.npz` records outputs of onnxruntime 1.31.0 the tests
-compare against.
+`python/stabilizer_qec/cudaq_qec/_onnx.py` uses selected arithmetic from onnxruntime
+(https://github.com/microsoft/onnxruntime): a fixed MLAS float32 product order, MLAS's logistic
+coefficients and the float8e4m3fn conversion of `core/framework/float8.h`. The 157 recordings
+on 17 models in `tests/cudaq_qec_port/models/ort_outputs.npz` come from ORT 1.31.0 CPU on
+macOS arm64. They do not establish equality to arbitrary optimizer, prepacking, weight-DQ
+fusion or reduced-precision paths; threshold differences can change a binary correction.
+See [the selected numerical and input contract](python/stabilizer_qec/cudaq_qec/ONNX_CONTRACT.md).
 
 ## Tsim
 

@@ -2,8 +2,8 @@
 formats, a bit-parallel sampler, exact and correlated matching, belief-matching, BP, BP+OSD and
 BP+LSD, Relay-BP, colour-code matching, a search decoder, window decoding, IBM's bivariate
 bicycle codes and lattice surgery, coherent errors at circuit level, and an exact state vector.
-It agrees with Stim, PyMatching, `ldpc`, `beliefmatching`,
-IBM's `relay_bp`, Chromobius and Tesseract on every check in its test suite.
+Finite comparisons against Stim, PyMatching, `ldpc`, `beliefmatching`, IBM's `relay_bp`,
+Chromobius and Tesseract use each suite's documented tolerances, tie and platform limits.
 
     pip install stabilizer-qec
 
@@ -88,7 +88,9 @@ Stim's six formats (`01`, `b8`, `r8`, `hits`, `dets`, `ptb64`) are read and writ
 On a detector error model, each with `decode` and `decode_batch` (any thread count) and
 pickling:
 
-- `Matching` (PyMatching's sparse blossom, transliterated: its results, ties included), with `enable_correlations`;
+- `Matching` (plain decoding on PyMatching's sparse-blossom port, with finite tied-selection
+  parity checks); correlated decoding requires an unedited DEM/circuit loaded with
+  `enable_correlations=True` and actual observable IDs 0–63; ensured wider output is zero-padded;
   `UnionFind`, `CollisionClustering` and `LocalClustering` (Riverlane's hardware union-finds,
   the second with its leakage-adaptive pre-growth); `BeliefMatching`; `WindowMatching`
   (sliding or parallel windows): for models whose faults set off at most two detectors, or
@@ -122,7 +124,9 @@ every capability question) and certifying, with no solver, any answer shown not 
 Coherent errors are tagged identities that Stim reads as identities, so circuits stay Stim's:
 `I_ERROR[R_Z(theta=0.01)] 0`, `II_ERROR[R_ZZ(theta=0.02)] 0 1`, any Pauli product as
 `I_ERROR[R_PAULI(theta=…, pauli=XZY)] 0 1 2`. `Circuit.compile_coherent_sampler` gives shots of
-the twirled circuit with weights that make them the coherent circuit's, at any size:
+the twirled circuit with weights from its interference class. Whole completed-kernel sums
+recover the coherent distribution in floating-point arithmetic; budget truncation and skipped
+completion are approximations (see ``Circuit.compile_coherent_sampler``):
 
 >>> c = sq.Circuit("RX 0\\nI_ERROR[R_Z(theta=0.2)] 0\\nI_ERROR[R_Z(theta=0.15)] 0\\nMX 0\\nDETECTOR rec[-1]")
 >>> d, o, w = c.compile_coherent_sampler(seed=1).sample(100_000)
@@ -173,10 +177,12 @@ this package's decoders under `sq_` names.
 
 ## Promises
 
-- **Seeds reproduce.** A sampler's shots depend only on its seed and on how many it has drawn,
-  not on the machine or the number of threads (`threads=0` is every core).
-- **Errors are errors.** Bad input raises `ValueError` (or `TypeError` for a wrong type); an
-  engine bug raises `RuntimeError` asking for a report, never a crash.
+- **Seeds reproduce.** Within a documented sampler/version contract, a seed and shot position
+  reproduce shots across supported thread counts (`threads=0` is every core). Algorithm
+  corrections can change seeded outcomes; 2.2's coherent proposal/arithmetic corrections do.
+- **Errors are errors.** Core validation uses `ValueError` or `TypeError`; ports may raise
+  documented upstream exception types. Crashes and hangs are bugs to report, not a supported
+  response. Resource checks do not make every allocation or OS memory failure recoverable.
 - **Limits.** Qubit indices up to 2**24 - 1, as in Stim. An error model folds the loops that
   repeat, as Stim folds them, so a d = 11 memory of 10,000 rounds is analysed in a tenth of a
   second; a decoder unrolls its model, up to 2**24 faults and declarations. The m2d converter
@@ -184,7 +190,8 @@ this package's decoders under `sq_` names.
   without unrolling them. Generated circuits are written out round by round, up to 10,000
   rounds.
 - **Stability.** Semantic versioning: everything importable from `stabilizer_qec` without a
-  leading underscore keeps working, with the same meaning, through every 2.x release. A name
+  leading underscore follows the compatibility policy, with corrections and migration changes
+  documented in the changelog. A name
   is deprecated (with a `DeprecationWarning` naming its replacement) for at least one minor
   release before a major release removes it. `stabilizer_qec._core` is the engine's
   extension, used by the repository's own tools, and carries no such promise.

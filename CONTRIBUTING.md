@@ -26,14 +26,15 @@ The site's WebAssembly engine is `cargo build --release --target wasm32-unknown-
 
 ## Conventions
 
-- Bad input is an error (`ValueError` / `Error`), never a panic or a crash.
+- Bad input must produce a controlled error (core `ValueError` / `TypeError` / Rust `Error`,
+  or a port's documented exception). Panics, crashes and hangs are bugs.
 - The public APIs follow semantic versioning: the Python package's names without a leading
   underscore, and the crate's documented items (`cargo semver-checks` runs in CI). Anything
   to be removed is deprecated for at least one minor release first.
 - Names follow the tools a user knows: Stim's for circuits and models, PyMatching's for
   matching, `ldpc`'s for BP and BP+OSD.
-- A seed's shots stay the same within 2.x; a change that alters them says so in the
-  changelog.
+- Preserve seeded shots within each documented sampler/version contract; corrections that
+  alter outcomes must say so in the changelog, with migration scope.
 - Each change goes in `CHANGELOG.md`.
 
 ## Reporting a security problem

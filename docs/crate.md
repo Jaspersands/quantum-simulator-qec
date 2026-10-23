@@ -43,7 +43,8 @@ assert!(failures < 1_000);
   [`lattice_surgery`] (Z⊗Z and X⊗X merges, a logical CNOT).
 
 Shots are [`BitTable`]s, bit-packed as Stim's `b8` format. Every fallible call returns
-[`Error`]; none panics on bad input.
+[`Error`]. Bad-input panics and hangs are bugs to report; size checks do not guarantee
+recovery from every allocation or OS memory failure.
 
 ## Stability
 
