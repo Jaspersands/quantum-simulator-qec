@@ -1,6 +1,7 @@
 """Synthetic loopback-only server regressions; no browser, user service or external requests."""
 import gc
 import http.client
+import os
 import socket
 import threading
 import time
@@ -122,6 +123,44 @@ def test_fusion_symlink_parent_normalization_matches_served_candidate(tmp_path, 
         status, response_headers, body = request(port, 'GET', '/data/alias.json')
         assert status == 200 and body == b'lexical safe candidate'
         assert response_headers['Content-Type'].startswith('application/json')
+
+
+@pytest.mark.skipif(os.name != 'posix', reason='literal backslashes are filename characters on POSIX')
+@pytest.mark.parametrize('method,headers', [
+    ('GET', {}), ('HEAD', {}),
+    ('GET', {'Range': 'bytes=0-8'}), ('GET', {'Range': 'bytes=999-1000'}),
+])
+def test_fusion_encoded_backslash_lookup_matches_checked_candidate(tmp_path, method, headers):
+    root = tmp_path / 'data'
+    (root / 'sub').mkdir(parents=True)
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    marker = b'synthetic outside marker'
+    (outside / 'marker.txt').write_bytes(marker)
+    (root / 'escape').symlink_to(outside, target_is_directory=True)
+    with fusion_server(root) as port:
+        status, _, body = request(port, method, '/data/escape/marker.txt', headers=headers)
+        assert status == 403 and marker not in body
+        status, _, body = request(port, method, '/data/sub/../%5Cescape/marker.txt', headers=headers)
+        # The checked literal-backslash directory is absent, so this is a missing contained file,
+        # rather than the external target under the differently named symlink "escape".
+        assert status == 404 and marker not in body, (method, status, body)
+
+@pytest.mark.skipif(os.name != 'posix', reason='literal backslashes are filename characters on POSIX')
+def test_fusion_literal_backslash_filenames_at_both_ends(tmp_path):
+    root = tmp_path / 'data'
+    (root / 'sub').mkdir(parents=True)
+    (root / '\\leading.json').write_bytes(b'safe leading backslash')
+    (root / 'trailing\\').write_bytes(b'safe trailing backslash')
+    (tmp_path / 'outside.txt').write_bytes(b'synthetic outside marker')
+    (root / 'trailing').symlink_to(tmp_path / 'outside.txt')
+    with fusion_server(root) as port:
+        status, headers, body = request(port, 'GET', '/data/sub/../%5Cleading.json')
+        assert status == 200 and body == b'safe leading backslash'
+        assert headers['Content-Type'].startswith('application/json')
+        assert request(port, 'GET', '/data/trailing%5C/.')[::2] == (200, b'safe trailing backslash')
+        assert request(port, 'HEAD', '/data/trailing%5C/.')[::2] == (200, b'')
+        assert request(port, 'GET', '/data/trailing%5C/.', headers={'Range': 'bytes=0-3'})[::2] == (206, b'safe')
 
 
 def test_fusion_invalid_utf8_has_bounded_error(tmp_path, capsys):

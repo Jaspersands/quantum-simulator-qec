@@ -68,11 +68,14 @@ def serve(host='localhost', port=51665, data_folder=".", return_server=False, qu
         try:
             # Match static_file's lexical normalization before following any symlink: resolving
             # link/../name first can check a different file from the one Bottle would open.
-            candidate = os.path.abspath(os.path.join(data_root, filename.strip("/\\")))
+            checked_filename = filename.strip("/\\")
+            candidate = os.path.abspath(os.path.join(data_root, checked_filename))
             resolved = os.path.realpath(candidate)
             if os.path.commonpath((data_root, resolved)) != data_root:
                 abort(403, "Access denied.")
-            checked_filename = os.path.relpath(candidate, data_root)
+            # Keep this original spelling for static_file: its repeated strip is idempotent.
+            # Rewriting from candidate can expose a literal leading/trailing backslash on POSIX
+            # that Bottle would strip again, changing the file after it passed this check.
         except (ValueError, OSError):
             abort(403, "Access denied.")
         # Bottle opens a GET body before discovering an unsatisfiable Range. A HEAD preflight
