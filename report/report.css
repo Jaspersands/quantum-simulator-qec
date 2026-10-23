@@ -120,6 +120,8 @@ math { font-size: 1.05em; }
   .paper { max-width: none; margin: 0; padding: 0; border: 0; box-shadow: none; }
   h1, h2, h3 { break-after: avoid; }
   table, figure { break-inside: avoid; }
+  /* Numeric columns also contain explanatory refusals and resource breakdowns. */
+  td[style*="right"], th[style*="right"] { white-space: normal; }
   .links a[href="report.pdf"] { display: none; }
   a { color: var(--ink); text-decoration: none; }
 }
