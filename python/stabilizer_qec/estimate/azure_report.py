@@ -14,7 +14,12 @@ notebook widgets as SVG: the space chart (the physical qubits of the algorithm a
 donut with a side table) and the estimates overview's scatter chart (physical qubits against runtime, both
 logarithmic, a frontier's entries joined by a line). Each is what the QDK and qsharp_widgets draw
 (tests/estimate_port/qdk_reports.json.gz). With markdown and python-markdown-math installed the explanations
-and assumptions are converted, as the QDK converts them.
+and assumptions are converted. Deliberate safety differences from QDK 1.33.1: all result/reportData
+values are untrusted; text is escaped, Markdown is reconstructed using a fixed balanced formatting
+subset (p/em/strong/code/pre/br/ul/ol/li/blockquote/a, only absolute HTTP(S) hrefs and link titles),
+and diagram JSON is escaped in quoted attributes without changing spaces in its string values.
+Arbitrary HTML and script-style custom math containers render inert; ordinary TeX text is retained.
+Explicit HTML wrappers themselves remain developer-supplied HTML containers.
 
 >>> from stabilizer_qec.estimate.azure import LogicalCounts
 >>> r = LogicalCounts(num_qubits=12, t_count=500).estimate()
@@ -30,10 +35,13 @@ and assumptions are converted, as the QDK converts them.
 
 from __future__ import annotations
 
+import html as _html
 import json
 import math
 import warnings
 from decimal import ROUND_HALF_UP, Context, Decimal
+from html.parser import HTMLParser
+from urllib.parse import urlsplit
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 try:
@@ -52,6 +60,97 @@ def _get_markdown() -> Optional[Any]:
     if has_markdown:
         return markdown.Markdown(extensions=["mdx_math"])
     return None
+
+
+def _report_text(value: Any) -> str:
+    """Untrusted report data in HTML text context."""
+    return _html.escape(str(value), quote=False)
+
+
+def _safe_href(value: str) -> bool:
+    # HTMLParser has already decoded entities. Validate the exact string we re-emit, before
+    # urlsplit can discard leading/control characters. Relative/custom-scheme links stay inert.
+    if not value or any(ord(c) <= 32 or 127 <= ord(c) <= 159 or c.isspace() for c in value):
+        return False
+    try:
+        parts = urlsplit(value)
+        return parts.scheme.lower() in ("http", "https") and bool(parts.netloc and parts.hostname) and (parts.port is None or 0 <= parts.port <= 65535)
+    except ValueError:
+        return False
+
+
+class _MarkdownFragment(HTMLParser):
+    """Reconstruct only the report's small formatting grammar; never copy caller start tags.
+
+    This is a scoped report serializer, not a general-purpose HTML sanitizer. Unknown tags and
+    malformed closing tags become text; unclosed permitted tags are closed at the fragment edge.
+    """
+
+    tags = frozenset(("p", "em", "strong", "code", "pre", "br", "ul", "ol", "li", "blockquote", "a"))
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.output = []
+        self.stack = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag not in self.tags:
+            self.output.append(_report_text(self.get_starttag_text()))
+            return
+        attributes = ""
+        if tag == "a":
+            values = dict(attrs)
+            href = values.get("href")
+            if href is not None and _safe_href(href):
+                attributes += ' href="' + _html.escape(href, quote=True) + '"'
+            if values.get("title") is not None:
+                attributes += ' title="' + _html.escape(values["title"], quote=True) + '"'
+        self.output.append("<" + tag + attributes + (" />" if tag == "br" else ">"))
+        if tag != "br":
+            self.stack.append(tag)
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag in self.tags and tag != "br":
+            self.handle_endtag(tag)
+
+    def handle_endtag(self, tag):
+        if self.stack and self.stack[-1] == tag:
+            self.stack.pop()
+            self.output.append("</" + tag + ">")
+        else:
+            self.output.append(_report_text("</" + tag + ">"))
+
+    def handle_data(self, data):
+        self.output.append(_report_text(data))
+
+    def handle_comment(self, data):
+        self.output.append(_report_text("<!--" + data + "-->"))
+
+    def handle_decl(self, decl):
+        self.output.append(_report_text("<!" + decl + ">"))
+
+    def unknown_decl(self, data):
+        self.output.append(_report_text("<![" + data + "]>"))
+
+    def handle_pi(self, data):
+        self.output.append(_report_text("<?" + data + ">"))
+
+    def fragment(self, value):
+        try:
+            self.feed(value)
+            self.close()
+        except (ValueError, AssertionError):
+            # HTMLParser rejects some malformed declarations; keep that whole fragment inert.
+            return _report_text(value)
+        self.output.extend("</" + tag + ">" for tag in reversed(self.stack))
+        return "".join(self.output)
+
+
+def _report_rich_text(value: Any, md) -> str:
+    if md is None:
+        return _report_text(value)
+    return _MarkdownFragment().fragment(md.convert(str(value)))
 
 
 def _is_succeeded(data: Dict[str, Any]) -> bool:
@@ -116,7 +215,7 @@ def item_result_table(result) -> str:
         html += f"""
                 <details {"open" if group["alwaysVisible"] else ""}>
                     <summary style="display:list-item">
-                        <strong>{group["title"]}</strong>
+                        <strong>{_report_text(group["title"])}</strong>
                     </summary>
                     <table>"""
         for entry in group["entries"]:
@@ -125,16 +224,13 @@ def item_result_table(result) -> str:
                 if key not in val and "frontierEntries" in val:
                     val = val["frontierEntries"][0]
                 val = val[key]
-            if md is not None:
-                explanation = md.convert(entry["explanation"])
-            else:
-                explanation = entry["explanation"]
+            explanation = _report_rich_text(entry["explanation"], md)
             html += f"""
                     <tr>
-                        <td style="font-weight: bold; vertical-align: top; white-space: nowrap">{entry["label"]}</td>
-                        <td style="vertical-align: top; white-space: nowrap">{val}</td>
+                        <td style="font-weight: bold; vertical-align: top; white-space: nowrap">{_report_text(entry["label"])}</td>
+                        <td style="vertical-align: top; white-space: nowrap">{_report_text(val)}</td>
                         <td style="text-align: left">
-                            <strong>{entry["description"]}</strong>
+                            <strong>{_report_text(entry["description"])}</strong>
                             <hr style="margin-top: 2px; margin-bottom: 0px; border-top: solid 1px black" />
                             {explanation}
                         </td>
@@ -145,7 +241,7 @@ def item_result_table(result) -> str:
     html += '<details><summary style="display:list-item"><strong>Assumptions</strong></summary><ul>'
     if md is not None:
         for assumption in result["reportData"]["assumptions"]:
-            html += f"<li>{md.convert(assumption)}</li>"
+            html += f"<li>{_report_rich_text(assumption, md)}</li>"
     html += "</ul></details>"
 
     return html
@@ -199,22 +295,19 @@ def item_result_summary_table(result) -> str:
         html += f"""
                 <details {"open" if group["alwaysVisible"] else ""}>
                     <summary style="display:list-item">
-                        <strong>{group["title"]}</strong>
+                        <strong>{_report_text(group["title"])}</strong>
                     </summary>
                     <table>"""
         for entry in group["entries"]:
             val = result
             for key in entry["path"].split("/"):
                 val = val[key]
-            if md is not None:
-                explanation = md.convert(entry["explanation"])
-            else:
-                explanation = entry["explanation"]
+            explanation = _report_rich_text(entry["explanation"], md)
             html += f"""
                     <tr class="aqre-tooltip">
-                        <td style="font-weight: bold"><span class="aqre-tooltiptext">{explanation}</span>{entry["label"]}</td>
-                        <td>{val}</td>
-                        <td style="text-align: left">{entry["description"]}</td>
+                        <td style="font-weight: bold"><span class="aqre-tooltiptext">{explanation}</span>{_report_text(entry["label"])}</td>
+                        <td>{_report_text(val)}</td>
+                        <td style="text-align: left">{_report_text(entry["description"])}</td>
                     </tr>
                 """
         html += "</table></details>"
@@ -222,7 +315,7 @@ def item_result_summary_table(result) -> str:
     html += "<details><summary style='display:list-item'><strong>Assumptions</strong></summary><ul>"
     if md is not None:
         for assumption in result["reportData"]["assumptions"]:
-            html += f"<li>{md.convert(assumption)}</li>"
+            html += f"<li>{_report_rich_text(assumption, md)}</li>"
     html += "</ul></details>"
 
     return html
@@ -246,13 +339,13 @@ def batch_result_table(result, indices: Iterable[int]) -> str:
 
     md = _get_markdown()
 
-    item_headers = "".join(f"<th>{i}</th>" for i in indices)
+    item_headers = "".join(f"<th>{_report_text(i)}</th>" for i in indices)
 
     for group_index, group in enumerate(result[first_succeeded_item_index]["reportData"]["groups"]):
         html += f"""
                 <details {"open" if group["alwaysVisible"] else ""}>
                     <summary style="display:list-item">
-                        <strong>{group["title"]}</strong>
+                        <strong>{_report_text(group["title"])}</strong>
                     </summary>
                     <table>
                         <thead><tr><th>Item</th>{item_headers}</tr></thead>"""
@@ -267,7 +360,7 @@ def batch_result_table(result, indices: Iterable[int]) -> str:
 
             html += f"""
                     <tr>
-                        <td style="font-weight: bold; vertical-align: top; white-space: nowrap">{label}</td>
+                        <td style="font-weight: bold; vertical-align: top; white-space: nowrap">{_report_text(label)}</td>
                 """
 
             for index in indices:
@@ -282,7 +375,7 @@ def batch_result_table(result, indices: Iterable[int]) -> str:
                 else:
                     val = "N/A"
                 html += f"""
-                            <td style="vertical-align: top; white-space: nowrap">{val}</td>
+                            <td style="vertical-align: top; white-space: nowrap">{_report_text(val)}</td>
                     """
 
             html += """
@@ -293,7 +386,7 @@ def batch_result_table(result, indices: Iterable[int]) -> str:
     html += '<details><summary style="display:list-item"><strong>Assumptions</strong></summary><ul>'
     if md is not None:
         for assumption in result[0]["reportData"]["assumptions"]:
-            html += f"<li>{md.convert(assumption)}</li>"
+            html += f"<li>{_report_rich_text(assumption, md)}</li>"
     html += "</ul></details>"
 
     return html
@@ -391,22 +484,23 @@ class EstimatorResultDiagram:
     QDK's CDN) with the result (less its report) as compact JSON."""
 
     def __init__(self, data: Dict[str, Any]):
-        data.pop("reportData")
-        self.data_json = json.dumps(data).replace(" ", "")
+        payload = dict(data)
+        payload.pop("reportData")
+        self.data_json = json.dumps(payload, separators=(",", ":"))
         self.vis_lib = "https://cdn-aquavisualization-prod.azureedge.net/resource-estimation/index.js"
         self.space = HTMLWrapper(self._space_diagram())
         self.time = HTMLWrapper(self._time_diagram())
 
     def _space_diagram(self):
         html = f"""
-            <script src={self.vis_lib}></script>
-            <re-space-diagram data={self.data_json}></re-space-diagram>"""
+            <script src="{_html.escape(self.vis_lib, quote=True)}"></script>
+            <re-space-diagram data="{_html.escape(self.data_json, quote=True)}"></re-space-diagram>"""
         return html
 
     def _time_diagram(self):
         html = f"""
-            <script src={self.vis_lib}></script>
-            <re-time-diagram data={self.data_json}></re-time-diagram>"""
+            <script src="{_html.escape(self.vis_lib, quote=True)}"></script>
+            <re-time-diagram data="{_html.escape(self.data_json, quote=True)}"></re-time-diagram>"""
         return html
 
 

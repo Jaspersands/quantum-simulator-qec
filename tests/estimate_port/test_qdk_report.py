@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import copy
 import gzip
+import html
+from html.parser import HTMLParser
 import hashlib
 import json
 import math
@@ -78,7 +80,11 @@ def _named_as_the_qdk(drawn: dict) -> dict:
 def test_report_against_qdk_recorded(name, monkeypatch):
     """Without markdown: every step's HTML (or exception, class and message) and what it printed is the QDK's."""
     monkeypatch.setattr(rep, "has_markdown", False)
-    assert _named_as_the_qdk(fx.render_case(CASES[name], RESULTS, az.EstimatorResult, az.EstimatorError)) == PLAIN[name]
+    drawn = _named_as_the_qdk(fx.render_case(CASES[name], RESULTS, az.EstimatorResult, az.EstimatorError))
+    # G02 intentionally changes diagram attribute serialization. Keep every other recorded byte,
+    # error and stdout exact; diagram JSON is independently checked against original inputs below.
+    changed = {step for step, rec in PLAIN[name].items() if step.startswith("diagram.") and "html" in rec}
+    assert {step: rec for step, rec in drawn.items() if step not in changed} == {step: rec for step, rec in PLAIN[name].items() if step not in changed}
 
 
 @pytest.mark.skipif(not _markdown_as_recorded(), reason="markdown 3.11.2 and python-markdown-math 0.9 (the recorded versions) are not installed")
@@ -302,10 +308,35 @@ def test_diagram():
     diagram = one.diagram
     data = dict(one.data())
     data.pop("reportData")
-    assert diagram.data_json == json.dumps(data).replace(" ", "") and "reportData" in one.data()
+    assert diagram.data_json == json.dumps(data, separators=(",", ":")) and "reportData" in one.data()
     assert diagram.vis_lib == "https://cdn-aquavisualization-prod.azureedge.net/resource-estimation/index.js"
-    assert diagram.space._repr_html_() == f"\n            <script src={diagram.vis_lib}></script>\n            <re-space-diagram data={diagram.data_json}></re-space-diagram>"
-    assert diagram.time.content == f"\n            <script src={diagram.vis_lib}></script>\n            <re-time-diagram data={diagram.data_json}></re-time-diagram>"
+    payload = html.escape(diagram.data_json, quote=True)
+    assert diagram.space._repr_html_() == f'\n            <script src="{diagram.vis_lib}"></script>\n            <re-space-diagram data="{payload}"></re-space-diagram>'
+    assert diagram.time.content == f'\n            <script src="{diagram.vis_lib}"></script>\n            <re-time-diagram data="{payload}"></re-time-diagram>'
+
+
+@pytest.mark.parametrize("name", sorted(CASES))
+def test_recorded_diagram_json_against_original_input(name):
+    """Safety divergence: immutable QDK diagram HTML is not an oracle for corrupted spaces/attrs."""
+    if "html" not in PLAIN[name].get("diagram.space", {}):
+        return  # failed/no diagram cases retain their exact errors in the report corpus
+    source = fx.materialize(CASES[name]["data"], RESULTS)
+    if isinstance(source, list):
+        source = source[0]
+    expected = {k: v for k, v in source.items() if k != "reportData"}
+    diagram = az.EstimatorResult(copy.deepcopy(source)).diagram
+
+    class Attributes(HTMLParser):
+        def handle_starttag(self, tag, attrs):
+            if tag.startswith("re-"):
+                self.tag, self.attrs = tag, attrs
+
+    for kind in ("space", "time"):
+        parser = Attributes()
+        parser.feed(getattr(diagram, kind).content)
+        assert parser.tag == "re-" + kind + "-diagram" and len(parser.attrs) == 1
+        assert parser.attrs[0][0] == "data" and json.loads(parser.attrs[0][1]) == expected
+    assert json.loads(diagram.data_json) == expected and "reportData" in source
 
 
 @pytest.fixture
