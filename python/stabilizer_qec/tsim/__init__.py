@@ -62,8 +62,10 @@ Where it differs from Tsim:
 - Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
   JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.
 - An angle appended as an int prints as a float (``R_Z(1.0)``, Tsim ``R_Z(1)``); a tag on an
-  appended ``T``, ``T_DAG``, ``TPP`` or ``TPP_DAG`` is not kept, nor the spacing inside a tagged
-  rotation's (``SPP[R_PAULI( theta=0.3*pi )]`` is quoted ``SPP[R_PAULI(theta=0.3*pi)]``); the angle
+  appended ``T``, ``T_DAG``, ``TPP`` or ``TPP_DAG`` is not kept. The suffix of a tagged input
+  such as ``S[T:x] 0`` is also dropped (prints ``T 0``, inverse ``T_DAG 0``, where Tsim
+  keeps ``T[x]`` and ``T_DAG[x]``). Spacing inside tagged rotations is normalized
+  (``SPP[R_PAULI( theta=0.3*pi )]`` is quoted ``SPP[R_PAULI(theta=0.3*pi)]``); the angle
   literals of a ``stim.Circuit`` are read as floats, as Tsim reads its program text (Tsim's
   ``from_stim_program`` keeps the stim circuit's ``0.30000000000000001*pi``, the phase
   30000000000000001/10^17, where this is 3/10). Text that does not parse raises this package's
@@ -108,7 +110,14 @@ Where it differs from Tsim:
   instruction to the ZX graph, as in Tsim, so ``R_PAULI``'s limit of 64 qubits is counted over
   them (33 ``R_ZZ(0.3)`` lines in a row are Tsim's error, "got 66").
 - ``tcount`` is the graph's, as Tsim's: a coherent error (``I_ERROR[R_Z(...)]``) is not a gate
-  (``stabilizer_qec.Circuit.tcount`` counts its phase).
+  (``stabilizer_qec.Circuit.tcount`` counts its phase). This builds an unrolled Python ZX
+  graph, propagating its refusals for sweep bits, malformed tags, unsupported products and
+  invalid record lookbacks. In 2.1 the wrapper used the engine's fast count, which is still
+  available on ``stabilizer_qec.Circuit``.
+- Unknown parametric tags that the core leaves inert (``I[foo(bar)]``) are also inert on the
+  measurement-free matrix fast path and in the inherited ``inverse``. Tsim rejects these;
+  this wrapper's ``get_graph`` and ``tcount`` do too. A measured matrix always uses the ZX
+  graph and therefore rejects them.
 - An angle is kept as it was written, as Tsim keeps it (the radians this package stores carry
   the digits that give the literal back), so ``R_Z(0.3)`` is the phase 3/10 of Tsim's graph and
   ``R_PAULI(0.25)`` is Tsim's ``R_PAULI``, not ``TPP``: its graph has the scalar phase -1/8 (+1/8
