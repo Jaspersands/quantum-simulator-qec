@@ -513,12 +513,14 @@ def test_code_capacity_decoder_reuse() -> None:
 )
 def test_decoder_import_order(module: str) -> None:
     """Decoder-related modules can each be the first qLDPC import in a fresh interpreter."""
-    repo_root = pathlib.Path(__file__).parents[3]
+    # Use the package being tested: this checkout's overlay or an installed wheel.
+    # Resolving __file__ would follow an overlay's source symlink and lose its native core.
+    package_root = pathlib.Path(stim.__file__).parent.parent
     result = subprocess.run(
         [sys.executable, "-c", f"import {module}"],
         capture_output=True,
         check=False,
-        env=os.environ | {"PYTHONPATH": str(repo_root / "src")},
+        env=os.environ | {"PYTHONPATH": str(package_root)},
         text=True,
     )
     assert result.returncode == 0, result.stderr
