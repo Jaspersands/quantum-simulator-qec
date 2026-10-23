@@ -122,6 +122,7 @@ math { font-size: 1.05em; }
   table, figure { break-inside: avoid; }
   /* Numeric columns also contain explanatory refusals and resource breakdowns. */
   td[style*="right"], th[style*="right"] { white-space: normal; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; }
   .links a[href="report.pdf"] { display: none; }
   a { color: var(--ink); text-decoration: none; }
 }
