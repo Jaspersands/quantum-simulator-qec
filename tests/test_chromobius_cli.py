@@ -8,7 +8,9 @@ The recording was made on macOS arm64. These finite fixtures pin the predictions
 tied liftings on other graphs can differ even on macOS. Abort text is pinned libc++abi text.
 Model numbers use the formatter's native precision assumptions: 16 digits on macOS arm64 and
 Windows, 19 on non-Windows x86-64 (including Intel Mac), 34 on other ARM64. Only the recorded
-macOS arm64 target compares text exactly; elsewhere model numbers are compared numerically."""
+macOS arm64 target compares text exactly; elsewhere model numbers are compared numerically.
+Only the two Windows circuit-description fixtures allow the observed six-ulp probability
+difference; their other bytes stay exact."""
 
 from __future__ import annotations
 
@@ -201,6 +203,65 @@ def same_text_and_numbers(got: str, want: str) -> bool:
     return all(np.isclose(float(a), float(b), rtol=1e-15, atol=0) for a, b in zip(NUMBER.findall(got), NUMBER.findall(want)))
 
 
+CIRCUIT_DESCRIPTIONS = frozenset(('describe d3 circuit', 'describe circuit wins'))
+ERROR_PROBABILITY = re.compile(r'^error\(([-+0-9.eE]+)\)', re.MULTILINE)
+
+
+def same_describe_text(name: str, got: str, want: str) -> bool:
+    if sys.platform != 'win32' or name not in CIRCUIT_DESCRIPTIONS:
+        return same_text_and_numbers(got, want)
+    # Ruling 20: actual Windows 3.9/3.14 diagnostics show a six-binary64-ulp maximum
+    # for these circuit-derived model probabilities (relative delta 1.0261e-15).
+    # Keep graph numbers, coordinates, targets, tags, order and newlines byte-exact.
+    if ERROR_PROBABILITY.sub('error(PROB)', got) != ERROR_PROBABILITY.sub('error(PROB)', want):
+        return False
+    actual, expected = ERROR_PROBABILITY.findall(got), ERROR_PROBABILITY.findall(want)
+    if len(actual) != len(expected):
+        return False
+    for a, b in zip(actual, expected):
+        try:
+            x, y = float(a), float(b)
+        except ValueError:
+            return False
+        if not (math.isfinite(x) and math.isfinite(y) and 0 <= x <= 1 and 0 <= y <= 1):
+            return False
+        if x == 0 or y == 0:
+            if a != b:
+                return False
+        elif abs(x - y) > 6 * math.ulp(y):
+            return False
+    return True
+
+
+def test_windows_circuit_describe_only_allows_observed_probability_ulps(monkeypatch):
+    monkeypatch.setattr(sys, 'platform', 'win32')
+    name = 'describe d3 circuit'
+    want = 'graph 2\nerror(0.3) D0 ^ D1 L0\ndetector(1, -0) D0\n'
+    six = 0.3
+    for _ in range(6):
+        six = math.nextafter(six, math.inf)
+    got = want.replace('error(0.3)', f'error({six!r})')
+    assert not same_text_and_numbers(got, want)
+    assert same_describe_text(name, got, want)
+    seven = want.replace('error(0.3)', f'error({math.nextafter(six, math.inf)!r})')
+    assert not same_describe_text(name, seven, want)
+    for probability in ('nan', 'inf', '-inf', '1.1', '-0.1', '0', 'PROB', '1e++2'):
+        assert not same_describe_text(name, want.replace('error(0.3)', f'error({probability})'), want)
+    zero = want.replace('error(0.3)', 'error(0)')
+    assert same_describe_text(name, zero, zero)
+    assert not same_describe_text(name, zero.replace('error(0)', 'error(5e-324)'), zero)
+    for wrong in (got.replace('graph 2', 'graph 3'), got.replace('D1', 'D2'),
+                  got.replace('detector(1,', 'detector(1.0000000000000002,'),
+                  got.replace('error(', 'error[tag]('), got.replace('\n', '\r\n'), got.rstrip('\n')):
+        assert not same_describe_text(name, wrong, want)
+    ordered = 'error(0.3) D0\nerror(0.4) D1\n'
+    assert not same_describe_text(name, 'error(0.4) D1\nerror(0.3) D0\n', ordered)
+    assert not same_describe_text('describe negative zero', got, want)
+    monkeypatch.setattr(sys, 'platform', 'darwin')
+    monkeypatch.setattr(platform, 'machine', lambda: 'arm64')
+    assert not same_describe_text(name, got, want)
+
+
 def test_describe_failure_diagnostics_keep_numeric_and_structural_evidence():
     want = b'graph\nerror(0.001) D0\n'
     probability = b'graph\nerror(0.00100001) D0\n'
@@ -223,8 +284,8 @@ def test_describe_decoder_text(tmp_path):
     assert len(names) >= 10
 
     def compare(name, got, want):
-        files_alike = sorted(got[3]) == sorted(want[3]) and all(same_text_and_numbers(got[3][k].decode(), want[3][k].decode()) for k in want[3])
-        return got[0] == want[0] and got[2] == want[2] and same_text_and_numbers(got[1].decode(), want[1].decode()) and files_alike
+        files_alike = sorted(got[3]) == sorted(want[3]) and all(same_describe_text(name, got[3][k].decode(), want[3][k].decode()) for k in want[3])
+        return got[0] == want[0] and got[2] == want[2] and same_describe_text(name, got[1].decode(), want[1].decode()) and files_alike
 
     assert mismatches(names, tmp_path, compare) == []
 
