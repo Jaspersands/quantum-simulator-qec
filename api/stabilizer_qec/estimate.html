@@ -31,6 +31,7 @@
             <h2>Submodules</h2>
             <ul>
                     <li><a href="estimate/azure.html">azure</a></li>
+                    <li><a href="estimate/azure_params.html">azure_params</a></li>
                     <li><a href="estimate/qualtran.html">qualtran</a></li>
             </ul>
 
@@ -352,6 +353,54 @@
 
             </li>
             <li>
+                    <a class="class" href="#DistillationUnitSpecification">DistillationUnitSpecification</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#DistillationUnitSpecification.__init__">DistillationUnitSpecification</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DistillationUnitSpecification.name">name</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DistillationUnitSpecification.display_name">display_name</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DistillationUnitSpecification.num_input_ts">num_input_ts</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DistillationUnitSpecification.num_output_ts">num_output_ts</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DistillationUnitSpecification.failure_probability_formula">failure_probability_formula</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DistillationUnitSpecification.output_error_rate_formula">output_error_rate_formula</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DistillationUnitSpecification.physical_qubit_specification">physical_qubit_specification</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DistillationUnitSpecification.logical_qubit_specification">logical_qubit_specification</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DistillationUnitSpecification.logical_qubit_specification_first_round_override">logical_qubit_specification_first_round_override</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DistillationUnitSpecification.has_custom_specification">has_custom_specification</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DistillationUnitSpecification.has_predefined_name">has_predefined_name</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DistillationUnitSpecification.post_validation">post_validation</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DistillationUnitSpecification.as_dict">as_dict</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#DistillationUnitTemplate">DistillationUnitTemplate</a>
                             <ul class="memberlist">
                         <li>
@@ -430,6 +479,24 @@
 
             </li>
             <li>
+                    <a class="class" href="#ErrorBudgetPartition">ErrorBudgetPartition</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#ErrorBudgetPartition.__init__">ErrorBudgetPartition</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ErrorBudgetPartition.logical">logical</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ErrorBudgetPartition.t_states">t_states</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ErrorBudgetPartition.rotations">rotations</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#EstimationResult">EstimationResult</a>
                             <ul class="memberlist">
                         <li>
@@ -490,6 +557,33 @@
 
             </li>
             <li>
+                    <a class="class" href="#EstimatorConstraints">EstimatorConstraints</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#EstimatorConstraints.__init__">EstimatorConstraints</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorConstraints.at_least_one">at_least_one</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorConstraints.logical_depth_factor">logical_depth_factor</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorConstraints.max_t_factories">max_t_factories</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorConstraints.max_duration">max_duration</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorConstraints.max_physical_qubits">max_physical_qubits</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorConstraints.post_validation">post_validation</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#EstimatorError">EstimatorError</a>
                             <ul class="memberlist">
                         <li>
@@ -500,6 +594,138 @@
                         </li>
                         <li>
                                 <a class="function" href="#EstimatorError.of">of</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#EstimatorInputParamsItem">EstimatorInputParamsItem</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#EstimatorInputParamsItem.qubit_params">qubit_params</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorInputParamsItem.qec_scheme">qec_scheme</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorInputParamsItem.distillation_unit_specifications">distillation_unit_specifications</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorInputParamsItem.constraints">constraints</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorInputParamsItem.error_budget">error_budget</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorInputParamsItem.estimate_type">estimate_type</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorInputParamsItem.as_dict">as_dict</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#EstimatorParams">EstimatorParams</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#EstimatorParams.__init__">EstimatorParams</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorParams.MAX_NUM_ITEMS">MAX_NUM_ITEMS</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorParams.items">items</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorParams.as_dict">as_dict</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#EstimatorQecScheme">EstimatorQecScheme</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#EstimatorQecScheme.__init__">EstimatorQecScheme</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQecScheme.name">name</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQecScheme.error_correction_threshold">error_correction_threshold</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQecScheme.crossing_prefactor">crossing_prefactor</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQecScheme.distance_coefficient_power">distance_coefficient_power</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQecScheme.logical_cycle_time">logical_cycle_time</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQecScheme.physical_qubits_per_logical_qubit">physical_qubits_per_logical_qubit</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQecScheme.max_code_distance">max_code_distance</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#EstimatorQubitParams">EstimatorQubitParams</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#EstimatorQubitParams.__init__">EstimatorQubitParams</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorQubitParams.check_instruction_set">check_instruction_set</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.name">name</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.instruction_set">instruction_set</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.one_qubit_measurement_time">one_qubit_measurement_time</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.two_qubit_joint_measurement_time">two_qubit_joint_measurement_time</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.one_qubit_gate_time">one_qubit_gate_time</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.two_qubit_gate_time">two_qubit_gate_time</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.t_gate_time">t_gate_time</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.one_qubit_measurement_error_rate">one_qubit_measurement_error_rate</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.two_qubit_joint_measurement_error_rate">two_qubit_joint_measurement_error_rate</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.one_qubit_gate_error_rate">one_qubit_gate_error_rate</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.two_qubit_gate_error_rate">two_qubit_gate_error_rate</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.t_gate_error_rate">t_gate_error_rate</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorQubitParams.idle_error_rate">idle_error_rate</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorQubitParams.post_validation">post_validation</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorQubitParams.as_dict">as_dict</a>
                         </li>
                 </ul>
 
@@ -524,6 +750,18 @@
                         </li>
                         <li>
                                 <a class="variable" href="#EstimatorResult.summary">summary</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.diagram">diagram</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.plot">plot</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorResult.space_chart">space_chart</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorResult.scatter_chart">scatter_chart</a>
                         </li>
                         <li>
                                 <a class="function" href="#EstimatorResult.summary_data_frame">summary_data_frame</a>
@@ -922,6 +1160,21 @@
 
             </li>
             <li>
+                    <a class="class" href="#MeasurementErrorRate">MeasurementErrorRate</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#MeasurementErrorRate.__init__">MeasurementErrorRate</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#MeasurementErrorRate.process">process</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#MeasurementErrorRate.readout">readout</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#MultiFactory">MultiFactory</a>
                             <ul class="memberlist">
                         <li>
@@ -1084,6 +1337,24 @@
 
             </li>
             <li>
+                    <a class="class" href="#ProtocolSpecificDistillationUnitSpecification">ProtocolSpecificDistillationUnitSpecification</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#ProtocolSpecificDistillationUnitSpecification.__init__">ProtocolSpecificDistillationUnitSpecification</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ProtocolSpecificDistillationUnitSpecification.num_unit_qubits">num_unit_qubits</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ProtocolSpecificDistillationUnitSpecification.duration_in_qubit_cycle_time">duration_in_qubit_cycle_time</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ProtocolSpecificDistillationUnitSpecification.post_validation">post_validation</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
                     <a class="class" href="#QECScheme">QECScheme</a>
                             <ul class="memberlist">
                         <li>
@@ -1121,6 +1392,30 @@
             </li>
             <li>
                     <a class="variable" href="#QUBIT_NAMES">QUBIT_NAMES</a>
+            </li>
+            <li>
+                    <a class="class" href="#QubitParams">QubitParams</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#QubitParams.GATE_US_E3">GATE_US_E3</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#QubitParams.GATE_US_E4">GATE_US_E4</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#QubitParams.GATE_NS_E3">GATE_NS_E3</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#QubitParams.GATE_NS_E4">GATE_NS_E4</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#QubitParams.MAJ_NS_E4">MAJ_NS_E4</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#QubitParams.MAJ_NS_E6">MAJ_NS_E6</a>
+                        </li>
+                </ul>
+
             </li>
             <li>
                     <a class="class" href="#RotationCostModel">RotationCostModel</a>
@@ -1335,7 +1630,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.1.0</footer>
+            <footer>stabilizer-qec 2.2.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -1353,8 +1648,8 @@
 surface-code cost models (<code>quantumlib/Qualtran &lt;https://github.com/quantumlib/Qualtran&gt;</code>_ 0.7.0,
 <code>qualtran.surface_code</code>; Apache 2.0, see <code>LICENSE</code> in this directory) and Azure's Resource
 Estimator (<code>microsoft/qdk &lt;https://github.com/microsoft/qdk&gt;</code>_'s <code>resource_estimator</code>: the
-physical estimate from logical counts with its exhaustive T-factory search, and its report; MIT, see
-<code>LICENSE-qdk</code>).</p>
+physical estimate from logical counts with its exhaustive T-factory search; with the qdk package's parameter
+classes and its report, the HTML, diagrams and plot, and its notebook widgets' charts; MIT, see <code>LICENSE-qdk</code>).</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn"><a href="">stabilizer_qec.estimate</a></span><span class="w"> </span><span class="kn">import</span> <span class="n">GateCounts</span><span class="p">,</span> <span class="n">get_ccz2t_costs_from_error_budget</span>
@@ -2287,7 +2582,7 @@ rotations cost <code><a href="#ConstantWithOverheadRotationCost.overhead_rotatio
     <a class="headerlink" href="#Constraints.fromspec"></a>
     
             <div class="docstring"><p>The QDK's <code>constraints</code> (camelCase keys, or the field names; <code>maxDuration</code> a time string or, beyond
-the QDK, a number of ns), a QDK <code>EstimatorConstraints</code>, or a <code><a href="#Constraints">Constraints</a></code>. A dict the QDK refuses
+the QDK, a number of ns), a QDK <code><a href="#EstimatorConstraints">EstimatorConstraints</a></code>, or a <code><a href="#Constraints">Constraints</a></code>. A dict the QDK refuses
 raises its <code><a href="#QSharpError">QSharpError</a></code> (<code>unknown field `foo`, expected one of …</code>).</p>
 </div>
 
@@ -2648,6 +2943,204 @@ Qualtran's: a block defines <code><a href="#DataBlock.data_d">data_d</a></code>,
 
                             </div>
                 </section>
+                <section id="DistillationUnitSpecification">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass</div>
+
+    <span class="def">class</span>
+    <span class="name">DistillationUnitSpecification</span><wbr>(<span class="base"><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification"></a>
+    
+            <div class="docstring"><p>Specification for a magic-state distillation unit.</p>
+
+<p>Either select a built-in unit by setting <code><a href="#DistillationUnitSpecification.name">name</a></code>, or define a custom unit
+by providing <code><a href="#DistillationUnitSpecification.num_input_ts">num_input_ts</a></code>, <code><a href="#DistillationUnitSpecification.num_output_ts">num_output_ts</a></code>, <code><a href="#DistillationUnitSpecification.failure_probability_formula">failure_probability_formula</a></code>,
+<code><a href="#DistillationUnitSpecification.output_error_rate_formula">output_error_rate_formula</a></code>, and optionally physical and logical qubit
+specifications.</p>
+</div>
+
+
+                            <div id="DistillationUnitSpecification.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">DistillationUnitSpecification</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">display_name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">num_input_ts</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">num_output_ts</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">failure_probability_formula</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">output_error_rate_formula</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">physical_qubit_specification</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#ProtocolSpecificDistillationUnitSpecification">ProtocolSpecificDistillationUnitSpecification</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">logical_qubit_specification</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#ProtocolSpecificDistillationUnitSpecification">ProtocolSpecificDistillationUnitSpecification</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">logical_qubit_specification_first_round_override</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#ProtocolSpecificDistillationUnitSpecification">ProtocolSpecificDistillationUnitSpecification</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.name" class="classattr">
+                                <div class="attr variable">
+            <span class="name">name</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.name"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.display_name" class="classattr">
+                                <div class="attr variable">
+            <span class="name">display_name</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.display_name"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.num_input_ts" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_input_ts</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.num_input_ts"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.num_output_ts" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_output_ts</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.num_output_ts"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.failure_probability_formula" class="classattr">
+                                <div class="attr variable">
+            <span class="name">failure_probability_formula</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.failure_probability_formula"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.output_error_rate_formula" class="classattr">
+                                <div class="attr variable">
+            <span class="name">output_error_rate_formula</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.output_error_rate_formula"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.physical_qubit_specification" class="classattr">
+                                <div class="attr variable">
+            <span class="name">physical_qubit_specification</span><span class="annotation">: Optional[<a href="#ProtocolSpecificDistillationUnitSpecification">ProtocolSpecificDistillationUnitSpecification</a>]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.physical_qubit_specification"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.logical_qubit_specification" class="classattr">
+                                <div class="attr variable">
+            <span class="name">logical_qubit_specification</span><span class="annotation">: Optional[<a href="#ProtocolSpecificDistillationUnitSpecification">ProtocolSpecificDistillationUnitSpecification</a>]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.logical_qubit_specification"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.logical_qubit_specification_first_round_override" class="classattr">
+                                <div class="attr variable">
+            <span class="name">logical_qubit_specification_first_round_override</span><span class="annotation">: Optional[<a href="#ProtocolSpecificDistillationUnitSpecification">ProtocolSpecificDistillationUnitSpecification</a>]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.logical_qubit_specification_first_round_override"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.has_custom_specification" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">has_custom_specification</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.has_custom_specification"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.has_predefined_name" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">has_predefined_name</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.has_predefined_name"></a>
+    
+    
+
+                            </div>
+                            <div id="DistillationUnitSpecification.post_validation" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">post_validation</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">result</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.post_validation"></a>
+    
+            <div class="docstring"><p>A function that is called after all individual fields have been
+validated, but before the result is returned.</p>
+
+<p>Here result is the current dictionary.</p>
+</div>
+
+
+                            </div>
+                            <div id="DistillationUnitSpecification.as_dict" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">as_dict</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">validate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span></span><span class="return-annotation">) -> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DistillationUnitSpecification.as_dict"></a>
+    
+    
+
+                            </div>
+                </section>
                 <section id="DistillationUnitTemplate">
                     <div class="attr class">
                     <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
@@ -2961,6 +3454,87 @@ no T gates. A dict <code>{logical, tStates, rotations}</code> is taken as is. A 
 
                             </div>
                 </section>
+                <section id="ErrorBudgetPartition">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass</div>
+
+    <span class="def">class</span>
+    <span class="name">ErrorBudgetPartition</span><wbr>(<span class="base"><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#ErrorBudgetPartition"></a>
+    
+            <div class="docstring"><p>Partition of the total error budget across algorithm components.</p>
+
+<p>The three fields must sum to the overall error budget. Defaults to equal
+thirds of <code>0.001</code> (i.e. each component gets <code>~3.33e-4</code>).</p>
+
+<p>:param logical: Budget allocated to logical errors in the algorithm.
+:param t_states: Budget allocated to T-state distillation errors.
+:param rotations: Budget allocated to rotation synthesis errors.</p>
+</div>
+
+
+                            <div id="ErrorBudgetPartition.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">ErrorBudgetPartition</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">logical</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0003333333333333333</span>,</span><span class="param">	<span class="n">t_states</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0003333333333333333</span>,</span><span class="param">	<span class="n">rotations</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0003333333333333333</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ErrorBudgetPartition.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="ErrorBudgetPartition.logical" class="classattr">
+                                <div class="attr variable">
+            <span class="name">logical</span><span class="annotation">: float</span>        =
+<span class="default_value">0.0003333333333333333</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ErrorBudgetPartition.logical"></a>
+    
+    
+
+                            </div>
+                            <div id="ErrorBudgetPartition.t_states" class="classattr">
+                                <div class="attr variable">
+            <span class="name">t_states</span><span class="annotation">: float</span>        =
+<span class="default_value">0.0003333333333333333</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ErrorBudgetPartition.t_states"></a>
+    
+    
+
+                            </div>
+                            <div id="ErrorBudgetPartition.rotations" class="classattr">
+                                <div class="attr variable">
+            <span class="name">rotations</span><span class="annotation">: float</span>        =
+<span class="default_value">0.0003333333333333333</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ErrorBudgetPartition.rotations"></a>
+    
+    
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></dt>
+                                <dd id="ErrorBudgetPartition.as_dict" class="function"><a href="estimate/azure_params.html#AutoValidatingParams.as_dict">as_dict</a></dd>
+                <dd id="ErrorBudgetPartition.post_validation" class="function"><a href="estimate/azure_params.html#AutoValidatingParams.post_validation">post_validation</a></dd>
+
+            </div>
+                                </dl>
+                            </div>
+                </section>
                 <section id="EstimationResult">
                     <div class="attr class">
                     <div class="decorator decorator-dataclass">@dataclass</div>
@@ -3207,6 +3781,126 @@ part <code>magic_states</code>).</p>
 
                             </div>
                 </section>
+                <section id="EstimatorConstraints">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass</div>
+
+    <span class="def">class</span>
+    <span class="name">EstimatorConstraints</span><wbr>(<span class="base"><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorConstraints"></a>
+    
+            <div class="docstring"><p>Optional runtime and resource constraints for resource estimation.</p>
+
+<p>At most one of <code><a href="#EstimatorConstraints.max_duration">max_duration</a></code> or <code><a href="#EstimatorConstraints.max_physical_qubits">max_physical_qubits</a></code> may be set
+simultaneously.</p>
+</div>
+
+
+                            <div id="EstimatorConstraints.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">EstimatorConstraints</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">logical_depth_factor</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">max_t_factories</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">max_duration</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">max_physical_qubits</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorConstraints.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorConstraints.at_least_one" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">at_least_one</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">name</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">value</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorConstraints.at_least_one"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorConstraints.logical_depth_factor" class="classattr">
+                                <div class="attr variable">
+            <span class="name">logical_depth_factor</span><span class="annotation">: Optional[float]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorConstraints.logical_depth_factor"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorConstraints.max_t_factories" class="classattr">
+                                <div class="attr variable">
+            <span class="name">max_t_factories</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorConstraints.max_t_factories"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorConstraints.max_duration" class="classattr">
+                                <div class="attr variable">
+            <span class="name">max_duration</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorConstraints.max_duration"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorConstraints.max_physical_qubits" class="classattr">
+                                <div class="attr variable">
+            <span class="name">max_physical_qubits</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorConstraints.max_physical_qubits"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorConstraints.post_validation" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">post_validation</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">result</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorConstraints.post_validation"></a>
+    
+            <div class="docstring"><p>A function that is called after all individual fields have been
+validated, but before the result is returned.</p>
+
+<p>Here result is the current dictionary.</p>
+</div>
+
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></dt>
+                                <dd id="EstimatorConstraints.as_dict" class="function"><a href="estimate/azure_params.html#AutoValidatingParams.as_dict">as_dict</a></dd>
+
+            </div>
+                                </dl>
+                            </div>
+                </section>
                 <section id="EstimatorError">
                     <div class="attr class">
             
@@ -3220,8 +3914,13 @@ part <code>magic_states</code>).</p>
             <div class="docstring"><p>The QDK's <code><a href="#EstimatorError">EstimatorError</a></code>: an estimate the QDK refuses, with its <code>code</code> (<code>Qdk.Qsc.Estimates.</code> and the
 error's name, as <code>Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget</code>) and its <code><a href="#EstimatorError.message">message</a></code>, <code>Error
 estimating resources (&lt;code&gt;):</code> with the QDK's reason on the next line, which is also the error's string.
-<code>reason</code> is the reason alone, what a batch's failed item holds as its <code><a href="#EstimatorError.message">message</a></code>. A ValueError here (the
-QDK's derives from BaseException).</p>
+<code>reason</code> is the reason alone, what a batch's failed item holds as its <code><a href="#EstimatorError.message">message</a></code>. Its <code><a href="#EstimatorError.args">args</a></code> are its code
+and reason, and its repr <code>EstimatorError('&lt;code&gt;', '&lt;reason&gt;')</code>, as the QDK's are.</p>
+
+<p>A ValueError here, as in 2.1, where the QDK's derives from BaseException alone: this package promises that
+bad input raises a ValueError or a TypeError. Code that catches it by name, as with the QDK, works the same;
+the one difference is that <code>issubclass(EstimatorError, Exception)</code> (and <code>ValueError</code>) is true here, so
+<code>except Exception</code> and <code>except ValueError</code> catch it too.</p>
 </div>
 
 
@@ -3265,6 +3964,553 @@ QDK's derives from BaseException).</p>
 
                             </div>
                 </section>
+                <section id="EstimatorInputParamsItem">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">EstimatorInputParamsItem</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorInputParamsItem"></a>
+    
+            <div class="docstring"><p>Input parameters for a single resource estimation job.</p>
+
+<p>Contains qubit model, QEC scheme, distillation unit specifications, constraints,
+and error budget settings. Used directly for single-point estimation or as a
+base class for batching via :class:<code><a href="#EstimatorParams">EstimatorParams</a></code>.</p>
+</div>
+
+
+                            <div id="EstimatorInputParamsItem.qubit_params" class="classattr">
+                                <div class="attr variable">
+            <span class="name">qubit_params</span><span class="annotation">: <a href="#EstimatorQubitParams">EstimatorQubitParams</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorInputParamsItem.qubit_params"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorInputParamsItem.qec_scheme" class="classattr">
+                                <div class="attr variable">
+            <span class="name">qec_scheme</span><span class="annotation">: <a href="#EstimatorQecScheme">EstimatorQecScheme</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorInputParamsItem.qec_scheme"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorInputParamsItem.distillation_unit_specifications" class="classattr">
+                                <div class="attr variable">
+            <span class="name">distillation_unit_specifications</span><span class="annotation">: List[<a href="#DistillationUnitSpecification">DistillationUnitSpecification</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorInputParamsItem.distillation_unit_specifications"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorInputParamsItem.constraints" class="classattr">
+                                <div class="attr variable">
+            <span class="name">constraints</span><span class="annotation">: <a href="#EstimatorConstraints">EstimatorConstraints</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorInputParamsItem.constraints"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorInputParamsItem.error_budget" class="classattr">
+                                <div class="attr variable">
+            <span class="name">error_budget</span><span class="annotation">: Union[float, <a href="#ErrorBudgetPartition">ErrorBudgetPartition</a>, NoneType]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorInputParamsItem.error_budget"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorInputParamsItem.estimate_type" class="classattr">
+                                <div class="attr variable">
+            <span class="name">estimate_type</span><span class="annotation">: Optional[str]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorInputParamsItem.estimate_type"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorInputParamsItem.as_dict" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">as_dict</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">validate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>,</span><span class="param">	<span class="n">additional_params</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#EstimatorInputParamsItem">EstimatorInputParamsItem</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorInputParamsItem.as_dict"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="EstimatorParams">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">EstimatorParams</span><wbr>(<span class="base"><a href="#EstimatorInputParamsItem">stabilizer_qec.estimate.EstimatorInputParamsItem</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorParams"></a>
+    
+            <div class="docstring"><p>Top-level input parameters for the Microsoft Resource Estimator.</p>
+
+<p>Extends :class:<code><a href="#EstimatorInputParamsItem">EstimatorInputParamsItem</a></code> with support for batching: pass
+<code>num_items</code> to create a batching job where each item can override the
+top-level parameters.</p>
+
+<p>:param num_items: Number of batching items. If <code>None</code>, creates a
+    single-point estimation job.
+:type num_items: int</p>
+</div>
+
+
+                            <div id="EstimatorParams.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">EstimatorParams</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">num_items</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorParams.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorParams.MAX_NUM_ITEMS" class="classattr">
+                                <div class="attr variable">
+            <span class="name">MAX_NUM_ITEMS</span><span class="annotation">: int</span>        =
+<span class="default_value">1000</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorParams.MAX_NUM_ITEMS"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorParams.items" class="classattr">
+                                <div class="attr variable">
+            <span class="name">items</span><span class="annotation">: List</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorParams.items"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorParams.as_dict" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">as_dict</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">validate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>,</span><span class="param">	<span class="n">additional_params</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n"><a href="#EstimatorInputParamsItem">EstimatorInputParamsItem</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorParams.as_dict"></a>
+    
+            <div class="docstring"><p>Constructs a dictionary from the input params.</p>
+
+<p>For batching jobs, top-level entries are merged into item entries.
+Item entries have priority in case they are specified.</p>
+</div>
+
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="#EstimatorInputParamsItem">EstimatorInputParamsItem</a></dt>
+                                <dd id="EstimatorParams.qubit_params" class="variable"><a href="#EstimatorInputParamsItem.qubit_params">qubit_params</a></dd>
+                <dd id="EstimatorParams.qec_scheme" class="variable"><a href="#EstimatorInputParamsItem.qec_scheme">qec_scheme</a></dd>
+                <dd id="EstimatorParams.distillation_unit_specifications" class="variable"><a href="#EstimatorInputParamsItem.distillation_unit_specifications">distillation_unit_specifications</a></dd>
+                <dd id="EstimatorParams.constraints" class="variable"><a href="#EstimatorInputParamsItem.constraints">constraints</a></dd>
+                <dd id="EstimatorParams.error_budget" class="variable"><a href="#EstimatorInputParamsItem.error_budget">error_budget</a></dd>
+                <dd id="EstimatorParams.estimate_type" class="variable"><a href="#EstimatorInputParamsItem.estimate_type">estimate_type</a></dd>
+
+            </div>
+                                </dl>
+                            </div>
+                </section>
+                <section id="EstimatorQecScheme">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass</div>
+
+    <span class="def">class</span>
+    <span class="name">EstimatorQecScheme</span><wbr>(<span class="base"><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQecScheme"></a>
+    
+            <div class="docstring"><p>Quantum error correction scheme parameters for resource estimation.</p>
+
+<p>Specify a built-in scheme by setting <code><a href="#EstimatorQecScheme.name">name</a></code> to one of the
+:class:<code><a href="#QECScheme">QECScheme</a></code> constants, or define a custom scheme by setting
+the threshold and code-distance parameters directly.</p>
+</div>
+
+
+                            <div id="EstimatorQecScheme.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">EstimatorQecScheme</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">error_correction_threshold</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">crossing_prefactor</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">distance_coefficient_power</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">logical_cycle_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">physical_qubits_per_logical_qubit</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">max_code_distance</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQecScheme.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQecScheme.name" class="classattr">
+                                <div class="attr variable">
+            <span class="name">name</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQecScheme.name"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQecScheme.error_correction_threshold" class="classattr">
+                                <div class="attr variable">
+            <span class="name">error_correction_threshold</span><span class="annotation">: Optional[float]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQecScheme.error_correction_threshold"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQecScheme.crossing_prefactor" class="classattr">
+                                <div class="attr variable">
+            <span class="name">crossing_prefactor</span><span class="annotation">: Optional[float]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQecScheme.crossing_prefactor"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQecScheme.distance_coefficient_power" class="classattr">
+                                <div class="attr variable">
+            <span class="name">distance_coefficient_power</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQecScheme.distance_coefficient_power"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQecScheme.logical_cycle_time" class="classattr">
+                                <div class="attr variable">
+            <span class="name">logical_cycle_time</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQecScheme.logical_cycle_time"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQecScheme.physical_qubits_per_logical_qubit" class="classattr">
+                                <div class="attr variable">
+            <span class="name">physical_qubits_per_logical_qubit</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQecScheme.physical_qubits_per_logical_qubit"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQecScheme.max_code_distance" class="classattr">
+                                <div class="attr variable">
+            <span class="name">max_code_distance</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQecScheme.max_code_distance"></a>
+    
+    
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></dt>
+                                <dd id="EstimatorQecScheme.as_dict" class="function"><a href="estimate/azure_params.html#AutoValidatingParams.as_dict">as_dict</a></dd>
+                <dd id="EstimatorQecScheme.post_validation" class="function"><a href="estimate/azure_params.html#AutoValidatingParams.post_validation">post_validation</a></dd>
+
+            </div>
+                                </dl>
+                            </div>
+                </section>
+                <section id="EstimatorQubitParams">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass</div>
+
+    <span class="def">class</span>
+    <span class="name">EstimatorQubitParams</span><wbr>(<span class="base"><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams"></a>
+    
+            <div class="docstring"><p>Physical qubit parameters for resource estimation.</p>
+
+<p>Specify a built-in qubit model by setting <code><a href="#EstimatorQubitParams.name">name</a></code> to one of the
+:class:<code><a href="#QubitParams">QubitParams</a></code> constants, or fully define a custom model by setting
+<code><a href="#EstimatorQubitParams.instruction_set">instruction_set</a></code> and all relevant timing and error-rate fields.</p>
+</div>
+
+
+                            <div id="EstimatorQubitParams.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">EstimatorQubitParams</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">instruction_set</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">one_qubit_measurement_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">two_qubit_joint_measurement_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">one_qubit_gate_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">two_qubit_gate_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">t_gate_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">one_qubit_measurement_error_rate</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">NoneType</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="n"><a href="#MeasurementErrorRate">MeasurementErrorRate</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">two_qubit_joint_measurement_error_rate</span><span class="p">:</span> <span class="n">Union</span><span class="p">[</span><span class="n">NoneType</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="n"><a href="#MeasurementErrorRate">MeasurementErrorRate</a></span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">one_qubit_gate_error_rate</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">two_qubit_gate_error_rate</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">t_gate_error_rate</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">idle_error_rate</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.check_instruction_set" class="classattr">
+                                <div class="attr function">
+                    <div class="decorator decorator-staticmethod">@staticmethod</div>
+
+        <span class="def">def</span>
+        <span class="name">check_instruction_set</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">name</span><span class="p">:</span> <span class="nb">str</span>, </span><span class="param"><span class="n">value</span><span class="p">:</span> <span class="nb">str</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.check_instruction_set"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.name" class="classattr">
+                                <div class="attr variable">
+            <span class="name">name</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.name"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.instruction_set" class="classattr">
+                                <div class="attr variable">
+            <span class="name">instruction_set</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.instruction_set"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.one_qubit_measurement_time" class="classattr">
+                                <div class="attr variable">
+            <span class="name">one_qubit_measurement_time</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.one_qubit_measurement_time"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.two_qubit_joint_measurement_time" class="classattr">
+                                <div class="attr variable">
+            <span class="name">two_qubit_joint_measurement_time</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.two_qubit_joint_measurement_time"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.one_qubit_gate_time" class="classattr">
+                                <div class="attr variable">
+            <span class="name">one_qubit_gate_time</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.one_qubit_gate_time"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.two_qubit_gate_time" class="classattr">
+                                <div class="attr variable">
+            <span class="name">two_qubit_gate_time</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.two_qubit_gate_time"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.t_gate_time" class="classattr">
+                                <div class="attr variable">
+            <span class="name">t_gate_time</span><span class="annotation">: Optional[str]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.t_gate_time"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.one_qubit_measurement_error_rate" class="classattr">
+                                <div class="attr variable">
+            <span class="name">one_qubit_measurement_error_rate</span><span class="annotation">: Union[NoneType, float, <a href="#MeasurementErrorRate">MeasurementErrorRate</a>]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.one_qubit_measurement_error_rate"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.two_qubit_joint_measurement_error_rate" class="classattr">
+                                <div class="attr variable">
+            <span class="name">two_qubit_joint_measurement_error_rate</span><span class="annotation">: Union[NoneType, float, <a href="#MeasurementErrorRate">MeasurementErrorRate</a>]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.two_qubit_joint_measurement_error_rate"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.one_qubit_gate_error_rate" class="classattr">
+                                <div class="attr variable">
+            <span class="name">one_qubit_gate_error_rate</span><span class="annotation">: Optional[float]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.one_qubit_gate_error_rate"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.two_qubit_gate_error_rate" class="classattr">
+                                <div class="attr variable">
+            <span class="name">two_qubit_gate_error_rate</span><span class="annotation">: Optional[float]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.two_qubit_gate_error_rate"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.t_gate_error_rate" class="classattr">
+                                <div class="attr variable">
+            <span class="name">t_gate_error_rate</span><span class="annotation">: Optional[float]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.t_gate_error_rate"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.idle_error_rate" class="classattr">
+                                <div class="attr variable">
+            <span class="name">idle_error_rate</span><span class="annotation">: Optional[float]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.idle_error_rate"></a>
+    
+    
+
+                            </div>
+                            <div id="EstimatorQubitParams.post_validation" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">post_validation</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">result</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.post_validation"></a>
+    
+            <div class="docstring"><p>A function that is called after all individual fields have been
+validated, but before the result is returned.</p>
+
+<p>Here result is the current dictionary.</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorQubitParams.as_dict" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">as_dict</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">validate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span></span><span class="return-annotation">) -> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorQubitParams.as_dict"></a>
+    
+    
+
+                            </div>
+                </section>
                 <section id="EstimatorResult">
                     <div class="attr class">
             
@@ -3275,11 +4521,20 @@ QDK's derives from BaseException).</p>
     </div>
     <a class="headerlink" href="#EstimatorResult"></a>
     
-            <div class="docstring"><p>The QDK's <code><a href="#EstimatorResult">EstimatorResult</a></code>, its data: one estimate's result dict (as <code><a href="#azure_estimate">azure_estimate</a></code> gives it), or a
-batch's, indexed 0, 1, … by the items' results (a failed item holds the QDK's <code>code</code> and <code>message</code>, and
-its <code><a href="#EstimatorError">EstimatorError</a></code> in <code><a href="#EstimatorResult.error">error</a></code>; a list of one failed item raises it, as the QDK's does). A key a frontier estimate's result lacks is looked up in its first (shortest) entry, as the QDK's
-is. <code><a href="#EstimatorResult.summary">summary</a></code> is the QDK's summary table (and a batch's side-by-side table) as text; the HTML of
-<code>_repr_html_</code>, the diagrams and the plot are not ported.</p>
+            <div class="docstring"><p>The QDK's <code><a href="#EstimatorResult">EstimatorResult</a></code>: one estimate's result dict (as <code><a href="#azure_estimate">azure_estimate</a></code> gives it), or a batch's,
+indexed 0, 1, … by the items' results (a failed item holds the QDK's <code>code</code> and <code>message</code>, and its
+<code><a href="#EstimatorError">EstimatorError</a></code> in <code><a href="#EstimatorResult.error">error</a></code>; a list of one failed item raises it, as the QDK's does). A key a frontier
+estimate's result lacks is looked up in its first (shortest) entry, as the QDK's is.</p>
+
+<p>Its report is the QDK's: <code>_repr_html_()</code> draws the result's HTML table (a batch's overview: its first five
+items side by side; a failed result raises its error), <code><a href="#EstimatorResult.summary">summary</a></code> the summary table and <code>result[i:j]</code> a
+batch's items side by side, each as text (the string) and as HTML (<code>.content</code>, <code>_repr_html_()</code>), and
+<code>diagram.space</code> and <code>diagram.time</code> the QDK's diagrams; a batch has <code><a href="#EstimatorResult.plot">plot()</a></code> (matplotlib). As in the QDK,
+a failed result has no <code><a href="#EstimatorResult.summary">summary</a></code> or <code><a href="#EstimatorResult.diagram">diagram</a></code> and a single one no <code><a href="#EstimatorResult.plot">plot</a></code> (AttributeError; a failed <code><a href="#EstimatorResult.summary">summary</a></code>'s
+is also its EstimatorError, which 2.1 raised from it). The QDK's side-by-side table reads
+each path as it is, so a frontier item's counts there are "N/A". The tables are drawn when first asked for
+(the QDK draws them when the result is made: its prints, and a table it cannot draw, come then). And the
+charts of the QDK's notebook widgets, as SVG: <code><a href="#EstimatorResult.space_chart">space_chart</a></code> and <code><a href="#EstimatorResult.scatter_chart">scatter_chart</a></code>.</p>
 </div>
 
 
@@ -3351,8 +4606,78 @@ is. <code><a href="#EstimatorResult.summary">summary</a></code> is the QDK's sum
     </div>
     <a class="headerlink" href="#EstimatorResult.summary"></a>
     
-            <div class="docstring"><p>The summary table as text: each report group's entries as label, value and description; for a batch,
-the items side by side (the first five; slice the result, <code>result[:]</code>, for all).</p>
+            <div class="docstring"><p>The summary table: each report group's entries as label, value and description (in the HTML the
+explanations are tooltips); for a batch, its overview, the items side by side (the first five; slice the
+result, <code>result[:]</code>, for all). Text, with the QDK's HTML as <code>.content</code> and <code>_repr_html_()</code>. A failed
+result has none: it raises the QDK's AttributeError, which is also the estimate's EstimatorError (its code,
+reason and message), as 2.1 raised, so <code>hasattr</code> is False and <code>except EstimatorError</code> still catches it.</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.diagram" class="classattr">
+                                <div class="attr variable">
+            <span class="name">diagram</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.diagram"></a>
+    
+            <div class="docstring"><p>The QDK's space and time diagrams of a succeeded single result (<code>diagram.space</code>, <code>diagram.time</code>):
+HTML that loads the QDK's visualization script from its CDN.</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.plot" class="classattr">
+                                <div class="attr variable">
+            <span class="name">plot</span><span class="annotation">: Callable[..., NoneType]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.plot"></a>
+    
+            <div class="docstring"><p>A batch's plot (matplotlib needed): each item's physical qubits against its runtime, both logarithmic,
+the runtime ticks in units (<code>1 ns</code> to <code>1 century</code>); <code>labels</code> names the items in the legend. A single
+result has none (AttributeError, as the QDK's).</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.space_chart" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">space_chart</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">index</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.space_chart"></a>
+    
+            <div class="docstring"><p>The QDK's widget SpaceChart of a single result, as SVG (the string; in a notebook with its side table):
+the physical qubits of the algorithm against the T factories'. A frontier's entry <code>index</code> (its first by
+default, or out of range). A failed result raises its error.</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.scatter_chart" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">scatter_chart</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">colors</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">run_names</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.scatter_chart"></a>
+    
+            <div class="docstring"><p>The QDK's widget estimates overview's scatter chart, as SVG (the string; in a notebook under its table):
+physical qubits against runtime, both logarithmic, a frontier's entries joined by a line; for a batch,
+each succeeded item (the widget draws a batch only when all have succeeded), in the widget's colors or
+<code>colors</code>, named in the table by <code>run_names</code> or the widget's. As in the widget, <code>colors</code> and <code>run_names</code>
+give one entry per estimate, here per batch item, a failed one too (one for a single result), else they
+are ignored with the widget's warning; each item keeps its entry, and the color map's color, when a failed
+item's is dropped with it. A failed result raises its error.</p>
 </div>
 
 
@@ -4464,8 +5789,11 @@ QDK's <code><a href="#LogicalCounts">LogicalCounts</a></code> takes them: missin
             <div class="docstring"><p>The QDK's <code><a href="#LogicalCounts.estimate">LogicalCounts.estimate</a></code>: the estimate for a dict of job parameters (<code>qubitParams</code>,
 <code>qecScheme</code>, <code>errorBudget</code>, <code>constraints</code>, <code>distillationUnitSpecifications</code>, <code>estimateType</code>), or
 a batch for a list of them (an item that fails holds the QDK's <code>code</code> and <code>message</code>; a single estimate
-that fails raises the QDK's <code><a href="#EstimatorError">EstimatorError</a></code>, parameters it cannot read its <code><a href="#QSharpError">QSharpError</a></code>). The
-<code>EstimatorParams</code> here and the QDK's own are taken too, through their <code>as_dict</code>.</p>
+that fails raises the QDK's <code><a href="#EstimatorError">EstimatorError</a></code>, parameters it cannot read its <code><a href="#QSharpError">QSharpError</a></code>). An
+<code><a href="#EstimatorParams">EstimatorParams</a></code>, the port's or the QDK's, is taken as the QDK takes it: a batch's items, each with the
+top level's sections it lacks (<code>as_dict()["items"]</code>), else its one dict. Any other object with an
+<code>as_dict</code> (an <code><a href="#EstimatorInputParamsItem">EstimatorInputParamsItem</a></code>, the port's or the QDK's, among them) is taken as its one
+dict, as 2.1 takes it, where the QDK's JSON encoding refuses it with a TypeError.</p>
 </div>
 
 
@@ -4932,6 +6260,73 @@ error it leaves in them. Abstract, as Qualtran's.</p>
     
     
 
+                            </div>
+                </section>
+                <section id="MeasurementErrorRate">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass</div>
+
+    <span class="def">class</span>
+    <span class="name">MeasurementErrorRate</span><wbr>(<span class="base"><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#MeasurementErrorRate"></a>
+    
+            <div class="docstring"><p>Measurement error rate specified separately for process and readout errors.</p>
+
+<p>Used as the value of <code>one_qubit_measurement_error_rate</code> or
+<code>two_qubit_joint_measurement_error_rate</code> in :class:<code><a href="#EstimatorQubitParams">EstimatorQubitParams</a></code>
+when process and readout error rates differ.</p>
+
+<p>:param process: Error rate during the measurement process. Must be in <code>(0, 1)</code>.
+:param readout: Error rate during readout. Must be in <code>(0, 1)</code>.</p>
+</div>
+
+
+                            <div id="MeasurementErrorRate.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">MeasurementErrorRate</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">process</span><span class="p">:</span> <span class="nb">float</span>, </span><span class="param"><span class="n">readout</span><span class="p">:</span> <span class="nb">float</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#MeasurementErrorRate.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="MeasurementErrorRate.process" class="classattr">
+                                <div class="attr variable">
+            <span class="name">process</span><span class="annotation">: float</span>
+
+        
+    </div>
+    <a class="headerlink" href="#MeasurementErrorRate.process"></a>
+    
+    
+
+                            </div>
+                            <div id="MeasurementErrorRate.readout" class="classattr">
+                                <div class="attr variable">
+            <span class="name">readout</span><span class="annotation">: float</span>
+
+        
+    </div>
+    <a class="headerlink" href="#MeasurementErrorRate.readout"></a>
+    
+    
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></dt>
+                                <dd id="MeasurementErrorRate.as_dict" class="function"><a href="estimate/azure_params.html#AutoValidatingParams.as_dict">as_dict</a></dd>
+                <dd id="MeasurementErrorRate.post_validation" class="function"><a href="estimate/azure_params.html#AutoValidatingParams.post_validation">post_validation</a></dd>
+
+            </div>
+                                </dl>
                             </div>
                 </section>
                 <section id="MultiFactory">
@@ -5557,6 +6952,88 @@ of the factory's and the data block's over those cycles.</p>
 
                             </div>
                 </section>
+                <section id="ProtocolSpecificDistillationUnitSpecification">
+                    <div class="attr class">
+                    <div class="decorator decorator-dataclass">@dataclass</div>
+
+    <span class="def">class</span>
+    <span class="name">ProtocolSpecificDistillationUnitSpecification</span><wbr>(<span class="base"><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></span>):
+
+        
+    </div>
+    <a class="headerlink" href="#ProtocolSpecificDistillationUnitSpecification"></a>
+    
+            <div class="docstring"><p>Protocol-specific specification for a magic-state distillation unit.</p>
+
+<p>Defines the number of physical qubits and the duration (in logical cycle
+time units) for one round of distillation under a specific QEC code.</p>
+</div>
+
+
+                            <div id="ProtocolSpecificDistillationUnitSpecification.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">ProtocolSpecificDistillationUnitSpecification</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">num_unit_qubits</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">duration_in_qubit_cycle_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ProtocolSpecificDistillationUnitSpecification.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="ProtocolSpecificDistillationUnitSpecification.num_unit_qubits" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_unit_qubits</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ProtocolSpecificDistillationUnitSpecification.num_unit_qubits"></a>
+    
+    
+
+                            </div>
+                            <div id="ProtocolSpecificDistillationUnitSpecification.duration_in_qubit_cycle_time" class="classattr">
+                                <div class="attr variable">
+            <span class="name">duration_in_qubit_cycle_time</span><span class="annotation">: Optional[int]</span>        =
+<span class="default_value">None</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ProtocolSpecificDistillationUnitSpecification.duration_in_qubit_cycle_time"></a>
+    
+    
+
+                            </div>
+                            <div id="ProtocolSpecificDistillationUnitSpecification.post_validation" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">post_validation</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">result</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ProtocolSpecificDistillationUnitSpecification.post_validation"></a>
+    
+            <div class="docstring"><p>A function that is called after all individual fields have been
+validated, but before the result is returned.</p>
+
+<p>Here result is the current dictionary.</p>
+</div>
+
+
+                            </div>
+                            <div class="inherited">
+                                <h5>Inherited Members</h5>
+                                <dl>
+                                    <div><dt><a href="estimate/azure_params.html#AutoValidatingParams">stabilizer_qec.estimate.azure_params.AutoValidatingParams</a></dt>
+                                <dd id="ProtocolSpecificDistillationUnitSpecification.as_dict" class="function"><a href="estimate/azure_params.html#AutoValidatingParams.as_dict">as_dict</a></dd>
+
+            </div>
+                                </dl>
+                            </div>
+                </section>
                 <section id="QECScheme">
                     <div class="attr class">
                     <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
@@ -5690,6 +7167,12 @@ error <code>p</code>: <code><a href="#QECScheme.error_rate_scaler">error_rate_sc
             <div class="docstring"><p>The QDK's <code><a href="#QSharpError">QSharpError</a></code> as its <code><a href="#LogicalCounts.estimate">LogicalCounts.estimate</a></code> raises it when the logical counts or the job
 parameters do not read: <code>cannot parse JSON: '&lt;serde's reason&gt; at line 1 column &lt;n&gt;'</code>, the column counted
 in the JSON text the QDK's Python sends (<code>json.dumps</code> of the counts, of the list of items).</p>
+
+<p>A ValueError here, as in 2.1, where the QDK's (<code>qdk.qsharp.QSharpError</code>, made in its native module) derives
+from Exception alone (its type stub says BaseException; the class it raises derives from Exception): this
+package promises that bad input raises a ValueError or a TypeError. Code that catches it by name or with
+<code>except Exception</code>, as with the QDK, works the same; the one difference is that <code>issubclass(QSharpError,
+ValueError)</code> is true here, so <code>except ValueError</code> catches it too.</p>
 </div>
 
 
@@ -5706,6 +7189,96 @@ in the JSON text the QDK's Python sends (<code>json.dumps</code> of the counts, 
     
     
 
+                </section>
+                <section id="QubitParams">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">QubitParams</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#QubitParams"></a>
+    
+            <div class="docstring"><p>Predefined qubit model name constants for use with :class:<code><a href="#EstimatorQubitParams">EstimatorQubitParams</a></code>.</p>
+
+<p>Pass one of these string constants as the <code>name</code> field to select a built-in
+qubit model for resource estimation.</p>
+</div>
+
+
+                            <div id="QubitParams.GATE_US_E3" class="classattr">
+                                <div class="attr variable">
+            <span class="name">GATE_US_E3</span>        =
+<span class="default_value">&#39;qubit_gate_us_e3&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#QubitParams.GATE_US_E3"></a>
+    
+    
+
+                            </div>
+                            <div id="QubitParams.GATE_US_E4" class="classattr">
+                                <div class="attr variable">
+            <span class="name">GATE_US_E4</span>        =
+<span class="default_value">&#39;qubit_gate_us_e4&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#QubitParams.GATE_US_E4"></a>
+    
+    
+
+                            </div>
+                            <div id="QubitParams.GATE_NS_E3" class="classattr">
+                                <div class="attr variable">
+            <span class="name">GATE_NS_E3</span>        =
+<span class="default_value">&#39;qubit_gate_ns_e3&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#QubitParams.GATE_NS_E3"></a>
+    
+    
+
+                            </div>
+                            <div id="QubitParams.GATE_NS_E4" class="classattr">
+                                <div class="attr variable">
+            <span class="name">GATE_NS_E4</span>        =
+<span class="default_value">&#39;qubit_gate_ns_e4&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#QubitParams.GATE_NS_E4"></a>
+    
+    
+
+                            </div>
+                            <div id="QubitParams.MAJ_NS_E4" class="classattr">
+                                <div class="attr variable">
+            <span class="name">MAJ_NS_E4</span>        =
+<span class="default_value">&#39;qubit_maj_ns_e4&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#QubitParams.MAJ_NS_E4"></a>
+    
+    
+
+                            </div>
+                            <div id="QubitParams.MAJ_NS_E6" class="classattr">
+                                <div class="attr variable">
+            <span class="name">MAJ_NS_E6</span>        =
+<span class="default_value">&#39;qubit_maj_ns_e6&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#QubitParams.MAJ_NS_E6"></a>
+    
+    
+
+                            </div>
                 </section>
                 <section id="RotationCostModel">
                     <div class="attr class">
@@ -6572,7 +8145,7 @@ summary is read as this module's).</p>
     
             <div class="docstring"><p>A qubit model from a preset name (<code><a href="#QUBIT_NAMES">QUBIT_NAMES</a></code>), a QDK <code>qubitParams</code> dict (camelCase keys, times as
 strings with units or, beyond the QDK, ints in ns, Majorana measurement errors as numbers or
-<code>{process, readout}</code>), a QDK <code>EstimatorQubitParams</code>, or a model object; normalized. A dict the QDK
+<code>{process, readout}</code>), a QDK <code><a href="#EstimatorQubitParams">EstimatorQubitParams</a></code>, or a model object; normalized. A dict the QDK
 refuses raises its <code><a href="#QSharpError">QSharpError</a></code> (<code>cannot parse JSON: 'missing fields `oneQubitGateTime`'</code>).</p>
 </div>
 
@@ -6590,7 +8163,7 @@ refuses raises its <code><a href="#QSharpError">QSharpError</a></code> (<code>ca
     
             <div class="docstring"><p>A scheme from a name (<code>surface_code</code>, <code>floquet_code</code>; the surface code picks its gate-based or
 measurement-based variant from the qubit), a QDK <code>qecScheme</code> dict (a name with overrides, or a full custom
-scheme, whose name may be absent), a QDK <code>EstimatorQecScheme</code>, or a <code><a href="#QECScheme">QECScheme</a></code>; checked against the qubit
+scheme, whose name may be absent), a QDK <code><a href="#EstimatorQecScheme">EstimatorQecScheme</a></code>, or a <code><a href="#QECScheme">QECScheme</a></code>; checked against the qubit
 as the QDK checks it, its errors the QDK's (<code><a href="#EstimatorError">EstimatorError</a></code>, <code><a href="#QSharpError">QSharpError</a></code> for a dict it cannot read).</p>
 </div>
 

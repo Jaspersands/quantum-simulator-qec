@@ -224,6 +224,12 @@
                                 <a class="variable" href="#QECScheme.max_code_distance">max_code_distance</a>
                         </li>
                         <li>
+                                <a class="variable" href="#QECScheme.SURFACE_CODE">SURFACE_CODE</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#QECScheme.FLOQUET_CODE">FLOQUET_CODE</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#QECScheme.surface_code_gate_based">surface_code_gate_based</a>
                         </li>
                         <li>
@@ -890,6 +896,18 @@
                                 <a class="variable" href="#EstimatorResult.summary">summary</a>
                         </li>
                         <li>
+                                <a class="variable" href="#EstimatorResult.diagram">diagram</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#EstimatorResult.plot">plot</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorResult.space_chart">space_chart</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#EstimatorResult.scatter_chart">scatter_chart</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#EstimatorResult.summary_data_frame">summary_data_frame</a>
                         </li>
                 </ul>
@@ -898,7 +916,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.1.0</footer>
+            <footer>stabilizer-qec 2.2.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -1039,8 +1057,13 @@ reaches the QDK through its JSON round trip, which keeps 15 significant digits e
             <div class="docstring"><p>The QDK's <code><a href="#EstimatorError">EstimatorError</a></code>: an estimate the QDK refuses, with its <code>code</code> (<code>Qdk.Qsc.Estimates.</code> and the
 error's name, as <code>Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget</code>) and its <code><a href="#EstimatorError.message">message</a></code>, <code>Error
 estimating resources (&lt;code&gt;):</code> with the QDK's reason on the next line, which is also the error's string.
-<code>reason</code> is the reason alone, what a batch's failed item holds as its <code><a href="#EstimatorError.message">message</a></code>. A ValueError here (the
-QDK's derives from BaseException).</p>
+<code>reason</code> is the reason alone, what a batch's failed item holds as its <code><a href="#EstimatorError.message">message</a></code>. Its <code><a href="#EstimatorError.args">args</a></code> are its code
+and reason, and its repr <code>EstimatorError('&lt;code&gt;', '&lt;reason&gt;')</code>, as the QDK's are.</p>
+
+<p>A ValueError here, as in 2.1, where the QDK's derives from BaseException alone: this package promises that
+bad input raises a ValueError or a TypeError. Code that catches it by name, as with the QDK, works the same;
+the one difference is that <code>issubclass(EstimatorError, Exception)</code> (and <code>ValueError</code>) is true here, so
+<code>except Exception</code> and <code>except ValueError</code> catch it too.</p>
 </div>
 
 
@@ -1097,6 +1120,12 @@ QDK's derives from BaseException).</p>
             <div class="docstring"><p>The QDK's <code><a href="#QSharpError">QSharpError</a></code> as its <code><a href="#LogicalCounts.estimate">LogicalCounts.estimate</a></code> raises it when the logical counts or the job
 parameters do not read: <code>cannot parse JSON: '&lt;serde's reason&gt; at line 1 column &lt;n&gt;'</code>, the column counted
 in the JSON text the QDK's Python sends (<code>json.dumps</code> of the counts, of the list of items).</p>
+
+<p>A ValueError here, as in 2.1, where the QDK's (<code>qdk.qsharp.QSharpError</code>, made in its native module) derives
+from Exception alone (its type stub says BaseException; the class it raises derives from Exception): this
+package promises that bad input raises a ValueError or a TypeError. Code that catches it by name or with
+<code>except Exception</code>, as with the QDK, works the same; the one difference is that <code>issubclass(QSharpError,
+ValueError)</code> is true here, so <code>except ValueError</code> catches it too.</p>
 </div>
 
 
@@ -1727,6 +1756,30 @@ a qubit-count formula in the code distance.</p>
     
 
                             </div>
+                            <div id="QECScheme.SURFACE_CODE" class="classattr">
+                                <div class="attr variable">
+            <span class="name">SURFACE_CODE</span>        =
+<span class="default_value">&#39;surface_code&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#QECScheme.SURFACE_CODE"></a>
+    
+    
+
+                            </div>
+                            <div id="QECScheme.FLOQUET_CODE" class="classattr">
+                                <div class="attr variable">
+            <span class="name">FLOQUET_CODE</span>        =
+<span class="default_value">&#39;floquet_code&#39;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#QECScheme.FLOQUET_CODE"></a>
+    
+    
+
+                            </div>
                             <div id="QECScheme.surface_code_gate_based" class="classattr">
                                 <div class="attr function">
                     <div class="decorator decorator-staticmethod">@staticmethod</div>
@@ -2308,8 +2361,11 @@ QDK's <code><a href="#LogicalCounts">LogicalCounts</a></code> takes them: missin
             <div class="docstring"><p>The QDK's <code><a href="#LogicalCounts.estimate">LogicalCounts.estimate</a></code>: the estimate for a dict of job parameters (<code>qubitParams</code>,
 <code>qecScheme</code>, <code>errorBudget</code>, <code>constraints</code>, <code>distillationUnitSpecifications</code>, <code>estimateType</code>), or
 a batch for a list of them (an item that fails holds the QDK's <code>code</code> and <code>message</code>; a single estimate
-that fails raises the QDK's <code><a href="#EstimatorError">EstimatorError</a></code>, parameters it cannot read its <code><a href="#QSharpError">QSharpError</a></code>). The
-<code>EstimatorParams</code> here and the QDK's own are taken too, through their <code>as_dict</code>.</p>
+that fails raises the QDK's <code><a href="#EstimatorError">EstimatorError</a></code>, parameters it cannot read its <code><a href="#QSharpError">QSharpError</a></code>). An
+<code>EstimatorParams</code>, the port's or the QDK's, is taken as the QDK takes it: a batch's items, each with the
+top level's sections it lacks (<code>as_dict()["items"]</code>), else its one dict. Any other object with an
+<code>as_dict</code> (an <code>EstimatorInputParamsItem</code>, the port's or the QDK's, among them) is taken as its one
+dict, as 2.1 takes it, where the QDK's JSON encoding refuses it with a TypeError.</p>
 </div>
 
 
@@ -4375,11 +4431,20 @@ read its <code><a href="#QSharpError">QSharpError</a></code>, each with the QDK'
     </div>
     <a class="headerlink" href="#EstimatorResult"></a>
     
-            <div class="docstring"><p>The QDK's <code><a href="#EstimatorResult">EstimatorResult</a></code>, its data: one estimate's result dict (as <code><a href="#azure_estimate">azure_estimate</a></code> gives it), or a
-batch's, indexed 0, 1, … by the items' results (a failed item holds the QDK's <code>code</code> and <code>message</code>, and
-its <code><a href="#EstimatorError">EstimatorError</a></code> in <code><a href="#EstimatorResult.error">error</a></code>; a list of one failed item raises it, as the QDK's does). A key a frontier estimate's result lacks is looked up in its first (shortest) entry, as the QDK's
-is. <code><a href="#EstimatorResult.summary">summary</a></code> is the QDK's summary table (and a batch's side-by-side table) as text; the HTML of
-<code>_repr_html_</code>, the diagrams and the plot are not ported.</p>
+            <div class="docstring"><p>The QDK's <code><a href="#EstimatorResult">EstimatorResult</a></code>: one estimate's result dict (as <code><a href="#azure_estimate">azure_estimate</a></code> gives it), or a batch's,
+indexed 0, 1, … by the items' results (a failed item holds the QDK's <code>code</code> and <code>message</code>, and its
+<code><a href="#EstimatorError">EstimatorError</a></code> in <code><a href="#EstimatorResult.error">error</a></code>; a list of one failed item raises it, as the QDK's does). A key a frontier
+estimate's result lacks is looked up in its first (shortest) entry, as the QDK's is.</p>
+
+<p>Its report is the QDK's: <code>_repr_html_()</code> draws the result's HTML table (a batch's overview: its first five
+items side by side; a failed result raises its error), <code><a href="#EstimatorResult.summary">summary</a></code> the summary table and <code>result[i:j]</code> a
+batch's items side by side, each as text (the string) and as HTML (<code>.content</code>, <code>_repr_html_()</code>), and
+<code>diagram.space</code> and <code>diagram.time</code> the QDK's diagrams; a batch has <code><a href="#EstimatorResult.plot">plot()</a></code> (matplotlib). As in the QDK,
+a failed result has no <code><a href="#EstimatorResult.summary">summary</a></code> or <code><a href="#EstimatorResult.diagram">diagram</a></code> and a single one no <code><a href="#EstimatorResult.plot">plot</a></code> (AttributeError; a failed <code><a href="#EstimatorResult.summary">summary</a></code>'s
+is also its EstimatorError, which 2.1 raised from it). The QDK's side-by-side table reads
+each path as it is, so a frontier item's counts there are "N/A". The tables are drawn when first asked for
+(the QDK draws them when the result is made: its prints, and a table it cannot draw, come then). And the
+charts of the QDK's notebook widgets, as SVG: <code><a href="#EstimatorResult.space_chart">space_chart</a></code> and <code><a href="#EstimatorResult.scatter_chart">scatter_chart</a></code>.</p>
 </div>
 
 
@@ -4451,8 +4516,78 @@ is. <code><a href="#EstimatorResult.summary">summary</a></code> is the QDK's sum
     </div>
     <a class="headerlink" href="#EstimatorResult.summary"></a>
     
-            <div class="docstring"><p>The summary table as text: each report group's entries as label, value and description; for a batch,
-the items side by side (the first five; slice the result, <code>result[:]</code>, for all).</p>
+            <div class="docstring"><p>The summary table: each report group's entries as label, value and description (in the HTML the
+explanations are tooltips); for a batch, its overview, the items side by side (the first five; slice the
+result, <code>result[:]</code>, for all). Text, with the QDK's HTML as <code>.content</code> and <code>_repr_html_()</code>. A failed
+result has none: it raises the QDK's AttributeError, which is also the estimate's EstimatorError (its code,
+reason and message), as 2.1 raised, so <code>hasattr</code> is False and <code>except EstimatorError</code> still catches it.</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.diagram" class="classattr">
+                                <div class="attr variable">
+            <span class="name">diagram</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.diagram"></a>
+    
+            <div class="docstring"><p>The QDK's space and time diagrams of a succeeded single result (<code>diagram.space</code>, <code>diagram.time</code>):
+HTML that loads the QDK's visualization script from its CDN.</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.plot" class="classattr">
+                                <div class="attr variable">
+            <span class="name">plot</span><span class="annotation">: Callable[..., NoneType]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.plot"></a>
+    
+            <div class="docstring"><p>A batch's plot (matplotlib needed): each item's physical qubits against its runtime, both logarithmic,
+the runtime ticks in units (<code>1 ns</code> to <code>1 century</code>); <code>labels</code> names the items in the legend. A single
+result has none (AttributeError, as the QDK's).</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.space_chart" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">space_chart</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">index</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.space_chart"></a>
+    
+            <div class="docstring"><p>The QDK's widget SpaceChart of a single result, as SVG (the string; in a notebook with its side table):
+the physical qubits of the algorithm against the T factories'. A frontier's entry <code>index</code> (its first by
+default, or out of range). A failed result raises its error.</p>
+</div>
+
+
+                            </div>
+                            <div id="EstimatorResult.scatter_chart" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">scatter_chart</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">colors</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">run_names</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">):</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#EstimatorResult.scatter_chart"></a>
+    
+            <div class="docstring"><p>The QDK's widget estimates overview's scatter chart, as SVG (the string; in a notebook under its table):
+physical qubits against runtime, both logarithmic, a frontier's entries joined by a line; for a batch,
+each succeeded item (the widget draws a batch only when all have succeeded), in the widget's colors or
+<code>colors</code>, named in the table by <code>run_names</code> or the widget's. As in the widget, <code>colors</code> and <code>run_names</code>
+give one entry per estimate, here per batch item, a failed one too (one for a single result), else they
+are ignored with the widget's warning; each item keeps its entry, and the color map's color, when a failed
+item's is dropped with it. A failed result raises its error.</p>
 </div>
 
 

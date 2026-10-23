@@ -31,6 +31,7 @@
             <h2>Submodules</h2>
             <ul>
                     <li><a href="tsim/sampler.html">sampler</a></li>
+                    <li><a href="tsim/zx.html">zx</a></li>
             </ul>
 
             <h2>API Documentation</h2>
@@ -79,6 +80,15 @@
                         </li>
                         <li>
                                 <a class="function" href="#Circuit.to_tensor">to_tensor</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.tcount">tcount</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.get_graph">get_graph</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#Circuit.get_sampling_graph">get_sampling_graph</a>
                         </li>
                         <li>
                                 <a class="function" href="#Circuit.diagram">diagram</a>
@@ -218,7 +228,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.1.0</footer>
+            <footer>stabilizer-qec 2.2.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -246,9 +256,25 @@ its text; <code>str()</code> and <code>repr()</code> are Tsim's shorthand; <code
 Tsim's methods return is a <code>tsim.Circuit</code> (<code>copy</code>, slices, <code>*</code>, <code>flattened</code>,
 <code>without_noise</code>, <code>inverse</code>, ...), and <code>stim_circuit</code> a plain <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code>.
 <code>tcount</code>, <code>is_clifford</code> and <code>inverse</code> are Tsim's; <code>to_matrix</code> is Tsim's map on the
-qubits the circuit names, a state column when every qubit is reset first; <code>diagram</code> defaults
-to the timeline SVG, its tagged gates labelled, with Tsim's <code>height</code>, <code>width</code> and
-<code>zoomable</code> for the notebook view (the pyzx ZX-graph diagrams are not drawn).</li>
+qubits the circuit names, a state column when every qubit is reset first, and, of a circuit
+with measurements, detectors or observables (one that XORs no measurement is a factor of 2),
+resets after a qubit's first operation, feedback, noise on a qubit before its reset or a
+product rotation naming a qubit twice, Tsim's ZX tensor with every measurement outcome and
+error bit read as 0 (a circuit with Pauli products or sweep bits has its ZX graph built first,
+so its errors are Tsim's);
+<code>diagram</code> defaults to the timeline SVG, its tagged gates labelled, with Tsim's <code>height</code>,
+<code>width</code> and <code>zoomable</code> for the notebook view, and draws the ZX graph for <code>"pyzx"</code>,
+<code>"pyzx-dets"</code> and <code>"pyzx-meas"</code>.</li>
+<li><code><a href="#Circuit.get_graph">Circuit.get_graph</a></code> and <code><a href="#Circuit.get_sampling_graph">Circuit.get_sampling_graph</a></code> (<code><a href="tsim/zx.html">stabilizer_qec.tsim.zx</a></code>): Tsim's
+ZX graphs, equal to Tsim's vertex for vertex (numbers, types, phases as Fractions, phase
+variables, positions, edges, scalar). They are pyzx_param's <code>GraphS</code> when pyzx_param imports,
+else this package's <code>ZXGraph</code> (<code>backend="own"</code> or <code>"pyzx_param"</code> chooses;
+<code>ZXGraph.to_pyzx()</code> gives a pyzx graph). <code>zx.tensorfy</code> contracts a graph in numpy. Choosing
+the default backend (and <code>zx.pyzx_param_available()</code>) imports pyzx_param when it is installed,
+and importing pyzx_param calls <code>numpy.set_printoptions(suppress=True)</code> for the whole process, as
+importing Tsim does; <code>backend="own"</code> imports nothing. A record entry from before the circuit's
+first measurement (<code>M 0</code> then <code>DETECTOR rec[-2]</code>) raises <code>zx.parse.MeasurementRecordError</code>,
+an <code>IndexError</code> as Tsim's is and a <code>ValueError</code> that names the instruction.</li>
 <li><code><a href="#CompiledDetectorSampler">CompiledDetectorSampler</a></code> (<code><a href="#Circuit.compile_detector_sampler">Circuit.compile_detector_sampler</a></code>): Tsim's convention, each
 detector's and observable's <em>value</em>, the parity of its measurements (<code>X 0</code>, <code>M 0</code>,
 <code>DETECTOR rec[-1]</code> reads True), not Stim's flip from a reference run;
@@ -280,19 +306,79 @@ radians of exp(−iθP)).</li>
 <ul>
 <li>Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
 JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.</li>
-<li><code>R_PAULI(0.25)</code> and <code>R_XX(0.25)</code> (any ±π/8 product rotation) print as <code>TPP</code> or
-<code>TPP_DAG</code>, the same gate; an angle appended as an int prints as a float (<code>R_Z(1.0)</code>,
-Tsim <code>R_Z(1)</code>); a tag on an appended <code>T</code>, <code>T_DAG</code>, <code>TPP</code> or <code>TPP_DAG</code> is not kept.</li>
+<li>An angle appended as an int prints as a float (<code>R_Z(1.0)</code>, Tsim <code>R_Z(1)</code>); a tag on an
+appended <code>T</code>, <code>T_DAG</code>, <code>TPP</code> or <code>TPP_DAG</code> is not kept, nor the spacing inside a tagged
+rotation's (<code>SPP[R_PAULI( theta=0.3*pi )]</code> is quoted <code>SPP[R_PAULI(theta=0.3*pi)]</code>); the angle
+literals of a <code>stim.Circuit</code> are read as floats, as Tsim reads its program text (Tsim's
+<code>from_stim_program</code> keeps the stim circuit's <code>0.30000000000000001*pi</code>, the phase
+30000000000000001/10^17, where this is 3/10). Text that does not parse raises this package's
+<code>ValueError</code> naming the line (<code>SPP: bad Pauli product '2'</code> for <code>R_ZZ(0.25) 0 1 2 3</code>, Stim's
+"Gate SPP only takes Pauli targets").</li>
+<li>A product rotation is held one product a line, <code>I[R_PAULI(theta=t, pauli=XY)] 0 1</code> in radians,
+and the rest of Tsim's instruction is kept in how that is written: a factor's letter is lower
+case where it has a <code>!</code> (<code>SPP[T] !X0*Y1</code> is <code>pauli=xY</code>), the <code>SPP_DAG</code> of a rotation has
+its arguments in the other order (<code>SPP_DAG[R_PAULI(theta=0.3*pi)] X0</code> is
+<code>I[R_PAULI(pauli=X, theta=-0.47123889803846897)] 0</code>), and <code>R_PAULI(±0.25)</code> is ±π/8 with
+further digits (<code>0.392699081698724139</code>; <code>TPP</code>'s is <code>0.39269908169872414</code>). That is the text
+<code>circuit[i]</code>, <code>stim_circuit</code>, <code>to_file</code> and this package's own errors show. Read back, the
+instruction is Tsim's: it prints as Tsim's (<code>SPP_DAG[R_PAULI(theta=0.3*pi)] X0</code>,
+<code>TPP !X0</code>), and it fuses with its neighbours, counts towards <code>R_PAULI</code>'s 64 qubits and is
+quoted in errors as in Tsim. Text in this form is read as the core reads it: <code>_</code> and <code>I</code> are
+identity letters (<code>I[R_PAULI(theta=0.1, pauli=X_Z)] 0 1 2</code> is Tsim's <code>R_PAULI(...) X0*Z2</code>),
+spaces and empty arguments in a tag are skipped (but a pair rotation's empty first argument,
+its <code>SPP_DAG</code>, below), <code>I[T()]</code> is <code>I[T]</code>, <code>R_PAULI</code> on <code>II</code> is
+the product rotation it is on <code>I</code> (<code>II[R_PAULI(theta=0.1, pauli=XZ)] 0 1</code> is Tsim's
+<code>R_PAULI(...) X0*Z1</code>, its inverse that of the <code>I</code> form on <code>II</code>), and on <code>I_ERROR</code> or
+<code>II_ERROR</code> it is a coherent error, no gate. A product rotation whose letters are all identities
+(<code>pauli=__</code>) is no operation and is left out of the print, as the core, the graph and the model
+read it (Tsim would read <code>II[R_PAULI(...)] 1 2</code> as a plain <code>II</code> naming qubits 1 and 2). So the
+print, read back by Tsim or by <code>tsim.Circuit</code>, has that instruction fewer, and its <code>num_qubits</code>
+is that of the qubits it names, without one only the product names (<code>H 0</code> then
+<code>II[R_PAULI(theta=0.1, pauli=__)] 1 2</code> has <code>len</code> 2 and <code>num_qubits</code> 3, its print <code>H 0</code> 1
+and 1), as it is without one only an identity letter names (<code>I[R_PAULI(theta=0.1, pauli=X_)] 0 1</code>
+prints <code>R_PAULI(...) X0</code>, <code>num_qubits</code> 1, not 2): the print and <code>repr</code> of such a circuit do
+not give it back under <code>==</code>, though what they give has its graph, <code>tcount</code>, matrix, model and
+inverse. A pair
+rotation <code>II[R_ZZ(theta=t)] 0 1 2 3</code> (<code>R_XX</code>, <code>R_YY</code>) is Tsim's <code>R_ZZ(a) 0 1</code> and
+<code>R_ZZ(a) 2 3</code>; its <code>SPP_DAG</code> is written with an empty argument first,
+<code>II[R_ZZ(, theta=-t)] 3 2 1 0</code>, as a product rotation's has its arguments in the other order,
+and prints as Tsim's <code>SPP_DAG[R_PAULI(theta=a*pi)] Z3*Z2 Z1*Z0</code>: so the inverse of a pair
+rotation, or of a product rotation on <code>II</code>, is one instruction, as Tsim's, and its inverse the
+circuit again.</li>
 <li>Two product rotations with the same angle in a row stay two lines (Tsim's Stim text fuses
-them into one, which its shorthand misprints).</li>
-<li><code>to_matrix</code> of a circuit with a measurement or a reset after a qubit's first operation
-raises <code>ValueError</code> (Tsim gives its ZX tensor, not a map of states).</li>
+them into one, which its shorthand misprints), as do a pair rotation's <code>TPP</code>s on several pairs
+(<code>TPP_DAG X0*X1</code> then <code>TPP_DAG X2*X3</code>, the inverse <code>TPP X3*X2</code> then <code>TPP X1*X0</code>, where
+Tsim prints <code>TPP X3*X2 X1*X0</code>), and a product naming one qubit twice prints as
+<code>R_PAULI(0.3) X0*X0</code> (Tsim's shorthand <code>R_XX(0.3) 0 0</code> does not read back). They are one
+instruction to the ZX graph, as in Tsim, so <code>R_PAULI</code>'s limit of 64 qubits is counted over
+them (33 <code>R_ZZ(0.3)</code> lines in a row are Tsim's error, "got 66").</li>
+<li><code>tcount</code> is the graph's, as Tsim's: a coherent error (<code>I_ERROR[R_Z(...)]</code>) is not a gate
+(<code><a href="../stabilizer_qec.html#Circuit.tcount">stabilizer_qec.Circuit.tcount</a></code> counts its phase).</li>
+<li>An angle is kept as it was written, as Tsim keeps it (the radians this package stores carry
+the digits that give the literal back), so <code>R_Z(0.3)</code> is the phase 3/10 of Tsim's graph and
+<code>R_PAULI(0.25)</code> is Tsim's <code>R_PAULI</code>, not <code>TPP</code>: its graph has the scalar phase -1/8 (+1/8
+for -0.25) that <code>TPP</code>'s has not, and its errors are <code>R_PAULI</code>'s. An angle whose radians are
+past a float's range (from about 5.7e307 half-turns) is refused; Tsim takes it.</li>
+<li><code>diagram("pyzx")</code> needs pyzx or pyzx_param to draw; <code>"pyzx-dets"</code> and <code>"pyzx-meas"</code> need
+pyzx_param (their graphs are reduced by its <code>full_reduce</code>). <code>to_matrix</code> is at most 2^22
+entries and, through the ZX tensor (a circuit with measurements, detectors or observables, ...),
+its spiders at most 24 legs and the tensors of its contraction at most 2^26 entries (1 GiB of
+complex128, which numpy's <code>tensordot</code> copies). A
+chain of more than 24 correlated errors builds, its graph and matrix Tsim's, but its 2^k
+probabilities (Tsim's <code>channel_probs</code> entry, an array) are kept as the chain
+(<code>zx.instructions.CorrelatedChainProbs</code>): an entry each, and <code>ValueError</code> read as an array.</li>
 <li><code>circuit[i]</code> is this package's instruction (<code>I[T] 0</code>), not a <code>stim.CircuitInstruction</code>
 in Tsim's tagged form (<code>S[T] 0</code>).</li>
+<li><code>to_matrix</code> of a circuit with an instruction Tsim's graph builders cannot read (a tag the core
+leaves inert, <code>I[foo(x)] 0</code>, which <code>get_graph</code> refuses as Tsim does) is the unitary engine's
+matrix, where Tsim's <code>to_matrix</code> raises that error (and a refusal of a Pauli product after
+that instruction is not raised either), unless a product rotation names a qubit twice
+(<code>TPP X0*Y0*X0</code>, whose sign the engine does not keep): then it raises that error, as Tsim's.
+Where a product leaves a qubit out of Tsim's graph (an identity letter's, <code>pauli=X_</code>, or one
+<code>SPP X0*X0</code> cancels on), that matrix is Tsim's of the circuit without the instruction up to
+a global phase, as the engine's: its qubits are those Tsim's graph of that circuit has lanes
+for, as every <code>to_matrix</code> is.</li>
 </ul>
-
-<p>Not ported: Tsim's ZX graphs (<code>get_graph</code>, <code>get_sampling_graph</code>, the <code>pyzx</code> diagram
-types), which need pyzx.</p>
 </div>
 
                 
@@ -612,15 +698,43 @@ reference run, which <code>use_detector_reference_sample</code> and
     <a class="headerlink" href="#Circuit.to_matrix"></a>
     
             <div class="docstring"><p>Convert circuit to matrix representation, as Tsim's <code><a href="#Circuit.to_matrix">to_matrix</a></code>: the map the
-circuit's gates apply to the qubits it names (a qubit no instruction names is dropped,
-so <code>R_ZZ(0.5) 0 2</code> is 4 × 4), qubit 0 the most significant bit of an index
+circuit's gates apply to the qubits Tsim's ZX graph has a lane for, those its instructions
+name, noise, identities and coordinates among them (a qubit no instruction names is dropped,
+so <code>R_ZZ(0.5) 0 2</code> is 4 × 4, and so is one that only a product that cancels on it names,
+<code>TPP Z0*Z0</code> being [[1]] as in Tsim and <code>SPP X0*Z1*Z1</code> 2 × 2, or only a product
+rotation's identity letter, <code>pauli=X_</code>), qubit 0 the most significant bit of an index
 (<code>endian="little"</code>: the least). A qubit whose first operation is a reset (<code>R</code>,
 <code>RX</code>, <code>RY</code>) starts in that state and has no input: a circuit that resets every qubit
 first gives its state, a 2^n × 1 column (up to 22 qubits), and one that resets some a
-2^n × 2^k matrix. Noise channels are skipped (no error drawn), and detectors,
-observables, coordinates and <code>TICK</code> are nothing. A measurement, a reset after a
-qubit's first operation, or feedback raises <code>ValueError</code> (Tsim's ZX tensor of those
-is not a map of states). At most 2^22 entries (a unitary of 11 qubits).</p>
+2^n × 2^k matrix. Noise channels are skipped (no error drawn), and coordinates and
+<code>TICK</code> are nothing. At most 2^22 entries (a unitary of 11 qubits).</p>
+
+<p>A circuit with a measurement, a detector or observable, a reset after a qubit's first
+operation, feedback or a product rotation naming a qubit twice (<code>TPP X0*Y0*X0</code>) is Tsim's
+ZX tensor of it (<code>tsim.zx.tensorfy</code>), contracted in
+numpy with every measurement outcome and error bit read as 0: a measurement is the
+identity on its qubit times 1/sqrt(2) (<code>H 0</code> then <code>M 0</code> is [[.5, .5], [.5, -.5]]), a
+detector or observable is an X spider joined to the measurements it XORs, projecting their
+parity even (one that XORs none stands alone, a factor of 2: <code>DETECTOR</code> is [[2]],
+<code>OBSERVABLE_INCLUDE(k)</code> makes the observables 0 to k, so <code>OBSERVABLE_INCLUDE(2)</code> is
+[[8]]), a reset projects (and prepares), <code>MPP</code> and heralded noise add an output qubit
+(the first, qubit -2 in Tsim's graph), feedback is the controlled gate. Its qubits are the
+ZX graph's: the inputs of the qubits first used by a gate, the outputs of every qubit.</p>
+
+<p>Tsim's graph builders refuse what the unitary engine would run (an <code>R_PAULI</code> naming a
+qubit twice or more than 64, an anti-Hermitian product, a sweep bit): a circuit with Pauli
+products (<code>SPP</code>, <code>MPP</code>, <code>TPP</code>, <code>R_PAULI</code>, <code>R_XX</code>, ...) or sweep bits has its graph
+built first, so it raises Tsim's error. That graph is built in Python over the circuit with
+its loops unrolled, one step per instruction, before the engine runs: it costs seconds where
+the engine takes milliseconds for tens of thousands of instructions (<code>REPEAT 20000</code> of
+<code>SPP X0*Z1</code> and <code>H 0</code>). Tsim's own <code><a href="#Circuit.to_matrix">to_matrix</a></code> builds and contracts that graph, and takes
+far longer. A circuit without products or sweep bits does not build it, and one with an
+instruction the builders cannot read (a tag the core leaves inert, <code>I[foo(x)] 0</code>) is the
+engine's matrix, as without products (Tsim's raises its parse error), unless a product
+rotation names a qubit twice: without a graph that raises Tsim's parse error too. Where a
+product leaves a qubit out of Tsim's graph (an identity letter's, <code>pauli=X_</code>, or one
+<code>SPP X0*X0</code> cancels on), the engine's matrix leaves it out too, and is Tsim's matrix of the
+circuit without that instruction up to the engine's global phase.</p>
 </div>
 
 
@@ -637,6 +751,91 @@ is not a map of states). At most 2^22 entries (a unitary of 11 qubits).</p>
     
             <div class="docstring"><p><code><a href="#Circuit.to_matrix">to_matrix</a></code> as a tensor: one index of size 2 per output qubit, then one per input
 qubit, in the order of <code>endian</code>.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.tcount" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">tcount</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.tcount"></a>
+    
+            <div class="docstring"><p>Count the number of T gates in the circuit, as Tsim counts them: the vertices of the
+circuit's ZX graph with a non-Clifford phase (one for each <code>T</code>, <code>T_DAG</code> and <code>TPP</code>
+and each rotation by an angle that is not a multiple of 0.5 half-turns, three for a
+<code>U3</code> whose angles are none). A coherent error (<code>I_ERROR[R_Z(...)]</code>) is no gate, as in
+Tsim; <code><a href="../stabilizer_qec.html#Circuit.tcount">stabilizer_qec.Circuit.tcount</a></code> counts it.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.get_graph" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">get_graph</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">backend</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.get_graph"></a>
+    
+            <div class="docstring"><p>Construct the ZX graph, as Tsim's <code><a href="#Circuit.get_graph">get_graph</a></code>: one lane (a pair of boundary vertices
+joined by an edge) for each qubit the circuit names, its gates spiders on it, each
+measurement a Z spider with the phase variable <code>rec[i]</code>, each noise channel's error bits
+spiders with phase variables <code>e{k}</code>, each detector and observable an X spider with the
+phase variable <code>det[i]</code> or <code>obs[i]</code> joined to the measurements it XORs, and the scalar.</p>
+
+<p>Args:
+    backend: <code>"pyzx_param"</code> for pyzx_param's <code>GraphS</code> (the graph Tsim returns; needs
+        pyzx_param), <code>"own"</code> for this package's <code>tsim.zx.ZXGraph</code> (nothing to
+        install); <code>None</code> (the default) is pyzx_param's if it is installed, else this
+        package's. The two are equal vertex for vertex, edge for edge.</p>
+
+<p>Returns:
+    The ZX graph.</p>
+</div>
+
+
+                            </div>
+                            <div id="Circuit.get_sampling_graph" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">get_sampling_graph</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">sample_detectors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">backend</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#Circuit.get_sampling_graph"></a>
+    
+            <div class="docstring"><p>Get a ZX graph that can be used to compute probabilities.</p>
+
+<p>This graph will be constructed as follows:</p>
+
+<ol>
+<li>Double the ZX-diagram by composing it with its adjoint.</li>
+<li>Connect all rec[i] vertices to their corresponding adjoint rec[i] vertices.</li>
+<li>Add outputs:
+(a) When sampling measurements (i.e. <code>sample_detectors</code> is False),
+add output nodes for each measurement. Detectors and observables are
+removed since they are ignored when sampling measurements.
+(b) When sampling detectors and observables (i.e. <code>sample_detectors</code> is True),
+add output nodes for each detector and observable. Only one set of detector
+and observable nodes is kept, i.e., detectors and observables are not
+composed with their adjoints.</li>
+</ol>
+
+<p>Args:
+    sample_detectors: If True, sample detectors and observables instead of
+        measurements.
+    backend: As <code><a href="#Circuit.get_graph">get_graph</a></code>'s.</p>
+
+<p>Returns:
+    A ZX graph for sampling.</p>
 </div>
 
 
@@ -658,7 +857,10 @@ qubit, in the order of <code>endian</code>.</p>
         tagged gates are labelled (<code>T</code>, <code>R_X(0.1π)</code>, <code>TPP[XY]</code>, ...), or any of
         Stim's types (<code>"timeline-text"</code>, <code>"detslice-svg"</code>, ...), as
         <code><a href="../stabilizer_qec.html#Circuit.diagram">stabilizer_qec.Circuit.diagram</a></code>'s. Tsim's ZX-graph types ("pyzx",
-        "pyzx-dets", "pyzx-meas") need pyzx and raise <code>NotImplementedError</code>.
+        "pyzx-dets", "pyzx-meas") draw the circuit's ZX graph (<code>"pyzx"</code>: with bold
+        classical wires) or the sampling graph for measurements or for detectors and
+        observables after pyzx_param's <code>full_reduce(paramSafe=True)</code> (the reduced two
+        need pyzx_param); they draw it with pyzx (or pyzx_param) and return the graph.
     tick: Required for time slice diagrams. Specifies which TICK instruction, or
         range of TICK instructions, to slice at.
     filter_coords: A list of things to include in the diagram (detslice diagrams).
@@ -678,7 +880,8 @@ qubit, in the order of <code>endian</code>.</p>
 
 <p>Returns:
     An object whose <code>__str__</code> method returns the diagram (for the SVG types, the raw
-    SVG), and whose <code>_repr_html_</code> shows it in a notebook at the given size.</p>
+    SVG), and whose <code>_repr_html_</code> shows it in a notebook at the given size. For the ZX-graph
+    types, the ZX graph that was drawn (<code><a href="#Circuit.get_graph">Circuit.get_graph</a></code>'s kind).</p>
 </div>
 
 
@@ -1317,17 +1520,26 @@ wrong, as Tsim's is.</p>
 </ul>
 
 <p>and this package's tagged forms (stabilizer_qec's addition), angles in radians of
-exp(−iθP) written back in half-turns:</p>
+exp(−iθP) written back in the half-turns they were written in (the shortest decimal number
+that gives the radians, or the one their further digits give):</p>
 
 <ul>
 <li>I[T] / I[T_DAG] → T / T_DAG</li>
 <li>I[R_X(theta=t)] → R_X(2t/π), and R_Y, R_Z</li>
 <li>I[U3(theta=a, phi=b, lambda=c)] → U3(a/π, b/π, c/π)</li>
-<li>I[R_PAULI(theta=±π/8, pauli=XY)] 0 1 → TPP / TPP_DAG X0*Y1 (the same gate as
-R_PAULI(±0.25), which prints so)</li>
+<li>I[R_PAULI(theta=±π/8, pauli=XY)] 0 1 → TPP / TPP_DAG X0<em>Y1 (±π/8 as <code>repr</code> writes it;
+written with further digits it is R_PAULI(±0.25) X0</em>Y1)</li>
 <li>I[R_PAULI(theta=t, pauli=ZZ)] 0 1 → R_ZZ(2t/π) 0 1; any other product
-R_PAULI(2t/π) X0*Y1</li>
-<li>II[R_XX(theta=t)] 0 1 2 3 → R_XX(2t/π) 0 1 and R_XX(2t/π) 2 3, a line a pair</li>
+R_PAULI(2t/π) X0*Y1 (II[R_PAULI(...)] as I[R_PAULI(...)], one product over its targets, as
+the core reads it); one whose letters are all identities (<code>pauli=__</code>) is left out, no
+operation as the core reads it</li>
+<li>a product with a <code>!</code> (a lower-case letter, <code>pauli=xY</code>) or the <code>SPP_DAG</code> of a rotation
+(its arguments in the other order, <code>pauli=X, theta=t</code>) → Tsim's tagged form, as its
+shorthand writes it: SPP[R_PAULI(theta=α<em>pi)] !X0</em>Y1, SPP_DAG[R_PAULI(theta=α*pi)] X0,
+TPP !X0 (see <code>_product_rotation</code>)</li>
+<li>II[R_XX(theta=t)] 0 1 2 3 → R_XX(2t/π) 0 1 and R_XX(2t/π) 2 3, a line a pair (TPP / TPP_DAG
+X0<em>X1 at ±π/8 as <code>repr</code> writes it); with an empty argument first, II[R_XX(, theta=-t)] 3 2 1 0,
+its SPP_DAG, one line as Tsim's inverse of it writes it: SPP_DAG[R_PAULI(theta=2t/π</em>pi)] X3<em>X2 X1</em>X0</li>
 </ul>
 </div>
 

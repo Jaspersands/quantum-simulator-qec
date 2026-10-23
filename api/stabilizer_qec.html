@@ -1376,6 +1376,9 @@
                                 <a class="variable" href="#CoherentSampler.exact_weights">exact_weights</a>
                         </li>
                         <li>
+                                <a class="variable" href="#CoherentSampler.contraction_width">contraction_width</a>
+                        </li>
+                        <li>
                                 <a class="function" href="#CoherentSampler.sample">sample</a>
                         </li>
                 </ul>
@@ -2494,7 +2497,7 @@
     </ul>
 
 
-            <footer>stabilizer-qec 2.1.0</footer>
+            <footer>stabilizer-qec 2.2.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -2606,7 +2609,7 @@ Stim's six formats (<code>01</code>, <code>b8</code>, <code>r8</code>, <code>hit
 pickling:</p>
 
 <ul>
-<li><code><a href="#Matching">Matching</a></code> (sparse blossom, PyMatching's results), with <code>enable_correlations</code>;
+<li><code><a href="#Matching">Matching</a></code> (PyMatching's sparse blossom, transliterated: its results, ties included), with <code>enable_correlations</code>;
 <code><a href="#UnionFind">UnionFind</a></code>, <code><a href="#CollisionClustering">CollisionClustering</a></code> and <code><a href="#LocalClustering">LocalClustering</a></code> (Riverlane's hardware union-finds,
 the second with its leakage-adaptive pre-growth); <code><a href="#BeliefMatching">BeliefMatching</a></code>; <code><a href="#WindowMatching">WindowMatching</a></code>
 (sliding or parallel windows): for models whose faults set off at most two detectors, or
@@ -2708,7 +2711,7 @@ holds a circuit unrolled, up to 2**24 instructions and targets; the sampler runs
 without unrolling them. Generated circuits are written out round by round, up to 10,000
 rounds.</li>
 <li><strong>Stability.</strong> Semantic versioning: everything importable from <code><a href="">stabilizer_qec</a></code> without a
-leading underscore keeps working, with the same meaning, through every 1.x release. A name
+leading underscore keeps working, with the same meaning, through every 2.x release. A name
 is deprecated (with a <code>DeprecationWarning</code> naming its replacement) for at least one minor
 release before a major release removes it. <code>stabilizer_qec._core</code> is the engine's
 extension, used by the repository's own tools, and carries no such promise.</li>
@@ -7217,7 +7220,7 @@ observable and no detector, each explained (by one location with
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">search_for_undetectable_logical_errors</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">dont_explore_detection_event_sets_with_size_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_with_degree_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_increasing_symptom_degree</span><span class="p">:</span> <span class="nb">bool</span>,</span><span class="param">	<span class="n">canonicalize_circuit_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="nb">list</span>:</span></span>
+        <span class="name">search_for_undetectable_logical_errors</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">dont_explore_detection_event_sets_with_size_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_with_degree_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_increasing_symptom_degree</span><span class="p">:</span> <span class="nb">bool</span>,</span><span class="param">	<span class="n">canonicalize_circuit_errors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">max_memory_bytes</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="nb">list</span>:</span></span>
 
         
     </div>
@@ -7228,6 +7231,19 @@ finds it: a breadth-first search over sets of fired detectors in its (undecompos
 error model, a fault added at the set's lowest detector each step, within the limits
 given. The faults found, each explained (by one location with
 <code>canonicalize_circuit_errors</code>); their number bounds the distance from above.</p>
+
+<p>Stim's search keeps every set it visits for as long as it runs. This one keeps them
+within <code>max_memory_bytes</code> (<code>None</code>: half the machine's physical memory; on Linux, half
+the cgroup's memory limit if that is less) even while its store grows. A set of k
+detectors takes 24 + 4k bytes and (past the first few) 5 to 11 bytes of the table. When
+the sets fill the budget they hold more than half of it, the rest being room the store
+keeps for growing, so a set takes one to two times its bytes in budget: about 40 to 90
+bytes for the usual sets of two to four detectors. A larger budget never keeps fewer
+sets. When the sets fill it (or the allocator refuses them), the search raises Stim's
+message for one that finds nothing, then "(memory budget of N bytes reached after M
+states)". Limits of two and two (<code>dont_explore_detection_event_sets_with_size_above=2</code>
+and <code>dont_explore_edges_with_degree_above=2</code>) take Stim's graph-like search instead,
+which keeps no such sets: the budget does not cover it.</p>
 </div>
 
 
@@ -7374,7 +7390,7 @@ trajectories. Its <code>sample</code> has the detector sampler's signature.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">compile_coherent_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">pairs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">max_complete</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50000</span></span><span class="return-annotation">) -> <span class="n"><a href="#CoherentSampler">CoherentSampler</a></span>:</span></span>
+        <span class="name">compile_coherent_sampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">pairs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">max_complete</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50000</span>,</span><span class="param">	<span class="n">max_contraction</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">65536</span></span><span class="return-annotation">) -> <span class="n"><a href="#CoherentSampler">CoherentSampler</a></span>:</span></span>
 
         
     </div>
@@ -7392,13 +7408,20 @@ gate, a stabiliser's worth of faults) and then completed to a basis of the whole
 by one elimination over the rotations' effects: the completion holds what no local
 search finds, above all a logical error at one time with the same logical at another,
 whose amplitudes add (coherent logical errors accumulate across rounds).
-<code>num_nonlocal_generators</code> counts them. With at most twelve generators (besides groups
-of rotations that are one fault in several places) every shot sums the whole kernel and
-the weights are exact (<code>exact_weights</code>); past that a shot sums the products of up to
-<code>order</code> generators its faults touch, a truncation. <code>max_complete</code> is the most
-rotations whose kernel is completed; past it the generators are the local ones only,
-interference between distant faults is left out, <code>kernel_complete</code> is False and the
-sampler warns.</p>
+<code>num_nonlocal_generators</code> counts them. Every shot then sums its whole class, every
+product of the generators (and of the groups of rotations that are one fault in several
+places), exactly (<code>exact_weights</code>), at any number of generators: the sum is a product
+of small factors (each rotation's, a phase that is a quadratic form in the generators,
+the shot's signs), contracted one generator at a time in O(k·2^w) per shot, w the
+<code>contraction_width</code> (3 on a d = 3 surface memory over three rounds, 9 at d = 7 over
+seven). <code>max_contraction</code> caps the contraction's tables (entries in all, 2^16 by
+default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans more than 32
+generators at any budget): past it, and with more than twelve generators, a shot sums
+the products of up to <code>order</code> generators its faults touch, a truncation, and the
+sampler warns, saying how large a budget the class sums need or that none up to 2^31
+contracts them. <code>max_complete</code> is the most rotations whose kernel is completed; past it
+the generators are the local ones only, interference between distant faults is left
+out, <code>kernel_complete</code> is False and the sampler warns.</p>
 
 <p>A circuit with non-Clifford <em>gates</em> too (<code>I[T] 0</code>, <code>I[R_Z(theta=…)] 0</code>,
 <code>I[U3(…)] 0</code>: Clifford+T circuits, magic-state injection, a cultivation check) gets
@@ -7578,13 +7601,12 @@ qubits. With <code>skip_reference_sample</code> the reference is all zeros, as i
             <div class="docstring"><p>Colour-code decoding by matching, Chromobius's construction (Gidney and Jones, 2023):
 each detector doubled into the two sub-graphs leaving out a colour other than its own,
 every fault split into basic faults drawn as edges of that doubled (Möbius) graph, a
-minimum-weight matching of it found by this package's matcher, and the matching lifted
-back to the code by carrying colour charge around its cycles. Predictions equal to the
-<code>chromobius</code> package's except on some shots where the matching has the same weight as
-Chromobius's but its edges come out in another order (or, rarely, it is another matching
-of that weight): the lifting depends on that order, and this package's matcher does not
-list edges in PyMatching's order. Edges of probability above 1/2 are negative-weight edges,
-as in Chromobius; probability 1 is refused.</p>
+minimum-weight matching of it found by PyMatching 2.2.2's sparse blossom (the matcher
+Chromobius links, ported exactly), and the matching lifted back to the code by carrying
+colour charge around its cycles. Predictions and weights equal to the <code>chromobius</code>
+package's (on macOS on every shot checked; elsewhere Chromobius's std::unordered_map
+order may drag charge another way on some shots). Edges of probability above 1/2 are
+negative-weight edges, as in Chromobius; probability 1 is refused.</p>
 
 <p>The model's detectors need Chromobius's annotation, a 4th coordinate giving the basis and
 colour (0, 1, 2 red, green, blue X; 3, 4, 5 the same in Z; -1 to ignore a detector):
@@ -7903,15 +7925,16 @@ upper bound.</li>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">search_for_undetectable_logical_errors</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">dont_explore_detection_event_sets_with_size_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_with_degree_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_increasing_symptom_degree</span><span class="p">:</span> <span class="nb">bool</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
+        <span class="name">search_for_undetectable_logical_errors</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">dont_explore_detection_event_sets_with_size_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_with_degree_above</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">dont_explore_edges_increasing_symptom_degree</span><span class="p">:</span> <span class="nb">bool</span>,</span><span class="param">	<span class="n">max_memory_bytes</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#DetectorErrorModel">DetectorErrorModel</a></span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#DetectorErrorModel.search_for_undetectable_logical_errors"></a>
     
             <div class="docstring"><p>Stim's search for undetectable logical errors on the model (see
-<code><a href="#Circuit.search_for_undetectable_logical_errors">Circuit.search_for_undetectable_logical_errors</a></code>): the faults found, as a model with
-each at probability 1.</p>
+<code><a href="#Circuit.search_for_undetectable_logical_errors">Circuit.search_for_undetectable_logical_errors</a></code>, whose <code>max_memory_bytes</code> this
+takes too; limits of two and two take the graph-like search, which it does not cover):
+the faults found, as a model with each at probability 1.</p>
 </div>
 
 
@@ -9063,7 +9086,7 @@ Smolin 2014), on <code>padded_n</code> qubits (the Pauli's own by default, the P
                             <div id="CoherentSampler.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">CoherentSampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">pairs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">max_complete</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50000</span></span>)</span>
+        <span class="name">CoherentSampler</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="#Circuit">Circuit</a></span>,</span><span class="param">	<span class="n">order</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span>,</span><span class="param">	<span class="n">seed</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">pairs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>,</span><span class="param">	<span class="n">max_complete</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">50000</span>,</span><span class="param">	<span class="n">max_contraction</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">65536</span></span>)</span>
 
         
     </div>
@@ -9175,9 +9198,30 @@ between distant faults is then left out, and the sampler warns when it is made.<
     </div>
     <a class="headerlink" href="#CoherentSampler.exact_weights"></a>
     
-            <div class="docstring"><p>Whether every shot sums every element of the kernel (complete, at most twelve
-generators): the weighted shots are then distributed exactly as the coherent circuit's.
-Otherwise a shot sums the products of up to <code>order</code> generators its faults touch.</p>
+            <div class="docstring"><p>Whether every shot sums every element of the kernel (complete, and contracted within
+<code>max_contraction</code> or of at most twelve generators): the weighted shots are then
+distributed exactly as the coherent circuit's. Otherwise a shot sums the products of up
+to <code>order</code> generators its faults touch. The joint sampler sums the whole kernel at
+most twelve generators only (its cross terms are overlaps of the exact engine's states,
+not products of factors).</p>
+</div>
+
+
+                            </div>
+                            <div id="CoherentSampler.contraction_width" class="classattr">
+                                <div class="attr variable">
+            <span class="name">contraction_width</span><span class="annotation">: Optional[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CoherentSampler.contraction_width"></a>
+    
+            <div class="docstring"><p>With the class sums contracted, the most generators any of the contraction's tables
+holds besides the one it sums out: a shot's work is about <code><a href="#CoherentSampler.num_generators">num_generators</a></code> · 2^(width</p>
+
+<ul>
+<li>1). None when not contracted (the joint sampler, or past <code>max_contraction</code>).</li>
+</ul>
 </div>
 
 
@@ -9791,7 +9835,9 @@ hand or from a check matrix, networkx / rustworkx graph, detector error model or
 2^24 − 1 and rounded; negative weights allowed. A model's pieces become edges of weight
 ln((1 − p)/p), parallel ones merged as independent mechanisms. <code>enable_correlations</code> at
 construction (from a model) makes correlated matching (PyMatching 2.4's second pass)
-available; ask for it at decode time with <code>enable_correlations=True</code>.</p>
+available; ask for it at decode time with <code>enable_correlations=True</code>. The graph is then
+PyMatching's correlated load (each edge's ends in order, and the weights edges imply for each
+other counted in the weight scale), so decoding it plainly gives PyMatching's answers too.</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">stabilizer_qec</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">sq</span>
@@ -10457,7 +10503,9 @@ Tesseract's. With no beam, no queue bound and <code>no_revisit_dets=False</code>
 <p>Answers equal to the <code>tesseract_decoder</code> package's for the same detector orders (both
 break ties between equally promising states as the platform's C++ library does; index
 orders are generated as Tesseract does, the others are this package's own). A shot the
-search gives up on predicts no flips; <code>return_low_confidence</code> says which.</p>
+search gives up on predicts no flips; <code>return_low_confidence</code> says which. Unlike this
+package's other decoders on a model, it takes a model of any number of observables, as
+Tesseract's does.</p>
 </div>
 
 
@@ -10971,7 +11019,7 @@ time per shot in seconds (shots × windows).</p>
                 <section id="__version__">
                     <div class="attr variable">
             <span class="name">__version__</span>        =
-<span class="default_value">&#39;2.1.0&#39;</span>
+<span class="default_value">&#39;2.2.0&#39;</span>
 
         
     </div>

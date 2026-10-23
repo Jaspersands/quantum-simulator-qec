@@ -33,6 +33,8 @@
                     <li><a href="cudaq_qec/dem_sampling.html">dem_sampling</a></li>
                     <li><a href="cudaq_qec/patch.html">patch</a></li>
                     <li><a href="cudaq_qec/relay_solutions.html">relay_solutions</a></li>
+                    <li><a href="cudaq_qec/phase_name.html">phase_name</a></li>
+                    <li><a href="cudaq_qec/seam_name.html">seam_name</a></li>
             </ul>
 
             <h2>API Documentation</h2>
@@ -111,6 +113,9 @@
                         </li>
                         <li>
                                 <a class="function" href="#decoder_config.validate_custom_args">validate_custom_args</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#decoder_config.expand_dem_chunks">expand_dem_chunks</a>
                         </li>
                         <li>
                                 <a class="function" href="#decoder_config.to_yaml_str">to_yaml_str</a>
@@ -856,10 +861,331 @@
             <li>
                     <a class="function" href="#generate_timelike_sparse_detector_matrix">generate_timelike_sparse_detector_matrix</a>
             </li>
+            <li>
+                    <a class="class" href="#CssCodes">CssCodes</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#CssCodes.hz">hz</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CssCodes.hx">hx</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CssCodes.lz">lz</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CssCodes.lx">lx</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#CssNoise">CssNoise</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#CssNoise.px">px</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CssNoise.py">py</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CssNoise.pz">pz</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CssNoise.pm">pm</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CssNoise.px_per_qubit">px_per_qubit</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CssNoise.py_per_qubit">py_per_qubit</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CssNoise.pz_per_qubit">pz_per_qubit</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#CssNoise.pm_per_check">pm_per_check</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="function" href="#css_matrices_from_code">css_matrices_from_code</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_from_css_matrices">dem_from_css_matrices</a>
+            </li>
+            <li>
+                    <a class="class" href="#DemChunkSpec">DemChunkSpec</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#DemChunkSpec.num_faults">num_faults</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemChunkSpec.H_sparse">H_sparse</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemChunkSpec.seam_specs">seam_specs</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemChunkSpec.O_sparse">O_sparse</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemChunkSpec.error_rates">error_rates</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DemChunkSpec.is_empty">is_empty</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DemChunkSpec.expand">expand</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DemChunkSpec.validate">validate</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#DemChunksSpec">DemChunksSpec</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#DemChunksSpec.phases">phases</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemChunksSpec.connections">connections</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemChunksSpec.seam">seam</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemChunksSpec.num_rounds">num_rounds</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DemChunksSpec.is_empty">is_empty</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DemChunksSpec.has_repeating_phase">has_repeating_phase</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DemChunksSpec.repeating_phase">repeating_phase</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DemChunksSpec.phase_sequence">phase_sequence</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DemChunksSpec.get_phase">get_phase</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#DemChunksSpec.validate">validate</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#DemSeamSpec">DemSeamSpec</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#DemSeamSpec.H_sparse">H_sparse</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#DemSeamSpec.O_sparse">O_sparse</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#ExtendedDem">ExtendedDem</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#ExtendedDem.num_faults">num_faults</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ExtendedDem.num_rows">num_rows</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ExtendedDem.num_observables">num_observables</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ExtendedDem.num_interior_rows">num_interior_rows</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ExtendedDem.has_seam">has_seam</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ExtendedDem.get_seam">get_seam</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExtendedDem.H">H</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExtendedDem.O">O</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExtendedDem.error_rates">error_rates</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExtendedDem.seams">seams</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExtendedDem.tags">tags</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ExtendedDem.validate">validate</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#ExtendedDemSeam">ExtendedDemSeam</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#ExtendedDemSeam.__init__">ExtendedDemSeam</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExtendedDemSeam.id">id</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExtendedDemSeam.row_begin">row_begin</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#ExtendedDemSeam.row_end">row_end</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#ExtendedDemSeam.num_rows">num_rows</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#PhaseConnection">PhaseConnection</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#PhaseConnection.from_phase">from_phase</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#PhaseConnection.to_phase">to_phase</a>
+                        </li>
+                        <li>
+                                <a class="function" href="#PhaseConnection.is_self">is_self</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#PhaseSpecEntry">PhaseSpecEntry</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#PhaseSpecEntry.id">id</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#PhaseSpecEntry.spec">spec</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#PriorCombineMode">PriorCombineMode</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#PriorCombineMode.or_combine">or_combine</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#PriorCombineMode.sum_combine">sum_combine</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#SeamConnection">SeamConnection</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#SeamConnection.from_seam">from_seam</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#SeamConnection.to_seam">to_seam</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#SeamId">SeamId</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="function" href="#SeamId.__init__">SeamId</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#SeamId.value">value</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="class" href="#SeamSpecEntry">SeamSpecEntry</a>
+                            <ul class="memberlist">
+                        <li>
+                                <a class="variable" href="#SeamSpecEntry.id">id</a>
+                        </li>
+                        <li>
+                                <a class="variable" href="#SeamSpecEntry.spec">spec</a>
+                        </li>
+                </ul>
+
+            </li>
+            <li>
+                    <a class="function" href="#are_dem_columns_unique">are_dem_columns_unique</a>
+            </li>
+            <li>
+                    <a class="function" href="#assert_dem_columns_unique">assert_dem_columns_unique</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_chunk_from_spec">dem_chunk_from_spec</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_chunk_rounds">dem_chunk_rounds</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_chunks_from_spec">dem_chunks_from_spec</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_chunks_to_d_sparse">dem_chunks_to_d_sparse</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_chunks_to_detector_round">dem_chunks_to_detector_round</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_chunks_to_o_sparse">dem_chunks_to_o_sparse</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_chunks_to_pcm">dem_chunks_to_pcm</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_chunks_to_rounds">dem_chunks_to_rounds</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_close">dem_close</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_close_all">dem_close_all</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_merge_duplicate_columns">dem_merge_duplicate_columns</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_stitch">dem_stitch</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_stitch_all">dem_stitch_all</a>
+            </li>
+            <li>
+                    <a class="function" href="#dem_stitch_merged">dem_stitch_merged</a>
+            </li>
+            <li>
+                    <a class="function" href="#extended_dem_from_css_matrices">extended_dem_from_css_matrices</a>
+            </li>
     </ul>
 
 
-            <footer>stabilizer-qec 2.1.0</footer>
+            <footer>stabilizer-qec 2.2.0</footer>
 
         <a class="attribution" title="pdoc: Python API documentation generator" href="https://pdoc.dev" target="_blank">
             built with <span class="visually-hidden">pdoc</span><img
@@ -876,8 +1202,10 @@
                         <div class="docstring"><p>CUDA-Q QEC under its names (<code>import <a href="">stabilizer_qec.cudaq_qec</a> as qec</code>): the decoder
 interface (<code><a href="#get_decoder">get_decoder</a></code>, <code><a href="#Decoder">Decoder</a></code>, <code><a href="#DecoderResult">DecoderResult</a></code>, <code><a href="#BatchDecoderResult">BatchDecoderResult</a></code>, the
 <code>@decoder</code> registry), its decoders (single- and multi-error lookup tables, PyMatching, the sliding
-window, nv-qldpc-decoder, Chromobius, nv-fusion-decoder, the tensor-network decoder, the
-examples), its detector error model, <code><a href="#dem_sampling">dem_sampling</a></code> and its parity-check-matrix tools; its codes
+window, nv-qldpc-decoder, Chromobius, nv-fusion-decoder, the tensor-network decoder,
+trt_decoder (its ONNX model run on the CPU), the examples), its detector error model (and the extended one: chunks with named seams, stitched and closed, the
+<code>dem_chunks</code> of a repeated-round experiment, and the DEM of CSS code matrices), <code><a href="#dem_sampling">dem_sampling</a></code> and its
+parity-check-matrix tools; its codes
 (<code><a href="#get_code">get_code</a></code>: the surface code in its orientations XV, XH, ZV and ZH, with its
 <code><a href="#stabilizer_grid">stabilizer_grid</a></code> and CNOT schedules, Steane's and the repetition code, <code>@code</code> for Python
 ones) and its experiments on them (memory circuits sampled or made detector error models, under
@@ -885,8 +1213,8 @@ its noise models; code-capacity samples); and its real-time decoding host librar
 (<code><a href="#decoder_config">decoder_config</a></code> / <code><a href="#multi_decoder_config">multi_decoder_config</a></code> and their YAML, the decoder parameter schemas,
 <code><a href="#configure_decoders">configure_decoders</a></code>, <code><a href="#enqueue_syndromes">enqueue_syndromes</a></code>, <code><a href="#get_corrections">get_corrections</a></code>, <code><a href="#reset_decoder">reset_decoder</a></code>,
 <code><a href="#finalize_decoders">finalize_decoders</a></code>). Its kernels are this package's circuits (<code><a href="#memory_circuit">memory_circuit</a></code>; kernels
-registered for a Python code are not run, and say so); CUDA-Q's own kernels and GPU decoders
-need CUDA-Q itself and are not here.</p>
+registered for a Python code are not run, and say so); CUDA-Q's own kernels and its GPU
+decoders' engines (a TensorRT engine file, CUDA graphs) need CUDA-Q itself and are not here.</p>
 </div>
 
                 
@@ -1067,8 +1395,9 @@ corrections. <code>tag</code> labels the call (CUDA-Q logs it).</p>
     
             <div class="docstring"><p>One decoder of a real-time decoding configuration: its <code><a href="#decoder_config.id">id</a></code> and <code><a href="#decoder_config.type">type</a></code>, its DEM
 (flat: <code><a href="#decoder_config.block_size">block_size</a></code>, <code><a href="#decoder_config.syndrome_size">syndrome_size</a></code>, <code><a href="#decoder_config.H_sparse">H_sparse</a></code>, <code><a href="#decoder_config.O_sparse">O_sparse</a></code> and <code><a href="#decoder_config.D_sparse">D_sparse</a></code>, each
-matrix as <code><a href="#pcm_to_sparse_vec">pcm_to_sparse_vec</a></code> writes it; or a Stim model file, <code><a href="#decoder_config.stim_dem_path">stim_dem_path</a></code>, with
-<code><a href="#decoder_config.D_sparse">D_sparse</a></code>), and its parameters, <code><a href="#decoder_config.decoder_custom_args">decoder_custom_args</a></code> (a dict, set after <code><a href="#decoder_config.type">type</a></code>).</p>
+matrix as <code><a href="#pcm_to_sparse_vec">pcm_to_sparse_vec</a></code> writes it; or phases, <code><a href="#decoder_config.dem_chunks">dem_chunks</a></code>, with the flat fields
+derived by <code><a href="#decoder_config.expand_dem_chunks">expand_dem_chunks</a></code>; or a Stim model file, <code><a href="#decoder_config.stim_dem_path">stim_dem_path</a></code>, with <code><a href="#decoder_config.D_sparse">D_sparse</a></code>),
+and its parameters, <code><a href="#decoder_config.decoder_custom_args">decoder_custom_args</a></code> (a dict, set after <code><a href="#decoder_config.type">type</a></code>).</p>
 </div>
 
 
@@ -1184,13 +1513,16 @@ matrix as <code><a href="#pcm_to_sparse_vec">pcm_to_sparse_vec</a></code> writes
                             </div>
                             <div id="decoder_config.dem_chunks" class="classattr">
                                 <div class="attr variable">
-            <span class="name">dem_chunks</span><span class="annotation">: None</span>
+            <span class="name">dem_chunks</span><span class="annotation">: Optional[<a href="#DemChunksSpec">DemChunksSpec</a>]</span>
 
         
     </div>
     <a class="headerlink" href="#decoder_config.dem_chunks"></a>
     
-            <div class="docstring"><p>Always None here: the chunk form is not supported (see the module notes).</p>
+            <div class="docstring"><p>Optional DemChunksSpec describing the DEM as named phases. <code>num_rounds</code> lives inside
+the DemChunksSpec. Leave block_size, syndrome_size, H_sparse, O_sparse and D_sparse unset;
+<code><a href="#decoder_config.expand_dem_chunks">expand_dem_chunks()</a></code> derives those. (The spec itself, not a copy: assigning a spec
+copies it in.)</p>
 </div>
 
 
@@ -1237,6 +1569,23 @@ values convert to its kinds.</p>
     
             <div class="docstring"><p>Check <code><a href="#decoder_config.decoder_custom_args">decoder_custom_args</a></code> against the decoder's schema: unknown keys, values of the
 wrong kind, missing required keys and the schema's own checks. Raises RuntimeError.</p>
+</div>
+
+
+                            </div>
+                            <div id="decoder_config.expand_dem_chunks" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">expand_dem_chunks</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#decoder_config.expand_dem_chunks"></a>
+    
+            <div class="docstring"><p><code>expand_dem_chunks(self)</code>: this configuration rewritten in place from its
+<code><a href="#decoder_config.dem_chunks">dem_chunks</a></code> to the flat form, returning the closed <code><a href="#DetectorErrorModel">DetectorErrorModel</a></code> (None if it
+is already flat or has no <code><a href="#decoder_config.dem_chunks">dem_chunks</a></code>). A method here as well as CUDA-Q's function.</p>
 </div>
 
 
@@ -1487,14 +1836,24 @@ beside the decoders list, not in it).</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">expand_dem_chunks</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">config</span><span class="p">:</span> <span class="n"><a href="#decoder_config">decoder_config</a></span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+        <span class="name">expand_dem_chunks</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">config</span><span class="p">:</span> <span class="n"><a href="#decoder_config">decoder_config</a></span></span><span class="return-annotation">) -> <span class="n">Optional</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span>:</span></span>
 
         
     </div>
     <a class="headerlink" href="#expand_dem_chunks"></a>
     
-            <div class="docstring"><p>CUDA-Q's chunk-form expansion: a no-op on a flat configuration (the only kind here),
-returning None.</p>
+            <div class="docstring"><p>Rewrite a chunk-form configuration into the equivalent flat form.</p>
+
+<p>Fills <code>block_size</code>, <code>syndrome_size</code>, <code>H_sparse</code>, <code>O_sparse</code> and <code>D_sparse</code> on
+<code>config</code> in place from <code>dem_chunks</code> (which carries <code>num_rounds</code> inside the
+<code><a href="#DemChunksSpec">DemChunksSpec</a></code>), so that a chunk-form configuration can be handed to anything that
+understands only the flat form. Does nothing to a configuration that is already flat (one
+with an <code>H_sparse</code>, as this leaves behind), so it is safe to call unconditionally.</p>
+
+<p>Returns the closed <code><a href="#DetectorErrorModel">DetectorErrorModel</a></code> the flat fields came from (its <code>error_rates</code>
+the per-fault priors the phases declared), or None if the configuration was already flat or
+has no <code>dem_chunks</code>. A spec that cannot be expanded or closed raises RuntimeError naming
+the decoder.</p>
 </div>
 
 
@@ -1587,8 +1946,7 @@ the sliding window's, are not expressible in it.)</p>
     </div>
     <a class="headerlink" href="#trt_decoder_config"></a>
     
-            <div class="docstring"><p>Deprecated: trt_decoder's parameters (this package has no trt_decoder, nor its schema:
-the values are kept as given).</p>
+            <div class="docstring"><p>Deprecated: trt_decoder's parameters.</p>
 </div>
 
 
@@ -4054,7 +4412,7 @@ besides (<code>cudaq.apply_noise</code> in a stabilizer round, say) is left out.
                 </section>
                 <section id="patch">
                     <div class="attr class">
-                    <div class="decorator decorator-dataclass">@dataclass(slots=True)</div>
+                    <div class="decorator decorator-dataclass">@dataclass</div>
 
     <span class="def">class</span>
     <span class="name">patch</span>:
@@ -4159,6 +4517,1466 @@ each row ended by a negative entry): <code><a href="#pcm_to_sparse_vec">pcm_to_s
 measurement with the same one of the round before. With <code>include_first_round</code> the first
 round's measurements are detectors on their own, first. <code>include_first_round</code> may instead
 be the first round's rows (one measurement per row, as C++'s overload takes).</p>
+</div>
+
+
+                </section>
+                <section id="CssCodes">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">CssCodes</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CssCodes"></a>
+    
+            <div class="docstring"><p>CSS code generator matrices: parity-check and logical operators.</p>
+
+<p>Each matrix column corresponds to one data qubit. Assign each matrix from a dense NumPy array
+or a scipy sparse matrix, or build the whole set with <code><a href="#css_matrices_from_code">css_matrices_from_code()</a></code>. Reading a
+matrix back returns a dense uint8 NumPy array.</p>
+</div>
+
+
+                            <div id="CssCodes.hz" class="classattr">
+                                <div class="attr variable">
+            <span class="name">hz</span><span class="annotation">: numpy.ndarray</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssCodes.hz"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssCodes.hx" class="classattr">
+                                <div class="attr variable">
+            <span class="name">hx</span><span class="annotation">: numpy.ndarray</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssCodes.hx"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssCodes.lz" class="classattr">
+                                <div class="attr variable">
+            <span class="name">lz</span><span class="annotation">: numpy.ndarray</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssCodes.lz"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssCodes.lx" class="classattr">
+                                <div class="attr variable">
+            <span class="name">lx</span><span class="annotation">: numpy.ndarray</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssCodes.lx"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="CssNoise">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">CssNoise</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#CssNoise"></a>
+    
+            <div class="docstring"><p>Phenomenological noise parameters for CSS code-capacity DEM construction. Scalar rates
+apply uniformly; per-element vectors override when non-empty (length must equal n_qubits or
+n_checks).</p>
+</div>
+
+
+                            <div id="CssNoise.px" class="classattr">
+                                <div class="attr variable">
+            <span class="name">px</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssNoise.px"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssNoise.py" class="classattr">
+                                <div class="attr variable">
+            <span class="name">py</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssNoise.py"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssNoise.pz" class="classattr">
+                                <div class="attr variable">
+            <span class="name">pz</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssNoise.pz"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssNoise.pm" class="classattr">
+                                <div class="attr variable">
+            <span class="name">pm</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssNoise.pm"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssNoise.px_per_qubit" class="classattr">
+                                <div class="attr variable">
+            <span class="name">px_per_qubit</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssNoise.px_per_qubit"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssNoise.py_per_qubit" class="classattr">
+                                <div class="attr variable">
+            <span class="name">py_per_qubit</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssNoise.py_per_qubit"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssNoise.pz_per_qubit" class="classattr">
+                                <div class="attr variable">
+            <span class="name">pz_per_qubit</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssNoise.pz_per_qubit"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                            <div id="CssNoise.pm_per_check" class="classattr">
+                                <div class="attr variable">
+            <span class="name">pm_per_check</span>
+
+        
+    </div>
+    <a class="headerlink" href="#CssNoise.pm_per_check"></a>
+    
+            <div class="docstring"><p>The type of the None singleton.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="css_matrices_from_code">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">css_matrices_from_code</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">qec_code</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n"><a href="#CssCodes">CssCodes</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#css_matrices_from_code"></a>
+    
+            <div class="docstring"><p>Extract CSS generator matrices from a QEC code object.</p>
+
+<p>Calls <code>code.get_parity_z/x()</code> and <code>code.get_observables_z/x()</code> and wraps the results as
+<code><a href="#CssCodes">CssCodes</a></code> (a result that is not a matrix, as a code without stabilizers of a type returns,
+is an empty 0 x 0 matrix, as CUDA-Q's <code>tensor_to_sparse</code> gives it; so is one with no rows).</p>
+</div>
+
+
+                </section>
+                <section id="dem_from_css_matrices">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_from_css_matrices</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">code</span><span class="p">:</span> <span class="n">Any</span>,</span><span class="param">	<span class="n">noise</span><span class="p">:</span> <span class="n"><a href="#CssNoise">CssNoise</a></span>,</span><span class="param">	<span class="n">num_rounds</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_from_css_matrices"></a>
+    
+            <div class="docstring"><p>Build a T-round code-capacity detector error model from CSS generator matrices.</p>
+
+<p>Args:
+    code: A <code><a href="#CssCodes">CssCodes</a></code> (its hz/hx/lz/lx matrices), or a <code><a href="#Code">Code</a></code> object, whose matrices are
+        <code>css_matrices_from_code(code)</code>.
+    noise: A <code><a href="#CssNoise">CssNoise</a></code> with the error rates.
+    num_rounds: Number of syndrome measurement rounds (default 1).</p>
+
+<p>Returns:
+    The <code><a href="#DetectorErrorModel">DetectorErrorModel</a></code>: round <code>r</code>'s data faults flip round <code>r</code>'s detectors and
+    round <code>r + 1</code>'s (the last round's only its own); measurement errors on a check do
+    likewise; the observables are those of the data faults, the same in every round.</p>
+</div>
+
+
+                </section>
+                <section id="DemChunkSpec">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">DemChunkSpec</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunkSpec"></a>
+    
+            <div class="docstring"><p>One DEM phase/chunk as flat index lists.</p>
+
+<p>Two mutually exclusive forms: H_sparse at chunk level (memory experiments, all seams share
+the same H rows), or seam_specs with per-seam H_sparse/O_sparse for non-memory circuits.
+O_sparse at chunk level → <a href="#ExtendedDem.O">ExtendedDem.O</a> (decoder observable).</p>
+</div>
+
+
+                            <div id="DemChunkSpec.num_faults" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_faults</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunkSpec.num_faults"></a>
+    
+            <div class="docstring"><p>Fault columns; all matrices have this width.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunkSpec.H_sparse" class="classattr">
+                                <div class="attr variable">
+            <span class="name">H_sparse</span><span class="annotation">: List[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunkSpec.H_sparse"></a>
+    
+            <div class="docstring"><p>Shared H rows for all seams, -1 terminated (memory shorthand).</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunkSpec.seam_specs" class="classattr">
+                                <div class="attr variable">
+            <span class="name">seam_specs</span><span class="annotation">: List[<a href="#SeamSpecEntry">SeamSpecEntry</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunkSpec.seam_specs"></a>
+    
+            <div class="docstring"><p>Per-seam specs as a list of SeamSpecEntry (non-memory form).</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunkSpec.O_sparse" class="classattr">
+                                <div class="attr variable">
+            <span class="name">O_sparse</span><span class="annotation">: List[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunkSpec.O_sparse"></a>
+    
+            <div class="docstring"><p>Observable rows (-1 terminated).</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunkSpec.error_rates" class="classattr">
+                                <div class="attr variable">
+            <span class="name">error_rates</span><span class="annotation">: List[float]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunkSpec.error_rates"></a>
+    
+            <div class="docstring"><p>One prior per fault column.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunkSpec.is_empty" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">is_empty</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunkSpec.is_empty"></a>
+    
+            <div class="docstring"><p>True iff no field has been set.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunkSpec.expand" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">expand</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">ids</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#SeamId">SeamId</a></span><span class="p">]</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunkSpec.expand"></a>
+    
+            <div class="docstring"><p>Expand H_sparse shorthand into seam_specs for the given ids (a no-op when seam_specs is
+already populated; the shorthand H_sparse goes to every seam in <code>ids</code> with an empty O_sparse).</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunkSpec.validate" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">validate</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">context</span><span class="p">:</span> <span class="nb">str</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunkSpec.validate"></a>
+    
+            <div class="docstring"><p>Raise ValueError on the first inconsistency.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="DemChunksSpec">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">DemChunksSpec</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec"></a>
+    
+            <div class="docstring"><p>Multi-phase DEM decomposition with arbitrary named phases.</p>
+
+<p>Standard memory experiment (linear chain init → bulk×N → final):
+  connections = [{init,bulk}, {bulk,bulk}, {bulk,final}]
+  seam        = {next_round, prev_round}
+  num_rounds  = T   (None for streaming — round count unknown at config time)</p>
+
+<p>dem_chunks_from_spec() calls phase_sequence() to materialise the full chunk list. num_rounds
+is required for that call when a self-loop is present; for streaming leave it as None and
+process bulk chunks as they arrive.</p>
+</div>
+
+
+                            <div id="DemChunksSpec.phases" class="classattr">
+                                <div class="attr variable">
+            <span class="name">phases</span><span class="annotation">: List[<a href="#PhaseSpecEntry">PhaseSpecEntry</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec.phases"></a>
+    
+            <div class="docstring"><p>List of PhaseSpecEntry.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunksSpec.connections" class="classattr">
+                                <div class="attr variable">
+            <span class="name">connections</span><span class="annotation">: List[<a href="#PhaseConnection">PhaseConnection</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec.connections"></a>
+    
+            <div class="docstring"><p>List of PhaseConnection (phase graph edges).</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunksSpec.seam" class="classattr">
+                                <div class="attr variable">
+            <span class="name">seam</span><span class="annotation">: <a href="#SeamConnection">SeamConnection</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec.seam"></a>
+    
+            <div class="docstring"><p>SeamConnection used between all adjacent phases.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunksSpec.num_rounds" class="classattr">
+                                <div class="attr variable">
+            <span class="name">num_rounds</span><span class="annotation">: Optional[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec.num_rounds"></a>
+    
+            <div class="docstring"><p>Total rounds to materialise (None for streaming). Required by phase_sequence() when a self-loop is present.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunksSpec.is_empty" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">is_empty</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec.is_empty"></a>
+    
+            <div class="docstring"><p>True when no phases or connections have been set.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunksSpec.has_repeating_phase" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">has_repeating_phase</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec.has_repeating_phase"></a>
+    
+            <div class="docstring"><p>True when any connection is a self-loop.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunksSpec.repeating_phase" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">repeating_phase</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="n"><a href="#SeamId">SeamId</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec.repeating_phase"></a>
+    
+            <div class="docstring"><p>Return the PhaseId of the self-connected phase.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunksSpec.phase_sequence" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">phase_sequence</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="n">List</span><span class="p">[</span><span class="n"><a href="#SeamId">SeamId</a></span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec.phase_sequence"></a>
+    
+            <div class="docstring"><p>Expand connections into an ordered list of PhaseIds. Requires num_rounds when a
+self-loop is present.</p>
+
+<p>With a self-loop (repeating phase) and num_rounds = T the result is [A, B, B, ...(T-2
+times)..., B, C]; without one the length is derived from the connections and num_rounds is
+not consulted. A phase with more than one non-self outgoing edge, or a cycle among the
+non-self edges, is rejected.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunksSpec.get_phase" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">get_phase</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="nb">id</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span></span><span class="return-annotation">) -> <span class="n"><a href="#DemChunkSpec">DemChunkSpec</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec.get_phase"></a>
+    
+            <div class="docstring"><p>Return the DemChunkSpec for the phase with the given PhaseId (a copy: change a phase
+through <code><a href="#DemChunksSpec.phases">phases</a></code>). Raises ValueError if no such phase exists.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemChunksSpec.validate" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">validate</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemChunksSpec.validate"></a>
+    
+            <div class="docstring"><p>Raise ValueError if the spec is inconsistent.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="DemSeamSpec">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">DemSeamSpec</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#DemSeamSpec"></a>
+    
+            <div class="docstring"><p>Per-seam sparse spec for one named seam boundary.</p>
+</div>
+
+
+                            <div id="DemSeamSpec.H_sparse" class="classattr">
+                                <div class="attr variable">
+            <span class="name">H_sparse</span><span class="annotation">: List[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemSeamSpec.H_sparse"></a>
+    
+            <div class="docstring"><p>Syndrome rows, -1 terminated.</p>
+</div>
+
+
+                            </div>
+                            <div id="DemSeamSpec.O_sparse" class="classattr">
+                                <div class="attr variable">
+            <span class="name">O_sparse</span><span class="annotation">: List[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#DemSeamSpec.O_sparse"></a>
+    
+            <div class="docstring"><p>Logical-frame rows, -1 terminated (non-memory).</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="ExtendedDem">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">ExtendedDem</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem"></a>
+    
+            <div class="docstring"><p>One chunk of a DEM with named seam boundaries.</p>
+
+<p>H holds all detector rows (seam bands + interior rows). O holds the observable-flip rows.
+error_rates has one entry per fault column.</p>
+
+<p>Users typically work through dem_chunks_from_spec() and dem_close_all() without inspecting
+fields directly.</p>
+</div>
+
+
+                            <div id="ExtendedDem.num_faults" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">num_faults</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.num_faults"></a>
+    
+            <div class="docstring"><p>Number of fault columns.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.num_rows" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">num_rows</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.num_rows"></a>
+    
+            <div class="docstring"><p>Total detector rows in H (seam + interior).</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.num_observables" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">num_observables</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.num_observables"></a>
+    
+            <div class="docstring"><p>Observable rows.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.num_interior_rows" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">num_interior_rows</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.num_interior_rows"></a>
+    
+            <div class="docstring"><p>Rows of H not covered by any seam.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.has_seam" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">has_seam</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="nb">id</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.has_seam"></a>
+    
+            <div class="docstring"><p>True if a seam with the given SeamId exists.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.get_seam" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">get_seam</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="nb">id</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span></span><span class="return-annotation">) -> <span class="n"><a href="#ExtendedDemSeam">ExtendedDemSeam</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.get_seam"></a>
+    
+            <div class="docstring"><p>Return the seam descriptor for the given SeamId.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.H" class="classattr">
+                                <div class="attr variable">
+            <span class="name">H</span><span class="annotation">: numpy.ndarray</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.H"></a>
+    
+            <div class="docstring"><p>All detector rows as a dense uint8 NumPy array [n_rows × n_faults].</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.O" class="classattr">
+                                <div class="attr variable">
+            <span class="name">O</span><span class="annotation">: numpy.ndarray</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.O"></a>
+    
+            <div class="docstring"><p>Observable rows as a dense uint8 NumPy array [k × n_faults].</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.error_rates" class="classattr">
+                                <div class="attr variable">
+            <span class="name">error_rates</span><span class="annotation">: List[float]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.error_rates"></a>
+    
+            <div class="docstring"><p>Error rates, one per fault column.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.seams" class="classattr">
+                                <div class="attr variable">
+            <span class="name">seams</span><span class="annotation">: List[<a href="#ExtendedDemSeam">ExtendedDemSeam</a>]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.seams"></a>
+    
+            <div class="docstring"><p>List of named seam descriptors.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.tags" class="classattr">
+                                <div class="attr variable">
+            <span class="name">tags</span><span class="annotation">: List[int]</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.tags"></a>
+    
+            <div class="docstring"><p>Tags per seam row (flat, in seams[] order).</p>
+
+<p>dem_stitch compares tags across a contracted boundary, but every builder here numbers
+them positionally as 0..width-1 per seam, so the comparison holds automatically once the
+widths match and adds no safety of its own. Assign your own identifiers here if you need
+the boundary check to verify that both sides name the same physical check.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDem.validate" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">validate</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">context</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'dem'</span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDem.validate"></a>
+    
+            <div class="docstring"><p>Raise ValueError unless the chunk is internally consistent.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="ExtendedDemSeam">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">ExtendedDemSeam</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDemSeam"></a>
+    
+            <div class="docstring"><p>Named seam descriptor: row range in H.</p>
+</div>
+
+
+                            <div id="ExtendedDemSeam.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">ExtendedDemSeam</span><span class="signature pdoc-code condensed">(<span class="param"><span class="o">*</span><span class="n">args</span><span class="p">:</span> <span class="n">Any</span>, </span><span class="param"><span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDemSeam.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="ExtendedDemSeam.id" class="classattr">
+                                <div class="attr variable">
+            <span class="name">id</span><span class="annotation">: <a href="#SeamId">SeamId</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDemSeam.id"></a>
+    
+            <div class="docstring"><p>SeamId identifying this seam.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDemSeam.row_begin" class="classattr">
+                                <div class="attr variable">
+            <span class="name">row_begin</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDemSeam.row_begin"></a>
+    
+            <div class="docstring"><p>First row (inclusive) of this seam band in H.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDemSeam.row_end" class="classattr">
+                                <div class="attr variable">
+            <span class="name">row_end</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDemSeam.row_end"></a>
+    
+            <div class="docstring"><p>One past the last row of this seam band in H.</p>
+</div>
+
+
+                            </div>
+                            <div id="ExtendedDemSeam.num_rows" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">num_rows</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#ExtendedDemSeam.num_rows"></a>
+    
+            <div class="docstring"><p>Number of rows in this seam band.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="PhaseConnection">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">PhaseConnection</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#PhaseConnection"></a>
+    
+            <div class="docstring"><p>Directed edge in the phase graph.</p>
+</div>
+
+
+                            <div id="PhaseConnection.from_phase" class="classattr">
+                                <div class="attr variable">
+            <span class="name">from_phase</span><span class="annotation">: <a href="#SeamId">SeamId</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#PhaseConnection.from_phase"></a>
+    
+    
+
+                            </div>
+                            <div id="PhaseConnection.to_phase" class="classattr">
+                                <div class="attr variable">
+            <span class="name">to_phase</span><span class="annotation">: <a href="#SeamId">SeamId</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#PhaseConnection.to_phase"></a>
+    
+    
+
+                            </div>
+                            <div id="PhaseConnection.is_self" class="classattr">
+                                <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">is_self</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#PhaseConnection.is_self"></a>
+    
+            <div class="docstring"><p>True when from_phase == to_phase (marks the repeating phase).</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="PhaseSpecEntry">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">PhaseSpecEntry</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#PhaseSpecEntry"></a>
+    
+            <div class="docstring"><p>A (PhaseId, DemChunkSpec) pair.</p>
+</div>
+
+
+                            <div id="PhaseSpecEntry.id" class="classattr">
+                                <div class="attr variable">
+            <span class="name">id</span><span class="annotation">: <a href="#SeamId">SeamId</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#PhaseSpecEntry.id"></a>
+    
+            <div class="docstring"><p>PhaseId of this phase.</p>
+</div>
+
+
+                            </div>
+                            <div id="PhaseSpecEntry.spec" class="classattr">
+                                <div class="attr variable">
+            <span class="name">spec</span><span class="annotation">: <a href="#DemChunkSpec">DemChunkSpec</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#PhaseSpecEntry.spec"></a>
+    
+            <div class="docstring"><p>DemChunkSpec for this phase.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="PriorCombineMode">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">PriorCombineMode</span><wbr>(<span class="base">enum.Enum</span>):
+
+        
+    </div>
+    <a class="headerlink" href="#PriorCombineMode"></a>
+    
+            <div class="docstring"><p>Strategy for dem_merge_duplicate_columns().</p>
+</div>
+
+
+                            <div id="PriorCombineMode.or_combine" class="classattr">
+                                <div class="attr variable">
+            <span class="name">or_combine</span>        =
+<span class="default_value">&lt;<a href="#PriorCombineMode.or_combine">PriorCombineMode.or_combine</a>: 0&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#PriorCombineMode.or_combine"></a>
+    
+    
+
+                            </div>
+                            <div id="PriorCombineMode.sum_combine" class="classattr">
+                                <div class="attr variable">
+            <span class="name">sum_combine</span>        =
+<span class="default_value">&lt;<a href="#PriorCombineMode.sum_combine">PriorCombineMode.sum_combine</a>: 1&gt;</span>
+
+        
+    </div>
+    <a class="headerlink" href="#PriorCombineMode.sum_combine"></a>
+    
+    
+
+                            </div>
+                </section>
+                <section id="SeamConnection">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">SeamConnection</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#SeamConnection"></a>
+    
+            <div class="docstring"><p>Which seam of one phase contracts against which seam of the next.</p>
+</div>
+
+
+                            <div id="SeamConnection.from_seam" class="classattr">
+                                <div class="attr variable">
+            <span class="name">from_seam</span><span class="annotation">: <a href="#SeamId">SeamId</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#SeamConnection.from_seam"></a>
+    
+            <div class="docstring"><p>Seam contracting forward out of a phase.</p>
+</div>
+
+
+                            </div>
+                            <div id="SeamConnection.to_seam" class="classattr">
+                                <div class="attr variable">
+            <span class="name">to_seam</span><span class="annotation">: <a href="#SeamId">SeamId</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#SeamConnection.to_seam"></a>
+    
+            <div class="docstring"><p>Seam contracting backward into the next phase.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="SeamId">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">SeamId</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#SeamId"></a>
+    
+            <div class="docstring"><p>Identifier for a named seam or phase. Constructed from a string name; two SeamIds are
+equal iff constructed from the same string.</p>
+</div>
+
+
+                            <div id="SeamId.__init__" class="classattr">
+                                <div class="attr function">
+            
+        <span class="name">SeamId</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">name</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
+
+        
+    </div>
+    <a class="headerlink" href="#SeamId.__init__"></a>
+    
+    
+
+                            </div>
+                            <div id="SeamId.value" class="classattr">
+                                <div class="attr variable">
+            <span class="name">value</span><span class="annotation">: int</span>
+
+        
+    </div>
+    <a class="headerlink" href="#SeamId.value"></a>
+    
+            <div class="docstring"><p>FNV1a-32 hash of the name string.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="SeamSpecEntry">
+                    <div class="attr class">
+            
+    <span class="def">class</span>
+    <span class="name">SeamSpecEntry</span>:
+
+        
+    </div>
+    <a class="headerlink" href="#SeamSpecEntry"></a>
+    
+            <div class="docstring"><p>A (SeamId, DemSeamSpec) pair.</p>
+</div>
+
+
+                            <div id="SeamSpecEntry.id" class="classattr">
+                                <div class="attr variable">
+            <span class="name">id</span><span class="annotation">: <a href="#SeamId">SeamId</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#SeamSpecEntry.id"></a>
+    
+            <div class="docstring"><p>SeamId of this seam.</p>
+</div>
+
+
+                            </div>
+                            <div id="SeamSpecEntry.spec" class="classattr">
+                                <div class="attr variable">
+            <span class="name">spec</span><span class="annotation">: <a href="#DemSeamSpec">DemSeamSpec</a></span>
+
+        
+    </div>
+    <a class="headerlink" href="#SeamSpecEntry.spec"></a>
+    
+            <div class="docstring"><p>DemSeamSpec for this seam.</p>
+</div>
+
+
+                            </div>
+                </section>
+                <section id="are_dem_columns_unique">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">are_dem_columns_unique</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">dem</span><span class="p">:</span> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span></span><span class="return-annotation">) -> <span class="nb">bool</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#are_dem_columns_unique"></a>
+    
+            <div class="docstring"><p>Return True iff every fault column has a unique row-support set.</p>
+</div>
+
+
+                </section>
+                <section id="assert_dem_columns_unique">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">assert_dem_columns_unique</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">dem</span><span class="p">:</span> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span></span><span class="return-annotation">) -> <span class="kc">None</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#assert_dem_columns_unique"></a>
+    
+            <div class="docstring"><p>Raise ValueError if any two columns share row support.</p>
+</div>
+
+
+                </section>
+                <section id="dem_chunk_from_spec">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_chunk_from_spec</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">spec</span><span class="p">:</span> <span class="n"><a href="#DemChunkSpec">DemChunkSpec</a></span>,</span><span class="param">	<span class="n">seam_names</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#SeamId">SeamId</a></span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>,</span><span class="param">	<span class="n">context</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">'dem_chunk'</span></span><span class="return-annotation">) -> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_chunk_from_spec"></a>
+    
+            <div class="docstring"><p>Build one ExtendedDem from a DemChunkSpec.</p>
+
+<p>Args:
+    spec: DemChunkSpec to materialize.
+    seam_names: SeamIds for shorthand expansion (ignored if seam_specs is already populated).
+    context: Prefix for any error message.</p>
+
+<p>Returns:
+    ExtendedDem whose seam rows are tagged positionally, 0..width-1 within each seam. See
+    <a href="#ExtendedDem.tags">ExtendedDem.tags</a>: positional tags make the seam-tag check in dem_stitch equivalent to its
+    width check.</p>
+</div>
+
+
+                </section>
+                <section id="dem_chunk_rounds">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_chunk_rounds</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem_chunk</span><span class="p">:</span> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>,</span><span class="param">	<span class="n">from_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">3896084459</span><span class="p">)</span>,</span><span class="param">	<span class="n">to_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">2908397315</span><span class="p">)</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_chunk_rounds"></a>
+    
+            <div class="docstring"><p>Return how many measurement rounds a DEM chunk spans.</p>
+</div>
+
+
+                </section>
+                <section id="dem_chunks_from_spec">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_chunks_from_spec</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">spec</span><span class="p">:</span> <span class="n"><a href="#DemChunksSpec">DemChunksSpec</a></span></span><span class="return-annotation">) -> <span class="n">List</span><span class="p">[</span><span class="n"><a href="#ExtendedDem">ExtendedDem</a></span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_chunks_from_spec"></a>
+    
+            <div class="docstring"><p>Expand a DemChunksSpec into a sequence of ExtendedDem chunks.</p>
+
+<p>Args:
+    spec: DemChunksSpec describing the phases and connections.</p>
+
+<p>Returns:
+    List of ExtendedDem in phase_sequence() order.</p>
+</div>
+
+
+                </section>
+                <section id="dem_chunks_to_d_sparse">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_chunks_to_d_sparse</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem_chunks</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#ExtendedDem">ExtendedDem</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">from_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">3896084459</span><span class="p">)</span>,</span><span class="param">	<span class="n">to_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">2908397315</span><span class="p">)</span></span><span class="return-annotation">) -> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_chunks_to_d_sparse"></a>
+    
+            <div class="docstring"><p>Return the D_sparse measurement-to-detector map (memory experiments only).</p>
+
+<p>d_sparse[det_id] lists the raw measurement bit positions (in a flat T<em>d buffer, round 0's d
+bits first) that XOR-combine to fire that detector: detector k of round 0 is bit k (against
+the zero initial state), detector r</em>d+k of a later round the bits (r-1)<em>d+k and r</em>d+k (the
+difference of consecutive rounds). For a circuit whose detectors are not pairs of adjacent
+rounds, build D_sparse from circuit analysis instead.</p>
+</div>
+
+
+                </section>
+                <section id="dem_chunks_to_detector_round">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_chunks_to_detector_round</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem_chunks</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#ExtendedDem">ExtendedDem</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">from_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">3896084459</span><span class="p">)</span>,</span><span class="param">	<span class="n">to_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">2908397315</span><span class="p">)</span></span><span class="return-annotation">) -> <span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_chunks_to_detector_round"></a>
+    
+            <div class="docstring"><p>Return the round index for each detector in dem_close_all(chunks).</p>
+</div>
+
+
+                </section>
+                <section id="dem_chunks_to_o_sparse">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_chunks_to_o_sparse</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem_chunks</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#ExtendedDem">ExtendedDem</a></span><span class="p">]</span></span><span class="return-annotation">) -> <span class="n">List</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_chunks_to_o_sparse"></a>
+    
+            <div class="docstring"><p>Return the O_sparse observable-flip map from T DEM chunks: o_sparse[obs_id] lists the
+global fault column indices that flip observable obs_id.</p>
+</div>
+
+
+                </section>
+                <section id="dem_chunks_to_pcm">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_chunks_to_pcm</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem_chunks</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#ExtendedDem">ExtendedDem</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">from_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">3896084459</span><span class="p">)</span>,</span><span class="param">	<span class="n">to_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">2908397315</span><span class="p">)</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_chunks_to_pcm"></a>
+    
+            <div class="docstring"><p>Build a canonicalized parity-check matrix from T DEM chunks.</p>
+
+<p>Returns a <code>scipy.sparse.csc_matrix</code> (scipy must be installed).</p>
+</div>
+
+
+                </section>
+                <section id="dem_chunks_to_rounds">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_chunks_to_rounds</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem_chunks</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#ExtendedDem">ExtendedDem</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">from_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">3896084459</span><span class="p">)</span>,</span><span class="param">	<span class="n">to_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">2908397315</span><span class="p">)</span></span><span class="return-annotation">) -> <span class="nb">int</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_chunks_to_rounds"></a>
+    
+            <div class="docstring"><p>Return the total rounds a list of DEM chunks describes.</p>
+</div>
+
+
+                </section>
+                <section id="dem_close">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_close</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem</span><span class="p">:</span> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>,</span><span class="param">	<span class="n">to_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">2908397315</span><span class="p">)</span>,</span><span class="param">	<span class="n">from_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">3896084459</span><span class="p">)</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_close"></a>
+    
+            <div class="docstring"><p>Collapse an ExtendedDem into a flat detector_error_model.</p>
+
+<p>to_seam rows appear first in the output (detector[0] = syndrome[0] vs. zero initial state).
+The from_seam rows are dropped. A chunk carrying any other non-empty seam is rejected.</p>
+
+<p>Args:
+    dem: ExtendedDem to close.
+    to_seam: SeamId whose rows appear first (default: prev_round).
+    from_seam: SeamId whose rows are dropped (default: next_round).</p>
+</div>
+
+
+                </section>
+                <section id="dem_close_all">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_close_all</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem_chunks</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#ExtendedDem">ExtendedDem</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">from_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">3896084459</span><span class="p">)</span>,</span><span class="param">	<span class="n">to_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">2908397315</span><span class="p">)</span></span><span class="return-annotation">) -> <span class="n">Any</span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_close_all"></a>
+    
+            <div class="docstring"><p>Build a flat detector_error_model from T chunks in O(T) time.</p>
+
+<p>Equivalent to dem_close(dem_stitch_all(chunks, from, to), to) without the quadratic
+accumulation; the detector rows are in the same order as a stitched result.</p>
+
+<p>Args:
+    dem_chunks: Non-empty list of ExtendedDem.
+    from_seam: SeamId contracting forward (default: next_round).
+    to_seam: SeamId contracting backward (default: prev_round).</p>
+
+<p>Returns:
+    detector_error_model ready for any decoder.</p>
+</div>
+
+
+                </section>
+                <section id="dem_merge_duplicate_columns">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_merge_duplicate_columns</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem</span><span class="p">:</span> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>,</span><span class="param">	<span class="n">mode</span><span class="p">:</span> <span class="n"><a href="#PriorCombineMode">PriorCombineMode</a></span> <span class="o">=</span> <span class="o">&lt;</span><span class="n"><a href="#PriorCombineMode.or_combine">PriorCombineMode.or_combine</a></span><span class="p">:</span> <span class="mi">0</span><span class="o">&gt;</span></span><span class="return-annotation">) -> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_merge_duplicate_columns"></a>
+    
+            <div class="docstring"><p>Merge fault columns with identical row support.</p>
+
+<p>Row support is compared across all blocks (H rows in row order, then O rows) over GF(2). The
+merged columns come out in lexicographic order of their supports.</p>
+
+<p>Args:
+    dem: ExtendedDem to process.
+    mode: PriorCombineMode.</p>
+
+<p>Returns:
+    New ExtendedDem with unique-support columns.</p>
+</div>
+
+
+                </section>
+                <section id="dem_stitch">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_stitch</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">a</span><span class="p">:</span> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>,</span><span class="param">	<span class="n">b</span><span class="p">:</span> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>,</span><span class="param">	<span class="n">from_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span>,</span><span class="param">	<span class="n">to_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span></span><span class="return-annotation">) -> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_stitch"></a>
+    
+            <div class="docstring"><p>Stitch two adjacent DEM chunks: contract a's from_seam with b's to_seam.</p>
+
+<p>The contracted seam rows become new interior rows of the result. Row order of the result H:
+a's to_seam rows (only a's fault columns), a's interior rows, the contracted seam rows (both
+chunks' fault columns), b's interior rows, b's from_seam rows (only b's fault columns). Only
+from_seam and to_seam may carry rows.</p>
+
+<p>Args:
+    a: Left ExtendedDem.
+    b: Right ExtendedDem.
+    from_seam: SeamId of a's outgoing seam.
+    to_seam: SeamId of b's incoming seam.</p>
+
+<p>Returns:
+    Stitched ExtendedDem.</p>
+</div>
+
+
+                </section>
+                <section id="dem_stitch_all">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_stitch_all</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem_chunks</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#ExtendedDem">ExtendedDem</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">from_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">3896084459</span><span class="p">)</span>,</span><span class="param">	<span class="n">to_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">2908397315</span><span class="p">)</span></span><span class="return-annotation">) -> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_stitch_all"></a>
+    
+            <div class="docstring"><p>Stitch a list of adjacent DEM chunks left-to-right.</p>
+
+<p>Args:
+    dem_chunks: Non-empty list of ExtendedDem.
+    from_seam: SeamId contracting forward (default: next_round).
+    to_seam: SeamId contracting backward (default: prev_round).</p>
+
+<p>Returns:
+    Fully-stitched ExtendedDem.</p>
+</div>
+
+
+                </section>
+                <section id="dem_stitch_merged">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">dem_stitch_merged</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">dem_chunks</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="#ExtendedDem">ExtendedDem</a></span><span class="p">]</span>,</span><span class="param">	<span class="n">from_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">3896084459</span><span class="p">)</span>,</span><span class="param">	<span class="n">to_seam</span><span class="p">:</span> <span class="n"><a href="#SeamId">SeamId</a></span> <span class="o">=</span> <span class="n">SeamId</span><span class="p">(</span><span class="mi">2908397315</span><span class="p">)</span>,</span><span class="param">	<span class="n">mode</span><span class="p">:</span> <span class="n"><a href="#PriorCombineMode">PriorCombineMode</a></span> <span class="o">=</span> <span class="o">&lt;</span><span class="n"><a href="#PriorCombineMode.or_combine">PriorCombineMode.or_combine</a></span><span class="p">:</span> <span class="mi">0</span><span class="o">&gt;</span></span><span class="return-annotation">) -> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#dem_stitch_merged"></a>
+    
+            <div class="docstring"><p>Stitch chunks then merge duplicate columns.</p>
+
+<p>Args:
+    dem_chunks: Non-empty list of ExtendedDem.
+    from_seam: SeamId contracting forward (default: next_round).
+    to_seam: SeamId contracting backward (default: prev_round).
+    mode: PriorCombineMode for the merge step.</p>
+</div>
+
+
+                </section>
+                <section id="extended_dem_from_css_matrices">
+                    <div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">extended_dem_from_css_matrices</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">code</span><span class="p">:</span> <span class="n"><a href="#CssCodes">CssCodes</a></span>,</span><span class="param">	<span class="n">noise</span><span class="p">:</span> <span class="n"><a href="#CssNoise">CssNoise</a></span></span><span class="return-annotation">) -> <span class="n"><a href="#ExtendedDem">ExtendedDem</a></span>:</span></span>
+
+        
+    </div>
+    <a class="headerlink" href="#extended_dem_from_css_matrices"></a>
+    
+            <div class="docstring"><p>Build a one-round ExtendedDem from CSS generator matrices.</p>
+
+<p>H has seam bands for prev_round and next_round (identical for a one-round chunk). O holds the
+observable-flip rows. Tags are sequential.</p>
+
+<p>Args:
+    code: CssCodes instance.
+    noise: CssNoise instance.</p>
+
+<p>Returns:
+    One-round ExtendedDem.</p>
 </div>
 
 
