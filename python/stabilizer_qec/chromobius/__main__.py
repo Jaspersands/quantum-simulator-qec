@@ -53,6 +53,8 @@ differs:
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import os
 import re
 import sys
@@ -548,11 +550,27 @@ def _bits(preds: _np.ndarray, width: int) -> _np.ndarray:
     return _np.hstack([b, _np.zeros((len(preds), width - 64), dtype=bool)])
 
 
+@contextmanager
+def _output_file(out: Any):
+    """Close our file without replacing a primary dispatch/write failure."""
+    try:
+        yield out
+    except BaseException:
+        if out is not None:
+            try:
+                out.close()
+            except OSError:
+                pass
+        raise
+    else:
+        if out is not None:
+            out.close()
+
+
 def _predict(argv: List[str], stdout: Any) -> None:
     _check_for_unknown_arguments(("--in", "--in_format", "--in_includes_appended_observables", "--out", "--out_format", "--dem"), "predict", argv)
     shots_in = _find_open_file_argument("--in", True, argv)
-    out = _find_output_argument("--out", argv)
-    try:
+    with _output_file(_find_output_argument("--out", argv)) as out:
         dem_in = _find_open_file_argument("--dem", False, argv)
         in_format = _find_format_argument("--in_format", "b8", argv)
         out_format = _find_format_argument("--out_format", "01", argv)
@@ -571,9 +589,6 @@ def _predict(argv: List[str], stdout: Any) -> None:
         (out or stdout).write(encode_shots(_bits(preds, no), out_format, num_observables=no))
         if err or read_err:
             raise err or read_err
-    finally:
-        if out is not None:
-            out.close()
 
 
 def _benchmark(argv: List[str], stdout: Any) -> None:
@@ -581,8 +596,7 @@ def _benchmark(argv: List[str], stdout: Any) -> None:
     _check_for_unknown_arguments(("--in", "--in_format", "--in_includes_appended_observables", "--obs_in", "--obs_in_format", "--out", "--dem"), "benchmark", argv)
     shots_in = _find_open_file_argument("--in", True, argv)
     obs_in = _find_open_file_argument("--obs_in", False, argv) if _find_argument("--obs_in", argv) is not None else None
-    out = _find_output_argument("--out", argv)
-    try:
+    with _output_file(_find_output_argument("--out", argv)) as out:
         dem_in = _find_open_file_argument("--dem", False, argv)
         in_format = _find_format_argument("--in_format", "01", argv)
         obs_format = _find_format_argument("--obs_in_format", "01", argv)
@@ -636,9 +650,6 @@ def _benchmark(argv: List[str], stdout: Any) -> None:
             f"decoding_microseconds_per_detection_event = {_g(_div(decoding_us, num_events))}\n"
         )
         (out or stdout).write(text.encode())
-    finally:
-        if out is not None:
-            out.close()
 
 
 def _div(a: float, b: float) -> float:
@@ -659,8 +670,7 @@ def _g(x: float) -> str:
 
 def _describe_decoder(argv: List[str], stdout: Any) -> None:
     _check_for_unknown_arguments(("--in", "--out", "--circuit"), "describe_decoder", argv)
-    out = _find_output_argument("--out", argv)
-    try:
+    with _output_file(_find_output_argument("--out", argv)) as out:
         if _find_argument("--circuit", argv) is not None:
             from .._circuit import Circuit
 
@@ -677,14 +687,12 @@ def _describe_decoder(argv: List[str], stdout: Any) -> None:
         except ValueError as e:
             raise _Fail(str(e)) from None
         (out or stdout).write(text.encode() + b"\n")
-    finally:
-        if out is not None:
-            out.close()
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     """Chromobius's ``main``: run the command ``argv[1]`` (``argv`` as C's, the program first;
-    ``sys.argv`` by default) and return the exit status."""
+    ``sys.argv`` by default) and return the exit status. Caller-owned streams are not closed
+    or replaced."""
     argv = ["chromobius", *sys.argv[1:]] if argv is None else list(argv)
     stdout = sys.stdout.buffer
     command = argv[1] if len(argv) >= 2 else ""
@@ -702,8 +710,17 @@ def main(argv: Optional[List[str]] = None) -> int:
                 raise _Fail("Specify a chromobius command to run.\n" + HELP)
             else:
                 raise _Fail(f"Unrecognized chromobius command '{command}'.\n" + HELP)
-        finally:
-            stdout.flush()
+        except BaseException:
+            try:
+                stdout.flush()
+            except OSError:
+                pass  # retain the primary dispatch/write failure
+            raise
+        stdout.flush()
+    except OSError as e:
+        sys.stderr.write(f"chromobius: {e}\n")
+        sys.stderr.flush()
+        return 1
     except _Fail as e:
         sys.stderr.write(f"{e}\n")
         sys.stderr.flush()
@@ -717,5 +734,27 @@ def main(argv: Optional[List[str]] = None) -> int:
     return 0
 
 
+def _cli_main() -> int:
+    """Executable boundary: prevent CPython retrying a failed stdout buffer at shutdown."""
+    status = 0
+    try:
+        status = main()
+        sys.stdout.flush()
+    except OSError as e:
+        if status == 0:
+            sys.stderr.write(f"chromobius: {e}\n")
+            status = 1
+        # Only the executable owns this descriptor. Callable main leaves streams untouched.
+        stdout_fd = sys.stdout.fileno()
+        sink_fd = os.open(os.devnull, os.O_WRONLY)
+        try:
+            if sink_fd != stdout_fd:
+                os.dup2(sink_fd, stdout_fd)
+        finally:
+            if sink_fd != stdout_fd:
+                os.close(sink_fd)
+    return status
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_cli_main())

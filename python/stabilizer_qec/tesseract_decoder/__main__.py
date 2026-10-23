@@ -935,17 +935,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = _Args()
     parser = _Parser(args)
     try:
-        parser.parse(list(sys.argv[1:] if argv is None else argv))
-    except _Exit as e:
-        sys.stdout.write(e.text)
-        return 0
-    except _ParseError as e:
-        sys.stderr.write(f"{e}\n{parser.help()}")
-        return 1
-    # (What Tesseract writes to std::cout goes to sys.stdout, in order with the rest.)
-    _redirects[0] += 1
-    try:
-        _run(args, parser)
+        try:
+            parser.parse(list(sys.argv[1:] if argv is None else argv))
+        except _Exit as e:
+            sys.stdout.write(e.text)
+            sys.stdout.flush()
+            return 0
+        except _ParseError as e:
+            sys.stderr.write(f"{e}\n{parser.help()}")
+            return 1
+        # (What Tesseract writes to std::cout goes to sys.stdout, in order with the rest.)
+        _redirects[0] += 1
+        try:
+            _run(args, parser)
+        finally:
+            _redirects[0] -= 1
         sys.stdout.flush()
     except OSError as e:
         _flush_before_error()
@@ -963,15 +967,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         _flush_before_error()
         sys.stderr.write(_terminate("std::runtime_error", str(e)))
         return 134
-    finally:
-        _redirects[0] -= 1
     return 0
 
 
 def _cli_main() -> int:
     """Executable boundary: prevent CPython retrying a failed stdout buffer at shutdown."""
-    status = main()
+    status = 0
     try:
+        status = main()
         sys.stdout.flush()
     except OSError as e:
         if status == 0:
