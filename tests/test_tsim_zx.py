@@ -27,6 +27,7 @@ import numpy as np
 import pytest
 
 import stabilizer_qec as sq
+from tesseract_platform_helpers import assert_dem_text
 from stabilizer_qec import tsim
 from stabilizer_qec.tsim import zx
 from stabilizer_qec.tsim.zx import EdgeType, VertexType, ZXGraph
@@ -1480,7 +1481,8 @@ def test_an_ii_r_pauli_is_one_product_as_in_the_core():
     assert stim_reading(pair._stim_exact_text()) == stim_reading(single._stim_exact_text())
     assert "SPP X0*Z2" in stim_reading(pair._stim_exact_text()).split("\n")
     model = str(pair.detector_error_model(allow_gauge_detectors=True))
-    assert model == str(single.detector_error_model(allow_gauge_detectors=True)) == "error(0.5) D0\nerror(0.1) D0 D1"
+    assert model == str(single.detector_error_model(allow_gauge_detectors=True))
+    assert_dem_text(model, "error(0.5) D0\nerror(0.1) D0 D1")
     a, b = (tsim.Circuit(sq.Circuit(f"H 0\n{gate}[R_PAULI(theta=0.1, pauli=XZ)] 0 1")) for gate in ("II", "I"))
     assert str(a) == str(b) == "H 0\nR_PAULI(0.06366197723675814) X0*Z1"
     assert a.tcount() == b.tcount() == 1
@@ -1560,7 +1562,8 @@ def test_an_underscore_is_an_identity_letter_as_in_the_core():
     assert stim_reading(underscore._stim_exact_text()) == stim_reading(identity._stim_exact_text())
     assert "SPP X0*Z2" in stim_reading(underscore._stim_exact_text()).split("\n")
     model = str(underscore.detector_error_model(allow_gauge_detectors=True))
-    assert model == str(identity.detector_error_model(allow_gauge_detectors=True)) == "error(0.5) D0\nerror(0.1) D0 D1"
+    assert model == str(identity.detector_error_model(allow_gauge_detectors=True))
+    assert_dem_text(model, "error(0.5) D0\nerror(0.1) D0 D1")
     a, b = (tsim.Circuit(sq.Circuit(unmeasured.format(mid))) for mid in "_I")
     assert str(a) == str(b) == "H 0\nR_PAULI(0.06366197723675814) X0*Z2"
     assert a.to_matrix().shape == (4, 4) and np.array_equal(a.to_matrix(), b.to_matrix())

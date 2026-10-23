@@ -239,14 +239,20 @@ def test_a_byte_past_ascii_outside_a_comment_is_refused(raw, tmp_path, monkeypat
 
 
 def test_the_graph_is_the_files_text():
-    """``digits17``'s probability, printed again as the model prints it, is another number at
-    another weight level, so its frames (equal to PyMatching's) show the graph is built from the
-    file's own text. (Its weight, ``log((1 - p) / p) * 999 / log(9)``, is ten ulps below 101.5,
+    """``digits17``'s probability, printed again at the Apple-silicon model's 16 digits,
+    is another number at another weight level, so its frames (equal to PyMatching's) show
+    the graph is built from the file's own text. (Its weight, ``log((1 - p) / p) * 999 / log(9)``, is ten ulps below 101.5,
     so it is at level 101 with any platform's ``log``; printed with sixteen digits, it is one ulp
     above, at 102.)"""
     text = _case("digits17")["dem"]
     assert "0.44442025079306513" in text
-    assert "0.44442025079306513" not in str(DetectorErrorModel(text))
+    # The native DEM writer uses 19/34 digits on Linux, preserving this value.
+    # Explicitly model the fixture's 16-digit reserialization on every platform.
+    rounded = re.sub(r"error\(([^)]+)\)", lambda m: f"error({float(m[1]):.16g})", text)
+    assert "0.44442025079306513" not in rounded
+    assert [round(math.log((1 - p) / p) * 999 / math.log(9)) for p in (0.44442025079306513, float("%.16g" % 0.44442025079306513))] == [101, 102]
+    if sys.platform == "darwin":
+        assert rounded.rstrip("\n") == str(DetectorErrorModel(text))
 
 
 def test_fixtures_agree_with_pymatchings_program():
