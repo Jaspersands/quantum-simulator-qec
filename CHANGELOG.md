@@ -6,8 +6,8 @@ minor release before a major release removes it. The Rust crate is versioned on 
 
 ## 2.2.0 — 2026-10-22
 
-What 2.1.0 left open, closed, and one thing new: the coherent sampler's weights are exact at any
-number of interference generators a budget allows, where 2.1 summed each shot's whole class only
+The coherent sampler sums the selected completed kernel in floating-point arithmetic when
+its contraction plan fits the entry budget, where 2.1 summed each shot's whole class only
 up to twelve. PyMatching's own sparse blossom, transliterated line for line, is now the matcher
 behind PyMatching's API and behind Chromobius. tqec's compile pipeline, PyMatching's `animate`,
 Tsim's ZX graphs, CUDA-Q QEC's `dem_chunks` and `trt_decoder`, the QDK's parameter classes and
@@ -30,51 +30,37 @@ contraction width (`CoherentSampler.contraction_width`).
   contraction off, a budget past 2^31 is 2^31, and no table spans 32 or more generators at any
   budget. Past the budget, a kernel of at most twelve generators is still listed whole, as in
   2.1; a larger one is truncated as 2.1 truncated it (`exact_weights` is False), and the sampler
-  now says so with a `UserWarning`, where 2.1 was silent. The warning says what would contract
-  the sums: "the circuit's K interference generators contract past max_contraction=B table
+  now says so with a `UserWarning`, where 2.1 was silent. Its entry lower bound is not a
+  guaranteed sufficient budget. The warning describes the chosen basis/elimination heuristic: "the circuit's K interference generators contract past max_contraction=B table
   entries (their tables would hold N or more): ...; a max_contraction below N cannot sum the
   whole class, and N or more may"; or, when no budget would, "... interact too widely to
   contract at any max_contraction: their tables would hold more than 2^31 = 2147483648 entries
   in all, the most a budget allows; ..."; or "the contraction is off (max_contraction=0), ...".
-  A refusal that is not the budget's cannot happen, and warns as an internal error that asks
-  for the circuit.
+  Unexpected internal refusal warns and asks for the circuit. Width is not optimized over
+  equivalent circuit representations. Successful planning can dominate compilation: audited
+  20/40-round crosstalk memories took 0.3060–0.3078 / 2.1947–2.2014 CPU seconds, versus 2.1.0's
+  0.00648–0.00812 / 0.02049–0.02076 (three runs, shared load; different exact/truncated work).
+  Sampling scratch per active worker is `24*(arena+largest)` bytes before factors/overhead
+  (`arena=entries/2`, at most `36*entries`), so the entry budget is not a byte limit.
 - **Checked** against the whole kernel listed (a random circuit for each k from 13 to 20, every
   one with couplings between its generators, to 1e-10), against a sum over every one of the 2^k
   products (eight random circuits for each k from 13 to 16, to 1e-11), and against the state
   vector.
-  With `max_contraction=0` the weights are 2.1.0's (seed 9's first 20,000 on the d = 3 surface
-  memory over three rounds, to 1e-9). The thread count does not change a weight.
-- **Faster than the truncation it replaces**, on one thread of the development machine (Apple
-  silicon, shared, load average 25–45): 2.5 µs a shot against 2.1's 25 µs on the d = 3 surface
-  memory over three rounds (14 generators, width 3); 11.7 against 325 µs at d = 5 over five
-  rounds (64 generators, width 6); 46 against 775 µs at d = 7 over seven (174 generators,
-  width 9).
+  These are finite controls, not a proof over all numerical ranges. Contraction can change
+  last bits even at ≤12 generators; corrected proposal/group arithmetic can change seeded
+  outcomes with `max_contraction=0` too. Historical sample-time ratios require remeasurement.
 - **The joint sampler** keeps 2.1's rule, the whole class up to twelve generators and the
   truncation past that: its cross terms are overlaps of the exact engine's states, not products
   of factors.
-- **What moved** in `data/coherent/`, re-measured by `tools/coherent.py`:
-  - The d = 3 surface memory over three rounds reads a silent logical rate of
-    0.00260 ± 0.00008 (2,500,000 shots, seed 9) against the exact 0.00258. 2.1 read
-    0.00161 ± 0.00013, and 2.0 0.00100.
-  - The validation's two-round d = 3 surface rows (20 generators, width 5; now 4,000,000 shots
-    each) sit +0.7σ and +0.5σ from the state vector, where 2.1's data sat +0.6σ and +1.5σ.
-  - The sweep's d = 3 rows (an over-rotation after every tick; 28 generators, width 6): the
-    coherent rate is 2.42 times the twirl's at θ = 0.01 a tick (2.1's data: 2.35), 4.30 at 0.015
-    (4.2) and 8.80 at 0.03.
-  - ZZ crosstalk at d = 3 (56 generators, width 4): 1.08, 1.17, 1.45 and 1.60 times the twirl at
-    θ = 0.01, 0.02, 0.04 and 0.06 (2.1's data: 1.10, 1.13, 1.38, 1.48).
-  - Code capacity, d = 3 to 15 (4 to 112 generators, widths 1 to 10): every row exact. From
-    θ = 0.25 up every ratio to the twirl is between 0.96 and 1.02; at θ = 0.2 they spread from
-    0.88 ± 0.06 to 1.09 ± 0.05. The d = 3 and 5 rows, which 1.8.0 measured with its truncated
-    sums, are re-measured exactly.
-  - Still truncated, and kept as 1.8.0 measured them: the sweep at d ≥ 5 (152 generators and
-    up; d = 5 needs 97,178,638 table entries, d = 7 and 9 more than 2^31) and the crosstalk at
-    d = 5 (201,174 entries, three times the default budget) and d = 7.
-- **Wider weights, so more shots.** Exact weights spread more: at code capacity with d = 15 and
-  θ = 0.35, the effective sample size is 0.34% of the shots, where 2.1's truncation kept 25%.
-  `tools/coherent.py` now samples until each rate's error bar is worth 300 failures over at
-  least 100,000 unweighted shots, which for unit weights is 2.1's rule exactly. The capacity
-  rows took up to 28,700,000 shots each, and their error bars are 0.40 to 0.66 of 2.1's.
+- **Measurement provenance.** Raw `data/coherent/` rows are preserved, including older releases
+  and development-2.2 rows measured before the inherited merged-proposal correction. They are
+  archival and are not current quantitative validation, even when stamped 2.2.0 or exact.
+  Current table/chart generators require `generation_revision="coherent-merged-proposal-v1"`.
+  This marker records provenance, separately from `coherent.exact` and validation; it is never
+  inferred from a version or added to an old row. Final-wheel remeasurement must refresh the
+  d = 3 sweep/crosstalk, validation and capacity grids. Larger-distance historical rows remain
+  available as archive data; old ratios, ESS/error-bar claims and distance-scaling conclusions
+  do not substitute for those measurements.
 
 ### Added
 
@@ -83,13 +69,16 @@ contraction width (`CoherentSampler.contraction_width`).
   reuse of freed slots, and its graph's neighbour order. `Matching`, PyMatching's class here
   (`sq.Matching`, `stabilizer_qec.pymatching.Matching`, sinter's `pymatching` decoder), decodes
   on it: `decode`, `decode_batch`, `decode_to_edges_array` and `decode_to_matched_dets_array`
-  give PyMatching's answers on every shot, ties and orders included. Checked shot by shot on
+  agree in the recorded plain-decoding corpus, ties and orders included. Checked shot by shot on
   950,000 shots of 19 models (surface codes d = 3 to 7 at p = 0.001 to 0.02, colour-code
   Möbius graphs, repetition codes, unit and negative weights) and 600,000 of 3,000 hand-built
   graphs: 0 differences. It takes 1.00 to 1.04 times PyMatching's time (`decode_batch` with
   weights, d = 5 memory over 5 rounds, 100,000 shots, one thread). The tie tolerances in the
   PyMatching, sinter, PanQEC, beliefmatching (min-sum BP) and folding comparisons are gone:
-  they are exact. One divergence is deliberate. When a bit-packed batch fails on a padding bit,
+  those finite comparisons are exact. Correlated facade decoding uses the separate matcher and
+  requires an unedited DEM/circuit loaded with correlations, with actual observable IDs 0–63;
+  ensured wider output is zero-padded. Edited or hand-built graphs refuse correlated decoding,
+  even where upstream accepts them. One further divergence is deliberate. When a bit-packed batch fails on a padding bit,
   PyMatching's later decodes raise "!mwpm.flooder.queue.empty()" if the failing shot had
   earlier detection events at non-boundary nodes; this decoder refuses the shot before it
   makes any region, and keeps decoding. A failed batch still names its shot ("shot k: " and
@@ -100,33 +89,44 @@ contraction width (`CoherentSampler.contraction_width`).
   1,080 frames of 11 recorded cases equal as sorted lines, the arithmetic fused as that wheel
   fuses it on aarch64 (nothing is fused on x86-64), and all 44 recorded misuses give the
   wheel's messages. Of 600 random command lines, 590 behave identically; the other 10 name a
-  model that does not parse (see the Tesseract entry). `--dets_in` is read only to the first
+  model that does not parse (see the Tesseract entry). These recordings do not establish
+  general byte parity for NaN/overflow geometry or locale-dependent high-byte parsing. All
+  coordinate axes contribute to projection. Write/close failures produce controlled exit 1,
+  deliberately differing from observed native silent truncated success. `--dets_in` is read only to the first
   shot's end, as C's stdio reads it, and a model's bytes past ASCII in comments and tags are
   passed over, as Stim passes over them. Where PyMatching's program aborts (an `--out_dir` it
   cannot make, a hit index past 64 bits), `stabilizer-qec animate` prints `stabilizer-qec
   animate: <message>` and exits 1, and `pymatching.cli` raises the RuntimeError PyMatching's
-  does. The out-directory message is libc++'s on macOS and libstdc++'s on Linux; MSVC's
-  wording on Windows is not reproduced.
+  does. Out-directory messages follow local host/library policies; exact probes below
+  cover macOS arm64, not universal native wording. MSVC's wording is not reproduced. Fresh exact ENAMETOOLONG/EACCES probes were macOS
+  arm64 only; a trailing diagnostic punctuation difference is retained. The six-digit halfway
+  formatter correction was checked on 20,374 finite f32 values on Apple libc, not all runtimes.
 - **Chromobius on PyMatching 2.2.2's matcher, and its command line.** The Möbius matching is now
   `pm_exact` in the neighbour order of PyMatching 2.2.2, the PyMatching Chromobius 1.1.1 links.
-  The lifting gets PyMatching's edges in PyMatching's order, so the predictions are
-  Chromobius's: on macOS, on every shot of a 65,000-shot sweep (colour memories d = 3, 5 and 7
+  The lifting gets PyMatching's edges in PyMatching's order. Recorded macOS predictions agree
+  on every shot of a 65,000-shot sweep (colour memories d = 3, 5 and 7
   over 3 to 7 rounds, p = 0.001 to 0.01, X and Z; 240,000 shots in an extended run) and on all
   340,000 shots of `tools/decoder_check.py`'s colour cases (0 ties, at 0.65 times Chromobius's
-  time), with the weights equal as float32. `python -m stabilizer_qec.chromobius
+  time), with the weights equal as float32. This finite evidence does not ensure equal
+  observable choices on other inputs: tied lifting can differ at equal matching weight on
+  any platform, including macOS. Facade cases permit 95% agreement; the sweep requires 99%. `python -m stabilizer_qec.chromobius
   predict|benchmark|describe_decoder|help` is Chromobius's program, with Stim's flag parsing
   and record formats, and its outputs and messages, checked against 184 cases recorded from
   Chromobius 1.1.1's own binary. Where it differs: a `--circuit` that Stim's error analysis
   refuses gets this package's analysis message; a fault of probability 1 is refused
   (Chromobius describes and decodes it, with NaN weights); a model that only declares an
   observable past L63 gets this package's 64-observable message (Chromobius decodes it, its
-  predictions past L63 undefined); records are read whole before decoding (the output is the
-  same); `predict` decodes on every core; an index whose digits overflow Stim's 64-bit read
-  prints the C++ library's message and exits 134 without raising SIGABRT; a bit past the
+  predictions past L63 undefined); records are read whole before decoding, and sparse hits/dets
+  additionally expand to a shots-by-detectors bool array; `predict` decodes on every core; an index whose digits overflow Stim's 64-bit read
+  prints pinned macOS libc++abi text on every host and exits 134 without raising SIGABRT; a bit past the
   last detector, where Chromobius's result is undefined, is refused with PyMatching's message
   every time; and the matcher's weight scale counts a self-loop given more than once at its
   merged weight alone, where PyMatching 2.2.2's also counts its first weight (no Möbius graph
-  has a self-loop).
+  has a self-loop). Invalid UTF-8 model bytes use replacement; native byte preservation
+  was not freshly verified. Precision policy is 16 significant digits on macOS arm64/Windows,
+  19 on non-Windows x86-64, 34 on other ARM64; exact text fixtures are macOS arm64 only.
+  Lifting failures use the port's shot-indexed message and preserve later valid calls rather
+  than imitating native state damage. Finite-coordinate overflow now yields controlled exit 1.
 - **Tesseract's command line, and any number of observables.** `python -m
   stabilizer_qec.tesseract_decoder` is Tesseract's `tesseract` program: its flags (`--circuit`,
   `--dem`, `--sample-num-shots`, `--in`, `--out`, the detector-order flags, `--beam`,
@@ -144,7 +144,9 @@ contraction width (`CoherentSampler.contraction_width`).
   decoders, `build_det_orders`, `build_detector_graph`): a 100-observable model recorded from
   Tesseract's wheel decodes as it does there, the verbose log included. The Rust API's
   `SearchDecoder` stays at 64, since its `Prediction.observables` is a `u64`, and refuses more
-  with its own message. In all three programs, as everywhere in this package, a model or
+  with its own message. Prediction write/close errors now yield controlled exit 1 and preserve
+  the primary error. Native Tesseract I/O-failure policy was not independently executed.
+  In all three programs, as everywhere in this package, a model or
   circuit that does not parse is refused with this package's parser's message, not Stim's
   (`line 2: unsupported instruction 'FOO'`, where Stim raises `Unrecognized instruction name:
   foo`).
@@ -156,10 +158,10 @@ contraction width (`CoherentSampler.contraction_width`).
   writes tqec's circuit from tqec's own plaquettes, templates and detectors. Hadamard pipes,
   spatial junction cubes and the whole gallery compile (stability, move/rotation, three CNOTs,
   Steane encoding, CZ). All 51 circuits recorded from tqec 0.2.0, one fresh process each, are
-  byte-identical, and the 6 recorded refusals raise tqec's type and message. It runs 6 to 16
-  times faster than tqec on the same machine (the CNOT at k = 1: 3.4 s against 53 s,
+  byte-identical, and the 6 recorded refusals raise tqec's type and message. The recorded cases
+  took 6 to 16 times less time on the same machine (the CNOT at k = 1: 3.4 s against 53 s,
   unloaded). Where it differs, on purpose: each compilation starts from fresh caches, so its
-  circuit is a fresh tqec process's (tqec's caches hand out shared plaquettes whose schedules a
+  first generated circuit is a fresh tqec process's (tqec's caches hand out shared plaquettes whose schedules a
   compilation changes, so tqec's circuit for a graph can depend on what the process compiled
   before); the detector database is kept in memory (`database_path` is taken and never read or
   written); there are no worker processes (the output is the same); `k` must be a positive
@@ -171,19 +173,24 @@ contraction width (`CoherentSampler.contraction_width`).
   have non-deterministic observables at k = 1 (tqec issue #1034); `cz("ZZ -> ZZ")` in the
   fixed-boundary convention at k = 2 has a non-deterministic detector; and so do two L-shaped
   spatial-junction memories stacked with no pipe between them (#1062, fixed after 0.2.0). The
-  fixtures record which, so a later fix shows up as a fixture change. The lattice-surgery
-  engine's route, `compile_block_graph(graph, distance)` and `BlockGraph.compile`, is
-  unchanged.
+  fixtures record examples, not an exhaustive list: spatial Hadamards at spatial junctions
+  can also produce non-deterministic detectors/observables. These inherited circuits are
+  reproduced for parity, not certified as valid error-correction experiments. X-directed
+  spatial Hadamards require `fixed_boundary`; `fixed_bulk` lacks the template. Y cubes and
+  unfilled ports are unsupported. The lattice-surgery
+  engine's layout from `compile_block_graph(graph, distance)` and `BlockGraph.compile`
+  remains available at `.circuit`; `generate_stim_circuit` writes tqec's layout (see Changed).
 - **Tsim's ZX graphs.** `tsim.Circuit.get_graph(backend=)` and
   `get_sampling_graph(sample_detectors, backend=)` build Tsim 0.1.5's ZX graphs, vertex for
   vertex and edge for edge (`stabilizer_qec.tsim.zx`: Tsim's instruction builders and parser,
   pyzx_param's simple graph with its vertex numbering and rewrite rules, and the sampling
-  graph's transforms), on pyzx_param's `GraphS` where it imports and on this package's numpy
-  `ZXGraph` otherwise. `diagram("pyzx")`, `"pyzx-dets"` and `"pyzx-meas"` draw them, and
+  graph's transforms), on pyzx_param's `GraphS` where it imports and on this package's pure-Python
+  `ZXGraph` otherwise (tensor contraction uses NumPy). `diagram("pyzx")`, `"pyzx-dets"` and `"pyzx-meas"` draw them, and
   `to_matrix` and `to_tensor` of a circuit with measurements, detectors, observables, feedback,
   a reset after a qubit's first operation or noise before a reset are Tsim's ZX tensor, where
   2.1 raised (measurements, feedback, later resets) or gave the wrong matrix (see Fixed).
-  Checked against 40 circuits recorded from Tsim (every gate, noise channel and annotation) on
+  Checked against 40 recorded circuits exercising selected gates, channels and annotations
+  (I_ERROR/II_ERROR are absent from this corpus) on
   both backends, and against live Tsim on 4,200 random circuits (five graphs each), 8,000
   random `to_matrix` (902 of them equal up to a global phase, the unitary engine's, below) and
   60 circuits' diagrams: 0 differences. Where it differs: the shots stay this package's (see
@@ -216,15 +223,17 @@ contraction width (`CoherentSampler.contraction_width`).
   derives from the same circuit. `trt_decoder` runs its ONNX model on the CPU: a zero-dependency
   ONNX reader and a numpy evaluator of the operators the decoder needs (Gemm, MatMul, Add, Relu,
   Sigmoid, Identity, Cast, Reshape, Flatten, and QuantizeLinear and DequantizeLinear in int8,
-  uint8 and float8), whose float32 products and sigmoid follow onnxruntime's MLAS kernels, so its
-  outputs equal onnxruntime 1.31.0's bit for bit on all 157 cases recorded on 17 models (macOS
+  uint8 and float8), using deterministic typed operations and selected MLAS arithmetic. Its
+  outputs match onnxruntime 1.31.0's bit for bit on all 157 cases recorded on 17 models (macOS
   arm64; CUDA-Q 0.8.1's three models among them, equal to its git-lfs pointers' sha256).
-  TensorRT's import rules are onnx-tensorrt's, and the messages and warnings CUDA-Q's. onnxruntime
-  itself can differ by an ulp on CPUs whose MLAS kernels block differently; the tests compare with
-  the recordings. Where it differs: an `O` that CUDA-Q's Python binding refuses before it makes a
-  decoder (None, a tuple, a list nested three deep) or drops (an empty list) gets the message
-  CUDA-Q gives any other `O` that is not a tensor, "TensorRT initialization failed:
-  heterogeneous_map::get() error - Invalid type or key (O).".
+  The selected numerical contract also checks CUDA-Q's 30 PyTorch surface-model outputs at
+  absolute tolerance 1e-4. Arbitrary ORT optimizer/prepacking, computed MatMul weights,
+  weight-only DQ fusion and reduced-precision paths can round differently on the same CPU;
+  near 0.5 this can change a binary correction. This is not a native TensorRT/GPU comparison.
+  [ONNX_CONTRACT.md](python/stabilizer_qec/cudaq_qec/ONNX_CONTRACT.md) specifies the targeted
+  IR 7–10/opset 13–21 eleven-operator subset, types, tolerances and limits; it is not a full
+  schema validator or resource bound. Numeric/strided/Fortran arrays, rectangular lists and
+  sparse `O` inputs are intentionally broader than CUDA-Q's row-major uint8 tensor binding.
 - **Azure: the QDK's parameter classes and its report.** qdk 1.33.1's `EstimatorParams` and its
   sections (`EstimatorQubitParams`, `EstimatorQecScheme`, `DistillationUnitSpecification`,
   `ErrorBudgetPartition`, `EstimatorConstraints`, ...), the QDK's code for Python 3.9, are taken
@@ -243,11 +252,18 @@ contraction width (`CoherentSampler.contraction_width`).
   the QDK lacks, and the tables are drawn when first asked for.
 - **Qualtran's Dash app.** `stabilizer_qec.estimate.qualtran.ui` has Qualtran 0.7.0's layout
   builders and callback. `ui.make_app()` (and `ui.app`) is Qualtran's Dash app: its layout and
-  callback equal Qualtran's, and so do its answers through Flask's test client. `ui.serve()`
+  callback match the recorded Qualtran cases through Flask's test client. Very large gate
+  counts can differ in last bits of 15-to-1 factory cycles/durations. `ui.serve()`
   and `python -m stabilizer_qec.estimate.qualtran.ui` run it, on Dash where dash is installed
   (the new `dash` extra, `pip install "stabilizer-qec[dash]"`; CI installs dash 4.4.1) and
   otherwise on the standard library's HTTP server, with a page of this package's own that draws
-  the same layout and runs the same callback. That page loads the installed plotly's
+  the component layout and runs the same callback, with template-free figures whose colors,
+  backgrounds and fonts can differ from Dash's installed-Plotly template. Public builders are
+  lightweight component/dependency mirrors, not Dash's full mutation/pickling/callback API;
+  `make_app` converts them. Only the fallback guarantees ephemeral binding at port 0; Dash
+  receives 0 unchanged (Dash 4.4.1 uses PORT or 8050). The fallback accepts JSON media types
+  and bounds body reads at 1 MiB, with explicit length/method errors; this is not a bound on
+  callback work, connection count or client duration, nor a Host/CORS security guarantee. That page loads the installed plotly's
   plotly.js, or without plotly cdn.plot.ly's plotly.js 3.7.0, pinned by its hash. Importing
   `ui` imports neither dash nor plotly (Qualtran's `ui` does not import without dash). Without
   dash, `ui.app` raises `make_app`'s ImportError, and so does `hasattr(ui, "app")`, where
@@ -257,6 +273,12 @@ contraction width (`CoherentSampler.contraction_width`).
   fusion_blossom's server on it: 55 recorded requests (18 paths by GET, HEAD and POST, and a
   range request) are answered as fusion_blossom's server answers them, headers and bodies. It
   is imported with `stabilizer_qec.fusion_blossom`, as fusion_blossom imports its own.
+  LF bytes and the raw upstream SHA are enforced for the vendored path; a Windows wheel
+  byte comparison remains unexecuted. Data serving now validates UTF-8 and stable-filesystem
+  containment of Bottle's strip+abspath candidate while preserving original stripped spelling
+  for both static-file calls (including Range preflight). Concurrent filesystem replacement
+  is outside this guarantee. JSON uses application/json; extensionless files default to HTML.
+  Quiet suppresses request logs, not all syntax/error logging.
   fusion_blossom also installs its Bottle and its helper as the top-level modules `bottle` and
   `helper` (so `import bottle` gives fusion_blossom's); this package installs neither.
 - **Stim: a memory budget for the undetectable-error search.**
@@ -292,16 +314,13 @@ contraction width (`CoherentSampler.contraction_width`).
 
 - **The coherent sampler.** With more than twelve generators, a Clifford circuit's coherent
   sampler now sums each shot's whole class when the contraction fits `max_contraction`, so its
-  weights, and their spread, differ from 2.1's truncated ones (`max_contraction=0` gives
-  2.1.0's). Past the budget it warns where 2.1 was silent, so code run under `-W error` stops
-  there. `exact_weights` is True for every contracted kernel, and `contraction_width` is new.
-- **The coherent data.** Every row of `data/coherent/{validate,sweep,crosstalk,capacity}.json`
-  says what measured it: `version`, the core that measured it, and `coherent.exact`, whether
-  its weights summed each shot's whole class. A file's `version` is the core that last wrote
-  it. Rows kept from earlier releases are stamped 1.8.0 (not exact) or, for validate's six
-  repetition-code rows, 2.0.0 (exact). `tools/coherent.py <section> --only
-  field=value[,value...]` re-measures those rows and keeps the others, and refuses a command
-  line that names no row before it measures anything.
+  weights and their spread can differ from 2.1's truncated ones. `max_contraction=0` keeps
+  truncation, but does not undo corrected proposals or normalized group arithmetic. Past the budget it warns where 2.1 was silent, so code run under `-W error` stops
+  there. `exact_weights` is True for a completed contracted kernel, and `contraction_width` is new.
+- **The coherent data.** Newly constructed rows record actual `version` and the explicit
+  generation revision above. `coherent.exact` describes whole-class coverage independently.
+  Saving historical rows never upgrades their provenance. Repeated `--only` selectors for
+  one field now union their values; selectors on different fields intersect.
 - **PyMatching.** Among equally light matchings, `Matching`'s predictions, weights, edges and
   matched pairs are now PyMatching's (2.1 could pick another, and listed edges in its own
   order). `Matching.from_detector_error_model` and `from_stim_circuit` keep each fault's
@@ -346,6 +365,14 @@ contraction width (`CoherentSampler.contraction_width`).
     writes tqec's layout and takes tqec's keyword parameters (an unknown keyword is a
     TypeError, where 2.1 ignored it), and raises a ValueError pointing at `.circuit`, the
     engine's layout, for a program whose rounds tqec's layout cannot honour.
+  - Separate compilations isolate the cache initialization/build transaction across threads.
+    First generation matches a fresh reference process; repeated generation of one compilation
+    retains upstream mutable rescheduling. Concurrent mutation/generation of one object is not
+    guaranteed. Built-in compilation pickle restores schedules and the next generated circuit;
+    observable iterables are materialized once. Direct graph rounds/merged controls receive
+    the same layout refusal as the distance wrapper.
+  - `LinearFunction.unambiguous_max_on_positives` inherits tqec's single-pass-iterator caveat
+    (unlike 2.1): candidate checks can consume it and yield an incorrect maximum; pass a list.
   - `database_path` (on `generate_stim_circuit`, `generate_stim_circuits_with_detectors`,
     `generate_sinter_tasks` and `start_simulation_using_sinter`) defaults to tqec's
     `DEFAULT_DETECTOR_DATABASE_PATH`, where it was None. The path is never read or written.
@@ -355,7 +382,13 @@ contraction width (`CoherentSampler.contraction_width`).
   decimal that gave the stored radians, so `R_Z(1.9967044602602857)` came back as
   1.996704460260286. `inverse` keeps the literals too (a zero as `0.0`, as Tsim's). `tcount` is
   Tsim's, the graph's count, in which a coherent error is not a gate
-  (`stabilizer_qec.Circuit.tcount` still counts its phase). A circuit with Pauli products or
+  (`stabilizer_qec.Circuit.tcount` still counts its phase). The unrolled Python graph incurs
+  memory/time and can refuse sweep targets, malformed tags, unsupported products and invalid
+  record lookbacks where 2.1 returned its fast count. The two identified repeated scans were
+  removed without a general linear-cost promise. Aliases/case are resolved before tags, and
+  measurement-only/feedback/measured-I[RL] matrices use the ZX tensor. Lazy-chain integer
+  indexing works beyond sys.maxsize outcomes; len still overflows and full materialization
+  remains refused. T/T_DAG/TPP suffix metadata is not retained (`S[T:x] 0` prints `T 0`). A circuit with Pauli products or
   sweep bits has its ZX graph built before `to_matrix`, so its errors are Tsim's. Choosing the
   default ZX backend imports pyzx_param where it is installed, which calls
   `numpy.set_printoptions(suppress=True)` for the whole process, as importing Tsim does.
@@ -376,8 +409,11 @@ contraction width (`CoherentSampler.contraction_width`).
   Bottle's pages, data files carry ETag, Last-Modified and Accept-Ranges and answer range and
   conditional requests, HEAD works, and POST is a 405. The server is wsgiref's, one thread, and
   leaves its listening socket open after `srv.shutdown()`; a later `serve` call changes the
-  data folder of servers already running. `import stabilizer_qec.fusion_blossom` now loads
-  Bottle (with http.client and ssl) and appends Bottle's import hook to `sys.meta_path`, as
+  data folder of servers already running. Binding happens when the runner starts;
+  `server_close()` releases the socket after shutdown. `open_visualizer` propagates bind
+  failure before browser/input work and cleans up its owned worker/socket on input errors;
+  synchronous startup and in-flight requests are not universally time-bounded. `import stabilizer_qec.fusion_blossom` now loads
+  Bottle and appends Bottle's import hook to `sys.meta_path`, as
   `import fusion_blossom` does. `import stabilizer_qec` and `import stabilizer_qec.sinter` load
   neither, as `import sinter` does not: sinter's Fusion Blossom decoder imports Fusion Blossom
   when it decodes, as sinter's does.
@@ -394,6 +430,31 @@ contraction width (`CoherentSampler.contraction_width`).
   parameter schema.
 
 ### Fixed
+
+- **Coherent arithmetic.** Corrected the inherited merged-proposal odd probability (previously
+  odd/even odds) and normalized long-group parity probabilities/weights. Demonstrated valid
+  long groups now remain finite in deterministic and state-vector controls. The recurrence is
+  still f64 with limiting regularization; no proof over every numerical range is claimed.
+  Seeds and cost can change: three shared-load CPU runs on 100,000 shots of twenty merged
+  rotations took 0.261004–0.262286 s versus 0.138538–0.142096 before; the measured surface
+  case's overlapping spread is not evidence of a speedup. Early provably-wide refusal is
+  faster; it does not remove successful-plan compilation costs.
+- **Matching state.** Stable shared-object decode/search calls lease independent mutable
+  scratch; failed calls drop it. No-op merges retain configuration; edited graphs invalidate.
+  Numeric batch coercion casts to uint8 before nonzero; NaN readback/noise validity follows
+  the reference predicates. Correlated packed output/copies preserve ensured width. Allocation
+  checks do not promise recoverable true OOM, and arbitrary concurrent mutation/load is not
+  atomic. Arm64 FMA can still change probability readback in last bits; no universal immunity
+  of weights or tie choices is claimed.
+- **QDK rendering.** Untrusted table/report fields are escaped, optional Markdown retains a
+  fixed balanced formatting subset and HTTP(S) links, and diagrams embed quoted escaped JSON
+  preserving caller data. This deliberately differs from unsafe QDK 1.33.1 output. Explicit
+  developer HTML wrappers remain HTML. Finite output/semantic checks are not browser/CDN safety
+  certification.
+- **CI and helpers.** PyMatching 2.4.0/Stim 1.16.0 references are pinned. One bounded extended
+  Ubuntu/Python 3.12 job covers three designated slow corpus files; other matrices use reduced
+  cases. This source change does not establish remote CI success. Valid scalar qsample comb
+  results again retain numpy.float64 rather than Python float.
 
 - **Tsim.**
   - `to_matrix` gave the wrong shape for noise before a reset (`Z_ERROR(0.1) 1` then `R 1`
@@ -460,12 +521,13 @@ These remain, each in the README and the inventory:
   their default, and the Rust crate's `Matching` decode on this package's own sparse blossom
   (`src/sparse`), whose answer among equally light matchings can differ from PyMatching's (the
   README lists what decodes on which).
-- **Chromobius off macOS.** Chromobius walks a table in `std::unordered_map` order, which is the
+- **Chromobius tied lifting.** Chromobius walks a table in `std::unordered_map` order, which is the
   C++ library's own: with libstdc++ it may drag charge another way on some shots. Off macOS
-  the tests hold the predictions to 99% equal.
+  the sweep requires 99% agreement and some facade cases require 95%; equal-weight lifting can
+  differ on macOS too.
 - **The coherent sampler past its budget, and the joint sampler past twelve generators**, which
   truncate the class sums as 2.1 did. The sweep's d ≥ 5 rows and the crosstalk's d = 5 and 7
-  rows keep 1.8.0's truncated measurements.
+  rows keep 1.8.0's truncated measurements as pre-correction archive data, not current validation.
 
 ## 2.1.0 — 2026-10-20
 

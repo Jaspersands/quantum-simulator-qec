@@ -2143,26 +2143,30 @@
       outcome probabilities, naming logical error rates and decoding as future work; LeBlond et al. (2025) estimate
       an idling surface code's logical channel by quasi-probability sampling. Tsim (QuEra, 2026) samples circuits with
       T gates and rotations at 80+ qubits, at a cost exponential in the number of non-Clifford gates, so it suits a few
-      of them. None of these samples and decodes a circuit with a coherent error on every gate, thousands of small
-      rotations, beyond the size of a state vector.
+      of them. These are selected comparisons, not an exhaustive literature or novelty claim.
     </p>
     <p>
-      This engine does. The <strong>coherent sampler</strong> draws shots of the twirled circuit, as the frame
+      This engine's <strong>coherent sampler</strong> draws shots of the twirled circuit, as the frame
       sampler does, and gives each a weight: its class's coherent probability over its twirled probability, where a
       class is every set of faults no measurement can tell apart. Those sets form a linear space, the circuit's
       spacetime kernel (counting as stabilisers the randomness of measurements whose outcome is random), and every
-      cross term between them has a closed form from carrying Pauli operators through the circuit. Weighted, the
-      shots are distributed as the coherent circuit's. Rotations are written as tagged identities Stim reads as
+      cross term between them has a closed form from carrying Pauli operators through the circuit. A completed
+      whole-class sum recovers the coherent distribution in floating-point arithmetic; budget truncation and
+      skipped completion are approximations. The entry budget is not a byte limit, successful planning can
+      dominate compilation, and width depends on the selected basis and elimination heuristic. Rotations are written as tagged identities Stim reads as
       identities, <span class="mono">I_ERROR[R_Z(theta=0.01)] 0</span>, so the circuits stay Stim's.
     </p>
     <p>
-      What it finds: at circuit level the twirl underestimates the logical error, and by more as the code grows, since
-      a rotation repeated between the gates that would tell its repeats apart adds coherently and a larger code has
-      more such repeats (Figure 26). At θ = 0.01 per tick the coherent logical error is 2.4 times the twirl's at
-      d = 3 and 6.8 times at d = 9. It is checked three ways. On every branch of 150 random small circuits, the
-      weighted twirl equals the state vector's distribution to 10⁻¹⁰. Against the state vector's exact answers it agrees within its error bars
-      where the twirl is several times off (Figure 27). And at code capacity it reproduces Bravyi et al.'s finding,
-      that at code capacity the twirl describes coherent errors well (Figure 28).
+      Finite controls include exhaustive branch checks on 150 random small circuits to 10⁻¹⁰, whole-class
+      comparisons and state-vector regressions. They do not establish all numerical ranges or distance scaling.
+      The raw coherent data archive (<a href="data/coherent/sweep.json">sweep</a>,
+      <a href="data/coherent/validate.json">validation</a>, <a href="data/coherent/capacity.json">capacity</a>,
+      <a href="data/coherent/crosstalk.json">crosstalk</a>) preserves measurements made before the inherited
+      merged-proposal correction, including development rows stamped 2.2.0 or exact. They are not current
+      quantitative validation. Current figures accept only <span class="mono">generation_revision=coherent-merged-proposal-v1</span>;
+      the marker records provenance, independently of exactness or successful validation. Final-wheel remeasurement
+      will refresh the d = 3 sweep/crosstalk, validation and capacity grids. Larger-distance ratios, merged-decoder
+      gains, ESS and distance-scaling claims await suitable new measurements; no replacement values are inferred.
     </p>
   </div>
 
@@ -2221,7 +2225,7 @@
   <figure class="figure" data-cap>
     <figcaption class="figure__cap">
       <span class="figure__num">Figure 28</span>
-      <span class="figure__title">at code capacity, the twirl is right</span>
+      <span class="figure__title">code capacity: coherent noise and its twirl</span>
       <span class="figure__meta">as Bravyi et al. found</span>
     </figcaption>
     <div class="figure__body">
@@ -2230,9 +2234,9 @@
       <p class="note" data-cap-status></p>
       <p class="note">Perfect measurements and one Z over-rotation by θ on every data qubit, the setting of Bravyi et
         al., npj Quantum Information 4, 55 (2018), who found that at large distance the logical noise is close to the
-        twirled noise's. Here the ratio stays near 1 from d = 3 on. What sets circuit-level coherent noise apart
-        (Figure 26) is a rotation repeated between the gates that would tell its repeats apart, which a single round
-        of rotations cannot show. Bars: two standard errors.</p>
+        twirled noise's. Current agreement and ratios await corrected-proposal capacity measurements. A single
+        round of rotations does not probe the inter-round interference of circuit-level noise. Bars, when current
+        data are available: two standard errors.</p>
     </div>
   </figure>
 

@@ -5,10 +5,13 @@ A surface-code simulator and decoder written in Rust, with Python bindings.
 - Circuits and detector error models in [Stim](https://github.com/quantumlib/Stim)'s text formats,
   and error models built by walking a circuit backwards, identical to Stim's on every circuit
   checked.
-- Exact minimum-weight matching by sparse blossom, and correlated matching, agreeing with
-  [PyMatching](https://github.com/oscarhiggott/PyMatching) shot for shot except for ties.
+- Exact minimum-weight matching by sparse blossom, and correlated matching, checked against
+  [PyMatching](https://github.com/oscarhiggott/PyMatching) on finite corpora. Plain `Matching`
+  reproduces recorded tied choices; separate correlated routes may choose another equal-weight
+  answer and require an unedited DEM/circuit loaded with `enable_correlations=True`, with
+  actual observable IDs 0–63 (wider ensured output is zero-padded).
 - A bit-parallel sampler, 64 shots per machine word, that runs `REPEAT` blocks without flattening.
-- Raw measurements to detection events, reproducing Google's Willow and Sycamore files bit for bit.
+- Raw measurements to detection events, reproducing the recorded Google Willow and Sycamore files bit for bit.
 - Sliding and parallel window decoders for real-time decoding, and decoding as a service
   (`decode_async`, a decoder queue with statistics, a decoder server).
 - The APIs of Stim, PyMatching, sinter, ldpc, Tsim, tqec, Deltakit, PECOS and seventeen more QEC
@@ -18,8 +21,10 @@ A surface-code simulator and decoder written in Rust, with Python bindings.
 - Fault-tolerant compilation (tqec's block graphs, Loom's lattice surgery), resource estimates
   (Azure's and Qualtran's), and sampling and min-sum BP on the GPU through wgpu.
 - Belief propagation reproducing the [`ldpc`](https://github.com/quantumgizmos/ldpc) library's
-  arithmetic bit for bit, and belief-matching equal to the `beliefmatching` package's.
-- BP+OSD (OSD-0, OSD-E, OSD-CS), whose corrections equal `ldpc`'s `BpOsdDecoder`'s, and IBM's
+  arithmetic on the recorded controls, and belief-matching checked against `beliefmatching`,
+  subject to documented ties, platform arithmetic and API limits.
+- BP+OSD (OSD-0, OSD-E, OSD-CS), checked against `ldpc`'s `BpOsdDecoder` on recorded inputs,
+  with documented tie limits, and IBM's
   bivariate bicycle codes: the gross code [[144, 12, 12]] and [[72, 12, 6]], with the depth-8
   syndrome cycle of Bravyi et al. (Nature 627, 778, 2024).
 - On the gross code, every automorphism's action on the logical qubits, and the gauging measurement
@@ -63,7 +68,21 @@ stats = sinter.collect(tasks=tasks, decoders=["pymatching", "belief_matching", "
 
 The names follow Stim (`Circuit`, `compile_detector_sampler`, `separate_observables`),
 PyMatching (`Matching`, `decode_batch`, `enable_correlations`) and `ldpc` (`BpDecoder`,
-`BpOsdDecoder`, `error_channel`). A seed gives the same shots on any machine and thread count.
+`BpOsdDecoder`, `error_channel`). Seed reproducibility applies within the documented
+sampler/version contract and supported
+thread counts. Algorithm corrections, including 2.2's coherent merged-proposal and stable-group
+arithmetic fixes, can change seeded outcomes. Coherent whole-class sums require a completed
+kernel and a fitting contraction plan (or at most twelve generators); larger/incomplete sums
+are approximations and warn. `exact_weights` describes coverage in floating-point arithmetic,
+not universal numerical validation. Entry budgets are not byte limits and successful planning
+can dominate compilation.
+
+The [root guide](https://github.com/Jaspersands/quantum-simulator-qec/blob/master/README.md)
+documents port-specific refusals, exceptions, tie choices and migration changes. Crashes and
+hangs remain bugs to report; resource checks do not make all allocation failures recoverable.
+Old coherent measurements, including development rows labeled 2.2.0, predate the merged-proposal
+correction and are archival until remeasured with the explicit generation revision. That marker
+records provenance independently of exactness and validation.
 See the [changelog](https://github.com/Jaspersands/quantum-simulator-qec/blob/master/CHANGELOG.md).
 
 The explainer, its figures running the engine in the browser, is at

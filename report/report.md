@@ -639,27 +639,53 @@ gate, as Stim's `explain_detector_error_model_errors` prints it.
 
 ## Beyond Pauli noise
 
-Every result above, like Stim and every decoder, models noise as random Pauli errors. Hardware
+The noise results above use random Pauli errors. Hardware
 also over-rotates: a qubit meant to idle turns by a small angle θ, the same way every time. Its
 Pauli twirl (Z with probability $\sin^2\theta$) is exact for one rotation alone, but rotations
 that repeat add as amplitudes. Earlier work treats code capacity by free fermions (Bravyi et al.,
 2018), returns outcome probabilities of Clifford circuits with small errors (Miller et al., 2025),
 or estimates one idling memory's logical channel (LeBlond et al., 2025). Tsim (Haenel, Luo and
 Zhao, 2026) samples circuits with a few non-Clifford gates at any size, at a cost exponential in
-their number. None of them samples and decodes circuits with coherent noise on every gate.
+their number. These are selected comparisons, not an exhaustive literature or novelty audit.
 
-The **coherent sampler** does. It draws shots of the twirled circuit and weights each by its
+The **coherent sampler** supports tagged Pauli over-rotations on a Clifford reference circuit.
+It draws shots of the twirled circuit and weights each by its
 class's coherent over twirled probability, $|1 + \sum r|^2 / (1 + \sum |r|^2)$. A class is every
 fault set that no measurement can tell apart from the shot's. These sets are the cosets of a
 linear space, the circuit's spacetime kernel, in which the randomness of measurements with
 random outcomes counts as gauge. Each $r$, a member's amplitude relative to the shot's, has a
 closed form from carrying Pauli operators through the circuit.
+
 - Rotations that are the same fault in several places are drawn as one.
 - The rest of the kernel is found locally and completed to a basis of the whole kernel, which
   holds a logical at one time with the same logical at another.
 - On every branch of 150 random small circuits the weighted twirl equals the state vector's
   distribution to $10^{-10}$.
-- Against the state vector's exact answers:
+- The finite exact/class-sum controls do not prove numerical accuracy over all input ranges.
+
+With a completed kernel and a successful plan within `max_contraction` (65,536 entries by
+default), the selected whole class is summed in floating-point arithmetic. The width belongs
+to the selected basis/min-fill heuristic, not an optimum over equivalent representations.
+At most twelve generators can instead be listed whole; beyond the budget larger kernels are
+truncated and warn. Past `max_complete` (50,000 rotations) completion is skipped, leaving
+distant interference out. `exact_weights` describes coverage, not a numerical proof.
+Warnings give entry lower bounds, not guaranteed sufficient budgets. Entries are not bytes:
+scratch per active worker is `24*(arena+largest)` bytes before factors/overhead
+(`arena=entries/2`, at most `36*entries`). Successful planning can dominate compilation:
+audited 20/40-round crosstalk memories took 0.3060–0.3078 / 2.1947–2.2014 CPU seconds versus
+2.1.0's 0.00648–0.00812 / 0.02049–0.02076 (three runs, shared load; different exact/truncated
+work). Summation can change last bits even at ≤12 generators; corrected merged proposals
+and normalized group arithmetic can change seeded outcomes, including with contraction off.
+
+**Measurement provenance.** Raw [coherent data](../data/coherent/) includes pre-correction
+measurements, including development rows labeled 2.2.0 or exact. These predate the inherited
+merged-proposal correction and are archival, not current quantitative validation. Current
+tables require `generation_revision=coherent-merged-proposal-v1`, independently of exactness
+and validation; a version stamp does not supply it. The final-wheel measurement pass must
+refresh the d = 3 sweep/crosstalk, validation and capacity grids. Unrefreshed larger-distance
+rows remain archived. Old inter-round, ESS/error-bar/timing ratios share that boundary.
+
+State-vector comparison table (awaiting corrected-proposal measurements):
 
 {{table:coherent_valid}}
 
@@ -675,11 +701,10 @@ qubit). Coherent over twirled logical error:
 
 {{table:coherent_capacity}}
 
-At code capacity the twirl is accurate, as Bravyi et al. found. At circuit level it is not: a
-rotation that repeats between the gates that would tell its repeats apart adds coherently. The
-twirl then underestimates the logical error, by more at larger distance: at θ = 0.01 per tick,
-2.4 times at d = 3 and 6.8 times at d = 9. A decoder on the merged model fails up to 12% less
-often on the same shots at the larger angles, and gains nothing at the smallest.
+Repeated rotations can add coherently before intervening gates distinguish them. Current
+quantitative ratios to the twirl, merged-decoder gains, code-capacity agreement and distance
+scaling must come from the corrected-proposal remeasurement. Historical larger-distance
+results alone do not establish these conclusions.
 
 ## What it would take
 
@@ -737,15 +762,19 @@ same run needs d = {{est.lever.d}} and {{est.lever.qubits}}.
 
 Release 2.0 set out to hold every feature of every other quantum error-correction tool —
 twenty-five of them were inventoried, Stim and PyMatching to CUDA-Q QEC, tqec and Loom — under
-the names those tools use, each port checked against its original, and to add one thing none of
-them has. Thirteen workstreams did it, on top of the engine this report describes:
+the names those tools use, each port checked on specified reference cases, alongside coherent
+noise sampling. The historical overview below is bounded by those finite inputs, platforms
+and API modes; it is not universal compatibility or an exhaustive novelty claim:
 
-- **Stim's object model and PyMatching's graph API** member for member, `sinter`'s collection,
+- **Stim's object model and PyMatching's graph API** across the inventoried surfaces, `sinter`'s collection,
   `ldpc` whole (codes, GF(2) tools, every decoder) with corrections equal but for its platform
   ties; qsample's subset sampling; the decoders of twelve more packages (BP+LSD, Relay-BP,
   colour-code matching, Tesseract's search, local and collision clustering, ambiguity clustering,
   MWPF, tensor-network and lookup-table decoders, an NVIDIA-style pre-decoder trained here), each
-  equal to its authors' package shot for shot or fault for fault.
+  compared on the recorded corpus, with documented platform/tie and API limits. Plain
+  Matching's 2.2 finite tied-selection checks differ from its separate correlated matcher,
+  which requires an unedited correlated DEM/circuit load and actual observable IDs 0–63.
+  Chromobius equal-weight liftings can change observable predictions on any platform.
 - **Codes and code tools**: bivariate bicycle codes from their polynomials, hypergraph
   products, colour codes, MQT QECC's code switching and surgery routing, QUITS' windowed decoding.
 - **Noise and hardware**: a density-matrix simulator equal to Quantumsim's, process matrices,
@@ -754,11 +783,17 @@ them has. Thirteen workstreams did it, on top of the engine this report describe
 - **Clifford+T circuits** by a stabilizer-rank sampler at any qubit count (Tsim's demos sample
   the same distributions), and the headline: magic-state injection and distillation with a
   coherent over-rotation after every gate, sampled by a joint sampler that runs the gates exactly
-  and the errors twirled and reweighted. The twirl misjudges the encoded state's infidelity by two
-  to three times and turns a working 5-qubit distillation into a broken one; in the [[17,1,5]]
-  colour code (85 qubits, 801 rotations) the joint sampler is the only instrument that reaches.
-- **Fault-tolerant compilation**: tqec's block graphs (every gallery graph equal to tqec's,
-  correlation surfaces included) compiled on the lattice-surgery engine; Loom's Eka model
+  and the errors twirled and reweighted. Its whole-class rule holds up to twelve generators;
+  larger joint sums remain truncated. The old quantitative injection/distillation results
+  predate the merged-proposal correction and require revalidation. The historical 85-qubit,
+  801-rotation [[17,1,5]] run is not a universal advantage or reach claim.
+- **Fault-tolerant compilation**: tqec's block graphs and correlation surfaces checked on the
+  recorded gallery. Current 2.2 `generate_stim_circuit` uses tqec 0.2.0's pipeline with tqecd
+  0.2.1 detector search (51 recorded circuits/6 refusals), while distance compilation's
+  `.circuit` retains the engine layout. Spatial Hadamards along x require fixed_boundary;
+  Y cubes/open ports are unsupported. Separate compilations isolate caches, while repeated
+  generation retains mutable rescheduling and inherited non-deterministic circuit examples.
+  Loom's Eka model
   interpreted to circuits that equal Loom's gate for gate; Qualtran's surface-code cost models and
   Azure's Resource Estimator reproduced to the bit on 55 QDK configurations; the surgery CNOT's
   threshold under leakage, 0.49% falling to 0.23% at 30% leakage.
@@ -786,9 +821,9 @@ its status. Four tutorials cover the release (`tutorials/06` to `09`).
   algorithms from them, with the rest read from the papers it cites.
 - **The gross code's measurement schedule is not optimised.** It is correct by construction and
   its fault distance is only bounded above; Cross et al. optimise theirs.
-- **Coherent sampling has a reach.** Its weights spread as the circuit's volume times θ grows:
-  the effective sample size stays above about 40% to d = 11 at θ = 0.01 per tick, and falls to a
-  few percent there at θ = 0.02. Each point reports it.
+- **Coherent sampling has a reach.** Entry budgets, completion limits and weight spread limit
+  usable circuits. Quantitative ESS versus distance/angle must be remeasured after the merged-
+  proposal correction; the archived ESS rows are not current validation.
 - **The estimate is a model.** It prices every tile as an idle patch, consumes Toffolis in
   sequence unless told otherwise, and extrapolates the decoder's latency and cores past d = 7. It
   is meant to show what the measured numbers imply, and which of them the answer depends on.
