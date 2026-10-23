@@ -26,6 +26,7 @@ from wsgiref.simple_server import WSGIServer, WSGIRequestHandler
 import pytest
 
 from conftest import reference
+from server_process_helpers import in_owned_server_process, isolated_server_test, run_owned
 
 import stabilizer_qec.fusion_blossom as fb
 
@@ -62,8 +63,9 @@ def write_data(folder):
         (folder / name).write_bytes(text.encode())
 
 
-def running(server, run_server):
-    """``run_server`` in a thread, once it has made the server's ``srv``."""
+def running(server, run_server, timeout=3):
+    """Start inside an owned process, so even an uninterruptible startup is reapable."""
+    assert in_owned_server_process(), "server workers require an owned process boundary"
     errors = []
     def worker():
         try:
@@ -72,7 +74,7 @@ def running(server, run_server):
             errors.append(error)
     thread = threading.Thread(target=worker, daemon=True)
     thread.start()
-    deadline = time.monotonic() + 3
+    deadline = time.monotonic() + timeout
     while not hasattr(server, "srv"):
         if errors:
             raise errors[0]
@@ -177,6 +179,7 @@ def test_sinter_imports_fusion_blossom_when_it_decodes(package):
     assert (out.returncode, out.stdout) == (0, "[] []\n" + ("[[1], [0]] True\n" if package else "")), out.stderr
 
 
+@isolated_server_test
 def test_running_fails_at_once_when_the_server_thread_dies(tmp_path):
     """A server that cannot bind ends its thread, and ``running`` fails then, not at its deadline."""
     server, run_server = fb.helper.serve("localhost", 65536, str(tmp_path), return_server=True)
@@ -193,6 +196,7 @@ def test_running_fails_at_once_when_the_server_thread_dies(tmp_path):
     assert len(errors) == 1 and not hasattr(server, "srv")
 
 
+@isolated_server_test
 def test_startup_reverse_lookup_precedes_srv_assignment(tmp_path, monkeypatch):
     # A deterministic blocked lookup demonstrates this possible preassignment path;
     # the old CI logs have no stack, so it does not establish their timeout's cause.
@@ -222,6 +226,7 @@ def test_startup_reverse_lookup_precedes_srv_assignment(tmp_path, monkeypatch):
     assert not hasattr(server, 'srv')
 
 
+@isolated_server_test
 def test_startup_preserves_worker_exception(tmp_path):
     server, _ = fb.helper.serve('127.0.0.1', 0, str(tmp_path), return_server=True)
     error = OSError('synthetic startup failure')
@@ -232,6 +237,62 @@ def test_startup_preserves_worker_exception(tmp_path):
     assert info.value is error
 
 
+@pytest.mark.parametrize('finish', ['raise', 'block'])
+def test_startup_timeout_reaps_late_listener(tmp_path, finish):
+    # Reserve only an unused loopback port. The owned child intentionally allows its
+    # delayed worker to bind AFTER running() times out, then either fails or blocks.
+    # Neither the ordinary failure nor the parent's timeout may leave that listener.
+    with socket.socket() as reserve:
+        reserve.bind(('127.0.0.1', 0))
+        port = reserve.getsockname()[1]
+    script = r"""
+import http.client, pathlib, socket, sys, threading, time
+sys.path.insert(0, sys.argv[1])
+from test_fusion_blossom_helper_bottle import running
+from stabilizer_qec.fusion_blossom import helper
+socket.getfqdn = lambda host: host
+server, run = helper.serve('127.0.0.1', int(sys.argv[2]), sys.argv[3], return_server=True)
+release = threading.Event()
+def delayed():
+    release.wait()
+    run()
+try:
+    running(server, delayed, timeout=.05)
+except AssertionError as error:
+    assert 'the server did not start' in str(error)
+    release.set()
+    deadline = time.monotonic() + 2
+    while not hasattr(server, 'srv') and time.monotonic() < deadline:
+        time.sleep(.01)
+    assert hasattr(server, 'srv')
+    conn = http.client.HTTPConnection('127.0.0.1', server.port, timeout=2)
+    conn.request('GET', '/index.js')
+    answer = conn.getresponse()
+    assert answer.status == 200 and answer.read()
+    conn.close()
+    print('LATE_LISTENER=' + str(server.port), flush=True)
+    if sys.argv[4] == 'block':
+        threading.Event().wait()
+    raise
+raise AssertionError('startup unexpectedly succeeded')
+"""
+    command = [sys.executable, '-c', script, str(pathlib.Path(__file__).parent), str(port), str(tmp_path), finish]
+    if finish == 'block':
+        with pytest.raises(subprocess.TimeoutExpired) as info:
+            run_owned(command, timeout=5)
+        output = info.value.output
+        output = output.decode() if isinstance(output, bytes) else output
+    else:
+        result = run_owned(command, timeout=5)
+        assert result.returncode == 1 and 'the server did not start' in result.stderr
+        output = result.stdout
+    assert 'LATE_LISTENER=' + str(port) in output
+    with socket.socket() as probe:
+        probe.settimeout(1)
+        assert probe.connect_ex(('127.0.0.1', port)) != 0, 'owned listener survived process failure'
+
+
+@isolated_server_test
 def test_return_server_is_bottle_wsgiref(tmp_path):
     server, run_server = fb.helper.serve("localhost", 0, str(tmp_path), return_server=True)
     assert type(server) is fb.helper.bottle.WSGIRefServer
@@ -244,6 +305,7 @@ def test_return_server_is_bottle_wsgiref(tmp_path):
 
 
 @pytest.mark.parametrize("which", ["ours", "fusion_blossom"])
+@isolated_server_test
 def test_later_serve_changes_what_servers_serve(tmp_path, which):
     """The routes go on Bottle's default app, so a running server serves the data folder of the
     latest ``serve`` call."""
@@ -270,6 +332,7 @@ def test_later_serve_changes_what_servers_serve(tmp_path, which):
     assert (before, after) == (b"A", b"B")
 
 
+@isolated_server_test
 def test_legacy_double_slash_routes_keep_containment(tmp_path):
     # Emulate the old HTTP handler's retained request target, on a real loopback server.
     class LegacyHandler(WSGIRequestHandler):
@@ -307,6 +370,7 @@ def test_legacy_double_slash_routes_keep_containment(tmp_path):
         stop(server, thread)
 
 
+@isolated_server_test
 def test_serve_responses_equal_recorded(tmp_path):
     recorded = json.loads(FIXTURE.read_text())
     assert (recorded["host"], recorded["data"], [c["request"] for c in recorded["cases"]]) == (HOST, DATA, [list(c) for c in CASES])
@@ -366,6 +430,7 @@ def test_reference_asset_normalization_is_narrow(monkeypatch):
     assert reference_asset_lf(case, answer, asset) is answer
 
 
+@isolated_server_test
 def test_serve_responses_equal_reference(tmp_path):
     ref = reference("fusion_blossom")
     write_data(tmp_path)
@@ -383,6 +448,11 @@ def test_serve_responses_equal_reference(tmp_path):
 
 
 if __name__ == "__main__":
+    if not in_owned_server_process():
+        result = run_owned([sys.executable, __file__])
+        sys.stdout.write(result.stdout)
+        sys.stderr.write(result.stderr)
+        raise SystemExit(result.returncode)
     # Record the fixture from fusion_blossom.
     import importlib.metadata
     import tempfile

@@ -10,12 +10,15 @@ from contextlib import contextmanager
 
 import pytest
 
+from server_process_helpers import in_owned_server_process, isolated_server_test
+
 from stabilizer_qec.fusion_blossom import helper
 from stabilizer_qec.estimate.qualtran import ui
 
 
 @contextmanager
 def fusion_server(folder):
+    assert in_owned_server_process(), "server workers require an owned process boundary"
     server, run = helper.serve('127.0.0.1', 0, str(folder), return_server=True)
     errors = []
 
@@ -79,6 +82,7 @@ def raw(port, target, method=b'GET', headers=b''):
     return b''.join(chunks)
 
 
+@isolated_server_test
 def test_fusion_symlinks_unicode_and_cwd(tmp_path, monkeypatch):
     root = tmp_path / 'data'
     root.mkdir()
@@ -101,6 +105,7 @@ def test_fusion_symlinks_unicode_and_cwd(tmp_path, monkeypatch):
     ('GET', {}), ('HEAD', {}),
     ('GET', {'Range': 'bytes=0-8'}), ('GET', {'Range': 'bytes=999-1000'}),
 ])
+@isolated_server_test
 def test_fusion_symlink_parent_normalization_matches_served_candidate(tmp_path, method, headers):
     root = tmp_path / 'data'
     (root / 'sub' / 'deep').mkdir(parents=True)
@@ -130,6 +135,7 @@ def test_fusion_symlink_parent_normalization_matches_served_candidate(tmp_path, 
     ('GET', {}), ('HEAD', {}),
     ('GET', {'Range': 'bytes=0-8'}), ('GET', {'Range': 'bytes=999-1000'}),
 ])
+@isolated_server_test
 def test_fusion_encoded_backslash_lookup_matches_checked_candidate(tmp_path, method, headers):
     root = tmp_path / 'data'
     (root / 'sub').mkdir(parents=True)
@@ -147,6 +153,7 @@ def test_fusion_encoded_backslash_lookup_matches_checked_candidate(tmp_path, met
         assert status == 404 and marker not in body, (method, status, body)
 
 @pytest.mark.skipif(os.name != 'posix', reason='literal backslashes are filename characters on POSIX')
+@isolated_server_test
 def test_fusion_literal_backslash_filenames_at_both_ends(tmp_path):
     root = tmp_path / 'data'
     (root / 'sub').mkdir(parents=True)
@@ -163,6 +170,7 @@ def test_fusion_literal_backslash_filenames_at_both_ends(tmp_path):
         assert request(port, 'GET', '/data/trailing%5C/.', headers={'Range': 'bytes=0-3'})[::2] == (206, b'safe')
 
 
+@isolated_server_test
 def test_fusion_invalid_utf8_has_bounded_error(tmp_path, capsys):
     with fusion_server(tmp_path) as port:
         for target in (b'/data/%ff', b'/data/%c0%af', b'/missing/\xff'):
@@ -173,6 +181,7 @@ def test_fusion_invalid_utf8_has_bounded_error(tmp_path, capsys):
     assert 'Traceback' not in capsys.readouterr().err
 
 
+@isolated_server_test
 def test_fusion_ranges_close_handles_and_keep_conditionals(tmp_path):
     (tmp_path / 'a.txt').write_bytes(b'abcdef')
     gc.collect()
