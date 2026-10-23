@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier, Event
-import pickle
 
 import pytest
 
@@ -68,4 +67,3 @@ def test_observable_iterator_matches_list_metadata(engine):
     actual = generated.generate_stim_circuit(1)
     assert actual.num_observables == generated.num_observables
     assert str(actual) == str(control.generate_stim_circuit(1))
-
