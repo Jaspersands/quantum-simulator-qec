@@ -5,9 +5,11 @@
 colour-code decoder compiled for a model, its weighted predictions, and its sinter decoder.
 The Möbius matching is PyMatching 2.2.2's sparse blossom, which Chromobius links, to the edge
 and its order (``pm_exact``), so weights (PyMatching's discretized matching weight, as float32)
-are Chromobius's bit for bit and predictions are Chromobius's: on macOS on every one of 65,000
-colour-code shots checked. (Chromobius walks some tables in std::unordered_map order, which is
-the C++ library's own; with another library it may drag charge another way on some shots.)
+are Chromobius's bit for bit in the recorded corpus; predictions agreed on every one of the
+65,000 macOS colour-code shots checked there. Other graphs can choose different equal-weight
+liftings on any platform, including macOS (saved ignored-detector examples have equal matching
+weights and different predictions). This does not establish a worse optimum. Traversal through
+native hash tables and this port's ordered tables can select different tied paths.
 
 Chromobius's command-line program is ``python -m stabilizer_qec.chromobius`` (``predict``,
 ``benchmark``, ``describe_decoder``; see its ``__main__``).
@@ -20,6 +22,9 @@ Where it differs from Chromobius:
   refused with this package's 64-observable message, where Chromobius compiles it (its
   predictions past L63 are undefined). An error naming one is refused with Chromobius's
   message.
+- A failed lifting raises this package's ``shot 0: no lifting ...`` ValueError instead of
+  native ``Failed to lift ...`` text. Subsequent shots start safely; native decoder reuse after
+  failure can instead fail Euler tours. The port does not reproduce that damaged state.
 - ``decode_via_files`` with records wider than the model refuses a set bit past its detectors,
   as Chromobius does, but may name another detector."""
 

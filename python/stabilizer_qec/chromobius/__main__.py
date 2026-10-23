@@ -9,11 +9,14 @@
     python -m stabilizer_qec.chromobius benchmark --dem model.dem --in shots.01 --in_includes_appended_observables
     python -m stabilizer_qec.chromobius describe_decoder --circuit circuit.stim
 
-The same commands, flags, defaults, outputs and messages as Chromobius's program, whose flags are
+The commands, flags, defaults and finite recorded outputs/messages follow Chromobius's program.
+Its flags are
 Stim's (a flag's value follows it or ``=``; ``--`` ends the flags; ``--in`` and ``--out`` default
 to standard input and output), checked against it in tests/test_chromobius_cli.py. Where it
 differs:
 
+- Tied liftings can choose different predictions on any platform, including macOS; saved
+  ignored-detector examples retain equal matching weights (see the package docstring).
 - A malformed model or circuit is refused with this package's message, not Stim's parser's.
 - A ``--circuit`` that Stim's error analysis refuses (a non-deterministic detector, say) is
   refused with this package's analysis message, not Stim's (which, for one, suggests a
@@ -26,13 +29,20 @@ differs:
   predictions past L63 undefined (it shifts its 64-bit mask by 64 or more). An error naming one
   gets Chromobius's message ("Max logical observable is L63 but a larger one appeared in ...").
 - Records are read whole before any is decoded (Chromobius streams them); a bad record still
-  stops the command with Stim's message after the predictions of the records before it.
+  stops the command with Stim's message after the predictions of the records before it. Sparse
+  ``hits``/``dets`` records also expand to a whole shots-by-detectors bool array before packing;
+  memory therefore scales with the dense dimensions, not just the number of hits.
+- Model input is decoded as UTF-8 with replacement, including invalid tag bytes; native
+  preservation of arbitrary tag bytes has not been independently rechecked.
+- ``describe_decoder`` refuses accumulated coordinate overflow with a controlled diagnostic;
+  native CLI behavior for this case has not been independently rerun.
 - ``predict`` decodes on every core (its predictions are the same at any thread count);
   ``benchmark`` on one, as Chromobius does, so its timings compare.
 - A hit or DETS index whose digits overflow Stim's unsigned 64-bit read (a step that leaves
   the value below the one before it; a value that wraps without dropping is read wrapped, as
   Stim reads it), an exception Chromobius's program does not catch (it aborts), prints the C++
-  library's message and exits with status 134 without raising SIGABRT.
+  runtime message pinned to the recorded macOS libc++abi build on every platform, and exits
+  with status 134 without raising SIGABRT; this is not host-runtime abort-text parity.
 - A record with a bit set past the last detector (a b8 record's padding, or an observable that
   benchmark reads both appended and from ``--obs_in``) is refused with PyMatching's message for
   the first such detector's Möbius node, as the recording of Chromobius's macOS build shows.
@@ -662,7 +672,10 @@ def _describe_decoder(argv: List[str], stdout: Any) -> None:
                 raise _Fail(str(e)) from None
         else:
             dem = _model(_find_open_file_argument("--in", True, argv).read())
-        text = _decoder(dem)._x.describe()
+        try:
+            text = _decoder(dem)._x.describe()
+        except ValueError as e:
+            raise _Fail(str(e)) from None
         (out or stdout).write(text.encode() + b"\n")
     finally:
         if out is not None:
@@ -696,7 +709,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         sys.stderr.flush()
         return 1
     except _Abort as e:
-        # The C++ runtime's message; Chromobius's program then aborts, which a shell reports as
+        # Pinned macOS libc++abi text on every host; the native program aborts, reported as
         # status 134.
         sys.stderr.write(f"libc++abi: terminating due to uncaught exception of type {e}\n")
         sys.stderr.flush()

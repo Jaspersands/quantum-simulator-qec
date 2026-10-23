@@ -4,10 +4,11 @@ tests/data/chromobius_cli_reference.json.gz (tools/chromobius_cli_reference.py) 
 in an empty directory holding the same files, with the same arguments and standard input, and
 its exit status, output, messages and the files it writes are compared with the program's.
 
-The recording was made on macOS. The predictions, tables and messages are the same on every
-platform; describe_decoder's Möbius model prints its numbers as Stim prints a model's on the
-machine (16 significant digits on macOS and Windows, 19 on x86-64 Linux, 34 on ARM64 Linux), so
-elsewhere those are compared as numbers."""
+The recording was made on macOS arm64. These finite fixtures pin the predictions and tables;
+tied liftings on other graphs can differ even on macOS. Abort text is pinned libc++abi text.
+Model numbers use the formatter's native precision assumptions: 16 digits on macOS arm64 and
+Windows, 19 on non-Windows x86-64 (including Intel Mac), 34 on other ARM64. Only the recorded
+macOS arm64 target compares text exactly; elsewhere model numbers are compared numerically."""
 
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ import io
 import json
 import os
 import pathlib
+import platform
 import re
 import subprocess
 import sys
@@ -157,9 +159,9 @@ NUMBER = re.compile(r"-?[0-9]+(?:\.[0-9]+)?(?:e[-+][0-9]+)?")
 
 
 def same_text_and_numbers(got: str, want: str) -> bool:
-    """Equal on macOS; elsewhere the same text with each number equal to 15 digits (the model's
+    """Exact on recorded macOS arm64; elsewhere the same text with numbers equal to 15 digits (the model's
     numbers are printed at the machine's precision, as Stim prints them)."""
-    if sys.platform == "darwin" or got == want:
+    if (sys.platform == "darwin" and platform.machine() == "arm64") or got == want:
         return got == want
     if NUMBER.split(got) != NUMBER.split(want):
         return False
@@ -316,3 +318,18 @@ def test_runs_as_a_module(tmp_path):
         assert (r.returncode, r.stdout, stderr.decode()) == (status, out, err), name
         for k, v in files.items():
             assert (tmp_path / k).read_bytes() == v
+
+
+def test_describe_coordinate_shift_overflow_is_controlled(tmp_path, monkeypatch, capsys):
+    path = tmp_path / "overflow.dem"
+    path.write_text("shift_detectors(1e308) 0\nshift_detectors(1e308) 0\nerror(0.1) D0\ndetector(1e308,0,0,0) D0\n")
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="utf-8"))
+    assert cli.main(["chromobius", "describe_decoder", "--in", str(path)]) == 1
+    err = capsys.readouterr().err
+    assert "bad argument 'inf'" in err and "Traceback" not in err
+
+
+def test_model_tag_invalid_utf8_retains_replacement_behavior():
+    # _model explicitly uses UTF-8 replacement; no claim of fresh native byte parity.
+    dem = cli._model(b"error[tag\xff](0.1) D0\ndetector(0,0,0,0) D0\n")
+    assert "tag\ufffd" in str(dem)

@@ -1,11 +1,11 @@
-"""stabilizer_qec.chromobius against Chromobius 1.1.1 (predictions, exact on macOS; weights,
+"""stabilizer_qec.chromobius against Chromobius 1.1.1 (predictions in the finite recorded corpus, exact on macOS; weights,
 PyMatching's discretized Möbius matching weight as float32, bit for bit; the sinter decoder) and
 stabilizer_qec.beliefmatching against beliefmatching 0.2.0 (predictions, check matrices and the
 sinter decoder), with BeliefMatching's constructors.
 
-Off macOS Chromobius walks its charge graph's std::unordered_map in that C++ library's order, so
-where two shortest ways to drag charge flip different observables it can take the other one; a
-few predictions may differ there."""
+Chromobius's native hash-table traversal can choose different equal-weight liftings from this
+port on any platform, including macOS for other graphs (see test_chromobius_edge_cases.py).
+This finite corpus retains exact macOS checks; other platforms use per-test agreement limits."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ import stabilizer_qec as sq  # noqa: E402
 
 
 def same_predictions(a, b, off_macos):
-    """Equal on macOS; elsewhere, at least the fraction `off_macos` of shots (see above)."""
+    """This corpus is exact on macOS; elsewhere require the per-test `off_macos` fraction."""
     agree = (a == b).all(axis=1)
     return bool(agree.all()) if sys.platform == "darwin" else agree.mean() >= off_macos
 
