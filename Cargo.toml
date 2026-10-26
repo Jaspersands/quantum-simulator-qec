@@ -29,7 +29,7 @@ pollster = { version = "1", optional = true }
 cc = { version = "1.2", optional = true, features = ["parallel"] }
 
 [dependencies.pyo3]
-version = "0.29"
+version = "0.30"
 features = ["extension-module", "abi3-py39", "multiple-pymethods"]
 optional = true
 
