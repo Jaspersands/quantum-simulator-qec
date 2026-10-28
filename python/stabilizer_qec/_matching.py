@@ -679,7 +679,20 @@ class Matching:
         dem = self._dem_text if self._corr is not None else None
         state = (self.num_nodes, self.num_fault_ids, sorted(self.boundary), self._g.edges(), dem)
         implied = self._g.implied_weights() if dem is None else []
-        return (_rebuild, state + (implied,) if implied else state)
+        if type(self) is Matching:
+            return (_rebuild, state + (implied,) if implied else state)
+        # A subclass is rebuilt as itself, with its own attributes, as PyMatching's copy keeps
+        # them (its decode and the rest overridden as they were).
+        extra = getattr(self, "__dict__", None)
+        return (_rebuild_as, (type(self),) + state + (implied,), dict(extra) if extra else None)
+
+
+def _rebuild_as(cls: type, *state: Any) -> Matching:
+    """A ``Matching`` subclass's copy: ``_rebuild``'s graph in an instance of ``cls``."""
+    m = _rebuild(*state)
+    out = cls.__new__(cls)
+    out._g, out._corr, out._dem_text = m._g, m._corr, m._dem_text
+    return out
 
 
 def _rebuild(num_nodes: int, num_fault_ids: int, boundary: list, edges: list, correlated_dem: Optional[str], implied: Any = ()) -> Matching:

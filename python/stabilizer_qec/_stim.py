@@ -98,7 +98,8 @@ class PauliString:
         return out
 
     def __reduce__(self) -> tuple:
-        return (PauliString, (str(self),))
+        # Rebuilt as its own class, as Stim's: a subclass stays one.
+        return (type(self), (str(self),))
 
     # Text and comparison.
     def __str__(self) -> str:
@@ -453,7 +454,8 @@ class Tableau:
         return out
 
     def __reduce__(self) -> tuple:
-        return (_tableau_from_bits, (len(self), *self._t.to_bits()))
+        # Rebuilt as its own class, as Stim's: a subclass stays one.
+        return (_tableau_of_class, (type(self), len(self), *self._t.to_bits()))
 
     def __len__(self) -> int:
         return self._t.num_qubits
@@ -692,8 +694,14 @@ class Tableau:
 
 
 def _tableau_from_bits(n: int, *bits: bytes) -> "Tableau":
-    """A tableau from its bit tables (``TableauCore.to_bits``), for pickling."""
+    """A tableau from its bit tables (``TableauCore.to_bits``), for pickling (and for the
+    pickles of 2.1 and before, which name this function)."""
     return Tableau._wrap(_core.TableauCore.from_bits(n, *bits))
+
+
+def _tableau_of_class(cls: type, n: int, *bits: bytes) -> "Tableau":
+    """A tableau of class ``cls`` (``Tableau`` or a subclass) from its bit tables, for pickling."""
+    return cls._wrap(_core.TableauCore.from_bits(n, *bits))
 
 
 class TableauIterator:

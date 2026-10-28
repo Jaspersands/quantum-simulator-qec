@@ -114,8 +114,11 @@ class Circuit:
         return bool(_core.circuit_approx_equals(self._stim_exact_text(), other._stim_exact_text(), float(atol)))
 
     def __reduce__(self) -> tuple:
-        # Pickled, copied and sent to other processes as its exact text.
-        return (Circuit, (self._stim_exact_text(),))
+        # Pickled, copied and sent to other processes as its exact text, rebuilt as its own
+        # class, as Stim's are: a subclass stays one, and Deltakit's circuit
+        # (``stabilizer_qec.deltakit_stim``), whose exact text holds its leakage as tagged
+        # lines, comes back leaking.
+        return (type(self), (self._stim_exact_text(),))
 
     # Stim's list-of-instructions interface. The core circuit's lines are its items: Stim's
     # parser and ``append`` fuse neighbouring instructions that can be one (``H 0`` then
@@ -1627,7 +1630,8 @@ class DetectorErrorModel:
         return self._d.exact_text() == other._d.exact_text()
 
     def __reduce__(self) -> tuple:
-        return (DetectorErrorModel, (self._d.exact_text(),))
+        # Rebuilt as its own class, as Stim's: a subclass stays one.
+        return (type(self), (self._d.exact_text(),))
 
     __hash__ = None  # type: ignore[assignment]
 
