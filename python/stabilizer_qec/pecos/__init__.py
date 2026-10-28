@@ -25,7 +25,9 @@ A framework for developing, studying, and evaluating quantum error-correcting co
   C++ prepared :math:`|+i\\rangle`); it has the Python ``SparseSim``'s ``print_stabs(print_destabs=..., print_y=...)``,
   ``copy``, ``refactor``, ``find_stab``, ``run_direct`` and ``'G2'``, which PECOS's docs use on it.
 * ``simulators.pySparseSim``: ``print_y`` prints Y's sign right (PECOS's printed ``-Y`` for :math:`|+i\\rangle`);
-  ``copy`` returns the copy; ``refactor`` works with neither ``choose`` nor ``prefer``; a random measurement's
+  ``copy`` returns the copy; ``refactor`` works with neither ``choose`` nor ``prefer``, and keeps the stabilizer
+  group's signs (PECOS's dropped the -1s of reordering the generators it multiplies, flipping the new generator's
+  sign in about one refactor in five; ``SparseSim.refactor`` is this one too); a random measurement's
   ``forced_outcome=-1``, its gates' default, draws the outcome.
 * ``error_gens``: ``model_level='phenomenological'`` works (PECOS raised KeyError); ``GatewiseGen`` takes a set mixing
   gates and tuples, e.g. ``{('I', 'X'), ('X', 'X'), 'CNOT'}``, on NumPy 1.24 and later.
