@@ -23,3 +23,13 @@ raise their documented upstream exception types. Panics, crashes and hangs remai
 report. Checked sizes do not guarantee recovery from every allocation or OS memory failure.
 Sizes are capped (qubit indices, unrolled loops, detectors), each cap stated where it applies. The parsers and decoders are fuzzed in CI
 (`fuzz/` with cargo-fuzz, and `tests/test_fuzz.py` with Hypothesis).
+
+## Configuration that runs code
+
+The qecsim port (`stabilizer_qec.qecsim`, `stabilizer-qec qecsim`) reads two files that are code:
+a logging configuration, `logging_qecsim.ini`, whose handler arguments Python's
+`logging.config.fileConfig` evaluates, and a Blossom V library, `clib/libpypm.so`, which it loads
+with `ctypes` and uses in place of this package's matcher. It looks for them only in
+`$QECSIM_CFG`, or in `~/.qecsim` when that is unset, so point `QECSIM_CFG` only at a directory you
+trust. Unlike qecsim, it never reads them from the working directory, so running it inside a
+directory someone else supplied does not run that directory's files.

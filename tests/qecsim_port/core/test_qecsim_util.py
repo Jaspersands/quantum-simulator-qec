@@ -37,3 +37,58 @@ def test_chunker_iterable():
         expected_chunk = [(i, i) for i in range(count * my_chunk_len, min((count + 1) * my_chunk_len, my_length))]
         assert chunk == expected_chunk
         count += 1
+
+
+def _hostile_dir(directory):
+    # A directory someone else supplied: a logging config whose handler arguments run code, and a
+    # "Blossom V library" that is not one.
+    (directory / 'logging_qecsim.ini').write_text(
+        '[loggers]\nkeys=root\n[handlers]\nkeys=h\n[formatters]\nkeys=\n'
+        '[logger_root]\nhandlers=h\n'
+        "[handler_h]\nclass=StreamHandler\nargs=(__import__('pathlib').Path('MARKER').write_text('ran') and sys.stderr,)\n")
+    (directory / 'clib').mkdir()
+    (directory / 'clib' / 'libpypm.so').write_bytes(b'not a library')
+
+
+def test_working_directory_config_not_loaded(tmp_path, monkeypatch):
+    # stabilizer_qec: the configuration comes from $QECSIM_CFG or ~/.qecsim only, never from the
+    # working directory (qecsim's ./logging_qecsim.ini ran the code in its handler arguments, and
+    # its ./clib/libpypm.so was loaded in place of the matcher).
+    import logging
+    from pathlib import Path
+
+    import pytest
+
+    work, home = tmp_path / 'work', tmp_path / 'home'
+    work.mkdir()
+    home.mkdir()
+    _hostile_dir(work)
+    monkeypatch.delenv('QECSIM_CFG', raising=False)
+    monkeypatch.setenv('HOME', str(home))
+    monkeypatch.chdir(work)
+    root = logging.getLogger()
+    handlers = list(root.handlers)
+    try:
+        util.init_logging()
+    finally:
+        for h in [h for h in root.handlers if h not in handlers]:
+            root.removeHandler(h)
+    assert not (work / 'MARKER').exists()
+    for name in ('logging_qecsim.ini', Path('clib', 'libpypm.so')):
+        with pytest.raises(FileNotFoundError):
+            util._resolve_path(name)
+
+
+def test_home_and_env_config_resolve(tmp_path, monkeypatch):
+    # stabilizer_qec: ~/.qecsim, and $QECSIM_CFG when it is set, still resolve.
+    home, cfg = tmp_path / 'home', tmp_path / 'cfg'
+    (home / '.qecsim').mkdir(parents=True)
+    cfg.mkdir()
+    (home / '.qecsim' / 'logging_qecsim.ini').write_text('')
+    (cfg / 'logging_qecsim.ini').write_text('')
+    monkeypatch.setenv('HOME', str(home))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv('QECSIM_CFG', raising=False)
+    assert util._resolve_path('logging_qecsim.ini') == home / '.qecsim' / 'logging_qecsim.ini'
+    monkeypatch.setenv('QECSIM_CFG', str(cfg))
+    assert util._resolve_path('logging_qecsim.ini') == cfg / 'logging_qecsim.ini'

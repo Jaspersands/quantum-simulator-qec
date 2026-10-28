@@ -1,5 +1,6 @@
 # Ported from qecsim 1.0b9 (qecsim/qecsim; David K. Tuckett, BSD 3-Clause; see THIRD_PARTY_NOTICES.md), modified for
-# stabilizer_qec: qecsim is stabilizer_qec.qecsim.
+# stabilizer_qec: qecsim is stabilizer_qec.qecsim; configuration is read from $QECSIM_CFG or ~/.qecsim only, not
+# the working directory (see _resolve_path).
 """
 This module contains utility functions.
 """
@@ -20,12 +21,15 @@ QECSIM_CFG_ENV_KEY = 'QECSIM_CFG'
 
 def _resolve_path(relative_path):
     """
-    Resolve path relative to $QECSIM_CFG/, ./, and ~/.qecsim/.
+    Resolve path relative to $QECSIM_CFG/ or ~/.qecsim/.
 
     Notes:
 
     * Path resolves to ``$QECSIM_CFG/<relative_path>`` (if ``QECSIM_CFG`` env variable is set).
-    * Path resolves to  ``./<relative_path>`` or ``~/.qecsim/<relative_path>`` (otherwise).
+    * Path resolves to ``~/.qecsim/<relative_path>`` (otherwise).
+    * (stabilizer_qec: qecsim also tried ``./<relative_path>`` first, so a ``logging_qecsim.ini`` or
+      ``clib/libpypm.so`` in whatever directory it ran in was executed: the logging configuration's handler
+      arguments are evaluated, and the library is loaded. The working directory is not searched here.)
 
     :param relative_path: Relative path, e.g. Path('clib/libpypm.so')
     :type relative_path: Path or str
@@ -42,14 +46,10 @@ def _resolve_path(relative_path):
         # $QECSIM_CFG/<relative_path>
         path = Path(qecsim_cfg_path) / relative_path
         paths.append(path)
-    else:  # otherwise try relative to ./ and ~/.qecsim/
-        # ./<relative_path>
-        path = Path(relative_path)
+    else:  # otherwise try relative to ~/.qecsim/ (stabilizer_qec: not ./ first)
+        # ~/.qecsim/<relative_path>
+        path = Path.home() / QECSIM_CFG_HOME / relative_path
         paths.append(path)
-        if not path.exists():
-            # ~/.qecsim/<relative_path>
-            path = Path.home() / QECSIM_CFG_HOME / relative_path
-            paths.append(path)
     # raise exception is no resolved path exists.
     if not path.exists():
         raise FileNotFoundError('Resolved paths do not exist: {}.'.format(', '.join(str(p) for p in paths)))
@@ -63,7 +63,7 @@ def init_logging():
     Notes:
 
     * Configuration loaded from ``$QECSIM_CFG/logging_qecsim.ini`` (if ``QECSIM_CFG`` env variable is set).
-    * Configuration loaded from ``./logging_qecsim.ini`` or ``~/.qecsim/logging_qecsim.ini`` (otherwise).
+    * Configuration loaded from ``~/.qecsim/logging_qecsim.ini`` (otherwise; stabilizer_qec: not ``./``).
     * If configuration not found then a basic configuration is used.
 
     """
@@ -86,7 +86,7 @@ def load_clib(filename):
     Notes:
 
     * Library loaded from ``$QECSIM_CFG/clib/<filename>`` (if ``QECSIM_CFG`` env variable is set).
-    * Library loaded from ``./clib/<filename>`` or ``~/.qecsim/clib/<filename>`` (otherwise).
+    * Library loaded from ``~/.qecsim/clib/<filename>`` (otherwise; stabilizer_qec: not ``./clib``).
 
     :param filename: Library file name, e.g. 'libpypm.so'.
     :type filename: str
