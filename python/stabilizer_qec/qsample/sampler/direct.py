@@ -57,7 +57,8 @@ class DirectSampler:
         return np.array(np.broadcast_arrays(*sorted_params)).T
     
     def save(self, path):
-        """Save sampler to path
+        """Save sampler to path (see `qsample.utils.save`: lambda or nested check functions need
+        dill installed, and a save that fails leaves the file at ``path`` as it was)
         
         Parameters
         ----------
