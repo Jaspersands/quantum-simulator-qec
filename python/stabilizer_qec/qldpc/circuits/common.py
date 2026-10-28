@@ -16,7 +16,7 @@ import galois
 import numpy as np
 import numpy.typing as npt
 import stabilizer_qec as stim
-from stabilizer_qec._util import ours
+from stabilizer_qec.qldpc._stim_inputs import ours
 
 from stabilizer_qec.qldpc import codes, math
 
@@ -184,7 +184,9 @@ def get_pauli_product_measurements(
     """
     if isinstance(pauli_strings, np.ndarray):
         pauli_strings = [math.op_to_string(op) for op in np.atleast_2d(pauli_strings)]
-    elif pauli_strings and not isinstance(pauli_strings[0], stim.PauliString):
+    else:
+        pauli_strings = [ours(string) for string in pauli_strings]  # Stim objects too
+    if pauli_strings and not isinstance(pauli_strings[0], stim.PauliString):
         pauli_strings = [math.op_to_string(np.asarray(op, dtype=int)) for op in pauli_strings]
     circuit = stim.Circuit()
     for string in pauli_strings:

@@ -26,6 +26,7 @@ import scipy.sparse
 import stabilizer_qec as stim
 
 from stabilizer_qec.qldpc import abstract, decoders, external, math
+from stabilizer_qec.qldpc._stim_inputs import ours
 from stabilizer_qec.qldpc._util import format_docstring, get_external_caller_stacklevel
 from stabilizer_qec.qldpc._util import networkx as nx
 from stabilizer_qec.qldpc.math import IntegerArray
@@ -2194,7 +2195,7 @@ class QuditCode(AbstractCode):
 
         # convert the physical circuit into a tableau
         identity = stim.Circuit(f"I {len(self) - 1}")  # to ensure the correct number of qubits
-        circuit = stim.Circuit(circuit) if isinstance(circuit, str) else circuit
+        circuit = stim.Circuit(circuit) if isinstance(circuit, str) else ours(circuit)  # a Stim object too
         tableau = (circuit + identity).to_tableau()
 
         def transform_ops(ops: galois.FieldArray) -> galois.FieldArray:

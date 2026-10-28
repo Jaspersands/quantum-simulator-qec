@@ -15,6 +15,7 @@ from stabilizer_qec import sinter
 import stabilizer_qec as stim
 
 from stabilizer_qec.qldpc import codes, decoders, math
+from stabilizer_qec.qldpc._stim_inputs import ours
 
 from .bookkeeping import DetectorRecord, QubitIDs
 from .common import (
@@ -87,6 +88,9 @@ def get_state_prep_diagnostic_circuit(
         stim.Circuit: An annotated circuit for stim/sinter simulations of logical error rates.
         circuits.DetectorRecord: A record of the circuit's detectors (keys described above).
     """
+    state_prep_circuit = ours(state_prep_circuit)  # a Stim object too
+    if observables is not None and not isinstance(observables, np.ndarray):
+        observables = [ours(obs) for obs in observables]  # Stim objects too
     qubit_ids = QubitIDs.validated(qubit_ids or QubitIDs.from_code(code), code)
     if not skip_validation:
         _assert_pure_logical_state(state_prep_circuit, code, qubit_ids)
@@ -236,6 +240,7 @@ def get_state_prep_diagnostic_tasks(
         A list of sinter Tasks, one-to-one with the provided error_rates.  The error rate of an
             individual task is task.json_metadata["p"].
     """
+    state_prep_circuit = ours(state_prep_circuit)  # a Stim object too
     add_flags = post_select is True
     diagnostic_circuit, detector_record = get_state_prep_diagnostic_circuit(
         code,

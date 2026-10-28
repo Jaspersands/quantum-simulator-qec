@@ -142,7 +142,7 @@ from collections.abc import Callable, Collection, Iterable, Iterator, Mapping
 from typing import TypeAlias, overload
 
 import stabilizer_qec as stim
-from stabilizer_qec._util import ours
+from stabilizer_qec.qldpc._stim_inputs import ours
 
 from stabilizer_qec.qldpc._util import format_docstring
 
@@ -245,6 +245,7 @@ IDLE_OPS = frozenset({"I", "II"})
 
 def as_noiseless_circuit(circuit: StimCircuitLike) -> StimCircuitLike:
     """Wrap a circuit in a one-repetition block tagged immune to :class:`NoiseModel`."""
+    circuit = ours(circuit)  # a Stim object too
     if (
         len(circuit) == 1
         and isinstance(circuit[0], stim.CircuitRepeatBlock)
