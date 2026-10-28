@@ -112,3 +112,32 @@ def test_the_merged_twirl_does_not_merge_across_a_non_clifford_gate():
         assert np.allclose(p(m), sorted([math.sin(0.1) ** 2, math.sin(0.2) ** 2]), atol=1e-6), (gate, axis, str(m))
     m = sq.Circuit("RX 0\nI_ERROR[R_X(theta=0.1)] 0\nI[R_X(theta=1.5707963267948966)] 0\nI_ERROR[R_X(theta=0.2)] 0\nMX 0\nDETECTOR rec[-1]").twirled(merge=True)
     assert np.allclose(p(m), [math.sin(0.3) ** 2], atol=1e-6), str(m)
+
+
+# The time reversal of a tagged gate is its inverse (as `Circuit.inverse` writes it): each R_PAULI
+# letter on its qubit, angles negated, T and T_DAG swapped.
+REVERSED = [
+    ("I[R_PAULI(theta=0.7853981633974483, pauli=XZ)] 0 1", "I[R_PAULI(theta=-0.7853981633974483, pauli=ZX)] 1 0"),
+    ("II[R_PAULI(theta=0.7853981633974483, pauli=XZYZ)] 0 1 2 3", "II[R_PAULI(theta=-0.7853981633974483, pauli=YZXZ)] 2 3 0 1"),
+    ("I[R_PAULI(theta=0.3, pauli=XYZ)] 0 1 2", "I[R_PAULI(theta=-0.3, pauli=ZYX)] 2 1 0"),
+    ("I[T] 0 1", "I[T_DAG] 1 0"),
+    ("I[R_Z(theta=0.7853981633974483)] 0", "I[R_Z(theta=-0.7853981633974483)] 0"),
+    ("I[U3(theta=1.0, phi=2.0, lambda=3.0)] 0", "I[U3(theta=-1.0, phi=-3.0, lambda=-2.0)] 0"),
+]
+
+
+@pytest.mark.parametrize("text, expected", REVERSED)
+def test_the_time_reversal_of_a_tagged_gate_is_its_inverse(text, expected):
+    c = sq.Circuit(text)
+    r = c.time_reversed_for_flows([])[0]
+    assert str(r) == expected == str(c.inverse())
+    u, v = r.to_matrix(), c.to_matrix()
+    assert np.allclose(u @ v, np.eye(len(u)) * (u @ v)[0, 0]) and abs(abs((u @ v)[0, 0]) - 1) < 1e-9
+
+
+def test_the_time_reversal_keeps_noise_tags():
+    """A tagged channel that is not unitary (damping, leakage) is kept as the reversal keeps
+    Stim's noise; a tag that is not ours is inert and kept."""
+    for text in ["I_ERROR[AMPLITUDE_DAMPING(gamma=0.1)] 0 1", "I_ERROR[LEAK(p=0.1)] 0", "I[someone_else] 0 1"]:
+        r = sq.Circuit(text).time_reversed_for_flows([])[0]
+        assert str(r).split("]")[0] == text.split("]")[0]

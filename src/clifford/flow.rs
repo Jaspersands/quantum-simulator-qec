@@ -850,6 +850,22 @@ mod tests {
         assert!(fl("1 -> X").mul(&fl("1 -> Y")).is_err());
     }
 
+    /// A tagged identity's operation reverses as `inverse` writes it: an R_PAULI's letters stay
+    /// on their qubits, angles negate, T and T_DAG swap; channels with no inverse are kept.
+    #[test]
+    fn time_reversal_inverts_tags() {
+        for (text, reversed) in [
+            ("I[R_PAULI(theta=0.7853981633974483, pauli=XZ)] 0 1", "I[R_PAULI(theta=-0.7853981633974483, pauli=ZX)] 1 0"),
+            ("II[R_PAULI(theta=0.7853981633974483, pauli=XZYZ)] 0 1 2 3", "II[R_PAULI(theta=-0.7853981633974483, pauli=YZXZ)] 2 3 0 1"),
+            ("I[T] 0 1", "I[T_DAG] 1 0"),
+            ("I_ERROR[AMPLITUDE_DAMPING(gamma=0.1)] 0", "I_ERROR[AMPLITUDE_DAMPING(gamma=0.1)] 0"),
+            ("I[someone_else] 0 1", "I[someone_else] 1 0"),
+        ] {
+            let (c, _) = time_reversed_for_flows(&ir::Circuit::parse(text).unwrap(), &[], false).unwrap();
+            assert_eq!(c.to_string(), reversed, "{text}");
+        }
+    }
+
     #[test]
     fn generators_and_checks() {
         let c = ir::Circuit::parse("H 0").unwrap();
@@ -965,7 +981,18 @@ impl Reverser {
     fn simple(&mut self, op: &Instruction) -> Result<(), String> {
         self.rev.undo_gate(op)?;
         let inv = super::transform::gate_inverse_candidate(op.gate.name);
-        append_reversed(&mut self.out, inv, op.args.clone(), &op.targets, &op.tag, op.has_flag(crate::gate_data::FLAG_TARGETS_PAIRS))
+        let pairs = op.has_flag(crate::gate_data::FLAG_TARGETS_PAIRS);
+        // A tagged identity's operation (`I[T]`, `I[R_PAULI(theta=…, pauli=XZ)]`) reverses as
+        // `inverse` writes it: its tag inverted, an R_PAULI's letters reversed with the targets
+        // so each stays on its qubit. A channel with no inverse (damping, leakage) is kept, as
+        // the reversal keeps Stim's noise; a tag that is not ours is inert, and kept.
+        let mut tag = op.tag.clone();
+        if matches!(op.gate.name, "I" | "II" | "I_ERROR" | "II_ERROR") && !tag.is_empty() {
+            if let Ok(Some(t)) = crate::nonpauli::inverse_tag(&tag, pairs) {
+                tag = t;
+            }
+        }
+        append_reversed(&mut self.out, inv, op.args.clone(), &op.targets, &tag, pairs)
     }
 
     fn do_instruction(&mut self, op: &Instruction) -> Result<(), String> {
