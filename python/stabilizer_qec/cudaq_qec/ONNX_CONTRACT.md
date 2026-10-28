@@ -47,15 +47,18 @@ not been exhaustively validated.
 
 ## Arithmetic and reference scope
 
-Float32 Gemm/MatMul use fused multiply-add emulation: each float32 product is exact in float64,
-each sum is rounded to float32, and 256-wide K blocks are accumulated from zero then folded
-into the output. Vector B uses one K block. Gemm starts with typed beta*C when beta is nonzero;
-beta zero does not read C. Empty broadcast outputs validate dimensions and return without
-iterating K. Float32 Sigmoid uses the recorded MLAS rational approximation. Other arithmetic
-uses NumPy with the graph's types. Float16 and float64 paths do not claim ORT kernel equality;
-platform NumPy/BLAS implementations can also affect their rounding. Cast to bounded integer
-types follows NumPy conversion, which can differ from ORT for out-of-range values. Int32 DQ
-subtracts the zero point in int64 before float32 scaling, avoiding signed int32 overflow.
+Float32 Gemm/MatMul use fused multiply-adds, each rounded once to float32 as MLAS's FMA rounds
+it: the float32 product is exact in float64, and the float64 sum is made round-to-odd before its
+conversion, so that the conversion rounds the exact value (a plain float64 sum rounded again to
+float32 can differ by one ulp at float32 ties). 256-wide K blocks are accumulated from zero then
+folded into the output. Vector B uses one K block. Gemm starts with typed beta*C when beta is
+nonzero; beta zero does not read C. Empty broadcast outputs validate dimensions and return
+without iterating K. Float32 Sigmoid uses the recorded MLAS rational approximation, its
+multiply-adds fused the same way. Other arithmetic uses NumPy with the graph's types. Float16
+and float64 paths do not claim ORT kernel equality; platform NumPy/BLAS implementations can also
+affect their rounding. Cast to bounded integer types follows NumPy conversion, which can differ
+from ORT for out-of-range values. Int32 DQ subtracts the zero point in int64 before float32
+scaling, avoiding signed int32 overflow.
 
 Exact ORT agreement is tested for the existing fixed recordings in `models/ort_outputs.npz`
 (ORT 1.31.0 CPU on macOS arm64); the CUDA-Q surface model's 30 recorded PyTorch outputs are

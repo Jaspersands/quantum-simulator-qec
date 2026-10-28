@@ -627,14 +627,32 @@ _ARITHMETIC = (FLOAT, FLOAT16, DOUBLE, UINT8, INT8, 4, 5, INT32, INT64, 12, 13)
 
 # Fixed float32 accumulation order chosen to preserve the recorded MLAS fixtures: fused
 # multiply-adds over k in 256-wide blocks (each from zero, then alpha * block + output); a
-# one-dimensional B uses one block. Float64 holds each float32 product exactly before rounding
-# the sum to float32. ORT can choose different blocking, prepacking and weight-DQ fusion, even
-# on the same CPU. This is not an emulation of those optimizer-dependent paths.
+# one-dimensional B uses one block. Each multiply-add rounds once, as MLAS's FMA does (_fma32).
+# ORT can choose different blocking, prepacking and weight-DQ fusion, even on the same CPU. This
+# is not an emulation of those optimizer-dependent paths.
 _MLAS_STRIDE_K = 256
 
 
-def _fma32(a: np.ndarray, b: Any, c: Any) -> np.ndarray:
-    return (np.asarray(a, dtype=np.float64) * b + c).astype(np.float32)
+def _fma32(a: Any, b: Any, c: Any) -> np.ndarray:
+    """a b + c rounded once to float32, for float32 values a, b and c: a fused multiply-add.
+
+    The product of two float32 values is exact in float64. Their float64 sum s is not, and
+    rounding it again to float32 can land on a float32 tie the exact sum is not on (2^24 + 2 +
+    (1 + 2^-20)(1 - 2^-20) rounds to 2^24 + 3, a tie, then to 2^24 + 4; once rounded it is
+    2^24 + 2). So s is made round-to-odd: where TwoSum's error e is nonzero and s's last bit is
+    even, s moves one float64 step toward the exact sum. A float64 rounded to odd carries 29 bits
+    beyond float32's 24, and rounding it to float32 then rounds the exact sum (Boldo and
+    Melquiond, "Emulation of FMA and correctly rounded sums", IEEE TC 57(4), 2008)."""
+    p = np.asarray(a, dtype=np.float64) * np.asarray(b, dtype=np.float64)
+    q = np.asarray(c, dtype=np.float64)
+    s = np.asarray(p + q)
+    # (Knuth's TwoSum: s + e is p + q exactly, whichever is larger.)
+    bp = s - p
+    e = (p - (s - bp)) + (q - bp)
+    fix = (e != 0) & np.isfinite(e) & ((s.view(np.int64) & 1) == 0)
+    if fix.any():
+        s = np.where(fix, np.nextafter(s, np.where(e > 0, np.inf, -np.inf)), s)
+    return s.astype(np.float32)
 
 
 def _mlas_product(a: np.ndarray, b: np.ndarray, alpha: float = 1.0, y: Optional[np.ndarray] = None, block: int = _MLAS_STRIDE_K) -> np.ndarray:

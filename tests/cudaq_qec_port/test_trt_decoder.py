@@ -24,6 +24,7 @@ import re
 import sys
 import types
 import warnings
+from fractions import Fraction
 
 import numpy as np
 import pytest
@@ -144,12 +145,38 @@ def matmul_model(tmp_path, batch, size, seed=0):
     return write(tmp_path, f"matmul_batch{batch}.onnx", data), W
 
 
+def _fma32_exact(a, b, c):
+    """a b + c for float32 a, b and c, rounded once to float32 (to nearest, ties to even), as a
+    fused multiply-add does: the exact rational value, then the nearer float32 neighbour."""
+    a, b, c = float(a), float(b), float(c)
+    if not all(map(np.isfinite, (a, b, c))):
+        return np.float32(a * b + c)
+    exact = Fraction(a) * Fraction(b) + Fraction(c)
+    near = np.float32(float(exact))  # (within one float32 step of the answer)
+    best = None
+    for f in (np.nextafter(near, np.float32(-np.inf)), near, np.nextafter(near, np.float32(np.inf))):
+        if not np.isfinite(f):
+            continue
+        d = abs(Fraction(float(f)) - exact)
+        if best is None or d < best[0] or (d == best[0] and int(np.array(f).view(np.int32)) % 2 == 0):
+            best = (d, f)
+    return np.float32(best[1])
+
+
+_fma32_exact_v = np.frompyfunc(_fma32_exact, 3, 1)
+
+
+def fma32(a, b, c):
+    """Elementwise _fma32_exact, broadcasting as numpy does."""
+    return np.asarray(_fma32_exact_v(a, b, c), dtype=np.float32)
+
+
 def mlas_matmul(x, W):
     """x @ W in float32 as onnxruntime's MLAS sums it (for fewer than 256 rows of W): each output
     by fused multiply-adds, in order."""
     acc = np.zeros((x.shape[0], W.shape[1]), dtype=np.float32)
     for k in range(x.shape[1]):
-        acc = (x[:, k : k + 1].astype(np.float64) * W[k].astype(np.float64) + acc).astype(np.float32)
+        acc = fma32(x[:, k : k + 1], W[k], acc)
     return acc
 
 
@@ -161,11 +188,11 @@ def mlas_blocks(x, W, block, alpha=1.0, y=None):
     for start in range(0, W.shape[0], block):
         acc = np.zeros((x.shape[0], W.shape[1]), dtype=np.float32)
         for k in range(start, min(W.shape[0], start + block)):
-            acc = (x[:, k : k + 1].astype(np.float64) * W[k].astype(np.float64) + acc).astype(np.float32)
+            acc = fma32(x[:, k : k + 1], W[k], acc)
         if y is None:
             y = acc if alpha == 1.0 else acc * a
         else:
-            y = (acc.astype(np.float64) * np.float64(a) + y).astype(np.float32)
+            y = fma32(acc, a, y)
     return y
 
 
@@ -260,6 +287,30 @@ def test_products_past_one_block_of_k():
             told_apart += not np.array_equal(product(x, other), want)
             k += 1
         assert k > 0 and told_apart == k, stem
+
+
+def test_float32_products_round_each_multiply_add_once(tmp_path):
+    # A fused multiply-add rounds a b + c once, as MLAS's does. Here the second one's exact value
+    # is 2^24 + 3 - 2^-40, whose float32 neighbours are 2^24 + 2 and 2^24 + 4: once rounded it
+    # is 2^24 + 2, which onnxruntime 1.31.0 (CPU, macOS arm64) gives for MatMul and Gemm at every
+    # optimization level; rounded to float64 first it is the midpoint 2^24 + 3, which ties to
+    # 2^24 + 4.
+    x = np.array([[2.0**24 + 2, 1 + 2.0**-20]], dtype=np.float32)
+    W = np.array([[1.0], [1 - 2.0**-20]], dtype=np.float32)
+    io = ([value_info("x", FLOAT, [1, 2])], [value_info("y", FLOAT, [1, 1])], [tensor("W", W, FLOAT)])
+    for op in ("MatMul", "Gemm"):
+        got = OnnxModel(onnx_model([node(op, ["x", "W"], ["y"])], *io)).run(x)
+        assert got.tolist() == [[16777218.0]], op
+    assert mlas_matmul(x, W).tolist() == [[16777218.0]]
+    # (The oracle against the arithmetic it stands for, near and at float32 ties.)
+    rng = np.random.default_rng(5)
+    a, b, c = (rng.standard_normal(4000) * 2.0 ** rng.integers(-30, 30, 4000)).astype(np.float32), rng.standard_normal(4000).astype(np.float32), rng.standard_normal(4000).astype(np.float32)
+    from stabilizer_qec.cudaq_qec._onnx import _fma32
+
+    np.testing.assert_array_equal(_fma32(a, b, c), fma32(a, b, c))
+    t = np.float32(2.0**24 + 2) + np.zeros(3, np.float32)
+    np.testing.assert_array_equal(_fma32(np.float32(1 + 2.0**-20), np.float32(1 - 2.0**-20) * np.ones(3, np.float32), t), [16777218.0] * 3)
+    np.testing.assert_array_equal(_fma32(np.float32(1), np.ones(2, np.float32), np.float32(2.0**24 + 2)), [2.0**24 + 4] * 2)  # (an exact tie: to even)
 
 
 def test_dequantizing_float8_takes_no_zero_point_but_zero():
