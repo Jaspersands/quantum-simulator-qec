@@ -73,6 +73,11 @@ pub mod parking_lot {
             }
         }
 
+        /// A write if no one holds the lock now, as `parking_lot`'s `try_write`.
+        pub fn try_write(&self) -> Option<lock_api::RwLockWriteGuard<'_, RawRwLock, T>> {
+            self.state.compare_exchange(0, WRITER, Ordering::Acquire, Ordering::Relaxed).ok().map(|_| lock_api::RwLockWriteGuard { lock: self, _raw: PhantomData })
+        }
+
         pub fn get_mut(&mut self) -> &mut T {
             self.data.get_mut()
         }
