@@ -312,7 +312,7 @@ class StatsPerShot(Callback):
         n_cols = data.shape[0]
             
         fig, ax = plt.subplots(1, n_cols, figsize=(8*n_cols, 5))
-        labels = ['$p_L$', 'std[$p_L$]', '$\delta$', 'std[$p_L^{up}$]']
+        labels = ['$p_L$', 'std[$p_L$]', r'$\delta$', 'std[$p_L^{up}$]']
         
         for i in range(n_cols):
             for j in range(int(self.n_calls / self.n_shots)):
