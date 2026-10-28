@@ -15,7 +15,15 @@ alpha and beta, Sigmoid, Identity), `gemm_trans` (Gemm with transA and a broadca
 `qdq_fp8_zp` (float8e4m3fn quantized with a nonzero zero point, which onnxruntime ignores),
 `cast_fp8_sat` / `cast_fp8_nosat` (float8e4m3fn by Cast, saturating and not), and the products
 of K = 600, past MLAS's blocks of 256: `matmul_k600` (by a matrix), `matmul_vector_k600` (by a
-vector, one block), `gemm_k600` (transB, alpha, beta and C) and `gemm_alpha_k600` (alpha, no C).
+vector, one block), `gemm_k600` (transB, alpha, beta and C) and `gemm_alpha_k600` (alpha, no C);
+MatMul followed by Add, which onnxruntime's default optimizer fuses into a Gemm where the shapes
+allow it, past one block: `matmul_add_k600` (a bias [N], the TF/JAX/dynamo Linear form),
+`matmul_add_batch_k600` (a dynamic batch, an Identity between, a bias [1, N] on the left),
+`matmul_add_rank3_k600` (a three-dimensional A, which onnxruntime reshapes), `matmul_add_unfused_k600`
+(an addend [2, N] against a dynamic batch, which onnxruntime does not fuse) and
+`matmul_matmul_add_k600` (three MatMuls into two Adds, fused in onnxruntime's topological
+order); and `matmul_fma_tie`, products whose float64 sums are float32 ties their exact sums are
+not on (a multiply-add rounded twice differs there from MLAS's fused one).
 The inputs of the models added since the first recording draw on their own generators, so the
 earlier models' recorded inputs stay as they were.
 
@@ -195,6 +203,42 @@ def products_k600():
     model("gemm_alpha_k600.onnx", [gemm], [i], [helper.make_tensor_value_info("output", TensorProto.FLOAT, [2, 4])], [B2])
 
 
+def products_matmul_add():
+    # MatMul then Add, K = 600. onnxruntime fuses (its basic level, MatMulAddFusion) all but
+    # matmul_add_unfused_k600, whose addend's first dimension 2 is not the symbolic batch.
+    rng = np.random.default_rng(16)
+    W = numpy_helper.from_array((rng.standard_normal((600, 4)) * 0.3).astype(np.float32), "W")
+    b = numpy_helper.from_array((rng.standard_normal(4) * 0.2).astype(np.float32), "b")
+    def out(*dims):
+        return helper.make_tensor_value_info("output", TensorProto.FLOAT, list(dims))
+
+    i2 = helper.make_tensor_value_info("input", TensorProto.FLOAT, [2, 600])
+    model("matmul_add_k600.onnx", [helper.make_node("MatMul", ["input", "W"], ["m"]), helper.make_node("Add", ["m", "b"], ["output"])], [i2], [out(2, 4)], [W, b])
+    batch = helper.make_tensor_value_info("input", TensorProto.FLOAT, ["batch", 600])
+    b1 = numpy_helper.from_array((rng.standard_normal((1, 4)) * 0.2).astype(np.float32), "b1")
+    nodes = [helper.make_node("MatMul", ["input", "W"], ["m"]), helper.make_node("Identity", ["m"], ["mi"]), helper.make_node("Add", ["b1", "mi"], ["output"])]
+    model("matmul_add_batch_k600.onnx", nodes, [batch], [out("batch", 4)], [W, b1])
+    i3 = helper.make_tensor_value_info("input", TensorProto.FLOAT, [2, 2, 600])
+    model("matmul_add_rank3_k600.onnx", [helper.make_node("MatMul", ["input", "W"], ["m"]), helper.make_node("Add", ["m", "b"], ["output"])], [i3], [out(2, 2, 4)], [W, b])
+    c = numpy_helper.from_array((rng.standard_normal((2, 4)) * 0.2).astype(np.float32), "c")
+    model("matmul_add_unfused_k600.onnx", [helper.make_node("MatMul", ["input", "W"], ["m"]), helper.make_node("Add", ["m", "c"], ["output"])], [batch], [out("batch", 4)], [W, c])
+    Ws = [numpy_helper.from_array((rng.standard_normal((600, 4)) * 0.3).astype(np.float32), f"W{k}") for k in range(3)]
+    nodes = [
+        helper.make_node("MatMul", ["input", "W0"], ["m0"]),
+        helper.make_node("MatMul", ["input", "W1"], ["m1"]),
+        helper.make_node("Add", ["m0", "m1"], ["s"]),  # (m1 fuses, m0 its C)
+        helper.make_node("MatMul", ["input", "W2"], ["m2"]),
+        helper.make_node("Add", ["m2", "s"], ["output"]),  # (m2 fuses, the first Gemm its C)
+    ]
+    model("matmul_matmul_add_k600.onnx", nodes, [i2], [out(2, 4)], Ws)
+
+
+def fma_tie():
+    i = helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 2])
+    W = numpy_helper.from_array(np.array([[1.0], [1 - 2.0**-20]], dtype=np.float32), "W")
+    model("matmul_fma_tie.onnx", [helper.make_node("MatMul", ["input", "W"], ["output"])], [i], [helper.make_tensor_value_info("output", TensorProto.FLOAT, [1, 1])], [W])
+
+
 # -- Inputs ----------------------------------------------------------------------------------------
 
 
@@ -249,6 +293,18 @@ def inputs_for(name, rng):
     if name in ("matmul_k600.onnx", "matmul_vector_k600.onnx", "gemm_k600.onnx", "gemm_alpha_k600.onnx"):
         own = np.random.default_rng(15)
         return [(own.standard_normal((2, 600)) * s).astype(np.float32) for s in (0.1, 1.0, 10.0)]
+    if name in ("matmul_add_k600.onnx", "matmul_add_rank3_k600.onnx", "matmul_add_unfused_k600.onnx", "matmul_add_batch_k600.onnx", "matmul_matmul_add_k600.onnx"):
+        own = np.random.default_rng(17)
+        shape = {"matmul_add_rank3_k600.onnx": (2, 2, 600)}.get(name, (2, 600))
+        xs = [(own.standard_normal(shape) * s).astype(np.float32) for s in (0.1, 1.0, 10.0)]
+        if name == "matmul_add_batch_k600.onnx":
+            xs += [(own.standard_normal((n, 600))).astype(np.float32) for n in (1, 3)]
+        return xs
+    if name == "matmul_fma_tie.onnx":
+        # (2^24 + 2 + (1 + 2^-20)(1 - 2^-20) is 2^24 + 3 - 2^-40: once rounded 2^24 + 2.)
+        own = np.random.default_rng(18)
+        xs = [[2.0**24 + 2, 1 + 2.0**-20], [-(2.0**24 + 2), -(1 + 2.0**-20)], [2.0**24 + 2, 1.0], [1.0, 2.0**-30]]
+        return [np.asarray(x, dtype=np.float32).reshape(1, 2) for x in xs] + [own.standard_normal((1, 2)).astype(np.float32) for _ in range(2)]
     if name == "surface_code_decoder.onnx":
         return surface_inputs()
     if name in ("qdq_int8.onnx", "qdq_fp8.onnx", "qdq_uint8.onnx"):
@@ -289,6 +345,8 @@ def main() -> None:
     cast_fp8("cast_fp8_nosat.onnx", 0)
     qdq_fp8_zp()
     products_k600()
+    products_matmul_add()
+    fma_tie()
 
     print("onnx", onnx.__version__, "onnxruntime", ort.__version__)
     names = sorted(p.name for p in OUT.glob("*.onnx"))

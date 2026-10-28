@@ -548,6 +548,8 @@ class OnnxModel:
         # more specific integer-input diagnostic first. No node runs before this check.
         self._unsupported_execution = [n.label() for n in self._nodes
                                        if n.op == "Gemm" and types[n.inputs[0]] not in _FLOATS]
+        # (The Add nodes onnxruntime's default optimizer folds, with their MatMul, into a Gemm.)
+        self._fused, self._skipped = _matmul_add_fusions(self, types)
         self._tensorrt = False  # (set by trt_decoder: quantize as TensorRT imports the model)
 
     @property
@@ -590,7 +592,18 @@ class OnnxModel:
         env = dict(self._inits)
         env.update(feeds)
         with np.errstate(all="ignore"):
-            for node in self._nodes:
+            for k, node in enumerate(self._nodes):
+                if k in self._skipped:
+                    continue  # (a fused MatMul, or an Identity after it: its Add computes it)
+                fused = self._fused.get(k)
+                if fused is not None:
+                    mm = self._nodes[fused[0]]
+                    try:
+                        y, yt = _matmul_add(self, mm, [env[i] for i in mm.inputs], env[node.inputs[fused[1]]])
+                    except (ValueError, TypeError, IndexError, OverflowError, ZeroDivisionError) as e:
+                        raise ValueError(f"{mm.label()}: {e}") from e
+                    env[node.outputs[0]] = (np.asarray(y), yt)
+                    continue
                 args = [env[i] if i else None for i in node.inputs]
                 try:
                     y, yt = _KERNELS[node.op](self, node, args)
@@ -680,6 +693,182 @@ def _mlas_product(a: np.ndarray, b: np.ndarray, alpha: float = 1.0, y: Optional[
     return y
 
 
+# -- onnxruntime's MatMul + Add fusion ------------------------------------------------------------
+#
+# onnxruntime's default optimizer (its basic level, MatMulAddFusion) rewrites a float MatMul whose
+# only consumer is an Add into a Gemm with the Add's other operand as C, which MLAS folds every K
+# block into; unfused, the bias is added to the finished product. Past one K block (256) the two
+# round differently, so the evaluator fuses where onnxruntime 1.31.0 does, as probed on the CPU
+# provider (its optimized graphs saved at the basic level):
+#   - the MatMul's output is no graph output and has exactly one consumer, an Add, looking through
+#     the Identity nodes and type-preserving Casts the same level removes first;
+#   - B's shape is known and of rank 2, with N its second dimension;
+#   - A's shape is known: of rank 2 (M its first dimension), the Add's other operand must be of
+#     shape [N], [1, N], [M, 1] or [M, N]; of any other rank, every dimension of A must be a number
+#     and the operand of shape [N] (onnxruntime reshapes A to a matrix and back).
+# Dimensions compare as ONNX shapes do: equal numbers, or equal symbolic names. The shapes are
+# those ONNX shape inference gives onnxruntime, followed here for this evaluator's operators from
+# the graph's inputs and initializers (graph value_info is not read: where only it gives a shape,
+# this does not fuse). Of two MatMuls feeding one Add, the first in onnxruntime's topological
+# order fuses (_ort_order), the other's output becoming C.
+
+
+def _same_dim(x: Any, y: Any) -> bool:
+    return x is not None and y is not None and type(x) is type(y) and x == y
+
+
+def _broadcast_dims(shapes: List[Optional[tuple]]) -> Optional[tuple]:
+    """ONNX's multidirectional broadcast of static shapes (None where unknown)."""
+    if any(s is None for s in shapes):
+        return None
+    rank = max(len(s) for s in shapes)
+    out: List[Any] = []
+    for i in range(rank):
+        dims = [s[i - rank + len(s)] for s in shapes if i - rank + len(s) >= 0]
+        values = [d for d in dims if isinstance(d, int) and d != 1]
+        rest = [d for d in dims if not (isinstance(d, int) and d == 1)]
+        if values:
+            out.append(values[0])
+        elif not rest:
+            out.append(1)
+        elif all(isinstance(d, str) for d in rest) and len(set(rest)) == 1:
+            out.append(rest[0])
+        else:
+            out.append(None)
+    return tuple(out)
+
+
+def _numbers(dims: tuple) -> Optional[int]:
+    return int(np.prod(dims, dtype=object)) if all(isinstance(d, int) for d in dims) else None
+
+
+def _static_shape(m: OnnxModel, node: _Node, ins: List[Optional[tuple]]) -> Optional[tuple]:
+    """The output shape ONNX shape inference gives ``node`` (None where it gives none)."""
+    op = node.op
+    if op in ("Identity", "Relu", "Sigmoid", "Cast", "QuantizeLinear", "DequantizeLinear"):
+        return ins[0]
+    if op == "Add":
+        return _broadcast_dims([ins[0], ins[1]])
+    if op == "Gemm":
+        a, b = ins[0], ins[1]
+        M = a[1 if node.attrs.get("transA", 0) else 0] if a is not None and len(a) == 2 else None
+        N = b[0 if node.attrs.get("transB", 0) else 1] if b is not None and len(b) == 2 else None
+        return (M, N)
+    if op == "MatMul":
+        a, b = ins[0], ins[1]
+        if a is None or b is None or not a or not b:
+            return None
+        batch = _broadcast_dims([a[:-2], b[:-2]]) or ()
+        return batch + tuple(a[-2:-1] if len(a) >= 2 else ()) + tuple(b[-1:] if len(b) >= 2 else ())
+    if op == "Flatten":
+        x = ins[0]
+        if x is None:
+            return None
+        axis = node.attrs.get("axis", 1)
+        axis += len(x) if axis < 0 else 0
+        return (_numbers(x[:axis]), _numbers(x[axis:]))
+    if op == "Reshape":
+        x = ins[0]
+        if node.inputs[1] not in m._inits:
+            s = ins[1]
+            return (None,) * s[0] if s is not None and len(s) == 1 and isinstance(s[0], int) else None
+        target = [int(v) for v in np.asarray(m._inits[node.inputs[1]][0]).reshape(-1)]
+        allowzero = node.attrs.get("allowzero", 0)
+        out: List[Any] = []
+        for i, d in enumerate(target):
+            if d == 0 and not allowzero:
+                out.append(x[i] if x is not None and i < len(x) else None)
+            else:
+                out.append(d)
+        if -1 in out:
+            total = _numbers(x) if x is not None else None
+            known = _numbers(tuple(d for d in out if d != -1))
+            out[out.index(-1)] = total // known if total is not None and known else None
+        return tuple(out)
+    return None
+
+
+def _ort_order(m: OnnxModel, removed: set, source: Callable[[str], Optional[int]]) -> List[int]:
+    """The nodes (but the removed ones) in onnxruntime's GraphViewer order: a reverse depth-first
+    search from the nodes no node consumes, each node left after its inputs, a node's producers
+    pushed in ascending index (so the last of them is visited first), the leaves likewise."""
+    producers = {k: sorted({j for j in (source(i) for i in node.inputs if i) if j is not None}) for k, node in enumerate(m._nodes) if k not in removed}
+    consumed = {j for ps in producers.values() for j in ps}
+    stack = [(k, False) for k in producers if k not in consumed]
+    seen: set = set()
+    order: List[int] = []
+    while stack:
+        k, leave = stack.pop()
+        if leave:
+            order.append(k)
+        elif k not in seen:
+            seen.add(k)
+            stack.append((k, True))
+            stack.extend((j, False) for j in producers[k])
+    return order
+
+
+def _matmul_add_fusions(m: OnnxModel, types: Dict[str, int]) -> Tuple[Dict[int, Tuple[int, int]], set]:
+    """The MatMul + Add pairs onnxruntime fuses (see above): each fused Add's index with its
+    MatMul's and the index of its input that is C; and the nodes the Adds compute instead."""
+    shapes: Dict[str, Optional[tuple]] = {name: tuple(a.shape) for name, (a, _t) in m._inits.items()}
+    shapes.update({name: s for name, _t, s in m._in})
+    for node in m._nodes:
+        try:
+            shapes[node.outputs[0]] = _static_shape(m, node, [shapes.get(i) if i else None for i in node.inputs])
+        except (ValueError, TypeError, IndexError, OverflowError, ZeroDivisionError):
+            shapes[node.outputs[0]] = None
+    outputs = {name for name, _t, _s in m._out}
+    nodes = m._nodes
+    producer = {node.outputs[0]: k for k, node in enumerate(nodes)}
+    # (The Identity nodes and type-preserving Casts the basic level removes before it fuses, their
+    # consumers then reading their inputs.)
+    removed = {k for k, node in enumerate(nodes) if node.outputs[0] not in outputs and (node.op == "Identity" or (node.op == "Cast" and node.attrs.get("to") == types.get(node.inputs[0])))}
+
+    def source(name: str) -> Optional[int]:
+        k = producer.get(name)
+        while k is not None and k in removed:
+            k = producer.get(nodes[k].inputs[0])
+        return k
+
+    consumers: Dict[int, List[Tuple[int, int]]] = {}
+    for j, node in enumerate(nodes):
+        if j not in removed:
+            for slot, name in enumerate(node.inputs):
+                k = source(name) if name else None
+                if k is not None:
+                    consumers.setdefault(k, []).append((j, slot))
+    fused: Dict[int, Tuple[int, int]] = {}
+    skipped: set = set()
+    for k in _ort_order(m, removed, source):
+        node = nodes[k]
+        if node.op != "MatMul" or types.get(node.inputs[0]) != FLOAT or types.get(node.inputs[1]) != FLOAT or node.outputs[0] in outputs:
+            continue
+        uses = consumers.get(k, [])
+        if len(uses) != 1 or nodes[uses[0][0]].op != "Add" or uses[0][0] in fused:
+            continue
+        add, c_at = uses[0][0], 1 - uses[0][1]
+        a, b, c = shapes.get(node.inputs[0]), shapes.get(node.inputs[1]), shapes.get(nodes[add].inputs[c_at])
+        if a is None or b is None or c is None or len(b) != 2 or not a:
+            continue
+        N = b[1]
+        if len(a) == 2:
+            ok = (len(c) == 1 and _same_dim(c[0], N)) or (
+                len(c) == 2 and ((_same_dim(c[0], 1) and _same_dim(c[1], N)) or (_same_dim(c[0], a[0]) and (_same_dim(c[1], 1) or _same_dim(c[1], N))))
+            )
+        else:
+            ok = all(isinstance(d, int) for d in a) and len(c) == 1 and _same_dim(c[0], N)
+        if ok:
+            fused[add] = (k, c_at)
+            # (The MatMul and the removed nodes between it and its Add, which nothing else reads.)
+            j = producer.get(nodes[add].inputs[1 - c_at])
+            while j is not None and j != k:
+                skipped.add(j)
+                j = producer.get(nodes[j].inputs[0])
+            skipped.add(k)
+    return fused, skipped
+
+
 # MLAS's logistic: a rational approximation on [-18, 18], its multiply-adds fused.
 _LOGISTIC_P = (4.37031012579801e-11, 1.15627324459942e-07, 6.08574864600143e-05, 8.51377133304701e-03, 2.48287947061529e-01)
 _LOGISTIC_Q = (6.10247389755681e-13, 5.76102136993427e-09, 6.29106785017040e-06, 1.70198817374094e-03, 1.16817656904453e-01, 9.93151921023180e-01)
@@ -741,6 +930,22 @@ def _matmul(m: OnnxModel, node: _Node, args: List[_Arg]) -> Tuple[np.ndarray, in
     if a.ndim == 1:
         y = y[..., 0, :]
     return (y[..., 0] if b.ndim == 1 else y), t
+
+
+def _matmul_add(m: OnnxModel, node: _Node, args: List[_Arg], c: Tuple[np.ndarray, int]) -> Tuple[np.ndarray, int]:
+    """MatMul then Add of c, as onnxruntime's fused Gemm computes it: the product's K blocks
+    folded into c (broadcast to the product's shape) rather than c added to the finished product.
+    The two round alike for K <= 256 (one block), not past it."""
+    (a, ta), (b, tb) = args
+    if a.ndim >= 1 and b.ndim == 2 and ta == tb == c[1] == FLOAT:
+        a2 = a[None, :] if a.ndim == 1 else a
+        shape = a2.shape[:-1] + (b.shape[1],)
+        if a2.shape[-1] == b.shape[0] and c[0].ndim <= 2 and np.broadcast_shapes(c[0].shape, shape) == shape:
+            y = _mlas_product(a2, b, 1.0, np.broadcast_to(c[0], shape).astype(np.float32))
+            return (y[0] if a.ndim == 1 else y), FLOAT
+    # (Shapes other than the model's own say, at run time: unfused, as the kernels would.)
+    y, t = _matmul(m, node, args)
+    return np.add(y, c[0]), _same(node, t, c[1])
 
 
 def _add(m: OnnxModel, node: _Node, args: List[_Arg]) -> Tuple[np.ndarray, int]:

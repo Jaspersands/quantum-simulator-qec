@@ -106,7 +106,10 @@ def _str(field, s):
 
 
 def value_info(name, elem, dims):
-    shape = b"".join(_len(1, _int(1, d) if isinstance(d, int) else _str(2, d)) for d in dims)
+    """A tensor's ValueInfoProto: dims numbers, names or None (unknown); dims None for no shape."""
+    if dims is None:
+        return _str(1, name) + _len(2, _len(1, _int(1, elem)))
+    shape = b"".join(_len(1, b"" if d is None else _int(1, d) if isinstance(d, int) else _str(2, d)) for d in dims)
     return _str(1, name) + _len(2, _len(1, _int(1, elem) + _len(2, shape)))
 
 
@@ -287,6 +290,87 @@ def test_products_past_one_block_of_k():
             told_apart += not np.array_equal(product(x, other), want)
             k += 1
         assert k > 0 and told_apart == k, stem
+
+
+def test_matmul_add_is_fused_as_onnxruntime_fuses_it():
+    # onnxruntime's default optimizer makes a Gemm of a MatMul and the Add after it, folding each
+    # K block into the bias; unfused, the bias is added to the finished product. Past one block
+    # (K = 600 here) the recordings tell the two apart.
+    def init(stem, name):
+        return load_onnx(model_path(stem + ".onnx"))._inits[name][0]
+
+    W, b, b1, c = init("matmul_add_k600", "W"), init("matmul_add_k600", "b"), init("matmul_add_batch_k600", "b1"), init("matmul_add_unfused_k600", "c")
+    cases = {
+        "matmul_add_k600": (b, True),
+        "matmul_add_batch_k600": (b1, True),
+        "matmul_add_rank3_k600": (b, True),
+        "matmul_add_unfused_k600": (c, False),
+    }
+    for stem, (bias, fused) in cases.items():
+        assert bool(load_onnx(model_path(stem + ".onnx"))._fused) == fused, stem
+        k, told_apart = 0, 0
+        while f"{stem}__{k}__x" in RECORDED.files:
+            x, want = RECORDED[f"{stem}__{k}__x"], RECORDED[f"{stem}__{k}__y"]
+            x2 = x.reshape(-1, 600)
+            product = mlas_blocks(x2, W, 256)
+            as_gemm = mlas_blocks(x2, W, 256, 1.0, np.broadcast_to(bias, product.shape).astype(np.float32)).reshape(want.shape)
+            as_add = (product + bias).reshape(want.shape)
+            np.testing.assert_array_equal(as_gemm if fused else as_add, want, err_msg=f"{stem} case {k}")
+            told_apart += not np.array_equal(as_add if fused else as_gemm, want)
+            k += 1
+        assert k > 0 and told_apart == k, stem
+    # Of MatMuls into one Add, the first in onnxruntime's topological order fuses: m1 (with m0 as
+    # C), then m2 (with that Gemm as C); m0 stays a MatMul.
+    m = load_onnx(model_path("matmul_matmul_add_k600.onnx"))
+    assert m._fused == {2: (1, 0), 4: (3, 1)} and m._skipped == {1, 3}
+
+
+def _fusion_of(nodes, inputs, inits, outputs=None):
+    m = OnnxModel(onnx_model(nodes, inputs, outputs or [value_info("y", FLOAT, [2, 3])], inits))
+    return {m._nodes[a].op: m._nodes[k].op for a, (k, _c) in m._fused.items()}, m
+
+
+FUSED = {"Add": "MatMul"}
+
+
+@pytest.mark.parametrize("x_dims, bias_shape, fused", [
+    # (Shapes as probed against onnxruntime 1.31.0's optimized graphs.) A of rank 2: a bias [N],
+    # [1, N], [M, 1] or [M, N], M compared as ONNX dimensions compare.
+    ([2, 5], [3], True), ([2, 5], [1, 3], True), ([2, 5], [2, 1], True), ([2, 5], [2, 3], True),
+    (["batch", 5], [3], True), (["batch", 5], [1, 3], True), (["batch", 5], [2, 3], False), (["batch", 5], [2, 1], False),
+    ([None, 5], [3], True), (None, [3], False),
+    ([2, 5], [1], False), ([2, 5], [], False), ([2, 5], [1, 1, 3], False), ([2, 5], [1, 2, 3], False),
+    # Of another rank: every dimension a number, and a bias [N] (onnxruntime reshapes A).
+    ([5], [3], True), ([4, 2, 5], [3], True), ([2, 2, 2, 5], [3], True), ([4, 2, 5], [1, 3], False), ([4, 2, 5], [2, 3], False),
+    (["b", 2, 5], [3], False),
+])
+def test_matmul_add_fusion_follows_onnxruntimes_shape_rules(x_dims, bias_shape, fused):
+    W = np.ones((5, 3), np.float32)
+    bias = np.ones(bias_shape, np.float32)
+    nodes = [node("MatMul", ["x", "W"], ["m"]), node("Add", ["m", "b"], ["y"])]
+    got, _ = _fusion_of(nodes, [value_info("x", FLOAT, x_dims)], [tensor("W", W, FLOAT), tensor("b", bias, FLOAT)])
+    assert got == (FUSED if fused else {})
+
+
+def test_matmul_add_fusion_needs_the_add_as_only_consumer():
+    W, b = tensor("W", np.ones((5, 3), np.float32), FLOAT), tensor("b", np.ones(3, np.float32), FLOAT)
+    x = [value_info("x", FLOAT, [2, 5])]
+    mm = node("MatMul", ["x", "W"], ["m"])
+    # Identity nodes and float-to-float Casts between them are removed first, so they fuse.
+    assert _fusion_of([mm, node("Identity", ["m"], ["i"]), node("Cast", ["i"], ["j"], to=FLOAT), node("Add", ["b", "j"], ["y"])], x, [W, b])[0] == FUSED
+    # Not: a second consumer, the MatMul's output a graph output, the Add of it twice, a Relu between.
+    assert _fusion_of([mm, node("Add", ["m", "b"], ["a"]), node("Relu", ["m"], ["r"]), node("Add", ["a", "r"], ["y"])], x, [W, b])[0] == {}
+    assert _fusion_of([mm, node("Identity", ["m"], ["i"]), node("Add", ["i", "b"], ["a"]), node("Add", ["a", "m"], ["y"])], x, [W, b])[0] == {}
+    assert _fusion_of([mm, node("Add", ["m", "b"], ["y"])], x, [W, b], [value_info("y", FLOAT, [2, 3]), value_info("m", FLOAT, [2, 3])])[0] == {}
+    assert _fusion_of([mm, node("Add", ["m", "m"], ["y"])], x, [W])[0] == {}
+    assert _fusion_of([mm, node("Relu", ["m"], ["r"]), node("Add", ["r", "b"], ["y"])], x, [W, b])[0] == {}
+    # A of a known rank through the evaluator's operators fuses; through a Reshape by a computed
+    # shape (no rank known) it does not.
+    flat = [value_info("x", FLOAT, ["n", 1, 5])]
+    assert _fusion_of([node("Flatten", ["x"], ["f"]), node("MatMul", ["f", "W"], ["m"]), node("Add", ["m", "b"], ["y"])], flat, [W, b])[0] == FUSED
+    _, m = _fusion_of([node("Flatten", ["x"], ["f"]), node("MatMul", ["f", "W"], ["m"]), node("Add", ["m", "b"], ["y"])], flat, [W, b])
+    x3 = np.arange(10, dtype=np.float32).reshape(2, 1, 5)
+    np.testing.assert_array_equal(m.run(x3), x3.reshape(2, 5) @ np.ones((5, 3), np.float32) + 1)
 
 
 def test_float32_products_round_each_multiply_add_once(tmp_path):

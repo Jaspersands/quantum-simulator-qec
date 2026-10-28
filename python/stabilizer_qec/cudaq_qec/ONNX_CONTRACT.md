@@ -60,12 +60,25 @@ affect their rounding. Cast to bounded integer types follows NumPy conversion, w
 from ORT for out-of-range values. Int32 DQ subtracts the zero point in int64 before float32
 scaling, avoiding signed int32 overflow.
 
+ORT's default optimizer rewrites a float MatMul followed by an Add into a Gemm with the Add's
+other operand as C (MatMulAddFusion, at its basic level), and MLAS then folds every K block into
+that bias instead of adding it to the finished product; past K = 256 the two round differently.
+The evaluator fuses where ORT 1.31.0 does, as probed from ORT's optimized graphs: the MatMul's
+output is no graph output and its only consumer is the Add (Identity nodes and type-preserving
+Casts between are removed first); B is of rank 2; A of rank 2 takes a bias of shape [N], [1, N],
+[M, 1] or [M, N], and A of another rank, every dimension a number, a bias [N]; dimensions
+compare as ONNX shapes do, symbolic names by name; of two MatMuls into one Add, the first in
+ORT's topological order fuses. Shapes are inferred from the graph's inputs and initializers
+through the supported operators; graph `value_info` is not read, so where only it would give
+ORT a shape, the port does not fuse. Other ORT graph rewrites are not emulated.
+
 Exact ORT agreement is tested for the existing fixed recordings in `models/ort_outputs.npz`
-(ORT 1.31.0 CPU on macOS arm64); the CUDA-Q surface model's 30 recorded PyTorch outputs are
-checked to absolute tolerance 1e-4. Neither establishes arbitrary graph/CPU equality. Computed
-B and weight-only DequantizeLinear feeding MatMul/Gemm can select different ORT prepacking,
-blocking and optimizer fusion even on the same CPU. The port keeps the typed mathematical
-operations and its fixed float32 order rather than imitating those optimizer choices.
+(ORT 1.31.0 CPU on macOS arm64), among them MatMul + Add past one K block, fused and not, and
+products whose twice-rounded sums would differ; the CUDA-Q surface model's 30 recorded PyTorch
+outputs are checked to absolute tolerance 1e-4. Neither establishes arbitrary graph/CPU
+equality. Computed B and weight-only DequantizeLinear feeding MatMul/Gemm can select different
+ORT prepacking, blocking and quantized-operator fusion even on the same CPU. The port keeps the
+typed mathematical operations and its fixed float32 order rather than imitating those choices.
 
 New computed-B and weight-DQ tests compare against float64 sums of the graph's typed inputs
 and float32-dequantized weights, using absolute tolerance 1e-4 for those fixtures only. The
