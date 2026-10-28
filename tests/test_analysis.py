@@ -29,6 +29,26 @@ def test_run_decoding_on_circuit():
     assert r["shots"] == 20_000 and 0 < r["fails"] == r["fails_log_0"] < 20_000
 
 
+def test_merging_batches_in_a_file_keeps_its_totals(tmp_path):
+    """merge_batches_in_file rewrites the header with the file's metric names and one row of
+    their totals: reading it back gives the totals read before (qec-util 0.5.0 also wrote
+    'seconds' as a metric name, so the row came out one value short and the last metric's
+    count was added to 'seconds')."""
+    c = sq.Circuit.generated("repetition_code:memory", distance=3, rounds=2, after_clifford_depolarization=0.1)
+    m = c.detector_error_model(decompose_errors=True)
+    fn = tmp_path / "a.csv"
+    ours.samplers.sample_failures(m, sq.Matching(m), max_samples=3000, batch_size=1000, file_name=fn, verbose=0, extra_metrics=lambda x: {"any0": x[:, 0]}, extra_metrics_ps=lambda x: {"zz": x.any(axis=1)})
+    before = ours.samplers.read_failures_from_file(fn)
+    assert len(fn.read_text().splitlines()) == 4 and before[3]["zz"] > 0
+    ours.samplers.merge_batches_in_file(fn)
+    lines = fn.read_text().splitlines()
+    assert lines[0] == "num_failures_ps,num_samples_ps,num_samples,seconds,any0,zz" and len(lines) == 2 and len(lines[1].split(",")) == 6
+    after = ours.samplers.read_failures_from_file(fn)
+    assert after[:3] == before[:3]
+    assert {k: v for k, v in after[3].items() if k != "seconds"} == {k: v for k, v in before[3].items() if k != "seconds"}
+    assert after[3]["seconds"] == pytest.approx(before[3]["seconds"], abs=1e-5)
+
+
 def test_brentq_and_bounded_minimisation_are_scipys():
     optimize = pytest.importorskip("scipy.optimize")
 

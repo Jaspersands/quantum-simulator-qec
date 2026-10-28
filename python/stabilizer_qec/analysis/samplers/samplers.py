@@ -464,7 +464,10 @@ def merge_batches_in_file(file_name: str | pathlib.Path) -> None:
     num_failures, num_samples_ps, num_samples, extra_metrics = read_failures_from_file(
         file_name=file_name
     )
-    _write_header(file_name, list(extra_metrics))
+    # The header's metric names are the extra ones: 'seconds' is already in HEADER, and naming
+    # it again (as qec-util 0.5.0 does) leaves the row one value short of the header, so the
+    # last metric's count is read back as part of 'seconds' and lost.
+    _write_header(file_name, [n for n in extra_metrics if n != "seconds"])
     _append_data(file_name, num_failures, num_samples_ps, num_samples, extra_metrics)
     return
 
