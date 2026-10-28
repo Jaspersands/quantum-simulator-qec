@@ -24,6 +24,8 @@ import numpy as np
 from qiskit import ClassicalRegister, QuantumCircuit
 from tqdm import tqdm
 
+from stabilizer_qec._util import ours
+
 from .circuit_utils import measured_qubits, qiskit_to_stim_circuit, relabel_qubits, unmeasured_qubits
 from .circuits import CNOTCircuit
 from .noise import CircuitLevelNoiseIdlingParallel
@@ -65,7 +67,7 @@ class NoisyNDFTStatePrepSimulator(ABC):
         elif isinstance(state_prep_circ, CNOTCircuit):
             self.circ = state_prep_circ.to_stim_circuit()
         else:
-            self.circ = state_prep_circ.copy()
+            self.circ = ours(state_prep_circ).copy()  # a Stim object too
 
         self.code = code
         self.zero_state = zero_state

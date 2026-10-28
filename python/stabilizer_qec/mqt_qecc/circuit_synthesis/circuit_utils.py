@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from stabilizer_qec import Circuit, CircuitInstruction, CircuitRepeatBlock
+from stabilizer_qec._util import ours
 
 from .definitions import STIM_MEASUREMENTS
 
@@ -42,6 +43,7 @@ def relabel_qubits(circ: Circuit, qubit_mapping: dict[int, int] | int) -> Circui
     Returns:
         A new stim circuit with qubits relabeled.
     """
+    circ = ours(circ)  # a Stim object too
     new_circ = Circuit()
     for op in circ:
         assert isinstance(op, CircuitInstruction)
@@ -93,6 +95,7 @@ def compact_stim_circuit(circ: Circuit, scheduling_method: str = "asap") -> Circ
     Returns:
          A compacted stim circuit.
     """
+    circ = ours(circ)  # a Stim object too
     compact_circ = Circuit()
     for layer in collect_circuit_layers(circ, scheduling_method):
         compact_circ += layer
@@ -109,6 +112,7 @@ def compose_compact_stim_circuits(circs: list[Circuit], align: str = "start") ->
     Returns:
         A composed and compacted stim circuit.
     """
+    circs = [ours(circ) for circ in circs]  # Stim objects too
     if align not in {"start", "end"}:
         msg = "align must be 'start' or 'end'."
         raise ValueError(msg)
@@ -143,6 +147,7 @@ def collect_circuit_layers(circ: Circuit, scheduling_method: str = "asap") -> li
     Returns:
         list of circuit layers. All instructions in one layer can be executed in parallel. It holds that circ=sum(collect_circuit_layers(circ)).
     """
+    circ = ours(circ)  # a Stim object too
     if scheduling_method not in {"asap", "alap"}:
         msg = "scheduling_method must be 'asap' or 'alap'."
         raise ValueError(msg)
@@ -217,6 +222,7 @@ def depth(circ: Circuit) -> int:
     Returns:
         The depth of the circuit.
     """
+    circ = ours(circ)  # a Stim object too
     return len(collect_circuit_layers(circ, scheduling_method="asap"))
 
 
@@ -229,6 +235,7 @@ def remove_single_qubit_gates(circ: Circuit) -> Circuit:
     Returns:
         A new stim circuit with single-qubit gates removed.
     """
+    circ = ours(circ)  # a Stim object too
     new_circ = Circuit()
     for op in circ:
         assert isinstance(op, CircuitInstruction)
@@ -247,6 +254,7 @@ def remove_swap_gates(circ: Circuit) -> Circuit:
     Returns:
         A new stim circuit with SWAP gates removed.
     """
+    circ = ours(circ)  # a Stim object too
     new_circ = Circuit()
     for op in circ:
         if op.name == "SWAP":
@@ -266,6 +274,7 @@ def two_qubit_gate_depth(circ: Circuit, *, count_swaps: bool = False) -> int:
     Returns:
         The two-qubit gate depth of the circuit.
     """
+    circ = ours(circ)  # a Stim object too
     circ = remove_single_qubit_gates(circ)
     if not count_swaps:
         circ = remove_swap_gates(circ)
@@ -274,6 +283,7 @@ def two_qubit_gate_depth(circ: Circuit, *, count_swaps: bool = False) -> int:
 
 def unmeasured_qubits(circ: Circuit) -> list[int]:
     """Return a list of qubits that are not measured in circ."""
+    circ = ours(circ)  # a Stim object too
     measured_qubits: set[int] = set()
 
     for instr in circ:
@@ -289,6 +299,7 @@ def measured_qubits(circ: Circuit) -> list[int]:
 
     The qubits are in the ordered according to when they are measured.
     """
+    circ = ours(circ)  # a Stim object too
     measured_qubits: list[int] = []
 
     for instr in circ:
@@ -317,6 +328,7 @@ def compose_circuits(
         - mapping1: Maps qubits of circ1 to the composed circuit.
         - mapping2: Maps qubits of circ2 to the composed circuit.
     """
+    circ1, circ2 = ours(circ1), ours(circ2)  # Stim objects too
     if wiring is None:
         wiring = {}
 
@@ -354,6 +366,7 @@ def num_two_qubit_gates(circ: Circuit, *, count_swaps: bool = False) -> int:
     Returns:
         The number of two-qubit gates.
     """
+    circ = ours(circ)  # a Stim object too
     num_tqg = 0
     for op in circ:
         assert isinstance(op, CircuitInstruction)

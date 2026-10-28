@@ -15,6 +15,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 
 from stabilizer_qec import Circuit, CircuitInstruction
+from stabilizer_qec._util import ours
 
 from .circuit_utils import collect_circuit_layers, get_stim_qubit_values
 from .definitions import STIM_MEASUREMENTS, STIM_RESETS, STIM_SQGS, STIM_TQGS
@@ -75,7 +76,7 @@ class ComposedNoiseModel(NoiseModel):
 
     def apply(self, circ: Circuit) -> Circuit:
         """Apply the noise model to a quantum circuit."""
-        noisy_circ = circ.copy()
+        noisy_circ = ours(circ).copy()  # a Stim object too
         for model in self.models:
             noisy_circ = model.apply(noisy_circ)
         return noisy_circ
@@ -111,6 +112,7 @@ class CircuitLevelNoise(NoiseModel):
 
     def apply(self, circ: Circuit) -> Circuit:
         """Apply the noise model to a stim circuit."""
+        circ = ours(circ)  # a Stim object too
         noisy_circ = Circuit()
 
         for op in circ:
@@ -193,6 +195,7 @@ class CircuitLevelNoiseIdlingParallel(CircuitLevelNoise):
 
     def apply(self, circ: Circuit) -> Circuit:
         """Apply the noise model to a stim circuit."""
+        circ = ours(circ)  # a Stim object too
         layers = collect_circuit_layers(circ)
 
         if self.resets_alap:
@@ -241,6 +244,7 @@ class CircuitLevelNoiseIdlingSequential(CircuitLevelNoise):
 
     def apply(self, circ: Circuit) -> Circuit:
         """Apply the noise model to a stim circuit."""
+        circ = ours(circ)  # a Stim object too
         layers = []
 
         for op in circ:
