@@ -687,14 +687,27 @@ fn circuit_detector_coordinates(text: &str, wanted: Vec<u64>) -> PyResult<std::c
     crate::clifford::transform::detector_coordinates(&c, &wanted.into_iter().collect()).map_err(err)
 }
 
+/// The circuit as the reference run reads it: each tagged gate at a Clifford angle written as
+/// the Clifford gate it is (`I[R_X(theta=π/2)] 0` is `X 0`), as the samplers, the converter's
+/// reference and the detector error model run it (`stabrank::frame_view`), so that the signs
+/// and determined measurements counted here agree with `reference_sample`. A tag that does not
+/// parse as a rotation leaves the circuit as Stim reads it.
+fn reference_view(text: &str) -> PyResult<ir::Circuit> {
+    let c = ir::Circuit::parse(text).map_err(err)?;
+    Ok(match crate::stabrank::expand_clifford_rotations_text(&c) {
+        Ok(expanded) => expanded,
+        Err(_) => c,
+    })
+}
+
 #[pyfunction]
 fn circuit_count_determined_measurements(text: &str, unknown_input: bool) -> PyResult<u64> {
-    crate::clifford::transform::count_determined_measurements(&ir::Circuit::parse(text).map_err(err)?, unknown_input).map_err(err)
+    crate::clifford::transform::count_determined_measurements(&reference_view(text)?, unknown_input).map_err(err)
 }
 
 #[pyfunction]
 fn circuit_reference_signs(text: &str, num_observables: usize) -> PyResult<(Vec<bool>, Vec<bool>)> {
-    crate::clifford::transform::reference_detector_and_observable_signs(&ir::Circuit::parse(text).map_err(err)?, num_observables).map_err(err)
+    crate::clifford::transform::reference_detector_and_observable_signs(&reference_view(text)?, num_observables).map_err(err)
 }
 
 fn parse_flows(flows: &[String]) -> PyResult<Vec<crate::clifford::flow::Flow>> {

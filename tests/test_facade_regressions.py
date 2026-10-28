@@ -94,3 +94,27 @@ def test_deltakit_parallel_engine_samples_the_leakage():
     # About 3% of shots fail with the leakage (Deltakit's own run: 582 and 598 of 20,000);
     # without it, none would.
     assert fails[1] > 50 and fails[2] > 50, fails
+
+
+@pytest.mark.parametrize(
+    "gate,quarter",
+    [("I[R_X(theta=1.5707963267948966)]", "X"), ("I[R_Y(theta=3.141592653589793)]", "I"), ("I[R_X(theta=0.7853981633974483)]", "SQRT_X")],
+)
+def test_reference_signs_read_clifford_angle_tags_as_the_reference_run(gate, quarter):
+    # R_P(θ) = exp(-iθP): θ = π/2 is the Pauli, θ = π/4 its square root, θ = π the identity.
+    text = "R 0 1\n{} 0\nCX 0 1\nX_ERROR(0.1) 0\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]"
+    tagged, plain = sq.Circuit(text.format(gate)), sq.Circuit(text.format(quarter))
+    ref = tagged.reference_sample()
+    assert ref.tolist() == plain.reference_sample().tolist()
+    d, o = tagged.reference_detector_and_observable_signs()
+    assert d.tolist() == ref.tolist() and o.tolist() == [bool(ref[1])]
+    assert tagged.count_determined_measurements() == plain.count_determined_measurements()
+    meas = np.array([[1, 1], [0, 1], [0, 0]], dtype=bool)
+    for skip in (False, True):
+        got = tagged.compile_m2d_converter(skip_reference_sample=skip).convert(measurements=meas, append_observables=True)
+        want = plain.compile_m2d_converter(skip_reference_sample=skip).convert(measurements=meas, append_observables=True)
+        assert got.tolist() == want.tolist(), skip
+    if quarter == "X":
+        # Raw parities, as Stim's converter gives them on the X circuit.
+        got = tagged.compile_m2d_converter(skip_reference_sample=True).convert(measurements=meas, append_observables=True)
+        assert got.astype(int).tolist() == [[1, 1, 1], [0, 1, 1], [0, 0, 0]]
