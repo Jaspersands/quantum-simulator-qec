@@ -8,11 +8,16 @@ file formats, and (where the output is deterministic) the same bytes.
     stabilizer-qec decode --dem c.dem --in d.b8 --in_format b8 > predictions.01
 
 Also ``python -m stabilizer_qec``. ``stabilizer-qec help <command>`` describes each command.
+
+As Stim's, the commands that sample, convert or decode shots stream them, 1,024 shots at a time
+(read, sampled, decoded and written a batch at a time), so their memory does not grow with the
+number of shots; the bytes are those of one pass over all of them.
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import functools
 import os
 import re
@@ -106,13 +111,6 @@ def _read_text(path: Optional[str]) -> str:
     return raw.decode("utf-8", "replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
-def _read_bytes(path: Optional[str]) -> bytes:
-    if path is None:
-        return sys.stdin.buffer.read()
-    with open(path, "rb") as f:
-        return f.read()
-
-
 def _write(path: Optional[str], data) -> None:
     # Text (circuits, models, explanations, diagrams) ends its lines as the platform does, as
     # Stim's text-mode output does (\r\n on Windows); shot data is written as it is.
@@ -123,6 +121,211 @@ def _write(path: Optional[str], data) -> None:
     else:
         with open(path, "wb") as f:
             f.write(raw)
+
+
+# Shot data is sampled, read, decoded and written this many shots at a time, so the memory a
+# command needs does not grow with its shots, as Stim's command line streams them. A multiple of
+# 64: whole ptb64 blocks, and the samplers draw 64 shots to a word, so the batches of a seeded
+# run are the shots one call for all of them would draw.
+_BATCH = 1024
+
+
+class _Output:
+    """A shot data output (a file, or stdout), written a batch at a time. A file is opened at
+    its first write, or made empty at the end of a run that wrote nothing; a run that fails
+    before writing leaves no file, as when the whole output was written at once."""
+
+    def __init__(self, path: Optional[str]) -> None:
+        self.path, self.f = path, None
+
+    def _open(self):
+        if self.f is None:
+            self.f = sys.stdout.buffer if self.path is None else open(self.path, "wb")
+        return self.f
+
+    def write(self, raw: bytes) -> None:
+        f = self._open()
+        f.write(raw)
+        if self.path is None:
+            f.flush()
+
+    def close(self, failed: bool = False) -> None:
+        if failed:
+            if self.f is not None and self.path is not None:
+                try:
+                    self.f.close()
+                except OSError:
+                    pass  # the failure that stopped the run is the one reported
+            return
+        f = self._open()
+        if self.path is None:
+            f.flush()
+        else:
+            f.close()
+
+
+@contextlib.contextmanager
+def _streamed(*outputs: Optional[_Output]):
+    """Closes a streamed command's outputs (None for one not asked for) when it ends: made
+    whole if it succeeds, and if it fails, the files it opened closed (the failure is the one
+    reported)."""
+    try:
+        yield outputs
+    except BaseException:
+        for o in outputs:
+            if o is not None:
+                o.close(failed=True)
+        raise
+    for o in outputs:
+        if o is not None:
+            o.close()
+
+
+def _optional_reader(path: Optional[str], format: str, **counts):
+    return contextlib.nullcontext(None) if path is None else _ShotReader(path, format, **counts)
+
+
+def _count_rest(reader: "_ShotReader") -> int:
+    """The shots left in ``reader``, read a batch at a time to count them."""
+    total = 0
+    while True:
+        k = len(reader.read(_BATCH))
+        total += k
+        if k < _BATCH:
+            return total
+
+
+class _ShotReader:
+    """A shot data file (stdin by default) in one of Stim's formats, read a batch at a time:
+    ``read(k)`` returns the next k shots as a (k, n) bool array, fewer only at the end of the
+    data. Each batch is cut at whole shots and decoded by ``decode_shots``, so the shots and
+    the messages for bad data are the ones the whole file read at once gives."""
+
+    _BLOCK = 1 << 16
+
+    def __init__(self, path: Optional[str], format: str, num_measurements: int = 0, num_detectors: int = 0, num_observables: int = 0) -> None:
+        from ._shots import _format, _width
+
+        self.format = _format(format)
+        self.counts = (num_measurements, num_detectors, num_observables)
+        self.n = _width(num_measurements, num_detectors, num_observables)
+        self.f = sys.stdin.buffer if path is None else open(path, "rb")
+        self.owned = path is not None
+        self.buf, self.eof, self.consumed, self.pending = b"", False, 0, None
+
+    def __enter__(self) -> "_ShotReader":
+        return self
+
+    def __exit__(self, *exc) -> None:
+        if self.owned:
+            self.f.close()
+
+    def _decode(self, raw: bytes) -> np.ndarray:
+        from ._shots import decode_shots
+
+        return decode_shots(raw, self.format, *self.counts)
+
+    def _take(self, size: int) -> bytes:
+        raw = self.f.read(size)
+        self.consumed += len(raw)
+        if len(raw) < size:
+            self.eof = True
+        return raw
+
+    def _whole_length(self) -> int:
+        """The data's length in bytes: those read and those left (read to count them)."""
+        while self._take(self._BLOCK):
+            pass
+        return self.consumed
+
+    def _next(self) -> Optional[np.ndarray]:
+        """The next run of whole shots (any number), or None at the end of the data."""
+        if self.eof and not self.buf:
+            return None
+        n, fmt = self.n, self.format
+        if fmt in ("b8", "ptb64"):
+            size = (n + 7) // 8 if fmt == "b8" else 8 * n
+            if size == 0:  # no bits a shot: read as the whole file is (b8: no shots; ptb64: refused)
+                self.eof = True
+                return self._decode(self.f.read())
+            per = _BATCH if fmt == "b8" else _BATCH // 64
+            raw = self._take(per * size)
+            if len(raw) % size:
+                what = "shots" if fmt == "b8" else "blocks"
+                raise ValueError(f"{fmt} data of {self._whole_length()} bytes is not whole {what} of {size} bytes")
+            return self._decode(raw) if raw else None
+        while True:
+            # Up to a batch of whole shots from what is buffered, reading more only when it
+            # holds none; at the end of the data, the rest (a last line without its newline,
+            # or the data's fault, which decoding reports).
+            end = _r8_end(self.buf, n, _BATCH) if fmt == "r8" else _lines_end(self.buf, _BATCH)
+            if not end and self.eof:
+                end = len(self.buf)
+            if end:
+                chunk, self.buf = self.buf[:end], self.buf[end:]
+                return self._decode(chunk)
+            if self.eof:
+                return None
+            self.buf += self._take(self._BLOCK)
+
+    def read(self, k: int) -> np.ndarray:
+        parts, have = [], 0
+        while have < k:
+            if self.pending is not None:
+                rows, self.pending = self.pending, None
+            else:
+                rows = self._next()
+            if rows is None:
+                break
+            if len(rows) > k - have:
+                rows, self.pending = rows[: k - have], rows[k - have :]
+            parts.append(rows)
+            have += len(rows)
+        return np.concatenate(parts) if parts else np.zeros((0, self.n), dtype=bool)
+
+
+def _lines_end(buf: bytes, shots: int) -> int:
+    """The end of the first ``shots`` whole lines in ``buf``, or of as many as it holds (0 if none)."""
+    end = 0
+    for _ in range(shots):
+        i = buf.find(b"\n", end)
+        if i < 0:
+            break
+        end = i + 1
+    return end
+
+
+def _r8_end(buf: bytes, n: int, shots: int) -> int:
+    """The end of the first ``shots`` whole r8 shots in ``buf``, or of as many as it holds (0 if
+    none), or the end of the first byte that runs past its shot (so decoding up to it reports
+    that)."""
+    end = k = 0
+    for i, b in enumerate(buf):
+        k += b
+        if b == 255:
+            continue
+        if k == n:
+            end, k, shots = i + 1, 0, shots - 1
+            if not shots:
+                break
+        elif k > n:
+            return i + 1
+        else:
+            k += 1
+    return end
+
+
+def _sample_batches(shots: int, *formats: str):
+    """The sizes of the batches a run of ``shots`` samples, after checking ptb64 outputs take
+    them (a negative count is passed on, for the sampler's own message)."""
+    if shots < 0:
+        yield shots
+        return
+    if any(f == "ptb64" for f in formats) and shots % 64:
+        raise ValueError("shots must be a multiple of 64 to use ptb64 format.")
+    while shots > 0:
+        yield min(shots, _BATCH)
+        shots -= _BATCH
 
 
 def _parser(command: str) -> _Parser:
@@ -257,22 +460,31 @@ def cmd_sample(a) -> None:
     c = _circuit(_read_text(a.input))
     if a.frame0:
         print("[DEPRECATION] Use `--skip_reference_sample` instead of `--frame0`", file=sys.stderr)
-    data = c.compile_sampler(skip_reference_sample=a.skip_reference_sample or a.frame0, seed=a.seed).sample(a.shots)
-    _write(a.out, encode_shots(data, a.out_format, num_measurements=c.num_measurements))
+    sampler = c.compile_sampler(skip_reference_sample=a.skip_reference_sample or a.frame0, seed=a.seed)
+    with _streamed(_Output(a.out)) as (out,):
+        for k in _sample_batches(a.shots, a.out_format):
+            out.write(encode_shots(sampler.sample(k), a.out_format, num_measurements=c.num_measurements))
 
 
-def _detections_out(a, dets: np.ndarray, obs: np.ndarray, nd: int, no: int) -> None:
+def _detection_outputs(a):
+    """The outputs of detect and m2d: the detection events (stdout by default) and --obs_out."""
+    return _streamed(_Output(a.out), _Output(a.obs_out) if a.obs_out else None)
+
+
+def _detections_out(a, outs, dets: np.ndarray, obs: np.ndarray, nd: int, no: int) -> None:
+    """Writes a batch of detection events and observables to ``outs`` (``_detection_outputs``)."""
     from ._shots import encode_shots
 
+    out, obs_out = outs
     prepend = getattr(a, "prepend_observables", False)
     if a.append_observables or prepend:
         rows = np.hstack(([obs] if prepend else []) + [dets] + ([obs] if a.append_observables else []))
         names = [f"L{k}" for k in range(no)] * prepend + [f"D{k}" for k in range(nd)] + [f"L{k}" for k in range(no)] * a.append_observables
-        _write(a.out, encode_shots(rows, a.out_format, num_detectors=rows.shape[1], names=names))
+        out.write(encode_shots(rows, a.out_format, num_detectors=rows.shape[1], names=names))
     else:
-        _write(a.out, encode_shots(dets, a.out_format, num_detectors=nd))
-    if a.obs_out:
-        _write(a.obs_out, encode_shots(obs, a.obs_out_format, num_observables=no))
+        out.write(encode_shots(dets, a.out_format, num_detectors=nd))
+    if obs_out is not None:
+        obs_out.write(encode_shots(obs, a.obs_out_format, num_observables=no))
 
 
 def cmd_detect(a) -> None:
@@ -283,25 +495,43 @@ def cmd_detect(a) -> None:
     if a.prepend_observables + a.append_observables + (a.obs_out is not None) > 1:
         raise UsageError("Can't combine --prepend_observables, --append_observables, or --obs_out")
     c = _circuit(_read_text(a.input))
-    dets, obs = c.compile_detector_sampler(seed=a.seed).sample(a.shots, separate_observables=True)
-    _detections_out(a, dets, obs, c.num_detectors, c.num_observables)
+    sampler = c.compile_detector_sampler(seed=a.seed)
+    with _detection_outputs(a) as outs:
+        for k in _sample_batches(a.shots, a.out_format, a.obs_out_format if a.obs_out else a.out_format):
+            dets, obs = sampler.sample(k, separate_observables=True)
+            _detections_out(a, outs, dets, obs, c.num_detectors, c.num_observables)
 
 
 def cmd_m2d(a) -> None:
-    from ._shots import decode_shots
-
     c = _circuit(_read_text(a.circuit))
     if a.ran_without_feedback:
         # As Stim: the results are of the circuit with its feedback left out.
         c = c.with_inlined_feedback()
-    meas = decode_shots(_read_bytes(a.input), a.in_format, num_measurements=c.num_measurements)
-    if a.skip_reference_sample:
-        meas = meas ^ c.reference_sample()
-    sweep = None
-    if a.sweep:
-        sweep = decode_shots(_read_bytes(a.sweep), a.sweep_format, num_measurements=c.num_sweep_bits)
-    dets, obs = c.compile_m2d_converter().convert(measurements=meas, sweep_bits=sweep, separate_observables=True)
-    _detections_out(a, dets, obs, c.num_detectors, c.num_observables)
+    reference = c.reference_sample() if a.skip_reference_sample else None
+    converter = c.compile_m2d_converter()
+    nd, no = c.num_detectors, c.num_observables
+    with _ShotReader(a.input, a.in_format, num_measurements=c.num_measurements) as meas_in, _optional_reader(a.sweep, a.sweep_format, num_measurements=c.num_sweep_bits) as sweep_in, _detection_outputs(a) as outs:
+        done = 0
+        while True:
+            meas = meas_in.read(_BATCH)
+            last = len(meas) < _BATCH
+            sweep = None
+            if sweep_in is not None:
+                # The sweep data must end where the measurements do: checked before the batch is
+                # written, what is left of the longer one counted for the message.
+                sweep = sweep_in.read(len(meas))
+                if len(sweep) < len(meas):
+                    raise ValueError(f"{done + len(sweep)} shots of sweep bits for {done + len(meas) + _count_rest(meas_in)} shots of measurements")
+                if last and len(sweep_in.read(1)):
+                    raise ValueError(f"{done + len(sweep) + 1 + _count_rest(sweep_in)} shots of sweep bits for {done + len(meas)} shots of measurements")
+            if len(meas):
+                if reference is not None:
+                    meas = meas ^ reference
+                dets, obs = converter.convert(measurements=meas, sweep_bits=sweep, separate_observables=True)
+                _detections_out(a, outs, dets, obs, nd, no)
+                done += len(meas)
+            if last:
+                break
 
 
 def cmd_analyze_errors(a) -> None:
@@ -394,35 +624,44 @@ def _counts(a):
 
 
 def cmd_convert(a) -> None:
-    from ._shots import decode_shots, encode_shots
+    from ._shots import encode_shots
 
     m, d, o = _counts(a)
-    data = decode_shots(_read_bytes(a.input), a.in_format, m, d, o)
-    if a.obs_out and o:
-        _write(a.out, encode_shots(data[:, : m + d], a.out_format, m, d, 0))
-        _write(a.obs_out, encode_shots(data[:, m + d :], a.obs_out_format, num_observables=o))
-    else:
-        _write(a.out, encode_shots(data, a.out_format, m, d, o))
+    split = bool(a.obs_out and o)
+    with _ShotReader(a.input, a.in_format, m, d, o) as shots_in, _streamed(_Output(a.out), _Output(a.obs_out) if split else None) as (out, obs_out):
+        while True:
+            data = shots_in.read(_BATCH)
+            if len(data):
+                if split:
+                    out.write(encode_shots(data[:, : m + d], a.out_format, m, d, 0))
+                    obs_out.write(encode_shots(data[:, m + d :], a.obs_out_format, num_observables=o))
+                else:
+                    out.write(encode_shots(data, a.out_format, m, d, o))
+            if len(data) < _BATCH:
+                break
 
 
 def cmd_sample_dem(a) -> None:
     from ._circuit import DetectorErrorModel
-    from ._shots import decode_shots, encode_shots
+    from ._shots import encode_shots
 
     dem = DetectorErrorModel(_read_text(a.input))
     s = dem.compile_sampler(seed=a.seed)
-    replay = None
-    if a.replay_err_in:
-        replay = decode_shots(_read_bytes(a.replay_err_in), a.replay_err_in_format, num_measurements=s.num_errors)
-        if len(replay) < a.shots:
-            raise ValueError("Expected more error data for the requested number of shots.")
-        replay = replay[: a.shots]
-    dets, obs, errs = s.sample(a.shots, return_errors=a.err_out is not None, recorded_errors_to_replay=replay)
-    _write(a.out, encode_shots(dets, a.out_format, num_detectors=s.num_detectors))
-    if a.obs_out:
-        _write(a.obs_out, encode_shots(obs, a.obs_out_format, num_observables=s.num_observables))
-    if a.err_out:
-        _write(a.err_out, encode_shots(errs, a.err_out_format, num_measurements=s.num_errors))
+    formats = [a.out_format] + [a.obs_out_format] * bool(a.obs_out) + [a.err_out_format] * bool(a.err_out)
+    outputs = _streamed(_Output(a.out), _Output(a.obs_out) if a.obs_out else None, _Output(a.err_out) if a.err_out else None)
+    with _optional_reader(a.replay_err_in, a.replay_err_in_format, num_measurements=s.num_errors) as replay_in, outputs as (out, obs_out, err_out):
+        for k in _sample_batches(a.shots, *formats):
+            replay = None
+            if replay_in is not None:
+                replay = replay_in.read(max(k, 0))  # extra error data is not read, as in Stim
+                if len(replay) < k:
+                    raise ValueError("Expected more error data for the requested number of shots.")
+            dets, obs, errs = s.sample(k, return_errors=err_out is not None, recorded_errors_to_replay=replay)
+            out.write(encode_shots(dets, a.out_format, num_detectors=s.num_detectors))
+            if obs_out is not None:
+                obs_out.write(encode_shots(obs, a.obs_out_format, num_observables=s.num_observables))
+            if err_out is not None:
+                err_out.write(encode_shots(errs, a.err_out_format, num_measurements=s.num_errors))
 
 
 def cmd_serve(a) -> None:
@@ -451,16 +690,38 @@ def cmd_serve(a) -> None:
     serve(decoder, tcp=a.tcp, stdio=a.stdio, workers=a.workers, threads=a.threads, ready=ready)
 
 
+# Relay-BP's shot s of a batch draws its memory strengths from (seed + (s + 1) * this) (src/batch.rs
+# shot_seed, mod 2**64), so the batch from shot k on is decoded as a whole run decodes it by a
+# decoder whose seed is k times this.
+_RELAY_SHOT_STEP = 0x9E3779B97F4A7C15
+
+
+def _decoded_batches(a, dem, decode):
+    """Reads --in a batch at a time (the observables appended to it, with
+    --in_includes_appended_observables, left out) and yields (detection events, observables
+    or None, predictions from ``decode(events, first shot)``)."""
+    nd, no = dem.num_detectors, dem.num_observables
+    appended = a.in_includes_appended_observables
+    with _ShotReader(a.input, a.in_format, num_detectors=nd, num_observables=no if appended else 0) as shots_in:
+        done = 0
+        while True:
+            data = shots_in.read(_BATCH)
+            if len(data):
+                dets = data[:, :nd]
+                yield dets, (data[:, nd:] if appended else None), decode(dets, done).astype(bool)
+                done += len(data)
+            if len(data) < _BATCH:
+                return
+
+
 def cmd_decode(a) -> None:
     from ._circuit import DetectorErrorModel
-    from ._shots import decode_shots, encode_shots
+    from ._shots import encode_shots
     from ._decoders import AmbiguityClustering, BeliefMatching, CollisionClustering, LocalClustering, BpLsd, BpOsd, ColorMatching, Matching, RelayBp, SearchDecoder, UnionFind
     from ._matching import _CorrelatedMatching
 
     dem = DetectorErrorModel(_read_text(a.dem))
-    nd, no = dem.num_detectors, dem.num_observables
-    data = decode_shots(_read_bytes(a.input), a.in_format, num_detectors=nd, num_observables=no if a.in_includes_appended_observables else 0)
-    decoder = {
+    make = {
         "matching": lambda: Matching(dem),
         "correlated_matching": lambda: _CorrelatedMatching(dem),
         "belief_matching": lambda: BeliefMatching(dem),
@@ -473,53 +734,69 @@ def cmd_decode(a) -> None:
         "ambiguity_clustering": lambda: AmbiguityClustering(dem),
         "collision_clustering": lambda: CollisionClustering(dem),
         "local_clustering": lambda: LocalClustering(dem),
-    }[a.decoder]()
-    predictions = decoder.decode_batch(data[:, :nd]).astype(bool)
-    _write(a.out, encode_shots(predictions, a.out_format, num_observables=no))
+    }[a.decoder]
+    decoder = make()
+
+    def decode(dets: np.ndarray, first: int) -> np.ndarray:
+        if a.decoder == "relay_bp" and first:
+            # Relay-BP draws each shot's strengths from its index in the batch: this batch
+            # by a decoder seeded as the whole run's would be at its first shot.
+            return RelayBp(dem, seed=(first * _RELAY_SHOT_STEP) % (1 << 64)).decode_batch(dets)
+        return decoder.decode_batch(dets)
+
+    with _streamed(_Output(a.out)) as (out,):
+        for _, _, predictions in _decoded_batches(a, dem, decode):
+            out.write(encode_shots(predictions, a.out_format, num_observables=dem.num_observables))
 
 
-def _matching_shots(a):
-    """PyMatching's CLI inputs: the model's matching, the detection events, and the observables
-    appended to them (or None)."""
+def _matching(a):
+    """PyMatching's CLI inputs: the model, and its matching."""
     from ._circuit import DetectorErrorModel
     from ._matching import Matching
-    from ._shots import decode_shots
 
     dem = DetectorErrorModel(_read_text(a.dem))
-    nd, no = dem.num_detectors, dem.num_observables
-    data = decode_shots(_read_bytes(a.input), a.in_format, num_detectors=nd, num_observables=no if a.in_includes_appended_observables else 0)
-    m = Matching.from_detector_error_model(dem, enable_correlations=a.enable_correlations)
-    return m, data[:, :nd], (data[:, nd:] if a.in_includes_appended_observables else None), no
+    return dem, Matching.from_detector_error_model(dem, enable_correlations=a.enable_correlations)
 
 
 def cmd_predict(a) -> None:
     from ._shots import encode_shots
 
-    m, dets, _, no = _matching_shots(a)
-    predictions = m.decode_batch(dets, enable_correlations=a.enable_correlations).astype(bool)
-    _write(a.out, encode_shots(predictions, a.out_format, num_observables=no))
+    dem, m = _matching(a)
+    with _streamed(_Output(a.out)) as (out,):
+        for _, _, predictions in _decoded_batches(a, dem, lambda dets, _: m.decode_batch(dets, enable_correlations=a.enable_correlations)):
+            out.write(encode_shots(predictions, a.out_format, num_observables=dem.num_observables))
 
 
 def cmd_count_mistakes(a) -> None:
+    """PyMatching's count_mistakes: the shots whose predicted observables differ from the
+    actual ones, read from --obs_in when it is given (even with appended observables), else
+    the appended ones, else none (all zero: PyMatching's --obs_in defaults to stdin, which it
+    never reads). Extra --obs_in shots are not read; too few is PyMatching's error. --time
+    writes PyMatching's two timing lines to stderr."""
     import time
 
-    from ._shots import decode_shots
-
-    m, dets, obs, no = _matching_shots(a)
-    if obs is None:
-        if a.obs_in is None:
-            raise UsageError("Observables must be appended (--in_includes_appended_observables) or given with --obs_in")
-        obs = decode_shots(_read_bytes(a.obs_in), a.obs_in_format, num_observables=no)
-    m.decode_batch(dets[:0])  # the decoder is built before the clock starts, as PyMatching's is
+    dem, m = _matching(a)
+    no = dem.num_observables
+    m.decode_batch(np.zeros((0, dem.num_detectors), dtype=bool))  # the decoder is built before the clock starts, as PyMatching's is
+    mistakes = shots = 0
     start = time.perf_counter()
-    predictions = m.decode_batch(dets, enable_correlations=a.enable_correlations).astype(bool)
-    elapsed = time.perf_counter() - start
-    mistakes = int((predictions != obs.astype(bool)).any(axis=1).sum())
-    _write(a.out, f"{mistakes} / {len(dets)}\n".encode())  # bare \n on every platform, as PyMatching's
+    with _optional_reader(a.obs_in, a.obs_in_format, num_observables=no) as obs_in:
+        for dets, appended, predictions in _decoded_batches(a, dem, lambda dets, _: m.decode_batch(dets, enable_correlations=a.enable_correlations)):
+            if obs_in is not None:
+                obs = obs_in.read(len(dets))
+                if len(obs) < len(dets):
+                    raise ValueError("Obs data ended before shot data ended.")
+            else:
+                obs = appended if appended is not None else np.zeros((len(dets), no), dtype=bool)
+            mistakes += int((predictions != obs).any(axis=1).sum())
+            shots += len(dets)
+    _write(a.out, f"{mistakes} / {shots}\n".encode())  # bare \n on every platform, as PyMatching's
     if a.time:
-        micros = elapsed * 1e6
-        per = micros / max(1, len(dets))
-        _write(None, f"Total decoding time: {micros:.0f}us\nDecoding time per shot: {per:.3g}us\n")
+        # As PyMatching: whole microseconds, and the time per shot as C++ streams print a double.
+        micros = float(int((time.perf_counter() - start) * 1e6))
+        per = micros / shots if shots else (float("inf") if micros else float("nan"))
+        sys.stderr.write(f"Total decoding time: {int(micros)}us\nDecoding time per shot: {per:g}us\n")
+        sys.stderr.flush()
 
 
 @functools.lru_cache(maxsize=None)
