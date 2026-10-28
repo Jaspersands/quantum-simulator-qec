@@ -996,7 +996,7 @@ class SpecialLinearGroup(Group):
                     cols.append(out_vec)
                 # stacking the images as rows yields the transpose of the acting matrix; that
                 # transpose (not the matrix itself) is the homomorphism lift(g.h) = lift(g) lift(h)
-                return self.field(np.vstack(cols, dtype=int))
+                return self.field(np.vstack(cols).astype(int))  # vstack's dtype needs NumPy 1.24
 
             super()._init_from_group(comb.PermutationGroup(generators), lift=lift)
 
@@ -1126,7 +1126,7 @@ class ProjectiveSpecialLinearGroup(Group):
                     out_vec = np.frombuffer(target_space[out_idx], dtype=np.uint8)
                     cols.append(out_vec)
                 # see SpecialLinearGroup: the transpose of the acting matrix is the homomorphism
-                return self.field(np.vstack(cols, dtype=int))
+                return self.field(np.vstack(cols).astype(int))  # vstack's dtype needs NumPy 1.24
 
             super()._init_from_group(comb.PermutationGroup(generators), lift=lift)
 
@@ -1245,7 +1245,7 @@ class GeneralLinearGroup(Group):
                 # Stacking the images as rows yields the transpose of the acting matrix.  That
                 # transpose, not the matrix itself, is the homomorphism
                 # ``lift(g @ h) = lift(g) @ lift(h)``.
-                return self.field(np.vstack(cols, dtype=int))
+                return self.field(np.vstack(cols).astype(int))  # vstack's dtype needs NumPy 1.24
 
             super()._init_from_group(comb.PermutationGroup(generators), lift=lift)
 
@@ -1377,7 +1377,7 @@ class ProjectiveGeneralLinearGroup(Group):
                     out_vec = np.frombuffer(target_space[out_idx], dtype=np.uint8)
                     cols.append(out_vec)
                 # see GeneralLinearGroup: the transpose of the acting matrix is the homomorphism
-                return self.field(np.vstack(cols, dtype=int))
+                return self.field(np.vstack(cols).astype(int))  # vstack's dtype needs NumPy 1.24
 
             super()._init_from_group(comb.PermutationGroup(generators), lift=lift)
 

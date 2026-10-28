@@ -3755,8 +3755,11 @@ class CSSCode(QuditCode):
         )
 
         assert self._logical_ops is not None
-        logical_ops = np.reshape(self._logical_ops, (2, self.dimension, 2, len(self)), copy=False)
-        logical_ops[pauli, logical_index, pauli, :] = candidate_logical_op
+        # qLDPC writes through np.reshape(..., copy=False), which needs NumPy 2.1: the same entries
+        # of the (2 * dimension, 2 * len(self)) array, indexed directly.
+        num_qudits, block = len(self), operator.index(pauli)
+        row = block * self.dimension + logical_index
+        self._logical_ops[row, block * num_qudits : (block + 1) * num_qudits] = candidate_logical_op
         return self
 
     def reduce_logical_ops(
