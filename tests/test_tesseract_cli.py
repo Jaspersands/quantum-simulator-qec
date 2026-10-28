@@ -159,6 +159,46 @@ def test_cli_multipass_equals_tesseracts(run_index, tmp_path, capsys):
     assert re.search(r"\ncomponents: 2\n  component 0: label=0, active_detectors=\d+, decoder_detectors=24, observable=(yes|no), error_mechanisms=\d+, "
                      r"average_active_detector_degree=[0-9.e+-]+, sparsify_reactivate_limit=disabled\n", err)
     assert err.endswith("]\n") and "\nschedule:\n  pass 1: [" in err
+    # The plan's dependencies and schedule: the schedule is the one Tesseract builds for the
+    # strategy asked for (build_static_schedule: every component in every pass;
+    # build_causal_schedule: the components that touch an observable last, before them those
+    # with a rule into the next pass), from the plan's own components and dependencies, and
+    # both are those of the Python API's decoder for that strategy.
+    observable = [m[1] == "yes" for m in re.finditer(r"\n  component \d+: .*?observable=(yes|no),", err)]
+    dependencies = {(int(m[1]), int(m[2])): int(m[3]) for m in re.finditer(r"\n  component (\d+) -> component (\d+): (\d+) rules", err)}
+    schedule = [[int(c) for c in m[2].split(", ") if c] for m in re.finditer(r"\n  pass (\d+): \[([0-9, ]*)\]", err)]
+    # (Reweighting rules exist only for a second pass to use.)
+    assert len(observable) == 2 and bool(dependencies) == (mp["passes"] == 2) and len(schedule) == mp["passes"]
+    assert schedule == tesseracts_schedule(strategy, mp["passes"], observable, dependencies)
+    # (On this model the two strategies' schedules differ, so a swap cannot pass.)
+    other = "static" if strategy == "causal" else "causal"
+    assert tesseracts_schedule(other, mp["passes"], observable, dependencies) != schedule
+    from stabilizer_qec.tesseract_decoder import SchedulingStrategy
+    from stabilizer_qec.tesseract_decoder._multi_pass import MultiPassTesseractDecoder
+
+    config = TesseractConfig(sq.DetectorErrorModel(model["multipass"]["dem"]), det_beam=5, no_revisit_dets=True, pqlimit=100000)
+    api = MultiPassTesseractDecoder(config, mp["passes"], (), int(getattr(SchedulingStrategy, strategy.capitalize())))
+    assert api.pass_schedule == schedule and api.affects_observable == observable
+    counts: dict = {}
+    for source, rules in enumerate(api.reweight_rules):
+        for entries in rules.values():
+            for rule in entries:
+                counts[(source, rule[0])] = counts.get((source, rule[0]), 0) + 1
+    assert counts == dependencies
+
+
+def tesseracts_schedule(strategy, passes, observable, dependencies):
+    """Tesseract's MultiPassTesseractDecoder::build_static_schedule and build_causal_schedule
+    (src/multi_pass/multi_pass_tesseract_decoder.cc), from a plan's components (whether each
+    affects an observable) and its dependencies (source component, target component)."""
+    n = len(observable)
+    if strategy == "static":
+        return [list(range(n)) for _ in range(passes)]
+    sets = [set() for _ in range(passes)]
+    sets[-1] = {c for c in range(n) if observable[c]}
+    for p in range(passes - 2, -1, -1):
+        sets[p] = {source for (source, target) in dependencies if target in sets[p + 1]}
+    return [sorted(s) for s in sets]
 
 
 def test_cli_stats_out_json_keys(tmp_path, capsys):
