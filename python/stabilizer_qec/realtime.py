@@ -53,12 +53,13 @@ class AsyncResult:
     returns). ``latency`` is the seconds from submission to completion, ``service`` the seconds
     the decode itself took, both once it is done."""
 
-    __slots__ = ("_future", "_ticket", "_submitted", "_started", "_finished", "_shots")
+    __slots__ = ("_future", "_ticket", "_submitted", "_times", "_shots")
 
-    def __init__(self, future: "concurrent.futures.Future", ticket: int, submitted: float, shots: int) -> None:
+    def __init__(self, future: "concurrent.futures.Future", ticket: int, submitted: float, shots: int, times: Optional[Dict[str, float]] = None) -> None:
         self._future, self._ticket, self._submitted, self._shots = future, ticket, submitted, shots
-        self._started: Optional[float] = None
-        self._finished: Optional[float] = None
+        # "started" and "finished", written by the future's done callback once it is done (a dict
+        # of its own, so that callback need not hold this result, nor this result the callback).
+        self._times: Dict[str, float] = {} if times is None else times
 
     @property
     def ticket(self) -> int:
@@ -85,22 +86,35 @@ class AsyncResult:
     def get(self, timeout: Optional[float] = None) -> Any:
         """The predictions; raises what the decode raised, or ``RuntimeError`` for a batch a
         reset dropped."""
+        future = self._future
         try:
-            return self._future.result(timeout=timeout)
+            return future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             raise TimeoutError(f"the decode of ticket {self._ticket} is not finished after {timeout} s") from None
         except concurrent.futures.CancelledError:
             raise RuntimeError(f"the decode of ticket {self._ticket} was dropped by a reset") from None
+        finally:
+            # This frame joins the traceback of an error the decode raised, which the future
+            # keeps: holding the future here would close a cycle that keeps the decode's frames,
+            # and its syndromes, until the garbage collector runs (concurrent.futures does the same).
+            self = future = None
 
     result = get
 
+    def _failed(self) -> bool:
+        """Whether the decode finished by raising (not cancelled, not still running)."""
+        f = self._future
+        return f.done() and not f.cancelled() and f.exception() is not None
+
     @property
     def latency(self) -> Optional[float]:
-        return None if self._finished is None else self._finished - self._submitted
+        finished = self._times.get("finished")
+        return None if finished is None else finished - self._submitted
 
     @property
     def service(self) -> Optional[float]:
-        return None if self._finished is None or self._started is None else self._finished - self._started
+        started, finished = self._times.get("started"), self._times.get("finished")
+        return None if finished is None or started is None else finished - started
 
     def __repr__(self) -> str:
         state = "done" if self.ready() else "pending"
@@ -216,14 +230,15 @@ class DecoderQueue:
             return value
 
         future = self._pool.submit(run)
-        result = AsyncResult(future, ticket, submitted, n)
+        times: Dict[str, float] = {}
+        result = AsyncResult(future, ticket, submitted, n, times)
         with self._lock:
             self._results[ticket] = result
             self._uncollected.append(ticket)
 
         def done(f: "concurrent.futures.Future") -> None:
-            result._started = holder.get("started", submitted)
-            result._finished = holder.get("finished", time.perf_counter())
+            times["started"] = holder.get("started", submitted)
+            times["finished"] = holder.get("finished", time.perf_counter())
             if f.cancelled():  # never ran: nothing above counted it out
                 with self._lock:
                     self._in_flight -= 1
@@ -250,14 +265,29 @@ class DecoderQueue:
             result = self._results.get(ticket)
         if result is None:
             raise LookupError(f"ticket {ticket} is unknown, collected already, or dropped by reset")
-        # Wait first: a batch whose wait timed out is still there for the next call.
-        out = result.get(timeout)
+        # Wait first: a batch whose wait timed out (or whose waiter was interrupted) is still
+        # there for the next call. A batch whose decode raised is collected by raising its error:
+        # it leaves the queue as a decoded one does, so the next call moves on to the next batch
+        # and the queue (a server's, say) lets go of its syndromes.
+        try:
+            out = result.get(timeout)
+        except BaseException:
+            if not result._failed():
+                raise
+            self._collected(ticket, result)
+            # This frame joins the error's traceback: it lets go of the result (whose future keeps
+            # the error) so the batch, its syndromes among the decode's frames, goes with the error.
+            del result
+            raise
+        self._collected(ticket, result)
+        return out
+
+    def _collected(self, ticket: int, result: AsyncResult) -> None:
         with self._lock:
             if self._results.get(ticket) is result:
                 del self._results[ticket]
                 if ticket in self._uncollected:
                     self._uncollected.remove(ticket)
-        return out
 
     def pending(self) -> int:
         """Batches enqueued and not yet collected."""

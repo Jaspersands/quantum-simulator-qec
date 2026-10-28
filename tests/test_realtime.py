@@ -5,6 +5,8 @@ decoder does; CUDA-Q QEC's host functions."""
 
 from __future__ import annotations
 
+import io
+import json
 import sys
 import threading
 import time
@@ -419,3 +421,59 @@ def test_spawn_serves_color_matching_on_a_colour_code_circuit(colour, tmp_path):
     with DecoderClient.spawn(circuit=str(path), decoder="color_matching") as client:
         assert client.decoder_name == "ColorMatching"
         assert np.array_equal(client.decode_batch(dets[:100]), sq.ColorMatching(c.detector_error_model()).decode_batch(dets[:100]))
+
+
+def _no_boundary():
+    # Three detectors on a triangle, no boundary: a syndrome of odd weight has no matching.
+    return sq.Matching(sq.DetectorErrorModel("error(0.1) D0 D1\nerror(0.1) D1 D2\nerror(0.1) D2 D0 L0\n"))
+
+
+def test_a_failed_decode_is_collected_once_and_the_queue_moves_on():
+    m = _no_boundary()
+    bad, good = np.array([[1, 0, 0]], dtype=bool), np.array([[1, 1, 0]], dtype=bool)
+    with DecoderQueue(m) as q:
+        q.enqueue_syndromes(bad)
+        q.enqueue_syndromes(good)
+        with pytest.raises(ValueError, match="matching"):
+            q.get_corrections()
+        assert q.pending() == 1 and q.stats().pending == 1
+        assert np.array_equal(q.get_corrections(), m.decode_batch(good))  # the next batch, not the old error
+        assert q.pending() == 0 and q.stats().pending == 0 and not q._results
+        with pytest.raises(LookupError):
+            q.get_corrections()
+        t = q.enqueue_syndromes(bad)  # by ticket too: its error is raised once, then it is gone
+        with pytest.raises(ValueError):
+            q.get_corrections(t)
+        with pytest.raises(LookupError):
+            q.get_corrections(t)
+        assert q.pending() == 0 and not q._results
+
+
+def test_the_server_frees_a_failed_decodes_syndromes():
+    """A DECODE the decoder rejects is answered with ERROR and leaves nothing behind: not the
+    batch in the queue, nor its syndromes (held by the error's traceback) once the reply is out."""
+    import weakref
+
+    m = _no_boundary()
+    held = []
+
+    def decode(shots, **kwargs):
+        held.append(weakref.ref(shots))
+        return m.decode_batch(shots, **kwargs)
+
+    import gc
+
+    session = realtime._Session(DecoderQueue(decode=decode), m.num_detectors, m.num_observables, 0)
+    enabled = gc.isenabled()
+    gc.disable()  # freed when the reply is out, not when the garbage collector next runs
+    try:
+        for _ in range(5):
+            reply = session.handle(Protocol.DECODE, 0, 4, b"\x01" * 4)
+            assert Protocol.HEADER.unpack(reply[:Protocol.HEADER.size])[2] == Protocol.ERROR and b"matching" in reply
+        assert session.queue.pending() == 0 and not session.queue._results
+        assert json.loads(Protocol.read(io.BytesIO(session.handle(Protocol.STATS, 0, 0, b"")))[3])["pending"] == 0
+        assert len(held) == 5 and all(r() is None for r in held)
+    finally:
+        if enabled:
+            gc.enable()
+        session.queue.close()
