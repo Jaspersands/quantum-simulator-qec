@@ -49,6 +49,75 @@ def test_merging_batches_in_a_file_keeps_its_totals(tmp_path):
     assert after[3]["seconds"] == pytest.approx(before[3]["seconds"], abs=1e-5)
 
 
+def _flips(errors):
+    """The detectors and observables a set of model errors flips together."""
+    dets, obs = set(), set()
+    for instr in errors:
+        assert instr.type == "error"
+        for t in instr.targets_copy():
+            if t.is_relative_detector_id():
+                dets ^= {t.val}
+            elif t.is_logical_observable_id():
+                obs ^= {t.val}
+    return dets, obs
+
+
+# qec-util 0.5.0's bounds with dem_decoders 0.1.1's BP_OSD (ldpc 2.4.1), on these generated circuits
+# (after_clifford_depolarization=0.01, before_measure_flip_probability=0.01).
+UPPER_BOUNDS = [
+    ("surface_code:rotated_memory_z", 3, 2, 3), ("surface_code:rotated_memory_x", 5, 2, 5), ("color_code:memory_xyz", 3, 2, 2),
+    ("color_code:memory_xyz", 5, 2, 4), ("repetition_code:memory", 5, 4, 5), ("surface_code:unrotated_memory_z", 3, 3, 3),
+]
+
+
+@pytest.mark.parametrize("decompose", [False, True])
+@pytest.mark.parametrize("task,d,r,bound", UPPER_BOUNDS)
+def test_upper_bound_circuit_distance_is_qec_utils_and_returns_its_errors(task, d, r, bound, decompose):
+    """BP+OSD decodes over the model's errors merged by the detectors they flip, as
+    dem_decoders' BP_OSD does, so the bound is qec-util's; the errors returned are the decoded
+    ones (qec-util takes its fault indices as instruction indices of the whole model, so it can
+    return detector lines or errors that flip detectors)."""
+    c = sq.Circuit.generated(task, distance=d, rounds=r, after_clifford_depolarization=0.01, before_measure_flip_probability=0.01)
+    m = c.detector_error_model(decompose_errors=decompose)
+    upper, errors = ours.distance.get_upper_bound_circuit_distance(m)
+    assert upper == bound and len(errors) == upper
+    dets, obs = _flips(errors)
+    assert dets == set() and obs
+
+
+def test_upper_bound_circuit_distance_errors_follow_the_model_not_its_instruction_indices():
+    m = sq.DetectorErrorModel("detector(0) D0\ndetector(1) D1\nerror(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1")
+    upper, errors = ours.distance.get_upper_bound_circuit_distance(m)
+    assert upper == 3 and str(errors) == "error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1"
+    c = sq.Circuit.generated("repetition_code:memory", distance=3, rounds=4, after_clifford_depolarization=0.01, before_measure_flip_probability=0.01)
+    upper, errors = ours.distance.get_upper_bound_circuit_distance(c.detector_error_model(decompose_errors=True))
+    assert upper == len(errors) == 3 and _flips(errors) == (set(), {0})
+
+
+def test_upper_bound_circuit_distance_takes_a_decoder_over_each_error():
+    """A decoder whose faults are one per error instruction (none merged) gives errors of the
+    model too."""
+
+    class PerError:
+        def __init__(self, dem, **kargs):
+            errors = [i for i in dem.flattened() if i.type == "error"]
+            pcm = np.zeros((dem.num_detectors, len(errors)), dtype=np.uint8)
+            for k, instr in enumerate(errors):
+                for t in instr.targets_copy():
+                    if t.is_relative_detector_id():
+                        pcm[t.val, k] ^= 1
+            self._decoder = sq.BpOsdDecoder(pcm, error_channel=[i.args_copy()[0] for i in errors], max_iter=50, bp_method="ps", osd_order=5, osd_method="osd_cs")
+
+        def decode_to_faults_array(self, syndrome):
+            return self._decoder.decode(np.asarray(syndrome, dtype=np.uint8)).astype(bool)
+
+    c = sq.Circuit.generated("color_code:memory_xyz", distance=3, rounds=2, after_clifford_depolarization=0.01, before_measure_flip_probability=0.01)
+    upper, errors = ours.distance.get_upper_bound_circuit_distance(c.detector_error_model(decompose_errors=True), PerError)
+    assert upper == len(errors) >= 2
+    dets, obs = _flips(errors)
+    assert dets == set() and obs
+
+
 def test_brentq_and_bounded_minimisation_are_scipys():
     optimize = pytest.importorskip("scipy.optimize")
 
