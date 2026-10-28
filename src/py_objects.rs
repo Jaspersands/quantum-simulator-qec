@@ -497,7 +497,7 @@ impl PyLeakageSampler {
                 }
             }
             for k in 0..no {
-                if shot.observables >> k & 1 == 1 {
+                if shot.all_observables.bit(k) {
                     o[s * ow + k / 8] |= 1 << (k % 8);
                 }
             }
