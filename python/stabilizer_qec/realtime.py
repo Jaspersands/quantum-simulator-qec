@@ -562,7 +562,7 @@ class _Session:
                     kwargs["bit_packed_shots"] = True
                 else:  # a decoder of plain rows (CUDA-Q QEC's, say)
                     rows = np.unpackbits(rows, axis=1, bitorder="little")[:, : self.nd]
-                if self.threads and ("threads" in takes or "**" in takes):
+                if "threads" in takes or "**" in takes:  # 0 too: every core, as the decoders read it
                     kwargs["threads"] = self.threads
                 ticket = self.queue.enqueue_syndromes(rows, **kwargs)
                 out = self.queue.get_corrections(ticket)

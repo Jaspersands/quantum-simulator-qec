@@ -479,6 +479,39 @@ def test_the_server_frees_a_failed_decodes_syndromes():
         session.queue.close()
 
 
+def test_serve_passes_threads_zero_as_every_core():
+    """`serve`'s and `stabilizer-qec serve`'s default of threads=0 reaches the decoder as 0 (every
+    core), rather than leaving it at the decoder's own default of one thread."""
+    m = sq.Matching(sq.memory_circuit(distance=3, rounds=2, p=0.01).detector_error_model(decompose_errors=True))
+    seen = []
+
+    def decode(shots, *, bit_packed_shots=False, threads=1):
+        seen.append(threads)
+        return m.decode_batch(shots, bit_packed_shots=bit_packed_shots, threads=threads)
+
+    stride = (m.num_detectors + 7) // 8
+    for threads in (0, 3):
+        session = realtime._Session(DecoderQueue(decode=decode), m.num_detectors, m.num_observables, threads)
+        try:
+            reply = session.handle(Protocol.DECODE, 0, 2, bytes(2 * stride))
+            assert Protocol.HEADER.unpack(reply[:Protocol.HEADER.size])[2] == Protocol.CORRECTIONS
+        finally:
+            session.queue.close()
+    assert seen == [0, 3]
+    seen.clear()
+
+    def plain(shots, *, bit_packed_shots=False):  # a decoder without threads hears none
+        seen.append(None)
+        return m.decode_batch(shots, bit_packed_shots=bit_packed_shots)
+
+    session = realtime._Session(DecoderQueue(decode=plain), m.num_detectors, m.num_observables, 0)
+    try:
+        session.handle(Protocol.DECODE, 0, 2, bytes(2 * stride))
+    finally:
+        session.queue.close()
+    assert seen == [None]
+
+
 class _Interrupting:
     """A stream that raises KeyboardInterrupt on its first ``read`` (or ``flush``), as Ctrl-C
     does when it lands while a client waits for its reply (or sends its request)."""
