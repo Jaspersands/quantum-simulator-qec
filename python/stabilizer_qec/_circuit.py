@@ -2762,7 +2762,8 @@ def _wcnf(dem: "DetectorErrorModel", weighted: bool, quantization: int) -> str:
             if p < 0.5:
                 add([neg(x)], -math.log(p / (1 - p)))
             elif p > 0.5:
-                add([x], -math.log((1 - p) / p))
+                # A certain error (p = 1) weighs infinitely, as Stim's -log(0) does.
+                add([x], -math.log((1 - p) / p) if p < 1 else math.inf)
         else:
             add([neg(x)], 1.0)
     for d in dets:
@@ -2777,7 +2778,11 @@ def _wcnf(dem: "DetectorErrorModel", weighted: bool, quantization: int) -> str:
         elif not weighted:
             qw = 1
         else:
-            qw = _cround(weight / max_weight * quantization)
+            # With a certain error the largest weight is infinite: Stim's round of inf/inf
+            # (NaN) to an unsigned size is 0 (as the arm64 build gives it), and every finite
+            # weight over it is 0 too, so the soft clauses all drop out.
+            ratio = weight / max_weight
+            qw = 0 if ratio != ratio else _cround(ratio * quantization)
         if qw == 0:
             continue
         lines.append(str(qw) + "".join(f" -{(v + 1) % (1 << 64)}" if n else f" {(v + 1) % (1 << 64)}" for v, n in lits) + " 0\n")
