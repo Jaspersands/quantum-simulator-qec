@@ -21,6 +21,15 @@ _rng = np.random.default_rng()
 _MAX_WEIGHT = float((1 << 24) - 1)
 
 
+def _too_heavy(weight: float, a: Any, b: Any, stacklevel: int) -> bool:
+    """Whether an edge's weight is past the largest a matching takes, warning as PyMatching
+    does (its weight printed as C++'s ``std::to_string`` prints it) when it is."""
+    if not abs(float(weight)) > _MAX_WEIGHT:
+        return False
+    warnings.warn(f"Weight {float(weight):f} of edge ({a}, {b}) exceeds maximum edge weight {int(_MAX_WEIGHT)} and has not been added to the matching graph.", stacklevel=stacklevel)
+    return True
+
+
 def set_seed(seed: int) -> None:
     """Seeds the generator ``Matching.add_noise`` uses (PyMatching's ``set_seed``)."""
     global _rng
@@ -360,7 +369,12 @@ class Matching:
             if "fault_ids" in attr and "qubit_id" in attr:
                 raise ValueError("Both `fault_ids` and `qubit_id` were provided as edge attributes, however use of `qubit_id` has been deprecated in favour of `fault_ids`. Please only supply `fault_ids` as an edge attribute.")
             faults = _fault_set(attr["qubit_id"] if "fault_ids" not in attr and "qubit_id" in attr else attr.get("fault_ids", set()))
-            call(g.add_edge, int(u), int(v), sorted(faults), float(attr.get("weight", 1)), float(attr.get("error_probability", -1)), "smallest-weight")
+            weight = float(attr.get("weight", 1))
+            # As PyMatching's graph loaders: an edge too heavy to match is left out, with a
+            # warning, and the rest of the graph decodes.
+            if _too_heavy(weight, u, v, 3):
+                continue
+            call(g.add_edge, int(u), int(v), sorted(faults), weight, float(attr.get("error_probability", -1)), "smallest-weight")
         self._g, self._corr, self._dem_text = g, None, None
 
     # -- Editing and queries -------------------------------------------------------------
@@ -375,8 +389,7 @@ class Matching:
             fault_ids = kwargs["qubit_id"]
         if node1 < 0 or node2 < 0:
             raise ValueError("Node indices must be non-negative.")
-        if abs(weight) > _MAX_WEIGHT:
-            warnings.warn(f"Weight {weight} of edge ({node1}, {node2}) exceeds maximum edge weight {int(_MAX_WEIGHT)} and has not been added to the matching graph.", stacklevel=2)
+        if _too_heavy(weight, node1, node2, 3):
             return
         p = -1.0 if error_probability is None else float(error_probability)
         if call(self._g.add_edge, int(node1), int(node2), sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
@@ -386,8 +399,7 @@ class Matching:
         """Adds an edge from ``node`` to the boundary (PyMatching's ``add_boundary_edge``)."""
         if node < 0:
             raise ValueError("Node index must be non-negative.")
-        if abs(weight) > _MAX_WEIGHT:
-            warnings.warn(f"Weight {weight} of edge ({node}, None) exceeds maximum edge weight {int(_MAX_WEIGHT)} and has not been added to the matching graph.", stacklevel=2)
+        if _too_heavy(weight, node, None, 3):
             return
         p = -1.0 if error_probability is None else float(error_probability)
         if call(self._g.add_boundary_edge, int(node), sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):

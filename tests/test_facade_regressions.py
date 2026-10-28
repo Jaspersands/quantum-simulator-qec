@@ -255,3 +255,60 @@ def test_exact_distance_skips_impossible_faults_and_reads_tags(text, want):
     # A decomposed fault (with a tag holding ')') is taken whole: its pieces' symptoms together.
     dem = sq.DetectorErrorModel("error[x)](0.1) D0 ^ D1 L0\nerror(0.1) D0\nerror(0.1) D1\nerror(0) L0")
     assert dem.distance() == dem.distance(method="search") == 3
+
+
+def _heavy_warnings(build):
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        m = build()
+    return m, [str(w.message) for w in caught if issubclass(w.category, UserWarning)]
+
+
+def test_heavy_graph_edges_are_left_out_with_pymatchings_warning():
+    nx = pytest.importorskip("networkx")
+    g = nx.Graph()
+    g.add_edge(0, 1, weight=1, fault_ids=0)
+    g.add_edge(1, 2, weight=2e7, fault_ids=1)
+    g.add_edge(2, 3, weight=1, fault_ids=2)
+    g.add_edge(0, 3, weight=5, fault_ids=3)
+    for build in (lambda: sq.Matching(g), lambda: sq.Matching.from_networkx(g)):
+        m, said = _heavy_warnings(build)
+        # PyMatching 2.4.0's words, its weight printed by std::to_string.
+        assert said == ["Weight 20000000.000000 of edge (1, 2) exceeds maximum edge weight 16777215 and has not been added to the matching graph."]
+        assert m.num_edges == 3 and (1, 2) not in [(u, v) for u, v, _ in m.edges()]
+        assert m.decode([1, 0, 0, 1]).tolist() == [0, 0, 0, 1] and m.decode_to_edges_array([1, 0, 0, 1]).tolist() == [[3, 0]]
+        assert m.decode([1, 1, 0, 0]).tolist() == [1, 0, 0, 0]
+    m, said = _heavy_warnings(lambda: _added_by_hand())
+    assert said == [
+        "Weight 20000000.000000 of edge (0, 1) exceeds maximum edge weight 16777215 and has not been added to the matching graph.",
+        "Weight -30000000.000000 of edge (2, None) exceeds maximum edge weight 16777215 and has not been added to the matching graph.",
+    ]
+    assert m.num_edges == 1
+
+
+def _added_by_hand():
+    m = sq.Matching()
+    m.add_edge(0, 1, weight=2e7)
+    m.add_edge(1, 2, fault_ids=0)
+    m.add_boundary_edge(2, weight=-3e7)
+    return m
+
+
+def test_heavy_rustworkx_edges_are_left_out_with_pymatchings_warning():
+    rx = pytest.importorskip("rustworkx")
+    r = rx.PyGraph()
+    r.add_nodes_from([{} for _ in range(4)])
+    r.add_edge(0, 1, {"weight": 1, "fault_ids": 0})
+    r.add_edge(1, 2, {"weight": -2e7, "fault_ids": 1})
+    r.add_edge(2, 3, {"weight": 1, "fault_ids": 2})
+    r.add_edge(0, 3, {"weight": 7, "fault_ids": 3})
+
+    def build():
+        m = sq.Matching()
+        m.load_from_rustworkx(r)
+        return m
+
+    m, said = _heavy_warnings(build)
+    assert said == ["Weight -20000000.000000 of edge (1, 2) exceeds maximum edge weight 16777215 and has not been added to the matching graph."]
+    assert m.num_edges == 3 and [w["weight"] for _, _, w in m.edges()] == [1.0, 1.0, 7.0]
+    assert m.decode([1, 0, 0, 1]).tolist() == [0, 0, 0, 1]
