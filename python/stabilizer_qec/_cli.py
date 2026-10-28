@@ -95,10 +95,15 @@ class _Parser(argparse.ArgumentParser):
 
 
 def _read_text(path: Optional[str]) -> str:
+    """A circuit or model file (stdin by default) as text. Stim reads the bytes, so a byte that
+    is not UTF-8 (in a comment, say) is read as U+FFFD, as the Chromobius command line reads it,
+    not refused; lines end as in text mode (\\r\\n and \\r read as \\n), whatever the locale."""
     if path is None:
-        return sys.stdin.read()
-    with open(path, encoding="utf-8") as f:
-        return f.read()
+        raw = sys.stdin.buffer.read()
+    else:
+        with open(path, "rb") as f:
+            raw = f.read()
+    return raw.decode("utf-8", "replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
 def _read_bytes(path: Optional[str]) -> bytes:
