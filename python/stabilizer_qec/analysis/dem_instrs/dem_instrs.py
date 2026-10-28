@@ -300,6 +300,20 @@ def merge_instrs(*instrs: stim.DemInstruction) -> stim.DemInstruction:
     return new_instr
 
 
+def _own_targets(det_to_obs: dict) -> dict:
+    """``det_to_obs`` with any Stim (or deltakit_stim) ``DemTarget`` among its keys and values
+    read as this package's. A Stim target neither equals nor hashes like this package's copy, so
+    a mapping built from Stim's targets would otherwise match nothing and change nothing."""
+
+    def own(t):
+        k = type(t)
+        if k.__name__ == "DemTarget" and k.__module__.split(".")[0] in ("stim", "deltakit_stim"):
+            return stim.DemTarget(t)
+        return t
+
+    return {own(k): own(v) for k, v in det_to_obs.items()}
+
+
 def detectors_to_observables(
     dem_instr: stim.DemInstruction, det_to_obs: dict[stim.DemTarget, stim.DemTarget]
 ) -> stim.DemInstruction:
@@ -325,6 +339,7 @@ def detectors_to_observables(
         raise TypeError(
             f"'det_to_obs' must be a dict, but {type(det_to_obs)} was given."
         )
+    det_to_obs = _own_targets(det_to_obs)  # keyed by Stim's own DemTargets too
 
     targets = dem_instr.targets_copy()
     new_targets = [det_to_obs.get(t, t) for t in targets]
