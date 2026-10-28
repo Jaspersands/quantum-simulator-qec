@@ -477,3 +477,69 @@ def test_the_server_frees_a_failed_decodes_syndromes():
         if enabled:
             gc.enable()
         session.queue.close()
+
+
+class _Interrupting:
+    """A stream that raises KeyboardInterrupt on its first ``read`` (or ``flush``), as Ctrl-C
+    does when it lands while a client waits for its reply (or sends its request)."""
+
+    def __init__(self, inner, on):
+        self.inner, self.on, self.fired = inner, on, False
+
+    def _maybe(self, what):
+        if what == self.on and not self.fired:
+            self.fired = True
+            raise KeyboardInterrupt
+
+    def read(self, n=-1):
+        self._maybe("read")
+        return self.inner.read(n)
+
+    def write(self, b):
+        return self.inner.write(b)
+
+    def flush(self):
+        self._maybe("flush")
+        return self.inner.flush()
+
+    def close(self):
+        return self.inner.close()
+
+
+@pytest.mark.parametrize("on", ["read", "flush"])
+def test_an_interrupted_request_breaks_the_client_rather_than_shifting_its_replies(memory, on):
+    """After Ctrl-C between a request and its reply, the client never hands one batch another's
+    predictions: the connection is dropped and every later call raises."""
+    c, dets, obs = memory
+    m = sq.Matching(c.detector_error_model(decompose_errors=True))
+    a, b = dets[:200], dets[200:400]
+    assert not np.array_equal(m.decode_batch(a), m.decode_batch(b))
+    bound = {}
+    started = threading.Event()
+
+    def ready(server):
+        bound["server"] = server
+        started.set()
+
+    thread = threading.Thread(target=serve, args=(m,), kwargs=dict(tcp="127.0.0.1:0", ready=ready, timeout=10.0), daemon=True)
+    thread.start()
+    assert started.wait(10)
+    host, port = bound["server"].server_address[:2]
+    try:
+        client = DecoderClient.connect(host, port, timeout=10)
+        if on == "read":
+            client._reader = _Interrupting(client._reader, on)
+        else:
+            client._writer = _Interrupting(client._writer, on)
+        with pytest.raises(KeyboardInterrupt):
+            client.decode_batch(a)
+        for call in (lambda: client.decode_batch(b), lambda: client.decode_batch(a), client.stats, client.reset):
+            with pytest.raises(ConnectionError, match="interrupted"):
+                call()
+        client.close()  # quietly, and more than once
+        client.close()
+        with DecoderClient.connect(host, port, timeout=10) as fresh:  # the server is still serving
+            assert np.array_equal(fresh.decode_batch(b), m.decode_batch(b))
+    finally:
+        bound["server"].shutdown()
+        thread.join(10)

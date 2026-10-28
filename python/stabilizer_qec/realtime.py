@@ -683,11 +683,17 @@ class DecoderClient:
     """A decoder served elsewhere. ``DecoderClient.connect(host, port)`` reaches a TCP server;
     ``DecoderClient.spawn(...)`` starts ``stabilizer-qec serve --stdio`` as a subprocess on a
     model or circuit file and talks over its pipes. ``decode_batch`` and ``decode`` are the
-    decoders'; ``stats`` and ``reset`` are the server's queue's; ``close`` says BYE."""
+    decoders'; ``stats`` and ``reset`` are the server's queue's; ``close`` says BYE.
+
+    A request that does not finish (Ctrl-C between sending it and reading its reply, say) leaves
+    the connection's replies out of step with its requests, so the client drops the connection
+    (a spawned server is stopped) and every later call raises ``ConnectionError``: connect again.
+    It never hands one batch another's predictions."""
 
     def __init__(self, reader: Any, writer: Any, *, process: Optional[subprocess.Popen] = None, sock: Optional[socket.socket] = None, timeout: Optional[float] = 30.0) -> None:
         self._reader, self._writer, self._process, self._sock = reader, writer, process, sock
         self._lock = threading.Lock()
+        self._broken: Optional[str] = None  # why the connection was dropped, once it was
         try:
             if sock is not None and timeout is not None:
                 # The socket's own timeout: a helper thread blocked in a read cannot be unblocked
@@ -764,9 +770,19 @@ class DecoderClient:
 
     def _ask(self, kind: int, payload: bytes = b"", shots: int = 0) -> "tuple[int, int, bytes]":
         with self._lock:
-            self._writer.write(Protocol.pack(kind, payload, shots))
-            self._writer.flush()
-            k, _, n, body = Protocol.read(self._reader)
+            if self._broken is not None:
+                raise ConnectionError(self._broken)
+            try:
+                self._writer.write(Protocol.pack(kind, payload, shots))
+                self._writer.flush()
+                k, _, n, body = Protocol.read(self._reader)
+            except BaseException as ex:
+                # Part of a request may be sent, or its reply be left unread (or half read): the
+                # next reply read would not be the next request's. Nothing on this connection
+                # can be trusted again.
+                self._broken = f"the connection to the decoder server was dropped: a {Protocol.NAMES.get(kind, kind)} request was interrupted before its reply arrived ({type(ex).__name__}{': ' + str(ex) if str(ex) else ''}); connect again"
+                self._abandon()
+                raise
         if k == Protocol.ERROR:
             raise ValueError("the decoder server refused: " + json.loads(body.decode()).get("error", "?"))
         return k, n, body
@@ -809,8 +825,9 @@ class DecoderClient:
     def close(self) -> None:
         try:
             with self._lock:
-                self._writer.write(Protocol.pack(Protocol.BYE))
-                self._writer.flush()
+                if self._broken is None:
+                    self._writer.write(Protocol.pack(Protocol.BYE))
+                    self._writer.flush()
         except (OSError, ValueError):
             pass
         for f in (self._writer, self._reader):
