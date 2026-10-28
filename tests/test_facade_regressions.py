@@ -118,3 +118,21 @@ def test_reference_signs_read_clifford_angle_tags_as_the_reference_run(gate, qua
         # Raw parities, as Stim's converter gives them on the X circuit.
         got = tagged.compile_m2d_converter(skip_reference_sample=True).convert(measurements=meas, append_observables=True)
         assert got.astype(int).tolist() == [[1, 1, 1], [0, 1, 1], [0, 0, 0]]
+
+
+def test_model_tags_may_hold_a_hash():
+    # Stim's tags end only at ']': a '#' in one is not a comment (Stim gives these answers).
+    d = sq.DetectorErrorModel("detector[a#b](1, 2) D0\nerror[t#g](0.1) D0 D1\nerror(0.1) D1\n")
+    assert len(d) == 3 and str(d) == "detector[a#b](1, 2) D0\nerror[t#g](0.1) D0 D1\nerror(0.1) D1"
+    assert d.get_detector_coordinates() == {0: [1.0, 2.0], 1: []}
+    assert d[1].tag == "t#g" and d[1].targets_copy() == [sq.DemTarget("D0"), sq.DemTarget("D1")]
+    assert [it.type for it in d] == ["detector", "error", "error"]
+    assert repr(d).startswith("stabilizer_qec.DetectorErrorModel(") and "error[t#g](0.1) D0 D1" in repr(d)
+    assert str(d.rounded(1)) == "detector[a#b](1, 2) D0\nerror[t#g](0.1) D0 D1\nerror(0.1) D1"
+    assert len(d + d) == 6 and d.approx_equals(sq.DetectorErrorModel(str(d)), atol=0)
+    assert str(d.flattened()) == str(d)
+    assert sq.DetectorErrorModel("error[#](0.1) D0").get_detector_coordinates() == {0: []}
+    # Comments still end a line, after the tag and around blocks.
+    e = sq.DetectorErrorModel("error[x](0.1) D0 # [not a tag\nrepeat 2 { # loop\n  error(0.2) D1 # [\n} # done\n")
+    assert [it.type for it in e] == ["error", "repeat"] and e[0].targets_copy() == [sq.DemTarget("D0")]
+    assert _dem.parse_items("# only\n\nerror(0.1) D0 L0 # c\n")[0].targets_copy() == [sq.DemTarget("D0"), sq.DemTarget("L0")]

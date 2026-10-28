@@ -312,15 +312,17 @@ def parse_items(text: str) -> List[Any]:
         while pos < len(lines):
             raw = lines[pos]
             pos += 1
-            line = raw.split("#", 1)[0].strip()
-            if not line:
+            # A tag may hold a '#' (Stim's tags end only at ']'), so the line is matched before
+            # its comment is cut, and the comment is cut from what follows the tag and arguments.
+            line = raw.strip()
+            if not line or line.startswith("#"):
                 continue
-            if line == "}":
-                return out
             m = _LINE.match(line)
             if not m:
+                if line.split("#", 1)[0].strip() == "}":
+                    return out
                 raise ValueError(f"Can't parse model line: {raw!r}")
-            name, tag, args, rest = m.group(1).lower(), m.group(2), m.group(3), m.group(4).strip()
+            name, tag, args, rest = m.group(1).lower(), m.group(2), m.group(3), m.group(4).split("#", 1)[0].strip()
             tag = _unescape_tag(tag[1:-1]) if tag else ""
             if name == "repeat":
                 count = int(rest.rstrip("{").strip())
