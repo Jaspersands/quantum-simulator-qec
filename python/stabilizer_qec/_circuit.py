@@ -26,6 +26,19 @@ def _repetitions(obj: Any, repetitions: Any, op: str) -> int:
     return count(n, "repetitions")
 
 
+def _read_stim_text(file: Union[str, PathLike, Any]) -> str:
+    """A circuit's or model's file as text: a path, or an open text or binary file. Stim reads
+    bytes, and passes over any in a comment, so a byte that is not UTF-8 (``caf\\xe9`` written
+    as Latin-1) is read as U+FFFD rather than refusing the file; valid UTF-8 is read as it is."""
+    if not hasattr(file, "read"):
+        with open_file(file, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    data = file.read()
+    if isinstance(data, (bytes, bytearray)):
+        return bytes(data).decode("utf-8", "replace")
+    return data
+
+
 class Circuit:
     """A stabilizer circuit in Stim's circuit language.
 
@@ -73,11 +86,10 @@ class Circuit:
 
     @classmethod
     def from_file(cls, file: Union[str, PathLike, Any]) -> "Circuit":
-        """Read a ``.stim`` file, from a path or an open file."""
-        if hasattr(file, "read"):
-            return cls(file.read())
-        with open_file(file, encoding="utf-8") as f:
-            return cls(f.read())
+        """Read a ``.stim`` file, from a path or an open file (text or binary). The bytes are
+        read as UTF-8, a byte that is not (a stray Latin-1 byte in a comment, which Stim passes
+        over) read as U+FFFD."""
+        return cls(_read_stim_text(file))
 
     def __str__(self) -> str:
         """Stim's text: canonical names, neighbouring instructions fused, arguments to 6
@@ -1369,11 +1381,9 @@ class DetectorErrorModel:
 
     @classmethod
     def from_file(cls, file: Union[str, PathLike, Any]) -> "DetectorErrorModel":
-        """Read a ``.dem`` file, from a path or an open file."""
-        if hasattr(file, "read"):
-            return cls(file.read())
-        with open_file(file, encoding="utf-8") as f:
-            return cls(f.read())
+        """Read a ``.dem`` file, from a path or an open file (text or binary), its bytes read as
+        ``Circuit.from_file`` reads them."""
+        return cls(_read_stim_text(file))
 
     def to_file(self, file: Any) -> None:
         """Write the model's text to a path or an open text file."""

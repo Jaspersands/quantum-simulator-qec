@@ -196,3 +196,23 @@ def test_model_indexing_parses_once_until_it_changes(monkeypatch):
     assert d[-1].type == "detector"
     d.clear()
     assert len(d) == 0
+
+
+def test_files_with_a_stray_byte_in_a_comment_load(tmp_path):
+    # Stim passes over the bytes of a comment; a byte that is not UTF-8 is read as U+FFFD.
+    dem_path = tmp_path / "u.dem"
+    dem_path.write_bytes(b"error(0.1) D0 L0 # caf\xe9 \xff\nerror(0.1) D0 D1\nerror(0.1) D1\n")
+    stim_path = tmp_path / "u.stim"
+    stim_path.write_bytes(b"X_ERROR(0.1) 0 # caf\xe9\nM 0\nDETECTOR rec[-1]\n")
+    assert sq.DetectorErrorModel.from_file(dem_path).num_errors == 3
+    assert sq.DetectorErrorModel.from_file(str(dem_path)) == sq.DetectorErrorModel("error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1")
+    assert sq.Circuit.from_file(stim_path).num_detectors == 1
+    with open(stim_path, "rb") as f:
+        assert sq.Circuit.from_file(f) == sq.Circuit("X_ERROR(0.1) 0\nM 0\nDETECTOR rec[-1]")
+    assert sq.DetectorErrorModel.from_file(io.StringIO("error(0.1) D0")).num_errors == 1
+    assert sq.Matching.from_detector_error_model_file(dem_path).num_detectors == 2
+    assert sq.Matching.from_stim_circuit_file(stim_path).num_detectors == 1
+    # Valid UTF-8 is read as it is.
+    tagged = tmp_path / "t.stim"
+    tagged.write_bytes("H[café] 0\n".encode())
+    assert sq.Circuit.from_file(tagged)[0].tag == "café"
