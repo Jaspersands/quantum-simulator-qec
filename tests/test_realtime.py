@@ -375,3 +375,47 @@ def test_a_silent_peer_does_not_hang_connect(tmp_path):
         sq.realtime.DecoderClient.connect("127.0.0.1", silent.getsockname()[1], timeout=0.5)
     assert _time.perf_counter() - t0 < 5
     silent.close()
+
+
+# ---------------------------------------------------------------------------------------------
+# The 2.2 adversarial review's regressions
+# ---------------------------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def colour():
+    # A distance-5 colour code: its model cannot be split into graph-like pieces.
+    c = sq.CssCode.color_code(5).memory_circuit(5, 0.005, annotate_colors=True)
+    dets, obs = c.compile_detector_sampler(seed=7).sample(500, separate_observables=True)
+    return c, dets, obs
+
+
+def test_make_decoder_builds_the_model_sinters_sampler_builds(memory, colour):
+    """Every decoder kind gets the same model from a circuit in make_decoder (and so in
+    `stabilizer-qec serve --circuit` and `DecoderClient.spawn(circuit=...)`) as in
+    `sinter.Sampler(kind)`: decomposed only for the decoders that match on a graph, so Chromobius
+    decodes a real colour code and ambiguity clustering its undecomposed model."""
+    from stabilizer_qec import sinter
+
+    with pytest.raises(ValueError, match="graph-like"):
+        colour[0].detector_error_model(decompose_errors=True)
+    for name in realtime.DECODERS:
+        c, dets, obs = colour if name == "color_matching" else memory
+        dets = dets[:60]
+        want = sinter.Sampler(name).compiled_sampler_for_task(sinter.Task(circuit=c)).decoder.decode_batch(dets)
+        assert np.array_equal(make_decoder(name, circuit=c).decode_batch(dets), want), name
+    c, dets, obs = colour
+    got = make_decoder("color_matching", circuit=c).decode_batch(dets)
+    assert np.array_equal(got, sq.ColorMatching(c.detector_error_model(approximate_disjoint_errors=True)).decode_batch(dets))
+    assert (got != obs).any(axis=1).mean() < 0.2
+    c, dets, obs = memory
+    assert np.array_equal(make_decoder("ambiguity_clustering", circuit=c).decode_batch(dets), sq.AmbiguityClustering(c.detector_error_model()).decode_batch(dets))
+
+
+def test_spawn_serves_color_matching_on_a_colour_code_circuit(colour, tmp_path):
+    c, dets, obs = colour
+    path = tmp_path / "cc.stim"
+    path.write_text(str(c))
+    with DecoderClient.spawn(circuit=str(path), decoder="color_matching") as client:
+        assert client.decoder_name == "ColorMatching"
+        assert np.array_equal(client.decode_batch(dets[:100]), sq.ColorMatching(c.detector_error_model()).decode_batch(dets[:100]))

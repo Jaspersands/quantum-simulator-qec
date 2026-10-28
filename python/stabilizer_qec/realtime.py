@@ -379,20 +379,24 @@ def _registry() -> Dict[str, Callable[[Any], Any]]:
 
 
 DECODERS = ("matching", "correlated_matching", "belief_matching", "union_find", "bposd", "bplsd", "relay_bp", "color_matching", "search", "ambiguity_clustering", "collision_clustering", "local_clustering")
-_GRAPH = {"matching", "correlated_matching", "belief_matching", "union_find", "color_matching", "ambiguity_clustering", "collision_clustering", "local_clustering"}
 
 
 def make_decoder(name: str, model: Any = None, *, circuit: Any = None, **options: Any) -> Any:
-    """A decoder by its CLI name on a detector error model, or on a circuit's model (decomposed
-    for the graph decoders, as they need it)."""
+    """A decoder by its CLI name on a detector error model, or on a circuit's model built as
+    ``stabilizer_qec.sinter.Sampler(name)`` builds it: decomposed into graph-like pieces only for
+    the decoders that match on a graph (matching, correlated and belief matching, union-find,
+    collision and local clustering), whole for the others (Chromobius's colour matching decodes a
+    colour code, whose faults do not split into graph-like pieces), with
+    ``approximate_disjoint_errors=True``."""
     if name not in DECODERS:
         raise ValueError(f"unknown decoder {name!r}; one of {', '.join(DECODERS)}")
     if circuit is not None:
         from ._circuit import Circuit
+        from .sinter._legacy import _GRAPH_KINDS  # one table of the kinds that want decomposition
 
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
-        model = circuit.detector_error_model(decompose_errors=name in _GRAPH)
+        model = circuit.detector_error_model(decompose_errors=name in _GRAPH_KINDS, approximate_disjoint_errors=True)
     if model is None:
         raise TypeError("make_decoder needs a model or a circuit")
     return _registry()[name](model, **options)
