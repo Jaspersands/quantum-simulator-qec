@@ -209,6 +209,37 @@ def test_visualizer_and_html(tmp_path):
     assert out[0] == out[1]
 
 
+def test_html_export_compresses_as_mwpf():
+    # MWPF gzips the visualizer data with flate2's GzEncoder at its default level (miniz_oxide's
+    # deflate, level 6): the same bytes here, for text short and long, plain and repetitive, and
+    # for a visualizer's data and the HTML it writes.
+    rng = random.Random(7)
+    texts = ["", "a", "hello world " * 10, "x" * 47, "x" * 48, "\u00e9t\u00e9 " * 999, "".join(rng.choice("ab") for _ in range(70000)),
+             "".join(rng.choice("0123456789,[]{}\":.") for _ in range(33000)), "".join(chr(rng.randint(32, 126)) for _ in range(200000)),
+             json.dumps([{"w": rng.randint(1, 1000), "s": rng.random() < 0.1} for _ in range(30000)])]
+    for text in texts:
+        assert mw.HTMLExport.compress_content(text) == ref.HTMLExport.compress_content(text), len(text)
+        assert ref.HTMLExport.decompress_content(mw.HTMLExport.compress_content(text)) == text
+    # A solved visualizer's data, compressed by each (MWPF's own subgraph order varies run to run,
+    # with its hash maps' seeds, so the data is this package's), and a page of a code's snapshot.
+    code = mw.CodeCapacityPlanarCode(15, 0.08)
+    code.generate_random_errors(11)
+    solver = mw.SolverSerialJointSingleHair(code.get_initializer())
+    visualizer = mw.Visualizer(positions=code.get_positions())
+    solver.solve(code.get_syndrome(), visualizer)
+    solver.subgraph(visualizer)
+    data = json.dumps(visualizer.get_visualizer_data())
+    assert mw.HTMLExport.compress_content(data) == ref.HTMLExport.compress_content(data)
+    pages = []
+    for lib in (ref, mw):
+        code = lib.CodeCapacityPlanarCode(15, 0.08)
+        code.generate_random_errors(11)
+        visualizer = lib.Visualizer(positions=code.get_positions())
+        visualizer.snapshot("syndrome", code)
+        pages.append(visualizer.generate_html())
+    assert len(pages[1]) < 500_000 and pages[0] == pages[1]
+
+
 @pytest.mark.parametrize("seed", range(20, 60, 10))
 def test_depolarizing_planar_more_seeds(seed):
     # the single-hair plugins' linear programs at their most degenerate (an optimum among many, and
