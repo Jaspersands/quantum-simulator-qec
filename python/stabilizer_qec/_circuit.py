@@ -61,7 +61,7 @@ class Circuit:
     (11, 10)
     """
 
-    __slots__ = ("_c",)
+    __slots__ = ("_c", "_cache")
 
     # Deltakit's Stim's error model (``stabilizer_qec.deltakit_stim``), not Stim's.
     _deltakit = False
@@ -123,9 +123,18 @@ class Circuit:
     # Stim's list-of-instructions interface. The core circuit's lines are its items: Stim's
     # parser and ``append`` fuse neighbouring instructions that can be one (``H 0`` then
     # ``H 1`` is ``H 0 1``), and the core does too, while ``pop`` and slicing leave neighbours
-    # apart, so the items are read, and edits written back, without fusing.
+    # apart, so the items are read, and edits written back, without fusing. The items are
+    # parsed once and kept until the circuit changes (a new core circuit, or an append to this
+    # one, which the core counts), so a loop indexing ``circuit[i]`` is linear, as Stim's; the
+    # list is shared, and callers only read it.
     def _items(self) -> list:
-        return _core.circuit_items(self._c.__str__(), False)
+        core = self._c
+        cache = getattr(self, "_cache", None)
+        if cache is not None and cache[0] is core and cache[1] == core.edits:
+            return cache[2]
+        items = _core.circuit_items(core.__str__(), False)
+        self._cache = (core, core.edits, items)
+        return items
 
     @classmethod
     def _of_items(cls, items: list) -> "Circuit":
@@ -1345,7 +1354,7 @@ class DetectorErrorModel:
     made from it unrolls it once.
     """
 
-    __slots__ = ("_d",)
+    __slots__ = ("_d", "_cache")
 
     def __init__(self, detector_error_model_text: Union[str, "DetectorErrorModel", Any] = "", *, text: Union[str, None] = None) -> None:
         if text is not None:  # 1.x's keyword
@@ -1385,8 +1394,16 @@ class DetectorErrorModel:
     # Stim's list-of-instructions interface.
     def _items(self) -> list:
         # (The exact text: Stim's rounds numbers to 16 digits here, which would drop bits on
-        # every edit.)
-        return _dem.parse_items(self._d.exact_text())
+        # every edit.) Parsed once and kept until the model changes (a new core model, or an
+        # append to this one, which the core counts), so indexing every item is linear, as
+        # Stim's; the list is shared, and callers only read it (its instructions are immutable).
+        core = self._d
+        cache = getattr(self, "_cache", None)
+        if cache is not None and cache[0] is core and cache[1] == core.edits:
+            return cache[2]
+        items = _dem.parse_items(core.exact_text())
+        self._cache = (core, core.edits, items)
+        return items
 
     def _set_items(self, items: list) -> None:
         self._d = call(_core.Dem, _dem.items_exact_text(items))

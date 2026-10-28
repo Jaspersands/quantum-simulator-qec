@@ -136,3 +136,63 @@ def test_model_tags_may_hold_a_hash():
     e = sq.DetectorErrorModel("error[x](0.1) D0 # [not a tag\nrepeat 2 { # loop\n  error(0.2) D1 # [\n} # done\n")
     assert [it.type for it in e] == ["error", "repeat"] and e[0].targets_copy() == [sq.DemTarget("D0")]
     assert _dem.parse_items("# only\n\nerror(0.1) D0 L0 # c\n")[0].targets_copy() == [sq.DemTarget("D0"), sq.DemTarget("L0")]
+
+
+def _counting(monkeypatch, module, name):
+    calls = [0]
+    real = getattr(module, name)
+
+    def counted(*args):
+        calls[0] += 1
+        return real(*args)
+
+    monkeypatch.setattr(module, name, counted)
+    return calls
+
+
+def test_circuit_indexing_parses_once_until_it_changes(monkeypatch):
+    c = sq.Circuit("\n".join(f"H {q}\nTICK\nCX {q} {q + 1}\nTICK" for q in range(300)))
+    calls = _counting(monkeypatch, _circuit._core, "circuit_items")
+    items = [c[i] for i in range(len(c))]
+    assert len(items) == 1200 and calls[0] == 1
+    assert items[2] == sq.CircuitInstruction("CX", [0, 1]) and c[-1] == sq.CircuitInstruction("TICK")
+    # Each way of changing the circuit is seen.
+    c.append("M", [0])
+    assert len(c) == 1201 and c[-1] == sq.CircuitInstruction("M", [0]) and calls[0] == 2
+    c.append_from_stim_program_text("X 5")
+    assert c[-1] == sq.CircuitInstruction("X", [5])
+    c += sq.Circuit("Y 6")
+    assert c[-1] == sq.CircuitInstruction("Y", [6])
+    c.append(sq.Circuit("Z 7"))
+    assert c[-1] == sq.CircuitInstruction("Z", [7])
+    assert c.pop() == sq.CircuitInstruction("Z", [7]) and c[-1] == sq.CircuitInstruction("Y", [6])
+    c.insert(0, sq.CircuitInstruction("S", [9]))
+    assert c[0] == sq.CircuitInstruction("S", [9]) and len(c) == 1204
+    c *= 2
+    assert len(c) == 1 and isinstance(c[0], sq.CircuitRepeatBlock)
+    c.clear()
+    assert len(c) == 0
+    # A copy changed leaves the original as it was.
+    a = sq.Circuit("H 0")
+    assert len(a) == 1
+    b = a.copy()
+    b.append("X", [1])
+    assert len(a) == 1 and len(b) == 2
+    # Deltakit's circuit indexes its own instructions the same way.
+    k = dk.Circuit("R 0\nLEAKAGE(0.1) 0\nM 0")
+    assert [k[i].name for i in range(len(k))] == ["R", "LEAKAGE", "M"]
+    k.append("RELAX", [0], 0.2)
+    assert k[-1].name == "RELAX"
+
+
+def test_model_indexing_parses_once_until_it_changes(monkeypatch):
+    d = sq.DetectorErrorModel("\n".join(f"error(0.01) D{i} D{i + 1}" for i in range(500)))
+    calls = _counting(monkeypatch, _dem, "parse_items")
+    items = [d[i] for i in range(len(d))]
+    assert len(items) == 500 and calls[0] == 1 and items[7] == sq.DemInstruction("error", [0.01], [sq.DemTarget("D7"), sq.DemTarget("D8")])
+    d.append("error", 0.2, [sq.DemTarget("D3")])
+    assert len(d) == 501 and d[-1] == sq.DemInstruction("error", [0.2], [sq.DemTarget("D3")]) and calls[0] == 2
+    d += sq.DetectorErrorModel("detector D0")
+    assert d[-1].type == "detector"
+    d.clear()
+    assert len(d) == 0
