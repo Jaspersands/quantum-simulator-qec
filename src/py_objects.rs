@@ -223,6 +223,12 @@ impl PyCircuit {
         PyCircuit { circuit: self.circuit.clone() }
     }
 
+    /// The circuit as Deltakit's Stim draws it (`leakage::display_view`): its lowered lines
+    /// written back as Deltakit's instructions, for its pictures.
+    fn deltakit_view(&self) -> PyResult<PyCircuit> {
+        Ok(PyCircuit { circuit: crate::api::Circuit::from_engine(crate::leakage::display_view(&self.circuit.inner)).map_err(api_err)? })
+    }
+
     /// The detector error model; `decompose` splits faults into graph-like pieces as Stim does,
     /// `approximate` is Stim's `approximate_disjoint_errors` as a threshold (None: off), and
     /// `flatten` writes it without folding its loops; `ignore_failures` keeps faults that cannot

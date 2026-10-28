@@ -333,7 +333,8 @@ impl Drawer {
             _ => {
                 let pairs = crate::gates::find(name).map(|g| g.arity == 2).unwrap_or(false)
                     || ["MXX", "MYY", "MZZ", "DEPOLARIZE2", "PAULI_CHANNEL_2", "II", "II_ERROR", "CX", "CY", "CZ", "SWAP"].contains(&name);
-                let measures = name.starts_with('M') || name.starts_with("HERALDED");
+                // Deltakit's herald (a Deltakit circuit is drawn with its instructions) records too.
+                let measures = name.starts_with('M') || name.starts_with("HERALD");
                 if pairs {
                     for pair in tokens.chunks(2) {
                         self.pair(name, &head, a, pair, measures);
@@ -379,10 +380,12 @@ impl Drawer {
             return self.place(vec![(q, format!("{p}^{c}"))], false);
         }
         let (Some(a0), Some(a1)) = (qubit(t0), qubit(t1)) else { return };
+        // Deltakit's transport gates carry their four arguments on both ends (`@(0.1,0,0,0)`).
+        let at = |l: &str| format!("{l}{}", args_text(a));
         let (l0, l1) = match name {
-            "CX" => ("@".to_string(), "X".to_string()),
-            "CY" => ("@".into(), "Y".into()),
-            "CZ" => ("@".into(), "@".into()),
+            "CX" => (at("@"), at("X")),
+            "CY" => (at("@"), at("Y")),
+            "CZ" => (at("@"), at("@")),
             "XCX" => ("X".into(), "X".into()),
             "XCY" => ("X".into(), "Y".into()),
             "XCZ" => ("X".into(), "@".into()),

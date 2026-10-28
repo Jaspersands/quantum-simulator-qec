@@ -96,7 +96,7 @@ fn lower_transport(indent: &str, name: &str, rest: &str) -> Result<Option<String
         return Ok(None);
     }
     if tagged {
-        return Err(format!("{name}: a gate with Deltakit's four leakage transport arguments takes no tag"));
+        return Err(format!("{name}: a gate with Deltakit's four leakage transport arguments takes no tag here (deltakit_stim keeps one; this package does not carry it)"));
     }
     for a in &args {
         match a.parse::<f64>() {
@@ -124,7 +124,7 @@ pub fn lower_line(line: &str) -> Result<Option<String>, String> {
     }
     let mut rest = &trimmed[end..];
     if rest.starts_with('[') {
-        return Err(format!("{name}: Deltakit's instruction takes no tag"));
+        return Err(format!("{name}: Deltakit's instruction takes no tag here (deltakit_stim keeps one; this package does not carry it)"));
     }
     let mut args: Vec<&str> = Vec::new();
     if let Some(inner) = rest.trim_start().strip_prefix('(') {
@@ -224,6 +224,29 @@ pub fn to_deltakit(text: &str) -> String {
         out.push('\n');
     }
     out
+}
+
+/// The circuit as Deltakit's Stim draws it: each lowered line written back as Deltakit's
+/// instruction (`I_ERROR[LEAKAGE(p=…)] q` as `LEAKAGE(p) q`, a herald's `MPAD` as
+/// `HERALD_LEAKAGE_EVENT(p) q …`), each run as before (its records and markers kept). Pictures of
+/// a Deltakit circuit are drawn from it, so they show Deltakit's instructions, a herald on the
+/// qubit it reads rather than on its padded record's value.
+pub fn display_view(circuit: &crate::circuit::Circuit) -> crate::circuit::Circuit {
+    use crate::circuit::Instr;
+    fn walk(instrs: &[Instr]) -> Vec<Instr> {
+        instrs
+            .iter()
+            .map(|ins| match ins {
+                Instr::Gate { line, body, tag } if !tag.is_empty() => match raise_line(line) {
+                    Some(raised) => Instr::Gate { line: raised.trim().to_string(), body: body.clone(), tag: String::new() },
+                    None => ins.clone(),
+                },
+                Instr::Repeat { count, body, tag } => Instr::Repeat { count: *count, body: walk(body), tag: tag.clone() },
+                other => other.clone(),
+            })
+            .collect()
+    }
+    crate::circuit::Circuit { instrs: walk(&circuit.instrs) }
 }
 
 fn raise_line(line: &str) -> Option<String> {

@@ -411,9 +411,10 @@ impl Builder {
             },
             &a,
         );
+        // A gate whose records are pads (a herald) records as a measurement does.
         let measures = body
             .iter()
-            .filter(|i| matches!(i, Instr::Measure { .. }))
+            .filter(|i| matches!(i, Instr::Measure { .. } | Instr::Pad { .. }))
             .count();
         let pauli_products = tokens
             .iter()
