@@ -157,3 +157,43 @@ def test_blossom5_run_ftp_rotated_planar_13(monkeypatch):
     data = app.run_once_ftp(RotatedPlanarCode(13, 13), 13, BitPhaseFlipErrorModel(), RotatedPlanarSMWPMDecoder(), 0.1,
                             rng=np.random.default_rng(5))
     assert data['success'] and sizes and min(sizes) > 512
+
+
+class _HashedNode:
+    """A node object hashed as given and equal only to itself (as the CMWPM and SMWPM decoders'
+    cluster nodes are, whose hashes are their memory addresses)."""
+
+    def __init__(self, label, hash_value):
+        self.label, self.hash_value = label, hash_value
+
+    def __hash__(self):
+        return self.hash_value
+
+
+def test_blossom5_mwpm_ties_independent_of_node_hashes():
+    # stabilizer_qec: a ring of six equal edges has two minimum-weight perfect matchings. The
+    # matching chosen depends only on the edges given (their nodes numbered in order of first
+    # appearance), never on the nodes' hashes, so that a seeded run that matches identity-hashed
+    # nodes repeats from process to process.
+    import itertools
+
+    chosen = set()
+    for hashes in itertools.permutations(range(6)):
+        nodes = [_HashedNode(label, h) for label, h in zip('abcdef', hashes)]
+        edges = [(nodes[i], nodes[(i + 1) % 6], 1) for i in range(6)]
+        chosen.add(frozenset(frozenset((a.label, b.label)) for a, b in blossom5.mwpm(edges)))
+    assert len(chosen) == 1
+
+
+def test_blossom5_seeded_smwpm_and_cmwpm_runs_repeat():
+    # stabilizer_qec: the same seed gives the same result each time, for the decoders that match
+    # identity-hashed nodes through the Blossom V interface.
+    from stabilizer_qec.qecsim import app
+    from stabilizer_qec.qecsim.models.generic import BiasedDepolarizingErrorModel, DepolarizingErrorModel
+    from stabilizer_qec.qecsim.models.planar import PlanarCMWPMDecoder, PlanarCode
+    from stabilizer_qec.qecsim.models.rotatedplanar import RotatedPlanarCode, RotatedPlanarSMWPMDecoder
+
+    for code, error_model, decoder, p in ((RotatedPlanarCode(4, 4), BiasedDepolarizingErrorModel(10), RotatedPlanarSMWPMDecoder(), 0.12),
+                                          (PlanarCode(5, 5), DepolarizingErrorModel(), PlanarCMWPMDecoder(), 0.12)):
+        runs = [app.run(code, error_model, decoder, p, max_runs=150, random_seed=5) for _ in range(3)]
+        assert len({(r['n_fail'], tuple(r['n_logical_commutations'])) for r in runs}) == 1, [r['n_fail'] for r in runs]

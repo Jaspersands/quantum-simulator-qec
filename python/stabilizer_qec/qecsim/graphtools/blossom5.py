@@ -1,6 +1,7 @@
 # Ported from qecsim 1.0b9 (qecsim/qecsim; David K. Tuckett, BSD 3-Clause; see THIRD_PARTY_NOTICES.md), modified for
 # stabilizer_qec: qecsim is stabilizer_qec.qecsim; without Blossom V's library, this package's exact
-# matcher (src/blossom.rs) stands in for it, so the Blossom V interface is always available.
+# matcher (src/blossom.rs) stands in for it, so the Blossom V interface is always available; mwpm numbers the nodes in
+# order of first appearance (so a seeded run repeats).
 """
 This module provides a somewhat low-level Python interface for Blossom V, a fast C++ implementation of minimum-weight
 perfect matching in a graph, due to Vladimir Kolmogorov. (Typically, this module is not invoked directly, see rather the
@@ -138,7 +139,10 @@ def mwpm(edges):
     :raises OSError: if Blossom V library cannot be loaded.
     """
     # list of nodes without duplicates
-    nodes = list(set(node for (node_a, node_b, _) in edges for node in (node_a, node_b)))
+    # (stabilizer_qec: in order of first appearance, not a set's order: the CMWPM and SMWPM decoders' nodes hash by
+    # identity, so a set's order, and with it which of equal-weight matchings is returned, changed from process to
+    # process, and a seeded run did not repeat.)
+    nodes = list(dict.fromkeys(node for (node_a, node_b, _) in edges for node in (node_a, node_b)))
     # dict of node to id
     node_to_id = dict((n, i) for i, n in enumerate(nodes))
     # edges using ids
