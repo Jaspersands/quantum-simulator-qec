@@ -559,10 +559,13 @@ def calculate_lep_and_lep_stddev(
         Calculating logical error probability and standard deviation
         given number of fails, and number of shots:
 
+        >>> from stabilizer_qec import analysis
         >>> lep, lep_stddev = analysis.calculate_lep_and_lep_stddev(
         ...     fails=[498, 151, 34],
         ...     shots=[500000] * 3,
         ... )
+        >>> lep.tolist()
+        [0.000996, 0.000302, 6.8e-05]
 
         Scalar inputs, including the NumPy integers found in simulation
         results, return floats:
@@ -571,6 +574,8 @@ def calculate_lep_and_lep_stddev(
         ...     fails=3778,
         ...     shots=100000,
         ... )
+        >>> lep, round(lep_stddev, 6)
+        (0.03778, 0.000603)
 
     """
     scalar_inputs = np.ndim(fails) == 0 and np.ndim(shots) == 0
@@ -618,10 +623,15 @@ def calculate_lep_asymmetric(
         ValueError: When inputs do not match lengths or contain negative entries.
 
     Examples:
+        >>> from stabilizer_qec import analysis
         >>> low, lep, high = analysis.calculate_lep_asymmetric(
         ...     fails=[2, 151, 34],
         ...     shots=[500000] * 3,
         ... )
+        >>> lep.tolist()
+        [4e-06, 0.000302, 6.8e-05]
+        >>> bool((low < lep).all() and (lep < high).all())
+        True
     """
     fails = np.asarray([fails]) if isinstance(fails, int) else np.asarray(fails)
     shots = np.asarray([shots]) if isinstance(shots, int) else np.asarray(shots)

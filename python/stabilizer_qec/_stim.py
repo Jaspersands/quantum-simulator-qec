@@ -77,7 +77,7 @@ class PauliString:
     """A Pauli product with a sign in {+1, -1, +i, -i}, as ``stim.PauliString``.
 
     >>> PauliString("-XYZ") * PauliString("XX_")
-    stabilizer_qec.PauliString("-_ZZ")
+    stabilizer_qec.PauliString("+i_ZZ")
     """
 
     __slots__ = ("_p",)

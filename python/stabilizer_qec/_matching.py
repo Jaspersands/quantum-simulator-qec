@@ -110,8 +110,8 @@ class Matching:
     >>> m.add_edge(1, 2, fault_ids={1}, weight=1.0)
     >>> m.add_boundary_edge(0, weight=1.0)
     >>> m.add_boundary_edge(2, fault_ids={2}, weight=1.0)
-    >>> m.decode([0, 1, 1])
-    array([0, 1, 1], dtype=uint8)
+    >>> m.decode([0, 1, 1])  # detectors 1 and 2 pair through fault 1's edge (weight 1, not 3)
+    array([0, 1, 0], dtype=uint8)
     >>> m
     <stabilizer_qec.Matching object with 3 detectors, 0 boundary nodes, and 4 edges>
     """
