@@ -47,7 +47,7 @@ use crate::statevec::C;
 /// Options for the coherent sampler's kernel.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CoherentOptions {
-    /// The most generators multiplied together in a shot's class sum.
+    /// The most generators multiplied together in a shot's class sum; 0 is taken as 1.
     pub order: usize,
     /// The most generators in a cluster before products are cut to pairs.
     pub max_cluster: usize,
@@ -794,7 +794,10 @@ impl Kernel {
     /// With `shift`, each product times that element (its locations), outside the cluster.
     #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     pub(crate) fn products(&self, generators: &[Element], gens: &[usize], options: &CoherentOptions, cache: &mut HashMap<u64, Option<Element>>, element_of: &mut dyn FnMut(&[usize]) -> Option<Element>, keep: &dyn Fn(&[usize]) -> bool, shift: Option<&[usize]>) -> Vec<(Vec<usize>, Element)> {
-        let order = if gens.len() > options.max_cluster { options.order.min(2) } else { options.order };
+        // At least single generators (an order of 0 is 1, as the builder's `order` takes it): the
+        // enumeration stops at `order`, so 0 would enumerate every connected product.
+        let order = options.order.max(1);
+        let order = if gens.len() > options.max_cluster { order.min(2) } else { order };
         let n = gens.len();
         let mut at: HashMap<usize, Vec<usize>> = HashMap::new();
         for (i, &g) in gens.iter().enumerate() {
@@ -1237,6 +1240,24 @@ pub(crate) mod nonlocal {
         let solver = GaugeSolver::new(&p);
         let k = Kernel::new(&p, &solver, options);
         (p, solver, k)
+    }
+
+    /// An order of 0 is 1, as the builder's `order` takes it: single generators, not every
+    /// connected product of the cluster (exponential in its size, a hang on a large one).
+    #[test]
+    fn order_zero_is_order_one() {
+        let (p, solver, k) = kernel(&surface(3, 3, 0.2), CoherentOptions::default());
+        let gens: Vec<usize> = (0..k.generators.len() - k.num_nonlocal).collect();
+        assert!(gens.len() > 3);
+        let ids = |order: usize| -> Vec<Vec<usize>> {
+            let mut cache = HashMap::new();
+            let mut element_of = |members: &[usize]| p.element(members, &solver);
+            let options = CoherentOptions { order, ..CoherentOptions::default() };
+            k.products(&k.generators, &gens, &options, &mut cache, &mut element_of, &|_| true, None).into_iter().map(|(ids, _)| ids).collect()
+        };
+        let (zero, one, two) = (ids(0), ids(1), ids(2));
+        assert_eq!(zero, one);
+        assert!(one.iter().all(|g| g.len() == 1) && two.len() > one.len());
     }
 
     /// XXX in round 1 with XXX in round 2: no syndrome, no logical effect, weight six, and the

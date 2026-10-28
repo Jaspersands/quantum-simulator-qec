@@ -141,3 +141,27 @@ def test_the_time_reversal_keeps_noise_tags():
     for text in ["I_ERROR[AMPLITUDE_DAMPING(gamma=0.1)] 0 1", "I_ERROR[LEAK(p=0.1)] 0", "I[someone_else] 0 1"]:
         r = sq.Circuit(text).time_reversed_for_flows([])[0]
         assert str(r).split("]")[0] == text.split("]")[0]
+
+
+@pytest.fixture(scope="module")
+def memory() -> sq.Circuit:
+    lines = str(sq.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3)).splitlines()
+    data = " ".join([line for line in lines if line.strip().startswith("MX ")][-1].split()[1:])
+    out = []
+    for i, line in enumerate(lines):
+        if line.strip().startswith("H ") and i + 2 < len(lines) and lines[i + 1].strip() == "TICK" and lines[i + 2].strip().startswith("CX "):
+            out.append(f"I_ERROR[R_Z(theta=0.25)] {data}")
+        out.append(line)
+    return sq.Circuit("\n".join(out))
+
+
+def test_order_zero_is_order_one(memory):
+    """`order` is at least 1, as the Rust builder takes it: 0 sums products of single generators,
+    not every connected product of a cluster (which, on a large truncated kernel, never ends)."""
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        weights = [memory.compile_coherent_sampler(seed=5, order=order, max_contraction=0).sample(2000, threads=1)[2] for order in (0, 1, 3)]
+    assert np.array_equal(weights[0], weights[1])
+    assert not np.array_equal(weights[1], weights[2])
