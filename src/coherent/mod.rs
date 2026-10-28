@@ -905,9 +905,14 @@ impl Signed {
 }
 
 /// The circuit with each coherent rotation exp(−iθP) replaced by its Pauli twirl, P with
-/// probability sin²θ: what Stim and every decoder assume. With `merge`, rotations that are the
-/// same fault in different places (`kernel::Group`) become one, at the group's last place, with
-/// their angles added (sin²(Σ ±θ)): the coherence-aware model. Merging flattens loops.
+/// probability sin²θ: what Stim and every decoder assume. The gates (`I[T]`, a rotation written
+/// on `I` or `II`, a noise channel of a tag) are kept as they are, each once, however many
+/// targets it has. With `merge`, rotations that are the same fault in different places
+/// (`kernel::Group`) become one, at the last of those places, with their angles added
+/// (sin²(Σ ±θ)): the coherence-aware model. A tagged gate at a Clifford angle is the Clifford
+/// gate there (as in the coherent samplers: `I[R_Z(theta=π/4)]` is S, so the rotations either
+/// side of it merge as they do around S); a non-Clifford gate is a barrier, never merged into an
+/// error nor an error moved past it (it need not commute with the error). Merging flattens loops.
 pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
     let pauli_error = |paulis: &[(u32, u8)], p: f64| -> Instr {
         match paulis {
@@ -922,12 +927,13 @@ pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
             for ins in instrs {
                 match ins {
                     Instr::Repeat { count, body, tag } => out.push(Instr::Repeat { count: *count, body: walk(body, f), tag: tag.clone() }),
-                    Instr::Gate { body, .. } if matches!(body.as_slice(), [Instr::NonPauli(_)]) => {
+                    // A coherent error (`I_ERROR`, `II_ERROR`: its ops are all noise rotations)
+                    // twirls target by target; anything else written on a tag is kept, once.
+                    Instr::Gate { body, .. } if matches!(body.as_slice(), [Instr::NonPauli(ops)] if !ops.is_empty() && ops.iter().all(|op| matches!(op, NonPauli::Rotation { noise: true, .. }))) => {
                         let Instr::NonPauli(ops) = &body[0] else { unreachable!() };
                         for op in ops {
-                            match op {
-                                NonPauli::Rotation { pauli, theta, noise: true } => out.push(f(pauli, theta.sin().powi(2))),
-                                _ => out.push(ins.clone()),
+                            if let NonPauli::Rotation { pauli, theta, .. } = op {
+                                out.push(f(pauli, theta.sin().powi(2)));
                             }
                         }
                     }
@@ -938,51 +944,105 @@ pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
         }
         return Ok(Circuit { instrs: walk(&circuit.instrs, &pauli_error) });
     }
-    let program = Program::new(circuit)?;
+    // The program the coherent samplers build: tagged gates at Clifford angles written as the
+    // Clifford gates they are, so a fault's rotations either side of one are seen as one fault.
+    let program = Program::new(&crate::stabrank::expand_clifford_rotations(circuit)?)?;
     let solver = GaugeSolver::new(&program);
     // The groups only: no completion.
     let kernel = kernel::Kernel::new(&program, &solver, kernel::CoherentOptions { max_complete: 0, ..kernel::CoherentOptions::default() });
-    // Each location's probability: its own, or its group's merged angle at the group's last.
-    let mut prob: Vec<Option<f64>> = program.locations.iter().map(|l| Some(l.theta.sin().powi(2))).collect();
-    for g in &kernel.groups {
-        let angle: f64 = g.members.iter().zip(&g.mu).map(|(&l, mu)| program.locations[l].theta * if mu.re < 0.0 { -1.0 } else { 1.0 }).sum();
-        for &l in &g.members {
-            prob[l] = None;
-        }
-        prob[*g.members.last().unwrap()] = Some(angle.sin().powi(2));
-    }
-    circuit.check_runnable()?;
-        let res = circuit.resolve()?;
-    let mut out = Vec::new();
-    let mut loc = 0usize;
-    for ins in &res.instrs {
-        match ins {
-            Instr::NonPauli(ops) => {
-                for op in ops {
-                    match op {
-                        NonPauli::Rotation { pauli, .. } if pauli.is_empty() => {}
-                        NonPauli::Rotation { pauli, noise: true, .. } => {
-                            if let Some(p) = prob[loc] {
-                                out.push(pauli_error(pauli, p));
-                            }
-                            loc += 1;
-                        }
-                        // A gate stays a gate (its locations are the kernel's, not the twirl's).
-                        NonPauli::Rotation { .. } | NonPauli::T { .. } => {
-                            out.push(Instr::NonPauli(vec![op.clone()]));
-                            loc += 1;
-                        }
-                        NonPauli::U3 { theta, phi, lambda, .. } => {
-                            out.push(Instr::NonPauli(vec![op.clone()]));
-                            loc += [lambda, theta, phi].iter().filter(|a| ***a != 0.0).count();
-                        }
-                        _ => out.push(Instr::NonPauli(vec![op.clone()])),
-                    }
+    // Which of the circuit's non-Pauli ops, in order, the expansion wrote as Clifford gates (no
+    // location of the program's): every op of a tagged gate whose ops are all rotations written
+    // as gates, or all U3, each at Clifford angles (`expand_clifford_rotations`; a gate's ops
+    // share its tag, so one at a Clifford angle means all).
+    fn expanded(instrs: &[Instr], out: &mut Vec<bool>) {
+        for ins in instrs {
+            match ins {
+                Instr::Gate { body, .. } if matches!(body.as_slice(), [Instr::NonPauli(_)]) => {
+                    let Instr::NonPauli(ops) = &body[0] else { unreachable!() };
+                    let gate = ops.iter().all(|op| match op {
+                        NonPauli::Rotation { noise: false, .. } => true,
+                        NonPauli::U3 { theta, phi, lambda, .. } => [lambda, theta, phi].iter().all(|a| crate::stabrank::is_clifford_angle(**a / 2.0)),
+                        _ => false,
+                    });
+                    out.extend(ops.iter().map(|op| gate && !matches!(op, NonPauli::Rotation { theta, .. } if !crate::stabrank::is_clifford_angle(*theta))));
                 }
+                Instr::Gate { body, .. } | Instr::Repeat { body, .. } => expanded(body, out),
+                Instr::NonPauli(ops) => out.extend(ops.iter().map(|_| false)),
+                _ => {}
             }
-            other => out.push(other.clone()),
         }
     }
+    let mut clifford = Vec::new();
+    expanded(&circuit.flattened().instrs, &mut clifford);
+    // The output, each error by its location (its probability is known once the groups are
+    // merged), and whether each location is a gate's (not an error's).
+    enum Piece {
+        Keep(Instr),
+        Error(usize, Vec<(u32, u8)>),
+    }
+    let res = circuit.resolve()?;
+    let mut pieces = Vec::new();
+    let mut is_gate: Vec<bool> = Vec::new();
+    let mut op_index = 0usize;
+    for ins in &res.instrs {
+        let Instr::NonPauli(ops) = ins else {
+            pieces.push(Piece::Keep(ins.clone()));
+            continue;
+        };
+        for op in ops {
+            let as_clifford = clifford.get(op_index).copied().unwrap_or(false);
+            op_index += 1;
+            match op {
+                NonPauli::Rotation { pauli, .. } if pauli.is_empty() => {}
+                NonPauli::Rotation { pauli, noise: true, .. } => {
+                    pieces.push(Piece::Error(is_gate.len(), pauli.clone()));
+                    is_gate.push(false);
+                }
+                // A gate stays a gate (its locations are the kernel's, not the twirl's).
+                _ if as_clifford => pieces.push(Piece::Keep(Instr::NonPauli(vec![op.clone()]))),
+                NonPauli::Rotation { .. } | NonPauli::T { .. } => {
+                    pieces.push(Piece::Keep(Instr::NonPauli(vec![op.clone()])));
+                    is_gate.push(true);
+                }
+                NonPauli::U3 { theta, phi, lambda, .. } => {
+                    pieces.push(Piece::Keep(Instr::NonPauli(vec![op.clone()])));
+                    is_gate.extend([lambda, theta, phi].iter().filter(|a| ***a != 0.0).map(|_| true));
+                }
+                _ => pieces.push(Piece::Keep(Instr::NonPauli(vec![op.clone()]))),
+            }
+        }
+    }
+    if is_gate.len() != program.locations.len() || op_index != clifford.len() {
+        return Err(format!("internal error in twirled: {} locations and {} non-Pauli ops, where the program has {} and the circuit {}", is_gate.len(), op_index, program.locations.len(), clifford.len()));
+    }
+    // Each error's probability: its own, or its run's merged angle at the run's last place. A
+    // group's errors are cut into runs at every gate between them.
+    let mut gates_before = vec![0usize; is_gate.len() + 1];
+    for (l, &g) in is_gate.iter().enumerate() {
+        gates_before[l + 1] = gates_before[l] + usize::from(g);
+    }
+    let mut prob: Vec<f64> = program.locations.iter().map(|l| l.theta.sin().powi(2)).collect();
+    let mut shown = vec![true; is_gate.len()];
+    for g in &kernel.groups {
+        let mut errors: Vec<(usize, f64)> = g.members.iter().zip(&g.mu).filter(|&(&l, _)| !is_gate[l]).map(|(&l, mu)| (l, program.locations[l].theta * if mu.re < 0.0 { -1.0 } else { 1.0 })).collect();
+        errors.sort_by_key(|&(l, _)| l);
+        for run in errors.chunk_by(|a, b| gates_before[a.0] == gates_before[b.0]) {
+            let angle: f64 = run.iter().map(|&(_, a)| a).sum();
+            for &(l, _) in run {
+                shown[l] = false;
+            }
+            let last = run.last().unwrap().0;
+            shown[last] = true;
+            prob[last] = angle.sin().powi(2);
+        }
+    }
+    let out = pieces
+        .into_iter()
+        .filter_map(|p| match p {
+            Piece::Keep(ins) => Some(ins),
+            Piece::Error(l, pauli) => shown[l].then(|| pauli_error(&pauli, prob[l])),
+        })
+        .collect();
     Ok(Circuit { instrs: out })
 }
 
@@ -1067,6 +1127,41 @@ mod tests {
     /// The reference the records are flips from is Stim's reference sample, as every other
     /// engine's (`m2d::reference`): a random measurement reads 0 in it, however many random
     /// outcomes come before it. A seeded run instead complemented detectors on random outcomes.
+    /// A gate of several targets (`I[T] 0 1`, a rotation written on `I` or `II`, a channel of
+    /// a tag) is kept once by the twirl, not once per target: with no coherent error the twirl
+    /// is the circuit. Errors twirl target by target.
+    #[test]
+    fn the_twirl_keeps_each_gate_once() {
+        for text in ["I[T] 0 1", "I[R_Z(theta=0.1)] 0 1 2", "II[R_ZZ(theta=0.2)] 0 1 2 3", "I[T] 0\nI[T] 1", "I[U3(theta=0.3, phi=0.2, lambda=0.1)] 0 1", "R 0 1\nI_ERROR[LEAK(p=0.1)] 0 1\nM 0 1"] {
+            let c = Circuit::parse(text).unwrap();
+            assert_eq!(twirled(&c, false).unwrap().to_stim(), c.to_stim(), "{text}");
+        }
+        let c = Circuit::parse("I[T] 0 1\nI_ERROR[R_X(theta=0.1)] 0 1").unwrap();
+        assert_eq!(twirled(&c, false).unwrap().instrs.len(), 3);
+        // H T H on |0⟩ reads 1 with probability sin²(π/8), twirled or not (H S H reads 1/2).
+        let c = Circuit::parse("R 0 1\nH 0 1\nI[T] 0 1\nH 0 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]").unwrap();
+        for merge in [false, true] {
+            let d = crate::statevec::Program::new(&twirled(&c, merge).unwrap()).unwrap().distribution(1 << 10).unwrap();
+            crate::stabrank::tests::close(&d, &crate::statevec::Program::new(&c).unwrap().distribution(1 << 10).unwrap(), "H T H");
+        }
+    }
+
+    /// A tagged gate at a Clifford angle is the Clifford gate in the merge, as in the coherent
+    /// samplers: X before a tagged H and Z after it are one fault, as around H. A non-Clifford
+    /// gate is a barrier: its angle is never an error's, nor are errors either side of it merged.
+    #[test]
+    fn merged_twirl_reads_tagged_clifford_gates() {
+        let text = |h: &str, s: &str| format!("R 0 1\nI_ERROR[R_X(theta=0.1)] 0\n{h} 0\nI_ERROR[R_Z(theta=0.15)] 0\n{h} 0\n{s} 1\nI_ERROR[R_Y(theta=0.2)] 1\n{s} 1\nI_ERROR[R_X(theta=0.05)] 1\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]");
+        let errors = |c: &Circuit| -> Vec<String> { c.to_stim().lines().filter(|l| l.contains("_ERROR(")).map(str::to_string).collect() };
+        let plain = twirled(&Circuit::parse(&text("H", "S")).unwrap(), true).unwrap();
+        let tagged = twirled(&Circuit::parse(&text("I[U3(theta=1.5707963267948966, phi=0, lambda=3.141592653589793)]", "I[R_Z(theta=0.7853981633974483)]")).unwrap(), true).unwrap();
+        assert_eq!(errors(&plain).len(), 2);
+        assert_eq!(errors(&tagged), errors(&plain));
+        let gated = twirled(&Circuit::parse("R 0\nI_ERROR[R_X(theta=0.1)] 0\nI[R_X(theta=0.3)] 0\nI_ERROR[R_X(theta=0.2)] 0\nM 0").unwrap(), true).unwrap();
+        let p: Vec<f64> = gated.instrs.iter().filter_map(|i| match i { Instr::PauliError { p, .. } => Some(*p), _ => None }).collect();
+        assert_eq!(p, vec![0.1f64.sin().powi(2), 0.2f64.sin().powi(2)]);
+    }
+
     #[test]
     fn reference_is_the_converters() {
         for text in [
