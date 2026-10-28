@@ -237,3 +237,21 @@ def test_likeliest_error_sat_problem_certain_errors_match_stim():
     for text in ["X_ERROR(1) 0\nM 0\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]", "X_ERROR(0.1) 0\nX_ERROR(1) 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]"]:
         for kw in ({}, {"quantization": 10}):
             assert sq.Circuit(text).likeliest_error_sat_problem(**kw) == stim.Circuit(text).likeliest_error_sat_problem(**kw)
+
+
+@pytest.mark.parametrize(
+    "text,want",
+    [
+        ("error(0) L0\nerror(0.1) D0\nerror(0.1) D0 L0", 2),
+        ("error(0) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1 L0\nerror(0.1) D0", 3),
+        ("error[a)b](0.1) D0 L0\nerror(0.1) D0", 2),
+    ],
+)
+def test_exact_distance_skips_impossible_faults_and_reads_tags(text, want):
+    # Stim 1.16's shortest_graphlike_error gives 2, 3 and 2.
+    pytest.importorskip("scipy")
+    dem = sq.DetectorErrorModel(text)
+    assert dem.distance() == dem.distance(method="graphlike") == dem.distance(method="search") == want
+    # A decomposed fault (with a tag holding ')') is taken whole: its pieces' symptoms together.
+    dem = sq.DetectorErrorModel("error[x)](0.1) D0 ^ D1 L0\nerror(0.1) D0\nerror(0.1) D1\nerror(0) L0")
+    assert dem.distance() == dem.distance(method="search") == 3

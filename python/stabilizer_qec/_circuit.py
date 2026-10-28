@@ -1696,8 +1696,8 @@ class DetectorErrorModel:
         """The fewest of the model's faults that together flip an observable and set off no
         detector: its distance.
 
-        - ``"milp"`` (default): exact, by integer programming over every fault, hyperedges
-          included (each fault taken whole; needs scipy, whose HiGHS solver must prove the
+        - ``"milp"`` (default): exact, by integer programming over every fault of nonzero
+          probability, hyperedges included (each fault taken whole; needs scipy, whose HiGHS solver must prove the
           optimum within ``time_limit`` seconds, or this raises). Exponential at worst; meant
           for models of up to a few thousand faults.
         - ``"graphlike"``: ``shortest_graphlike_error``'s length (graph-like faults only).
@@ -1715,7 +1715,7 @@ class DetectorErrorModel:
             ).num_errors
         if method != "milp":
             raise ValueError(f"method must be 'milp', 'graphlike' or 'search', not {method!r}")
-        return _milp_distance(str(self.flattened()), real(time_limit, "time_limit"))
+        return _milp_distance(call(self._d.flat_errors), real(time_limit, "time_limit"))
 
     def search_for_undetectable_logical_errors(
         self,
@@ -1753,10 +1753,13 @@ class DetectorErrorModel:
         return DetectorErrorModel._wrap(call(self._d.flattened))
 
 
-def _milp_distance(text: str, time_limit: float) -> int:
-    """The fewest faults of a flattened model flipping an observable and no detector, by an
-    integer program: a 0/1 variable per distinct fault; each detector's faults sum to twice an
-    integer; each observable's to twice an integer plus a 0/1 that must be 1 for at least one."""
+def _milp_distance(errors: list, time_limit: float) -> int:
+    """The fewest faults of a model (its unrolled errors, as ``flat_errors`` gives them: a
+    probability and (is_observable, index) targets) flipping an observable and no detector, by
+    an integer program: a 0/1 variable per distinct fault; each detector's faults sum to twice
+    an integer; each observable's to twice an integer plus a 0/1 that must be 1 for at least
+    one. A fault of probability 0 never happens and is left out, as the graph-like and search
+    distances (and Stim's) leave it out."""
     try:
         import numpy as np
         from scipy.optimize import LinearConstraint, milp
@@ -1764,13 +1767,12 @@ def _milp_distance(text: str, time_limit: float) -> int:
     except ImportError as ex:
         raise ImportError("an exact distance needs scipy: pip install scipy") from ex
     faults = set()
-    for line in text.splitlines():
-        line = line.strip()
-        if not line.startswith("error"):
+    for p, targets in errors:
+        if not p > 0:
             continue
         dets, obs = set(), set()
-        for t in line.split(")", 1)[1].replace("^", " ").split():
-            (dets if t[0] == "D" else obs).symmetric_difference_update({int(t[1:])})
+        for is_obs, k in targets:
+            (obs if is_obs else dets).symmetric_difference_update({int(k)})
         if dets or obs:
             faults.add((frozenset(dets), frozenset(obs)))
     for dets, obs in faults:
