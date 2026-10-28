@@ -329,7 +329,7 @@ def cmd_explain_errors(a) -> None:
 
 
 def cmd_diagram(a) -> None:
-    from ._circuit import DetectorErrorModel
+    from ._circuit import _DIAGRAM_KIND, DetectorErrorModel
 
     filters = None
     if a.filter_coords is not None:
@@ -346,13 +346,18 @@ def cmd_diagram(a) -> None:
             except ValueError:
                 raise UsageError(f"--filter_coords: {part!r} is not a detector (D5), an observable (L0) or coordinates (2,3)") from None
     kind ={"detector-slice-svg": "detslice-svg", "detector-slice-text": "detslice-text", "match-graph-svg": "matchgraph-svg"}.get(a.type, a.type)
-    text = _read_text(a.input)
-    if kind == "matchgraph-svg":
+    if _DIAGRAM_KIND.get(kind) == "matchgraph":
+        # Every match graph type (svg, 3d, their html pages and match-graph-* names) draws a
+        # detector error model, or a circuit's, as Stim's command line does; its noise makes it.
+        if a.remove_noise:
+            raise UsageError("--remove_noise is incompatible with match graph diagrams, because the noise is needed to produce the match graph.")
+        text = _read_text(a.input)
         try:
-            d = DetectorErrorModel(text).diagram("matchgraph-svg")
+            d = DetectorErrorModel(text).diagram(kind)
         except ValueError:
-            d = _circuit(text).diagram("matchgraph-svg")
+            d = _circuit(text).diagram(kind)
     else:
+        text = _read_text(a.input)
         c = _circuit(text)
         if a.remove_noise:
             c = c.without_noise()

@@ -52,6 +52,29 @@ def model(tmp_path):
     return tmp_path, c, dem
 
 
+MATCH_GRAPHS = ["matchgraph-svg", "match-graph-svg", "matchgraph-3d", "matchgraph-3d-html", "match-graph-3d", "match-graph-3d-html"]
+
+
+@pytest.mark.parametrize("kind", MATCH_GRAPHS)
+def test_match_graph_diagrams_of_a_model(model, kind):
+    """Every match graph type draws a detector error model as the model's own diagram does,
+    and a circuit by its model; --remove_noise is refused for them, as by Stim."""
+    tmp, c, dem = model
+    assert ours("diagram", "--in", tmp / "c.dem", "--type", kind).decode().rstrip("\n") == str(dem.diagram(kind)).rstrip("\n")
+    assert ours("diagram", "--in", tmp / "c.stim", "--type", kind).decode().rstrip("\n") == str(c.diagram(kind)).rstrip("\n")
+    for src in ("c.stim", "c.dem"):
+        r = run("diagram", "--in", tmp / src, "--type", kind, "--remove_noise", "--out", tmp / "nothing")
+        assert r.returncode == 1 and r.stdout == b"" and not (tmp / "nothing").exists()
+        assert r.stderr.decode().strip() == "stabilizer-qec diagram: --remove_noise is incompatible with match graph diagrams, because the noise is needed to produce the match graph."
+
+
+@needs_stim
+@pytest.mark.parametrize("kind", ["matchgraph-3d", "match-graph-3d"])
+def test_match_graph_3d_of_a_model_is_stims(model, kind):
+    tmp, _, _ = model
+    assert ours("diagram", "--in", tmp / "c.dem", "--type", kind) == stims("diagram", "--in", tmp / "c.dem", "--type", kind)
+
+
 def test_model_and_circuit_files_with_bytes_that_are_not_utf8(tmp_path):
     """A byte that is not UTF-8 in a comment is passed over, as Stim, PyMatching and the
     Chromobius command line read it, from a file or stdin; CRLF lines read as in text mode."""
