@@ -1103,10 +1103,43 @@ impl CLibrary {
     pub fn qsort<T: Copy>(self, v: &mut [T], cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) {
         match self {
             CLibrary::Bsd => bsd_qsort(v, cmp),
-            CLibrary::Glibc => v.sort_by(|a, b| cmp(a, b)),
+            CLibrary::Glibc => glibc_msort(v, cmp),
             CLibrary::Msvc => msvc_qsort(v, cmp),
         }
     }
+}
+
+/// glibc's `qsort` (stdlib/msort.c's `msort_with_tmp`, in every release but 2.37 and 2.38): a
+/// top-down merge sort, the first half `n / 2` long, each merge taking the left element where
+/// the comparison is not greater. On a total order that is any stable sort's answer; on one that
+/// is not (NaN posteriors compare equal to everything), it is still glibc's, where Rust's own
+/// sort may panic.
+fn glibc_msort<T: Copy>(v: &mut [T], cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) {
+    fn sort<T: Copy>(v: &mut [T], tmp: &mut Vec<T>, cmp: &mut impl FnMut(&T, &T) -> std::cmp::Ordering) {
+        let n = v.len();
+        if n <= 1 {
+            return;
+        }
+        let n1 = n / 2;
+        sort(&mut v[..n1], tmp, cmp);
+        sort(&mut v[n1..], tmp, cmp);
+        tmp.clear();
+        let (mut i, mut j) = (0, n1);
+        while i < n1 && j < n {
+            if cmp(&v[i], &v[j]) != std::cmp::Ordering::Greater {
+                tmp.push(v[i]);
+                i += 1;
+            } else {
+                tmp.push(v[j]);
+                j += 1;
+            }
+        }
+        // What is left of the second half is already in place.
+        tmp.extend_from_slice(&v[i..n1]);
+        v[..tmp.len()].copy_from_slice(tmp);
+    }
+    let mut tmp = Vec::with_capacity(v.len());
+    sort(v, &mut tmp, cmp);
 }
 
 /// Microsoft's CRT `qsort` (ucrt/stdlib/qsort.cpp, as in every CRT since Visual C++ 6): a
@@ -1774,6 +1807,66 @@ mod tests {
             }
         }
         assert!(reordered);
+    }
+
+    /// glibc's qsort is a stable merge sort: on a total order, ties included, it is any stable
+    /// sort.
+    #[test]
+    fn glibc_qsort_is_stable() {
+        let mut x: u64 = 88_172_645_463_325_252;
+        for n in [0usize, 1, 2, 3, 8, 9, 20, 21, 40, 41, 500, 3000] {
+            for distinct in [1u64, 2, 5, 1000] {
+                let mut o: Vec<(f64, usize)> = (0..n)
+                    .map(|i| {
+                        x ^= x << 13;
+                        x ^= x >> 7;
+                        x ^= x << 17;
+                        ((x % distinct) as f64, i)
+                    })
+                    .collect();
+                let mut stable = o.clone();
+                stable.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+                CLibrary::Glibc.qsort(&mut o, &mut |a, b| a.0.partial_cmp(&b.0).unwrap());
+                assert_eq!(o.iter().map(|r| r.1).collect::<Vec<_>>(), stable.iter().map(|r| r.1).collect::<Vec<_>>(), "n {n}, {distinct} distinct values");
+            }
+        }
+    }
+
+    /// OSD's sort of posteriors with NaN among them (product-sum BP on a model with error(0) or
+    /// error(1) faults), NaN comparing equal to everything, as ldpc's comparator has it: no
+    /// library's qsort panics (Rust's own sort may, on a comparison that is not a total order),
+    /// and glibc's order is its merge sort's. [1, NaN, 0, 0] by hand: the halves [1, NaN] and
+    /// [0, 0] are each left as they are, and the merge takes both zeros (1 > 0) before 1 and NaN,
+    /// where an insertion sort moves nothing. The digests come from a separate transcription of
+    /// msort.c's merge, in Python, over xorshift vectors three in ten of them NaN.
+    #[test]
+    fn qsorts_take_nan_posteriors() {
+        let cmp = |a: &(f64, usize), b: &(f64, usize)| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal);
+        let mut small = vec![(1.0, 0usize), (f64::NAN, 1), (0.0, 2), (0.0, 3)];
+        CLibrary::Glibc.qsort(&mut small, &mut |a, b| cmp(a, b));
+        assert_eq!(small.iter().map(|r| r.1).collect::<Vec<_>>(), [2, 3, 0, 1]);
+        let want = [(3usize, 1026i64), (20, 901_546_246), (21, 180_151_796), (64, 538_891_248), (700, 377_964_444), (3000, 830_707_149)];
+        let mut x: u64 = 88_172_645_463_325_252;
+        for (n, digest_want) in want {
+            let o: Vec<(f64, usize)> = (0..n)
+                .map(|i| {
+                    x ^= x << 13;
+                    x ^= x >> 7;
+                    x ^= x << 17;
+                    (if x % 10 < 3 { f64::NAN } else { (x % 5) as f64 }, i)
+                })
+                .collect();
+            for lib in [CLibrary::Glibc, CLibrary::Bsd, CLibrary::Msvc] {
+                let mut v = o.clone();
+                lib.qsort(&mut v, &mut |a, b| cmp(a, b));
+                let mut idx: Vec<usize> = v.iter().map(|r| r.1).collect();
+                if lib == CLibrary::Glibc {
+                    assert_eq!(digest(&idx), digest_want, "glibc, n {n}");
+                }
+                idx.sort_unstable();
+                assert!(idx.iter().copied().eq(0..n), "{lib:?}, n {n}");
+            }
+        }
     }
 
     /// macOS's qsort, from a C program (tools/c_qsort.c): (value, index) records sorted by
