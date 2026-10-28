@@ -37,6 +37,9 @@ Where it differs from Tesseract's program:
   ``--multipass`` the shots are decoded in order on one thread.
 - A circuit, model or shot file that cannot be read is refused with this package's message,
   not Stim's.
+- A circuit or model is read as UTF-8, a byte that is not UTF-8 replaced (Stim passes over
+  such bytes in a comment, so both read the file alike; one in a tag is written back to
+  ``--dem-out`` replaced, where Stim keeps the byte). ``--dem-out`` is written as UTF-8.
 - Any number of observables, as Tesseract's.
 """
 
@@ -747,9 +750,11 @@ def _run(a: _Args, parser: _Parser) -> None:
     from .utils import get_detector_coords
 
     _validate(a, parser)
-    circuit = sq.Circuit(_read(a.circuit_path).decode("utf-8")) if a.circuit_path else None
+    # (Stim reads the bytes, passing over those in a comment: a byte that is not UTF-8 is
+    # replaced, as the Chromobius program replaces it.)
+    circuit = sq.Circuit(_read(a.circuit_path).decode("utf-8", "replace")) if a.circuit_path else None
     if a.dem_path:
-        dem = sq.DetectorErrorModel(_read(a.dem_path).decode("utf-8"))
+        dem = sq.DetectorErrorModel(_read(a.dem_path).decode("utf-8", "replace"))
     else:
         # (Tesseract's analysis: loops folded, gauge detectors allowed, disjoint errors approximated.)
         dem = circuit.detector_error_model(allow_gauge_detectors=True, approximate_disjoint_errors=True)
@@ -764,22 +769,24 @@ def _run(a: _Args, parser: _Parser) -> None:
         sources.append((method, _load_orders(path, dem.num_detectors)) if method == "literal" else (method, None))
     dets, obs = _shot_data(a, circuit, nd, dem.num_observables)
     writer = _Writer(a.out_fname, a.out_format, dem.num_observables) if a.out_fname else None
+    # (Whether an error is in flight is this call's own, not sys.exc_info(), which in a
+    # finally also sees an exception the caller of main is handling.)
     try:
         _decode(a, dem, sources, dets, obs, writer)
-    finally:
+    except BaseException:
         if writer is not None:
-            if sys.exc_info()[0] is None:
+            try:
                 writer.close()
-            else:
-                try:
-                    writer.close()
-                except OSError:
-                    pass  # preserve the decoding/write error already in flight
+            except OSError:
+                pass  # preserve the decoding/write error already in flight
+        raise
+    if writer is not None:
+        writer.close()
 
 
 def _decode(a: _Args, dem: Any, sources: Any, dets: np.ndarray, obs: np.ndarray, writer: Optional[_Writer]) -> None:
     from .._util import call
-    from .common import dem_from_counts
+    from .common import _dem_from_counts_text
     from .tesseract import TesseractConfig, TesseractDecoder
     from .utils import DetectorOrderMethod
 
@@ -884,10 +891,11 @@ def _decode(a: _Args, dem: Any, sources: Any, dets: np.ndarray, obs: np.ndarray,
                 break
     shots = state["shots"]
     if a.dem_out_fname:
-        estimate = dem_from_counts(original, error_use, shots - state["errors"] if has_obs else shots)
+        # (With no shot to count from, every estimate is 0/0: Tesseract writes error(nan).)
+        estimate = _dem_from_counts_text(original, error_use, shots - state["errors"] if has_obs else shots)
         try:
-            with open(a.dem_out_fname, "w") as f:
-                f.write(str(estimate) + "\n")
+            with open(a.dem_out_fname, "w", encoding="utf-8") as f:
+                f.write(estimate + "\n")
         except OSError:
             raise _Abort("Failed to open " + a.dem_out_fname) from None
     final = True

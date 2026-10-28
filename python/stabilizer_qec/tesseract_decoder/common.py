@@ -326,26 +326,72 @@ def remove_zero_probability_errors(dem: Any) -> Any:
     return _as_given(_remove_zero(dem)[0], dem)
 
 
-def dem_from_counts(orig_dem: Any, error_counts: Sequence[int], num_shots: int) -> Any:
-    """The model with each error's probability estimated as its count over ``num_shots``;
-    Stim's model when given Stim's."""
+def _from_counts(orig_dem: Any, error_counts: Sequence[int], num_shots: int) -> Tuple["_sq.DetectorErrorModel", List[int]]:
+    """Tesseract's ``common::dem_from_counts``: the model with each error's probability its
+    count over ``num_shots``, and the indices (in the model) of the errors whose estimate is
+    0/0, NaN, which this package's model cannot hold (each holds 0 in its place)."""
     flat = _flat(orig_dem)
     counts = [_int(c, "error_counts", 0, 2**64) for c in error_counts]
     shots = _int(num_shots, "num_shots", 0, 2**64)
     if flat.num_errors != len(counts):
         raise ValueError("Error hits array must be the same size as the number of errors in the original DEM.")
     out = _sq.DetectorErrorModel()
+    nans: List[int] = []
     k = 0
     for inst in flat:
         if inst.type == "error":
             c = counts[k]
             # (Tesseract divides doubles: c/0 is ∞, 0/0 NaN.)
             p = c / shots if shots else (math.inf if c else math.nan)
+            if math.isnan(p):
+                nans.append(len(out))
+                p = 0.0
             out.append("error", [_probability_argument(p)], inst.targets_copy(), tag=inst.tag)
             k += 1
         else:
             out.append(inst)
+    return out, nans
+
+
+def dem_from_counts(orig_dem: Any, error_counts: Sequence[int], num_shots: int) -> Any:
+    """The model with each error's probability estimated as its count over ``num_shots``;
+    Stim's model when given Stim's."""
+    out, nans = _from_counts(orig_dem, error_counts, num_shots)
+    if nans:
+        # (Tesseract's model holds the NaN, but Stim refuses it as it reaches Python.)
+        raise ValueError(_NAN_ARGUMENT)
     return _as_given(out, orig_dem)
+
+
+def _nan_text() -> str:
+    """How Tesseract's C++ stream (``out << model``) prints the NaN that 0.0/0.0 makes. Its
+    sign bit is set on x86, so Linux's C library prints "-nan" and Windows' "-nan(ind)"; it
+    is clear on ARM64, and macOS's C library prints no sign for a NaN in any case ("nan")."""
+    x86 = platform.machine().lower() in ("x86_64", "amd64")
+    if x86 and sys.platform.startswith("linux"):
+        return "-nan"
+    if x86 and sys.platform == "win32":
+        return "-nan(ind)"
+    return "nan"
+
+
+def _dem_from_counts_text(orig_dem: Any, error_counts: Sequence[int], num_shots: int) -> str:
+    """The text Tesseract's program writes for ``common::dem_from_counts`` (its ``--dem-out``),
+    without a final newline: an estimate of 0/0 (no shot to count from) is NaN, which Stim's
+    ``validate`` lets through and its stream prints (``error(nan) D0``)."""
+    out, nans = _from_counts(orig_dem, error_counts, num_shots)
+    if not nans:
+        return str(out)
+    # (The model is flat: one line per instruction. A tag's own ']' is escaped, so the first
+    # ']' closes it, and the argument follows.)
+    lines = [str(inst) for inst in out]
+    nan = _nan_text()
+    for k in nans:
+        line = lines[k]
+        start = line.index("]") + 1 if line.startswith("error[") else len("error")
+        assert line.startswith("(0)", start), line
+        lines[k] = f"{line[:start]}({nan}){line[start + len('(0)'):]}"
+    return "\n".join(lines)
 
 
 def _retained_maps(dem: Any, merge_errors: bool) -> Tuple["_sq.DetectorErrorModel", List[int], List[int]]:
