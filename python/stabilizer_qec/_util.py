@@ -56,8 +56,17 @@ def ours(obj: Any, circuit: Any = None, dem: Any = None) -> Any:
     port has its own classes; anything else as given.
 
     For the ports: where their originals check ``isinstance(x, stim.Circuit)``, their ``stim`` is
-    this package, so a real Stim object would fail the check. They call this first."""
+    this package, so a real Stim object would fail the check. They call this first. A port with
+    its own circuit class (Deltakit's, ``stabilizer_qec.deltakit_stim.Circuit``) gets this
+    package's other circuits as that class too: ``stabilizer_qec.Circuit``, which is the same
+    circuit to Stim, and which a pickled or copied circuit comes back as, would otherwise reach
+    the port's ``isinstance`` checks as a foreign object and read as an empty circuit."""
     t = type(obj)
+    if circuit is not None:
+        from ._circuit import Circuit as base
+
+        if isinstance(obj, base) and not isinstance(obj, circuit):
+            return circuit(obj._stim_exact_text())
     root = t.__module__.split(".")[0]
     if root not in ("stim", "deltakit_stim") or t.__name__ not in ("Circuit", "DetectorErrorModel", "DemInstruction"):
         return obj
