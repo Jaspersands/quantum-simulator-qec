@@ -17,7 +17,13 @@ differs:
 
 - Tied liftings can choose different predictions on any platform, including macOS; saved
   ignored-detector examples retain equal matching weights (see the package docstring).
-- A malformed model or circuit is refused with this package's message, not Stim's parser's.
+- A malformed model or circuit is refused with this package's message, not Stim's parser's,
+  and exit status 1. Where Stim's model parser throws std::out_of_range first (an
+  unrecognized instruction name, a number of 2⁶⁰ or more, a '{' never closed, a '}' never
+  opened), which Chromobius's program does not catch, it aborts as Chromobius's does: Stim's
+  message in the pinned libc++abi text, status 134. Which fault Stim meets first is read from
+  the line this package's parser refuses; where that parser accepts a line Stim refuses (a
+  repeat count from 2⁶⁰ to 2⁶⁴ − 1, say), the model is not refused there.
 - A ``--circuit`` that Stim's error analysis refuses (a non-deterministic detector, say) is
   refused with this package's analysis message, not Stim's (which, for one, suggests a
   ``detslice-with-ops-svg`` diagram). The exit status and output are the same.
@@ -55,6 +61,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 
+import math
 import os
 import re
 import sys
@@ -469,12 +476,111 @@ def _first64(rows: _np.ndarray) -> _np.ndarray:
 # -- Commands ---------------------------------------------------------------------------------
 
 
+_STIM_DEM_NAMES = ("error", "detector", "logical_observable", "shift_detectors", "repeat")
+_TOO_LARGE = "Number too large."
+_SPACE = " \t\n\v\f\r"  # (C's isspace: ASCII only)
+
+
+def _digits_too_large(token: str) -> Optional[bool]:
+    """Whether Stim's ``read_uint60_t`` refuses the digits ``token`` starts with as 2⁶⁰ or
+    more (it throws as soon as the value reaches it, before what follows the digits is looked
+    at); None when ``token`` starts with no digit."""
+    m = re.match(r"[0-9]+", token)
+    return None if m is None else int(m.group()) >= 2**60
+
+
+def _stims_double(text: str) -> bool:
+    """Whether Stim's ``read_normal_double`` reads ``text`` (one parens argument, spacing
+    stripped): only digits, '.', 'e', 'E', '+' and '-', all of it read by ``strtod`` as a
+    finite number (or nothing at all, which ``strtod`` reads as 0)."""
+    if not text:
+        return True
+    if len(text) > 63 or not re.fullmatch(r"[0-9.eE+-]+", text):
+        return False
+    try:
+        return math.isfinite(float(text))
+    except ValueError:
+        return False
+
+
+def _stims_out_of_range(text: str, message: str) -> Optional[str]:
+    """The std::out_of_range Stim's model parser throws first on ``text``, which this package's
+    parser refused with ``message`` (``line N: ...`` for the first line it refused), or None
+    where Stim throws std::invalid_argument there (or this cannot tell). Stim throws
+    out_of_range for an unrecognized instruction name (read first on a line: up to 31 name
+    characters, lower-cased), for a number of 2⁶⁰ or more (a repeat or shift count, a D or L
+    target), and for a '{' never closed or a '}' never opened. The lines before line N are
+    taken as Stim reads them, as this package's parser did."""
+    if message == "unterminated repeat block":
+        return "Unterminated block. Got a '{' without an eventual '}'."
+    m = re.match(r"line ([0-9]+): ", message)
+    lines = [line.split("#", 1)[0].strip(_SPACE) for line in text.split("\n")]
+    if m is None or not 1 <= int(m.group(1)) <= len(lines):
+        return None
+    n = int(m.group(1)) - 1
+    depth = sum(1 if line.endswith("{") else -1 if line == "}" else 0 for line in lines[:n])
+    line = lines[n]
+    # (A '}' closes a block, or is one never opened; Stim reads on after it.)
+    while line.startswith("}"):
+        if depth <= 0:
+            return "Uninitiated block. Got a '}' without a '{'."
+        depth -= 1
+        line = line[1:].lstrip(_SPACE)
+    if not line:
+        return None
+    end = re.match(r"[A-Za-z0-9_]*", line).end()
+    name = line[: min(end, 31)].lower()
+    if name not in _STIM_DEM_NAMES:
+        return "Unrecognized instruction name: " + name
+    # The name is good: Stim reads its tag, then a repeat's count or the arguments, a shift's
+    # count and the targets, in order, and only after them checks the instruction (validate);
+    # any other fault on the way is a std::invalid_argument.
+    rest = line[end:]
+    if rest.startswith("["):
+        close = rest.find("]")  # (a tag's own ']' is escaped)
+        if close < 0 or re.search(r"\\(?![nrBC])", rest[1:close]):
+            return None
+        rest = rest[close + 1 :]
+    if name != "repeat" and rest.startswith("("):
+        close = rest.find(")")
+        if close < 0 or not all(_stims_double(a.strip(" \t")) for a in rest[1:close].split(",")):
+            return None
+        rest = rest[close + 1 :]
+    if rest and rest[0] not in " \t":
+        return None  # (Targets must be separated by spacing.)
+    tokens = rest.split()
+    if name in ("repeat", "shift_detectors") and tokens and (name == "repeat" or tokens[0] != "{"):
+        too_large = _digits_too_large(tokens[0])
+        if too_large:
+            return _TOO_LARGE
+        if too_large is None or name == "repeat" or not re.fullmatch(r"[0-9]+", tokens[0]):
+            return None
+        tokens = tokens[1:]
+    for t in tokens:
+        if t == "^":
+            continue
+        too_large = _digits_too_large(t[1:]) if t[0] in "DdLl" else None
+        if too_large is None:
+            return None  # (an unrecognized target prefix, a '{', or no digit after D or L)
+        if too_large:
+            return _TOO_LARGE
+        if not re.fullmatch(r"[0-9]+", t[1:]):
+            return None
+    return None
+
+
 def _model(data: bytes) -> Any:
     from .._circuit import DetectorErrorModel
 
+    text = data.decode("utf-8", "replace")
     try:
-        return DetectorErrorModel(data.decode("utf-8", "replace"))
+        return DetectorErrorModel(text)
     except ValueError as e:
+        # (Stim's model parser throws std::out_of_range for some faults, which Chromobius's
+        # program, catching only std::invalid_argument, does not catch: it aborts.)
+        out_of_range = _stims_out_of_range(text, str(e))
+        if out_of_range is not None:
+            raise _Abort("std::out_of_range: " + out_of_range) from None
         raise _Fail(str(e)) from None
 
 

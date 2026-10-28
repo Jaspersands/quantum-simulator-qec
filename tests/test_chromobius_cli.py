@@ -359,6 +359,105 @@ def test_integers_read_as_stims_uint64(tmp_path):
             cli._Bytes(digits).read_uint64()
 
 
+# Malformed models, each with the std::out_of_range Stim's model parser throws first on it, or
+# None where it throws std::invalid_argument (Stim 1.16's Python binding: IndexError, ValueError).
+STIM_OUT_OF_RANGE = [
+    ("garbage", "Unrecognized instruction name: garbage"),
+    ("garbage D0", "Unrecognized instruction name: garbage"),
+    ("GARBAGE D0", "Unrecognized instruction name: garbage"),
+    ("foo-bar D0", "Unrecognized instruction name: foo"),
+    ("error(0.1) D0\nblah", "Unrecognized instruction name: blah"),
+    ("error(0.1) D99999999999999999999", "Number too large."),
+    ("error(0.1) D1152921504606846976", "Number too large."),
+    ("error(0.1) L1152921504606846976", "Number too large."),
+    ("error(0.1) Q1", None),
+    ("error(0.1) D0 Q1 D99999999999999999999", None),
+    ("error(0.1) D99999999999999999999 Q1", "Number too large."),
+    ("error(2) D99999999999999999999", "Number too large."),
+    ("error(0.1 D0", None),
+    ("repeat 2 {\nerror(0.1) D0\n", "Unterminated block. Got a '{' without an eventual '}'."),
+    ("error(0.1) D0\n}", "Uninitiated block. Got a '}' without a '{'."),
+    ("}", "Uninitiated block. Got a '}' without a '{'."),
+    ("shift_detectors 1152921504606846976", "Number too large."),
+    ("detector(1) D1152921504606846976", "Number too large."),
+    ("(0.1) D0", "Unrecognized instruction name: "),
+    ("5 D0", "Unrecognized instruction name: 5"),
+    ("errorerrorerrorerrorerrorerrorerrorerror D0", "Unrecognized instruction name: errorerrorerrorerrorerrorerrore"),
+    ("error[x](0.1) D0\nfoo", "Unrecognized instruction name: foo"),
+    ("error(0.1) D0 {", None),
+    ("repeat 2 {\ngarbage\n}", "Unrecognized instruction name: garbage"),
+    ("repeat 2 {\nerror(0.1) D99999999999999999999\n}", "Number too large."),
+    ("error(0.1) D0\nrepeat 2 {\n}\n}", "Uninitiated block. Got a '}' without a '{'."),
+    ("error(0.1) D-1", None),
+    ("error(0.1) D1e3", None),
+    ("érror(0.1) D0", "Unrecognized instruction name: "),
+    ("erroré(0.1) D0", None),
+    ("garbage {", "Unrecognized instruction name: garbage"),
+    ("error(0.1) D99999999999999999999 {", "Number too large."),
+    ("repeat 18446744073709551616 {\n}", "Number too large."),
+    ("repeat 99999999999999999999999 {\nerror(0.1) D0\n}", "Number too large."),
+    ("shift_detectors 99999999999999999999", "Number too large."),
+    ("shift_detectors(1) 99999999999999999999", "Number too large."),
+    ("shift_detectors 5 D99999999999999999999", "Number too large."),
+    ("shift_detectors D5", None),
+    ("error(0.1) D0 ^D99999999999999999999", None),
+    ("error(0.1) D0 ^ D99999999999999999999", "Number too large."),
+    ("error(0.1) ^ D99999999999999999999", "Number too large."),
+    ("error(0.1) D0 ^ ^ L99999999999999999999", "Number too large."),
+    ("error(0.1)D99999999999999999999", None),
+    ("error[x](0.1) d99999999999999999999", "Number too large."),
+    ("error(0.1) D99999999999999999999x", "Number too large."),
+    ("detector(1, 2) D0 D1", None),
+    ("logical_observable L99999999999999999999", "Number too large."),
+    ("repeat 2\n{\n}", None),
+    ("repeat 2 {\n} garbage", "Unrecognized instruction name: garbage"),
+    ("   GaRbAgE   # comment", "Unrecognized instruction name: garbage"),
+    ("error(0.1) D0 # c\n\n  # only\n  zzz D0", "Unrecognized instruction name: zzz"),
+    ("detector D0\n{", "Unrecognized instruction name: "),
+    ("error(nan) D99999999999999999999", None),
+    ("error(0.1) D1 D99999999999999999999 Q0", "Number too large."),
+    ("error(0.1) Q0 D99999999999999999999", None),
+    ("repeat 2 {\nerror(0.1) D0\n} garbage", "Unrecognized instruction name: garbage"),
+    ("repeat 2 {\nrepeat 2 {\nerror(0.1) D0\n} } garbage", "Unrecognized instruction name: garbage"),
+    ("repeat 2 {\n} } D0", "Uninitiated block. Got a '}' without a '{'."),
+    ("error() D99999999999999999999", "Number too large."),
+    ("error(1e400) D99999999999999999999", None),
+    ("error(0.1, 0.2) D99999999999999999999", "Number too large."),
+    ("error(inf) D99999999999999999999", None),
+    ("error[a\\x] D99999999999999999999", None),
+    ("error[a\\C] D99999999999999999999", "Number too large."),
+    ("repeat(2) 99999999999999999999 {\n}", None),
+    ("repeat[t] 99999999999999999999 {\n}", "Number too large."),
+    ("repeat 5x {\n}", None),
+    ("shift_detectors 5x", None),
+    ("shift_detectors {", None),
+    ("detector(1,2) L99999999999999999999", "Number too large."),
+    ("error(0.1) D0 *", None),
+    ("error(0.1)\tD99999999999999999999", "Number too large."),
+    ("error(0.1) D0\nerror(0.1) D1\n  Error[x] (0.1) D0\nbad", None),
+]
+
+
+def test_model_parse_errors_chromobius_does_not_catch_abort(tmp_path):
+    """Stim's model parser throws std::out_of_range for an unrecognized instruction name, a
+    number of 2^60 or more, a '{' never closed and a '}' never opened; Chromobius's program
+    catches only std::invalid_argument, so for those it aborts (status 134 here, with the
+    pinned libc++abi text) where other malformed models exit 1 with a message. Every command
+    that reads a model reads it so."""
+    (tmp_path / "empty.b8").write_bytes(b"")
+    for k, (text, out_of_range) in enumerate(STIM_OUT_OF_RANGE):
+        path = tmp_path / f"m{k}.dem"
+        path.write_bytes(text.encode("utf-8"))
+        for args in (["predict", "--dem", str(path), "--in", str(tmp_path / "empty.b8")],
+                     ["benchmark", "--dem", str(path), "--in", str(tmp_path / "empty.b8"), "--in_includes_appended_observables"],
+                     ["describe_decoder", "--in", str(path)]):
+            status, out, err, _ = run({"name": f"model {k}", "args": args, "stdin": None}, tmp_path)
+            if out_of_range is None:
+                assert status == 1 and err and "libc++abi" not in err, (text, args[0], status, err)
+            else:
+                assert (status, out, err) == (134, b"", f"libc++abi: terminating due to uncaught exception of type std::out_of_range: {out_of_range}\n"), (text, args[0])
+
+
 def test_unliftable_shot_message(tmp_path):
     """A shot no lifting of the Möbius matching explains gets Chromobius's whole message, after
     the predictions of the shots before it: the cycle that failed (its detectors in its order,
