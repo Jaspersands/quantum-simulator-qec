@@ -83,20 +83,23 @@ class Protocol(DiGraph):
         Start node of the protocol
     """
     
-    def __init__(self, fault_tolerant=False, check_functions={}, *args, **kwargs):
+    def __init__(self, fault_tolerant=False, check_functions=None, *args, **kwargs):
         """
         Parameters
         ----------
         fault_tolerant : bool
             True if protocol fault tolerant (robust against any 1-qubit error)
-        check_functions : dict
-            Functions used in transition checks between circuits
+        check_functions : dict, optional
+            Functions used in transition checks between circuits. The protocol keeps the dict it
+            is given; without one it gets a new, empty dict of its own.
         *args, **kwargs
             Any arguments passed to parent class `DiGraph`
         """
         super().__init__(*args, **kwargs)
         self.fault_tolerant = fault_tolerant
-        self.check_functions = check_functions
+        # qsample's default is one `{}` shared by every protocol built without check functions, so
+        # one that adds its own (as MQT QECC's NoisyDFTStatePrepSimulator does) rebinds them for all.
+        self.check_functions = {} if check_functions is None else check_functions
         self.circuits = dict()
 
     @cached_property
