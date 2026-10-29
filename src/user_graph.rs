@@ -16,9 +16,13 @@
 //! for the edges that fault with it, which the weight scale counts, so its plain decodes are
 //! PyMatching's too.
 //!
-//! The 2.1 decoding methods (`UserDecoder::scratch`, `decode`, `decode_to_edges`,
-//! `decode_to_matched_pairs`, the four-argument `decode_packed`, and `Decoded`) remain, deprecated,
-//! as thin wrappers over `pm_exact`.
+//! A `UserDecoder` decodes on a workspace from its `mwpm()`, one per thread: `decode_with` (the
+//! fault ids flipped, a byte each, and the weight), `decode_packed_with` (bit-packed),
+//! `decode_to_edges_with` and `decode_to_matched_pairs_with`. The workspace's own type lives in
+//! an undocumented module and is to be used only through these methods. The 2.1 decoding methods
+//! (`UserDecoder::scratch`, `decode`, `decode_to_edges`, `decode_to_matched_pairs`, the
+//! four-argument `decode_packed`, and `Decoded`) remain, deprecated, as thin wrappers over the
+//! same.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -185,7 +189,7 @@ impl DecoderCache {
 }
 
 /// One shot's decoding: the fault ids flipped, and the weight (`UserDecoder::decode`).
-#[deprecated(since = "2.2.0", note = "use `UserDecoder::mwpm` and `Mwpm::try_decode`, which give the fault ids as bytes")]
+#[deprecated(since = "2.2.0", note = "use `UserDecoder::decode_with` on a workspace from `UserDecoder::mwpm`, which gives the fault ids as bytes")]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Decoded {
     pub faults: Vec<bool>,
@@ -539,13 +543,51 @@ impl UserGraph {
 }
 
 impl UserDecoder {
-    pub fn graph(&self) -> &Arc<Graph> {
+    /// PyMatching's matching graph, as the crate's own Python bindings read it: a type of the
+    /// hidden `pm_exact` module, so not part of the documented API.
+    #[cfg(any(feature = "python", test))]
+    pub(crate) fn graph(&self) -> &Arc<Graph> {
         &self.graph
     }
 
-    /// A fresh `Mwpm` over the graph (one per thread).
+    /// A fresh workspace over the graph, one per thread, for `decode_with`,
+    /// `decode_packed_with`, `decode_to_edges_with` and `decode_to_matched_pairs_with`. Its type
+    /// is to be used only through those methods.
     pub fn mwpm(&self) -> Mwpm {
         Mwpm::new(self.graph.clone())
+    }
+
+    /// Whether `mwpm` is a workspace of this decoder's graph.
+    fn own(&self, mwpm: &Mwpm) -> Result<(), String> {
+        if std::ptr::eq(mwpm.graph(), self.graph.as_ref()) {
+            Ok(())
+        } else {
+            Err("the workspace is another decoder's: take one from this decoder's mwpm()".into())
+        }
+    }
+
+    /// One shot on `mwpm` (this decoder's, from `mwpm()`), from its detection events (distinct
+    /// node indices): the fault ids flipped, a byte each (`num_fault_ids` of them), and the
+    /// matching's weight (PyMatching's `decode`).
+    pub fn decode_with(&self, mwpm: &mut Mwpm, events: &[u64]) -> Result<(Vec<u8>, f64), String> {
+        self.own(mwpm)?;
+        mwpm.try_decode(events)
+    }
+
+    /// The edges the correction flips, as node pairs (-1: the boundary), the negative-weight
+    /// edges included, in PyMatching's order (its `decode_to_edges_array`), on `mwpm` (this
+    /// decoder's, from `mwpm()`).
+    pub fn decode_to_edges_with(&self, mwpm: &mut Mwpm, events: &[u64]) -> Result<Vec<(i64, i64)>, String> {
+        self.own(mwpm)?;
+        mwpm.try_decode_to_edges(events)
+    }
+
+    /// The matched pairs of detection events (-1: the boundary), in PyMatching's order (its
+    /// `decode_to_matched_dets_array`), on `mwpm` (this decoder's, from `mwpm()`). Refused for
+    /// graphs with negative weights, as PyMatching.
+    pub fn decode_to_matched_pairs_with(&self, mwpm: &mut Mwpm, events: &[u64]) -> Result<Vec<(i64, i64)>, String> {
+        self.own(mwpm)?;
+        mwpm.try_decode_to_match_edges(events)
     }
 
     pub fn num_fault_ids(&self) -> usize {
@@ -560,6 +602,7 @@ impl UserDecoder {
     /// node indices), into `out`: the fault ids flipped, bit-packed (`ceil(num_fault_ids / 8)`
     /// bytes, zeroed first). Returns the weight.
     pub fn decode_packed_with(&self, mwpm: &mut Mwpm, events: &[u64], out: &mut [u8]) -> Result<f64, String> {
+        self.own(mwpm)?;
         out.iter_mut().for_each(|b| *b = 0);
         let g = &self.graph;
         if g.num_observables <= 64 {
@@ -592,7 +635,7 @@ impl UserDecoder {
 
     /// A workspace for the deprecated 2.1 methods: it carries this decoder's `Mwpm`, one per
     /// thread.
-    #[deprecated(since = "2.2.0", note = "use `mwpm()`, one per thread, with `Mwpm`'s decoding methods or `decode_packed_with`")]
+    #[deprecated(since = "2.2.0", note = "use `mwpm()`, one per thread, with `decode_with`, `decode_packed_with`, `decode_to_edges_with` or `decode_to_matched_pairs_with`")]
     pub fn scratch(&self) -> Scratch {
         let mut s = Scratch::new(&SparseGraph::from_weighted(0, &[]));
         s.user_graph_mwpm = Some(Box::new(self.mwpm()));
@@ -602,7 +645,7 @@ impl UserDecoder {
     /// One shot from its detection events as sorted distinct node indices, into `out` (the
     /// fault ids flipped, bit-packed, zeroed first; bits past the fault count clear): the
     /// weight. `buf` is no longer used.
-    #[deprecated(since = "2.2.0", note = "use `decode_packed_with` on an `Mwpm` from `mwpm()`")]
+    #[deprecated(since = "2.2.0", note = "use `decode_packed_with` on a workspace from `mwpm()`")]
     pub fn decode_packed(&self, scratch: &mut Scratch, sorted_events: &[u32], buf: &mut Vec<u32>, out: &mut [u8]) -> Result<f64, String> {
         let _ = buf;
         let events: Vec<u64> = sorted_events.iter().map(|&e| u64::from(e)).collect();
@@ -615,7 +658,7 @@ impl UserDecoder {
     }
 
     /// One shot: the fault ids flipped and the matching's weight (PyMatching's `decode`).
-    #[deprecated(since = "2.2.0", note = "use `Mwpm::try_decode` on an `Mwpm` from `mwpm()`")]
+    #[deprecated(since = "2.2.0", note = "use `decode_with` on a workspace from `mwpm()`")]
     #[allow(deprecated)]
     pub fn decode(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Decoded, String> {
         let (faults, weight) = self.mwpm_in(scratch).try_decode(events)?;
@@ -624,14 +667,14 @@ impl UserDecoder {
 
     /// The edges the correction flips, as user endpoints (-1: the boundary), the negative-weight
     /// edges included, in PyMatching's order (its `decode_to_edges_array`).
-    #[deprecated(since = "2.2.0", note = "use `Mwpm::try_decode_to_edges` on an `Mwpm` from `mwpm()`")]
+    #[deprecated(since = "2.2.0", note = "use `decode_to_edges_with` on a workspace from `mwpm()`")]
     pub fn decode_to_edges(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Vec<(i64, i64)>, String> {
         self.mwpm_in(scratch).try_decode_to_edges(events)
     }
 
     /// The matched pairs of detection events (-1: the boundary), in PyMatching's order (its
     /// `decode_to_matched_dets_array`). Refused for graphs with negative weights, as PyMatching.
-    #[deprecated(since = "2.2.0", note = "use `Mwpm::try_decode_to_match_edges` on an `Mwpm` from `mwpm()`")]
+    #[deprecated(since = "2.2.0", note = "use `decode_to_matched_pairs_with` on a workspace from `mwpm()`")]
     pub fn decode_to_matched_pairs(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Vec<(i64, i64)>, String> {
         self.mwpm_in(scratch).try_decode_to_match_edges(events)
     }

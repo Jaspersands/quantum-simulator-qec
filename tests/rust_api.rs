@@ -365,6 +365,29 @@ fn coherent_exact_and_twirled() {
 }
 
 #[test]
+fn a_user_graph_decodes_through_documented_methods() {
+    // Every way to decode a `UserDecoder` without its deprecated 2.1 methods goes through
+    // `user_graph` itself: a workspace from `mwpm()` and the decoder's `*_with` methods, never a
+    // method of the workspace's (undocumented) type.
+    use stabilizer_qec::user_graph::{Merge, UserGraph};
+    let mut g = UserGraph::new(3, 2);
+    g.add_edge(0, 1, &[0], 1.0, 0.1, Merge::Disallow).unwrap();
+    g.add_edge(1, 2, &[1], 1.0, 0.1, Merge::Disallow).unwrap();
+    g.add_boundary_edge(2, &[], 1.0, 0.1, Merge::Disallow).unwrap();
+    let decoder = g.decoder().unwrap();
+    let mut workspace = decoder.mwpm();
+    assert_eq!(decoder.decode_with(&mut workspace, &[0, 2]).unwrap(), (vec![1, 1], 2.0));
+    assert_eq!(decoder.decode_to_edges_with(&mut workspace, &[0, 2]).unwrap().len(), 2);
+    assert_eq!(decoder.decode_to_matched_pairs_with(&mut workspace, &[0, 2]).unwrap(), vec![(0, 2)]);
+    let mut packed = [0u8; 1];
+    assert_eq!(decoder.decode_packed_with(&mut workspace, &[0, 2], &mut packed).unwrap(), 2.0);
+    assert_eq!(packed, [0b11]);
+    // A workspace of another decoder's graph is refused, not decoded on the wrong graph.
+    let mut other = UserGraph::new(1, 0).decoder().unwrap().mwpm();
+    assert!(decoder.decode_with(&mut other, &[0]).unwrap_err().contains("another decoder"));
+}
+
+#[test]
 fn a_collapse_explained_at_the_next_fault_keeps_both_tags_as_stim_does() {
     // Stim's matcher puts a reset's collapse on the next fault it meets when the collapse's
     // symptoms are the lesser, with the collapse's tag as the noise tag and the fault's own
