@@ -319,9 +319,15 @@ class CompiledStateProbs:
     With ``sample_detectors``, P(state | f) sums the probabilities of the measurement records
     whose parities are the state: at most 2^16 of them (a state's records are 2^k, k the
     measurements no detector or observable pins down, a reset-free circuit's unread
-    measurements among them). A reset of a qubit left in superposition (``H 0`` then ``R 0``)
-    draws its unread outcome along with the noise, so a draw's probability is given that outcome
-    too; the mean is unchanged."""
+    measurements among them). Every bit of a record is the state's, ``MPAD`` bits and heralds as
+    measurements are; an ``MPAD`` flip and a herald (whether it fires, with which Pauli) are noise,
+    drawn as Tsim draws them, so P(state | f) is 0 where the bit drawn is not the state's. A seed's
+    draws are the same whatever the state, so in each the outcomes' probabilities sum to 1.
+
+    A reset of a qubit left in superposition (``H 0``, ``CX 0 1``, ``R 0``) has its unread outcome
+    summed over, as in Tsim, so a noiseless circuit's probability is exact in every draw. Past ten
+    such resets on a path (the engine's ``MAX_SUMMED_RESETS``), the further ones' outcomes are drawn
+    with the noise: a draw's probability is given them too, and the mean is unchanged."""
 
     def __init__(self, circuit: Any, *, sample_detectors: bool = False, strategy: str = "cat5", seed: Union[int, None] = None) -> None:
         """Create a probability estimator.
@@ -338,7 +344,9 @@ class CompiledStateProbs:
         self._sample_detectors = bool(sample_detectors)
         self._rng = np.random.default_rng(seed_of(seed))
         self._sampler = _circuit.StabilizerRankSampler(self.circuit, 0)
-        self._noisy = _circuit.Circuit.without_noise(self.circuit)._stim_exact_text() != self.circuit._stim_exact_text()
+        # A draw depends on its seed when the engine draws anything: noise, or the outcome of a
+        # reset past those it sums over (``is_noisy``). Otherwise one draw is every draw.
+        self._noisy = bool(self._sampler._s.is_noisy) or _circuit.Circuit.without_noise(self.circuit)._stim_exact_text() != self.circuit._stim_exact_text()
         if self._sample_detectors:
             self._h = parity_matrix(self.circuit)
             self._num_outputs = self._h.shape[0]

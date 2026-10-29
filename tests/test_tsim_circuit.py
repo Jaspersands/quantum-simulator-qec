@@ -278,6 +278,86 @@ def test_state_probs_per_noise_draw():
     assert never.probability_of(np.array([True, False]), batch_size=2).tolist() == [0.0, 0.0]
 
 
+# Tsim's P(record) on noiseless circuits whose records have MPAD bits or whose resets leave an
+# unread outcome random: each draw's probability is exact, the same whatever the seed.
+RECORD_BITS = {
+    "MPAD 0": {(0,): 1.0, (1,): 0.0},
+    "MPAD 1": {(0,): 0.0, (1,): 1.0},
+    "H 0\nM 0\nMPAD 1": {(0, 0): 0.0, (0, 1): 0.5, (1, 0): 0.0, (1, 1): 0.5},
+    "T 0\nMPAD 1\nM 0": {(0, 0): 0.0, (1, 0): 1.0, (0, 1): 0.0, (1, 1): 0.0},
+    "MPAD 1 0\nH 0\nT 0\nH 0\nM 0": {(1, 0, 0): (1 + np.cos(np.pi / 4)) / 2, (1, 0, 1): (1 - np.cos(np.pi / 4)) / 2, (0, 0, 0): 0.0, (1, 1, 0): 0.0},
+    "H 0\nCX 0 1\nR 0\nM 1": {(0,): 0.5, (1,): 0.5},
+    "H 0\nCX 0 1\nR 0\nH 1\nT 1\nH 1\nM 1": {(0,): 0.5, (1,): 0.5},
+    "H 0\nCX 0 1\nMPAD 0\nR 0\nM 1": {(0, 0): 0.5, (0, 1): 0.5, (1, 0): 0.0, (1, 1): 0.0},
+}
+
+
+@pytest.mark.parametrize("text", sorted(RECORD_BITS))
+def test_state_probs_force_every_record_bit_and_sum_over_resets(text):
+    c = tsim.Circuit(text)
+    for seed in range(4):
+        probs = CompiledStateProbs(c, seed=seed)
+        for state, want in RECORD_BITS[text].items():
+            assert np.allclose(probs.probability_of(np.array(state, dtype=bool), batch_size=5), want, atol=1e-12), (seed, state)
+    # The outcomes' probabilities sum to 1, as this package's sampler of the same records.
+    m = c.num_measurements
+    states = [np.array([(i >> j) & 1 for j in range(m)], dtype=bool) for i in range(1 << m)]
+    assert sum(CompiledStateProbs(c, seed=1).probability_of(s, batch_size=1)[0] for s in states) == pytest.approx(1, abs=1e-12)
+    s = sq.Circuit(c.stim_circuit).compile_stabilizer_rank_sampler(seed=0)
+    assert s.probability_of(np.array(states), seed=3).sum() == pytest.approx(1, abs=1e-12)
+
+
+def test_state_probs_of_mpad_and_herald_bits():
+    # MPAD bits are detector parities too.
+    dets = CompiledStateProbs(tsim.Circuit("MPAD 1 0\nOBSERVABLE_INCLUDE(0) rec[-2]"), sample_detectors=True, seed=1)
+    assert dets.probability_of(np.array([False]), batch_size=2).tolist() == [0.0, 0.0]
+    assert dets.probability_of(np.array([True]), batch_size=2).tolist() == [1.0, 1.0]
+    # An MPAD flip and a herald (whether it fires, with which Pauli) are noise, drawn as Tsim draws
+    # them: P(state | draw) is 0 where the bit drawn is not the state's, the draws are the same
+    # whatever the state (so each draw's probabilities sum to 1), and the mean is P(state).
+    for text, want in (
+        ("MPAD(0.2) 0\nM 0", {(0, 0): 0.8, (1, 0): 0.2, (0, 1): 0.0, (1, 1): 0.0}),
+        ("HERALDED_ERASE(0.3) 0\nM 0", {(0, 0): 0.7, (1, 0): 0.15, (0, 1): 0.0, (1, 1): 0.15}),
+    ):
+        p = {state: CompiledStateProbs(tsim.Circuit(text), seed=3).probability_of(np.array(state, dtype=bool), batch_size=4000) for state in want}
+        assert np.allclose(sum(p.values()), 1)
+        for state, mean in want.items():
+            assert np.all(np.isclose(p[state], 0) | np.isclose(p[state], 1)), (text, state)
+            assert abs(p[state].mean() - mean) < 5 * np.sqrt(mean * (1 - mean) / 4000) + 1e-12, (text, state)
+    then = "M 0\nHERALDED_ERASE(0.3) 0\nM 0"
+    states = [np.array([(i >> j) & 1 for j in range(3)], dtype=bool) for i in range(8)]
+    assert np.allclose(sum(CompiledStateProbs(tsim.Circuit(then), seed=3).probability_of(s, batch_size=50) for s in states), 1)
+
+
+def test_state_probs_draw_resets_past_those_summed():
+    # Ten Bell pairs' halves reset: every unread outcome summed, 2^-10 exactly in each draw.
+    def bell(k):
+        pairs = " ".join(f"{q} {q + k}" for q in range(k))
+        return f"H {' '.join(map(str, range(k)))}\nCX {pairs}\nR {' '.join(map(str, range(k)))}\nM {' '.join(map(str, range(k, 2 * k)))}"
+
+    exact = CompiledStateProbs(tsim.Circuit(bell(10)), seed=1).probability_of(np.zeros(10, dtype=bool), batch_size=3)
+    assert np.allclose(exact, 2.0**-10, rtol=0, atol=1e-15)
+    # Eleven: the last outcome is drawn in each draw (0 or 2^-10), so the draws differ and their mean is 2^-11.
+    drawn = CompiledStateProbs(tsim.Circuit(bell(11)), seed=1).probability_of(np.zeros(11, dtype=bool), batch_size=40)
+    assert np.all(np.isclose(drawn * 2**10, 0) | np.isclose(drawn * 2**10, 1)) and 0 < (drawn > 0).sum() < 40
+
+
+def test_state_probs_with_mpad_heralds_and_resets_match_tsim(real):
+    from tsim.sampler import CompiledStateProbs as TheirStateProbs
+
+    for text in sorted(RECORD_BITS):
+        for state in RECORD_BITS[text]:
+            ours = CompiledStateProbs(tsim.Circuit(text), seed=0).probability_of(np.array(state, dtype=bool), batch_size=2)
+            theirs = np.asarray(TheirStateProbs(real.Circuit(text), seed=0).probability_of(np.array(state, dtype=bool), batch_size=2))
+            assert np.allclose(ours, theirs.astype(np.float64), atol=1e-6), (text, state)
+    for text in ("MPAD(0.2) 0\nM 0", "HERALDED_ERASE(0.3) 0\nM 0", "HERALDED_PAULI_CHANNEL_1(0.1, 0.2, 0.0, 0.0) 0\nM 0"):
+        for state in ((0, 0), (1, 0), (0, 1), (1, 1)):
+            ours = CompiledStateProbs(tsim.Circuit(text), seed=0).probability_of(np.array(state, dtype=bool), batch_size=200)
+            theirs = np.asarray(TheirStateProbs(real.Circuit(text), seed=0).probability_of(np.array(state, dtype=bool), batch_size=200)).astype(np.float64)
+            assert set(np.round(ours, 5)) <= set(np.round(theirs, 5)) | {0.0}, (text, state)
+            assert abs(ours.mean() - theirs.mean()) < 0.1, (text, state)
+
+
 def test_state_probs_match_tsim(real):
     from tsim.sampler import CompiledStateProbs as TheirStateProbs
 

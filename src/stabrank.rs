@@ -428,6 +428,9 @@ pub struct Program {
     reference: Vec<bool>,
     /// Whether any step draws at random besides measurements (a noise channel, a flip).
     noisy: bool,
+    /// The resets whose unread outcome may be random: those the reference tableau leaves random,
+    /// and every reset after a non-Clifford gate (whose terms may disagree on the outcome).
+    random_resets: usize,
     /// The twirled coherent errors (`with_twirl`): each one's Pauli and angle.
     twirl: Vec<(Pauli, f64)>,
     /// The reference tableau at the end of the circuit, the same in every shot.
@@ -455,12 +458,19 @@ fn rotation_steps(w: usize, pauli: &Pauli, theta: f64) -> Vec<Step> {
     vec![Step::Branch(vec![(C::new(theta.cos(), 0.0), Pauli::identity(w)), (C::new(0.0, -theta.sin()), pauli.clone())])]
 }
 
-/// The reference tableau after every step: Clifford gates applied, random measurements
-/// collapsed to 0.
-fn end_tableau(steps: &[Step], n: usize, w: usize) -> Tableau {
+/// The reference tableau after every step (Clifford gates applied, random measurements
+/// collapsed to 0), and the number of resets whose unread outcome may be random: the reference
+/// leaves it random, or a non-Clifford gate came before it.
+fn end_tableau(steps: &[Step], n: usize, w: usize) -> (Tableau, usize) {
     let mut tab = Tableau::new(n);
+    let (mut branched, mut random_resets) = (false, 0usize);
     for step in steps {
+        if let Step::Reset { q, basis } = step {
+            let m = Pauli::from_codes(w, &[(*q, if *basis == Basis::Z { 2 } else { 1 })]);
+            random_resets += (branched || tab.pivot(&m).is_some()) as usize;
+        }
         match step {
+            Step::Branch(_) => branched = true,
             Step::H(q) => tab.h(*q),
             Step::S(q) => tab.s(*q),
             Step::Cx(c, t) => tab.cx(*c, *t),
@@ -476,7 +486,7 @@ fn end_tableau(steps: &[Step], n: usize, w: usize) -> Tableau {
             _ => {}
         }
     }
-    tab
+    (tab, random_resets)
 }
 
 impl Program {
@@ -623,8 +633,8 @@ impl Program {
             let parity = |recs: &Vec<usize>| recs.iter().fold(false, |a, &r| a ^ rec[r]);
             res.detectors.iter().chain(&res.observables).map(parity).collect()
         };
-        let final_tab = end_tableau(&steps, n, w);
-        Ok(Program { steps, num_qubits: n, w, num_measurements: m, detectors: res.detectors, observables: res.observables, reference, noisy, twirl, final_tab })
+        let (final_tab, random_resets) = end_tableau(&steps, n, w);
+        Ok(Program { steps, num_qubits: n, w, num_measurements: m, detectors: res.detectors, observables: res.observables, reference, noisy, random_resets, twirl, final_tab })
     }
 
     pub fn num_qubits(&self) -> usize {
@@ -648,9 +658,11 @@ impl Program {
         self.twirl.len()
     }
 
-    /// Whether anything besides measurement outcomes is drawn at random.
+    /// Whether `probability_of` may draw anything at random, so that one draw's probability
+    /// depends on its seed: a noise channel or a flip, or the unread outcome of a reset past the
+    /// first `MAX_SUMMED_RESETS` that may be random (those it sums over exactly).
     pub fn is_noisy(&self) -> bool {
-        self.noisy
+        self.noisy || self.random_resets > MAX_SUMMED_RESETS
     }
 
     /// How many of the circuit's gates split the state (non-Clifford gates, rotations at a
@@ -678,6 +690,19 @@ pub trait Source {
     fn outcome(&mut self, p1: f64, flip: f64) -> (bool, bool);
     /// Whether twirled location `loc` fires (with probability `p`, the twirl's).
     fn fire(&mut self, loc: usize, p: f64) -> bool;
+    /// A reset's unread outcome, 1 with probability `p1`.
+    fn reset(&mut self, p1: f64) -> bool {
+        self.choose(&[1.0 - p1, p1]) == 1
+    }
+    /// An `MPAD` bit: `value`, flipped with probability `flip`.
+    fn pad(&mut self, flip: f64, value: bool) -> bool {
+        value ^ (self.choose(&[1.0 - flip, flip]) == 1)
+    }
+    /// A heralded channel's branch among `probs` (herald with I, X, Y, Z, then no herald): the
+    /// herald bit is set for the first four.
+    fn herald(&mut self, probs: &[f64]) -> usize {
+        self.choose(probs)
+    }
 }
 
 /// A random stream.
@@ -918,14 +943,11 @@ impl Program {
                         shot.frame.left_mul(&Pauli::from_codes(w, paulis));
                     }
                 }
-                Step::Pad { flip, value } => {
-                    let k = src.choose(&[1.0 - flip, *flip]);
-                    shot.records.push(*value ^ (k == 1));
-                }
+                Step::Pad { flip, value } => shot.records.push(src.pad(*flip, *value)),
                 Step::Herald { q, probs } => {
                     let mut v = probs.to_vec();
                     v.push(1.0 - probs.iter().sum::<f64>());
-                    let k = src.choose(&v);
+                    let k = src.herald(&v);
                     shot.records.push(k < 4);
                     if (1..4).contains(&k) {
                         shot.frame.left_mul(&Pauli::from_codes(w, &[(*q, [0, 1, 3, 2][k])]));
@@ -1054,7 +1076,7 @@ impl Program {
             match flip {
                 Some(fl) => src.outcome(p1.clamp(0.0, 1.0), fl),
                 None => {
-                    let o = src.choose(&[1.0 - p1, p1]) == 1;
+                    let o = src.reset(p1);
                     (o, o)
                 }
             }
@@ -1101,24 +1123,48 @@ impl Program {
         self.run_shot(&mut Stream(rng), memo)
     }
 
-    /// The probability of a measurement record: exact for a circuit without noise channels or
-    /// flips; with them, an average over `samples` draws of the noise.
+    /// The probability of a measurement record (every bit of it: measurements, `MPAD` bits and
+    /// heralds): exact for a circuit without noise channels or flips, the unread outcomes of its
+    /// resets summed over (up to `MAX_SUMMED_RESETS` random ones on a path; past them, drawn); with
+    /// noise, an average over `samples` draws of it (a draw's noise is the same whatever the
+    /// record, so in each draw the records' probabilities sum to 1).
     pub fn probability_of(&self, record: &[bool], samples: usize, seed: u64) -> Result<f64, String> {
         if record.len() != self.num_measurements {
             return Err(format!("the record has {} bits; the circuit has {} measurements", record.len(), self.num_measurements));
         }
         let mut memo = Memo::default();
-        let runs = if self.noisy { samples.max(1) } else { 1 };
+        let runs = samples.max(1);
         let mut total = 0.0;
         for s in 0..runs {
-            let mut rng = Xorshift::new(crate::batch_sampler::batch_seed(seed, s as u64));
-            let mut src = Forced { record, next: 0, prob: 1.0, rng: &mut rng };
-            let run = self.run_full(&mut src, &mut memo);
+            let (p, random) = self.forced_probability(record, crate::batch_sampler::batch_seed(seed, s as u64), &mut memo);
+            // A first draw that drew nothing at random is every draw.
+            if s == 0 && !random {
+                return Ok(p);
+            }
+            total += p;
+        }
+        Ok(total / runs as f64)
+    }
+
+    /// One draw of `probability_of`, with the noise drawn from the stream `seed`: the record's
+    /// probability summed over the resets' unread outcomes (each branch run with that stream), and
+    /// whether anything was drawn at random.
+    fn forced_probability(&self, record: &[bool], seed: u64, memo: &mut Memo) -> (f64, bool) {
+        let mut resets = Odometer::default();
+        let (mut total, mut random) = (0.0, false);
+        loop {
+            resets.restart();
+            let mut rng = Xorshift::new(seed);
+            let mut src = Forced { record, next: 0, prob: 1.0, rng: &mut rng, resets: &mut resets, summed: 0, random: false };
+            let run = self.run_full(&mut src, memo);
+            random |= src.random;
             if !run.dead {
                 total += src.prob;
             }
+            if !resets.advance() {
+                return (total, random);
+            }
         }
-        Ok(total / runs as f64)
     }
 
     /// Every outcome's exact probability, following every branch: each noise draw, each
@@ -1159,23 +1205,46 @@ impl Program {
     }
 }
 
-/// Forced measurement outcomes (a record's), noise drawn at random; `prob` is the record's
-/// probability along the draw.
+/// The most resets with a random unread outcome that `probability_of` sums over on one path
+/// (2^10 branches); it draws the outcomes of any further ones.
+pub const MAX_SUMMED_RESETS: usize = 10;
+
+/// Below this probability a reset's unread outcome counts as impossible (float rounding of a
+/// deterministic one), not as a branch to sum over.
+const RESET_TOLERANCE: f64 = 1e-14;
+
+/// Forced record bits (a record's: each measurement's, `MPAD` bit and herald), the resets' unread
+/// outcomes enumerated by `resets`, noise drawn at random (an `MPAD` flip and a herald among it);
+/// `prob` is the probability of the record and the reset outcomes given the draw, `random`
+/// whether anything was drawn.
 struct Forced<'a> {
     record: &'a [bool],
     next: usize,
     prob: f64,
     rng: &'a mut Xorshift,
+    resets: &'a mut Odometer,
+    /// The random resets summed over so far on this path.
+    summed: usize,
+    random: bool,
+}
+
+impl Forced<'_> {
+    fn want(&mut self) -> bool {
+        let want = self.record[self.next];
+        self.next += 1;
+        want
+    }
 }
 
 impl Source for Forced<'_> {
     fn choose(&mut self, probs: &[f64]) -> usize {
+        self.random |= probs.iter().filter(|&&p| p > 0.0).count() > 1;
         Stream(self.rng).choose(probs)
     }
 
     fn outcome(&mut self, p1: f64, flip: f64) -> (bool, bool) {
-        let want = self.record[self.next];
-        self.next += 1;
+        let want = self.want();
+        self.random |= flip > 0.0 && flip < 1.0;
         let flipped = flip > 0.0 && self.rng.next_f64() < flip;
         let outcome = want ^ flipped;
         self.prob *= if outcome { p1 } else { 1.0 - p1 };
@@ -1183,7 +1252,43 @@ impl Source for Forced<'_> {
     }
 
     fn fire(&mut self, _loc: usize, p: f64) -> bool {
+        self.random |= p > 0.0 && p < 1.0;
         self.rng.next_f64() < p
+    }
+
+    fn reset(&mut self, p1: f64) -> bool {
+        let p1 = p1.clamp(0.0, 1.0);
+        if p1 < RESET_TOLERANCE || p1 > 1.0 - RESET_TOLERANCE {
+            return p1 > 0.5;
+        }
+        if self.summed == MAX_SUMMED_RESETS {
+            return self.choose(&[1.0 - p1, p1]) == 1;
+        }
+        self.summed += 1;
+        let probs = [1.0 - p1, p1];
+        let k = self.resets.pick(probs.to_vec());
+        self.prob *= probs[k];
+        k == 1
+    }
+
+    // An MPAD flip and a herald are noise, drawn as Tsim draws its error bits (the same draws
+    // whatever the record): the record's probability given the draw is 0 where the bit drawn is
+    // not the record's.
+    fn pad(&mut self, flip: f64, value: bool) -> bool {
+        let want = self.want();
+        if (value ^ (self.choose(&[1.0 - flip, flip]) == 1)) != want {
+            self.prob = 0.0;
+        }
+        want
+    }
+
+    fn herald(&mut self, probs: &[f64]) -> usize {
+        let want = self.want();
+        let k = self.choose(probs);
+        if (k < 4) != want {
+            self.prob = 0.0;
+        }
+        k
     }
 }
 
@@ -1714,6 +1819,71 @@ pub(crate) mod tests {
             total += p;
         }
         assert!((total - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn probability_of_forces_every_record_bit_and_sums_over_resets() {
+        // MPAD bits and heralds are record bits as measurements are, and a reset's unread outcome
+        // is summed over: on a noiseless circuit every record's probability is the exact
+        // distribution's whatever the seed, and they sum to 1.
+        let records = |m: usize| (0..1usize << m).map(move |r| (0..m).map(|j| r >> j & 1 == 1).collect::<Vec<bool>>());
+        for text in [
+            "MPAD 0",
+            "MPAD 1\nM 0",
+            "I[T] 0\nMPAD 1\nM 0",
+            "MPAD 1 0\nH 0\nI[T] 0\nH 0\nM 0",
+            "H 0\nCX 0 1\nR 0\nM 1",
+            "H 0\nCX 0 1\nR 0\nH 1\nI[T] 1\nH 1\nM 1",
+            "H 0\nCX 0 1\nMPAD 0\nR 0\nM 1",
+            "H 0\nI[T] 0\nH 0\nCX 0 1\nRX 0\nM 1",
+            "H 0 1\nCX 0 2 1 3\nI[T] 2\nR 0 1\nH 2 3\nI[T] 3\nH 3\nM 2 3",
+        ] {
+            let prog = Program::new(&Circuit::parse(text).unwrap()).unwrap();
+            assert!(!prog.is_noisy(), "{text}");
+            let d = prog.record_distribution(1 << 12).unwrap();
+            let mut total = 0.0;
+            for rec in records(prog.num_measurements()) {
+                let expect = d.get(&rec).copied().unwrap_or(0.0);
+                for seed in 0..4 {
+                    let got = prog.probability_of(&rec, 1, seed).unwrap();
+                    assert!((got - expect).abs() < 1e-12, "{text}: {rec:?} seed {seed}: {got} vs {expect}");
+                }
+                total += prog.probability_of(&rec, 1, 0).unwrap();
+            }
+            assert!((total - 1.0).abs() < 1e-12, "{text}: total {total}");
+        }
+        // An MPAD flip and a herald are noise, drawn the same whatever the record: each draw's
+        // probabilities sum to 1, and their average is the distribution's.
+        for text in ["MPAD(0.2) 0\nM 0", "HERALDED_ERASE(0.3) 0\nM 0", "H 0\nM 0\nHERALDED_PAULI_CHANNEL_1(0, 0, 0.3, 0) 0\nCX rec[-1] 1\nM 0 1\nMPAD 1"] {
+            let prog = Program::new(&Circuit::parse(text).unwrap()).unwrap();
+            assert!(prog.is_noisy(), "{text}");
+            let d = prog.record_distribution(1 << 12).unwrap();
+            for seed in 0..8 {
+                let total: f64 = records(prog.num_measurements()).map(|rec| prog.probability_of(&rec, 1, seed).unwrap()).sum();
+                assert!((total - 1.0).abs() < 1e-12, "{text}: seed {seed} total {total}");
+            }
+            for rec in records(prog.num_measurements()) {
+                let (expect, got) = (d.get(&rec).copied().unwrap_or(0.0), prog.probability_of(&rec, 2000, 5).unwrap());
+                assert!((got - expect).abs() < 5.0 * (expect * (1.0 - expect) / 2000.0).sqrt() + 1e-12, "{text}: {rec:?}: {got} vs {expect}");
+            }
+        }
+        // Past MAX_SUMMED_RESETS random resets on a path the further ones are drawn: the
+        // probability is an average (unbiased), and is_noisy says so.
+        let bell = |k: usize| {
+            let qs = |a: usize, b: usize| (a..b).map(|q| q.to_string()).collect::<Vec<_>>().join(" ");
+            let pairs = (0..k).map(|q| format!("{q} {}", q + k)).collect::<Vec<_>>().join(" ");
+            format!("H {}\nCX {pairs}\nR {}\nM {}", qs(0, k), qs(0, k), qs(k, 2 * k))
+        };
+        let exact = Program::new(&Circuit::parse(&bell(MAX_SUMMED_RESETS)).unwrap()).unwrap();
+        assert!(!exact.is_noisy());
+        let zeros = vec![false; MAX_SUMMED_RESETS];
+        assert!((exact.probability_of(&zeros, 1, 3).unwrap() - 0.5f64.powi(MAX_SUMMED_RESETS as i32)).abs() < 1e-15);
+        let drawn = Program::new(&Circuit::parse(&bell(MAX_SUMMED_RESETS + 1)).unwrap()).unwrap();
+        assert!(drawn.is_noisy());
+        // Each draw is 0 or twice the truth (the last reset drawn), 50/50, so the mean is the truth.
+        let draws: Vec<f64> = (0..8).map(|seed| drawn.probability_of(&vec![false; MAX_SUMMED_RESETS + 1], 1, seed).unwrap() * 2f64.powi(MAX_SUMMED_RESETS as i32)).collect();
+        assert!(draws.iter().all(|&p| p.abs() < 1e-12 || (p - 1.0).abs() < 1e-12), "{draws:?}");
+        assert!(draws.iter().any(|&p| p > 0.5) && draws.iter().any(|&p| p < 0.5), "{draws:?}");
     }
 
     #[test]
