@@ -512,9 +512,10 @@ TABLES = [
 ]
 
 
-# The recordings the tables read that are the engine's own deterministic output, measured again
-# for every minor release. Each carries the version that made it ("version"), which must be the
-# package's major.minor or later. Timing records (data/bench, data/gpu, data/realtime) name the
+# The recordings the tables read that come from the engine's own output (seeded samples, and searches
+# whose integer-program bounds can depend on a time limit), measured again for every minor release.
+# Each carries the version that made it ("version"), which must be the package's major.minor or
+# later. Timing records (data/bench, data/gpu, data/realtime) name the
 # build and machine they timed and stay valid as a record of that run, so they are not listed.
 RERUN_EACH_RELEASE = (
     "data/distances.json",

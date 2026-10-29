@@ -1,7 +1,7 @@
 {
  "version": "2.2.0",
  "platform": "Darwin arm64",
- "note": "Recorded 2026-10-29 at 2.2.0 (engine 17b29d8 plus tool stamps) on an Apple M2 Pro shared with parallel build and test jobs (load average 16 to 55): the samples are deterministic (seed 0), the timings are slower than on an idle machine. Against the 2.0-era recording only the Pauli-twirl columns changed (the twirl now keeps a multi-target tagged gate once); the joint-sampler and state-vector columns are bit for bit the same.",
+ "note": "Recorded 2026-10-29 at 2.2.0 (engine 17b29d8 plus tool stamps) on an Apple M2 Pro shared with parallel build and test jobs (load average 16 to 55): the samples are deterministic (seed 0), the timings are slower than on an idle machine. Against the 2.0-era recording only the Pauli-twirl columns changed (the twirl now keeps a multi-target tagged gate once); the joint-sampler and state-vector columns are the same to within float rounding (three encoded joint-sampler numbers differ in their last digits).",
  "shots": 20000,
  "encoded_shots": 2000,
  "unencoded": {
