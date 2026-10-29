@@ -4193,7 +4193,8 @@ errors defaults to 'strict'.</p>
                 </section>
                 <section id="Eka">
                     <div class="attr class">
-            
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
     <span class="def">class</span>
     <span class="name">Eka</span>:
 
@@ -4203,13 +4204,16 @@ errors defaults to 'strict'.</p>
     
             <div class="docstring"><p>A logical computation: the lattice, the blocks at the start, and the operations, each
 time step a tuple of operations on disjoint blocks (a flat list runs them one by one).</p>
+
+<p>A frozen dataclass, as Loom's: equal field by field (so it reads back from its dict equal),
+its fields not assignable (so its checks hold), and the dataclass repr.</p>
 </div>
 
 
                             <div id="Eka.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">Eka</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">lattice</span><span class="p">:</span> <span class="n"><a href="#Lattice">Lattice</a></span>,</span><span class="param">	<span class="n">blocks</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n"><a href="#Block">Block</a></span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>,</span><span class="param">	<span class="n">operations</span><span class="p">:</span> <span class="n">Iterable</span> <span class="o">=</span> <span class="p">()</span></span>)</span>
+        <span class="name">Eka</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">lattice</span><span class="p">:</span> <span class="n"><a href="#Lattice">Lattice</a></span>,</span><span class="param">	<span class="n">blocks</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#Block">Block</a></span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>,</span><span class="param">	<span class="n">operations</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">()</span></span>)</span>
 
         
     </div>
@@ -4220,7 +4224,7 @@ time step a tuple of operations on disjoint blocks (a flat list runs them one by
                             </div>
                             <div id="Eka.lattice" class="classattr">
                                 <div class="attr variable">
-            <span class="name">lattice</span>
+            <span class="name">lattice</span><span class="annotation">: <a href="#Lattice">Lattice</a></span>
 
         
     </div>
@@ -4231,7 +4235,8 @@ time step a tuple of operations on disjoint blocks (a flat list runs them one by
                             </div>
                             <div id="Eka.blocks" class="classattr">
                                 <div class="attr variable">
-            <span class="name">blocks</span>
+            <span class="name">blocks</span><span class="annotation">: tuple[<a href="#Block">Block</a>, ...]</span>        =
+<span class="default_value">()</span>
 
         
     </div>
@@ -4242,7 +4247,8 @@ time step a tuple of operations on disjoint blocks (a flat list runs them one by
                             </div>
                             <div id="Eka.operations" class="classattr">
                                 <div class="attr variable">
-            <span class="name">operations</span>
+            <span class="name">operations</span><span class="annotation">: tuple</span>        =
+<span class="default_value">()</span>
 
         
     </div>
@@ -4932,7 +4938,7 @@ package's parser refuses when the circuit is made.</p>
                                 <div class="attr variable">
             <span class="name">SUPPORTED_ERROR_TYPES</span>        =
 <input id="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value"></label><span class="default_value">frozenset({&lt;<a href="#ErrorType.DEPOLARIZING1">ErrorType.DEPOLARIZING1</a>: (&#39;depolarizing1&#39;, 1)&gt;, &lt;<a href="#ErrorType.PAULI_CHANNEL">ErrorType.PAULI_CHANNEL</a>: (&#39;pauli_channel&#39;, 3)&gt;, &lt;<a href="#ErrorType.PAULI_Y">ErrorType.PAULI_Y</a>: (&#39;pauli_y&#39;, 1)&gt;, &lt;<a href="#ErrorType.BIT_FLIP">ErrorType.BIT_FLIP</a>: (&#39;bit-flip&#39;, 1)&gt;, &lt;<a href="#ErrorType.PAULI_Z">ErrorType.PAULI_Z</a>: (&#39;pauli_z&#39;, 1)&gt;, &lt;<a href="#ErrorType.PAULI_X">ErrorType.PAULI_X</a>: (&#39;pauli_x&#39;, 1)&gt;, &lt;<a href="#ErrorType.PHASE_FLIP">ErrorType.PHASE_FLIP</a>: (&#39;phase-flip&#39;, 1)&gt;, &lt;<a href="#ErrorType.DEPOLARIZING2">ErrorType.DEPOLARIZING2</a>: (&#39;depolarizing2&#39;, 1)&gt;})</span>
+            <label class="view-value-button pdoc-button" for="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value"></label><span class="default_value">frozenset({&lt;<a href="#ErrorType.PAULI_X">ErrorType.PAULI_X</a>: (&#39;pauli_x&#39;, 1)&gt;, &lt;<a href="#ErrorType.PAULI_Z">ErrorType.PAULI_Z</a>: (&#39;pauli_z&#39;, 1)&gt;, &lt;<a href="#ErrorType.PAULI_Y">ErrorType.PAULI_Y</a>: (&#39;pauli_y&#39;, 1)&gt;, &lt;<a href="#ErrorType.DEPOLARIZING1">ErrorType.DEPOLARIZING1</a>: (&#39;depolarizing1&#39;, 1)&gt;, &lt;<a href="#ErrorType.DEPOLARIZING2">ErrorType.DEPOLARIZING2</a>: (&#39;depolarizing2&#39;, 1)&gt;, &lt;<a href="#ErrorType.PHASE_FLIP">ErrorType.PHASE_FLIP</a>: (&#39;phase-flip&#39;, 1)&gt;, &lt;<a href="#ErrorType.BIT_FLIP">ErrorType.BIT_FLIP</a>: (&#39;bit-flip&#39;, 1)&gt;, &lt;<a href="#ErrorType.PAULI_CHANNEL">ErrorType.PAULI_CHANNEL</a>: (&#39;pauli_channel&#39;, 3)&gt;})</span>
 
         
     </div>

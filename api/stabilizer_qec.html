@@ -3664,8 +3664,10 @@ decodes by.</p>
     <a class="headerlink" href="#write_shot_data_file"></a>
     
             <div class="docstring"><p>Write shots to a file in one of Stim's result formats, as <code>stim.write_shot_data_file</code>.
-<code>data</code> is (shots, n) bool, or bit-packed uint8 rows (n = measurements + detectors +
-observables).</p>
+<code>data</code> is a 2-D numpy array: (shots, n) bool, or (shots, ⌈n/8⌉) bit-packed uint8 rows
+(n = measurements + detectors + observables). Anything else raises ValueError with Stim's
+message, as Stim does: a uint8 array is always read as packed bits, so 0/1 uint8 rows, or
+packed rows of the wrong width, are refused rather than written as other shots.</p>
 </div>
 
 
@@ -4751,7 +4753,7 @@ float32.</p>
 binary cross-entropy against the graph-like faults that fired, by Lion (the paper's,
 β 0.9 and 0.95, rate 3e-4) or Adam (rate 1e-3), the rate warmed up over <code>warmup</code> steps
 and ×0.7 at a quarter and at half of the steps. Returns each step's mean loss. Calls with
-the same optimizer continue its state.</p>
+the same optimizer continue its state, on a pickled or copied pre-decoder too.</p>
 
 <p><code>engine="numpy"</code> trains in numpy instead, on the same shots: the two agree step for
 step but for rounding.</p>
@@ -6986,9 +6988,13 @@ raises <code>ValueError</code> and leaves the circuit as it was.</p>
     
             <div class="docstring"><p>The circuit with each coherent rotation (<code>I_ERROR[R_Z(theta=θ)] q</code> and the rest)
 replaced by its Pauli twirl, the Pauli with probability sin²θ: the model Stim and every
-decoder assume. With <code>merge</code>, rotations that are the same fault in different places
-(either side of a gate that leaves them alone, say) become one with their angles added,
-sin²(Σθ): the coherence-aware model. Merging writes the circuit without loops.</p>
+decoder assume. The gates (<code>I[T]</code>, a rotation written on <code>I</code> or <code>II</code>) are kept as
+they are, once. With <code>merge</code>, rotations that are the same fault in different places
+(either side of a gate that leaves them alone, say: a T on another qubit, or R_X between
+X errors) become one with their angles added, sin²(Σθ): the coherence-aware model. A
+tagged gate at a Clifford angle is the Clifford gate there; a non-Clifford gate's angle is
+never added into an error, and errors either side of a gate they anticommute with (Z
+either side of R_X) stay apart. Merging writes the circuit without loops.</p>
 </div>
 
 
@@ -7187,7 +7193,9 @@ gate's noise, with <code>RELAX(p)</code> after each single-qubit gate's.</p>
             <div class="docstring"><p>Where the faults of the circuit's error model arise, as Stim's method of the same name
 explains them: for each fault class (each fault of <code>dem_filter</code> when given), every
 place in the circuit such a fault arises, or with <code>reduce_to_one_representative_error</code>
-one. Loops are walked in full. Each result prints as Stim's text.</p>
+one. Loops are walked in full. Each result prints as Stim's text. As in Stim, detectors
+may depend on random outcomes (each collapse is explained as a fault of the instruction
+that makes it, where Stim's matcher puts it); observables may not.</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">c</span> <span class="o">=</span> <span class="n">Circuit</span><span class="p">(</span><span class="s2">"R 0</span><span class="se">\n</span><span class="s2">X_ERROR(0.1) 0</span><span class="se">\n</span><span class="s2">M 0</span><span class="se">\n</span><span class="s2">DETECTOR rec[-1]"</span><span class="p">)</span>
@@ -7430,7 +7438,8 @@ the shot's signs), contracted one generator at a time in O(k·2^w) per shot, w t
 seven). <code>max_contraction</code> caps the contraction's tables (entries in all, 2^16 by
 default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans 32 or more
 generators at any budget): past it, and with more than twelve generators, a shot sums
-the products of up to <code>order</code> generators its faults touch, a truncation, and the
+the products of up to <code>order</code> generators its faults touch (an <code>order</code> of 0 is taken
+as 1), a truncation, and the
 sampler warns with an entry lower bound, not a guaranteed sufficient budget, or says
 that the selected plan cannot fit any budget up to 2^31. Width depends on the selected
 completed basis and elimination heuristic, not an optimum over equivalent circuits.
@@ -7452,7 +7461,11 @@ with the member's errors inserted and the shot's outcomes forced. Neither the co
 sampler (a Clifford reference circuit) nor a stabilizer-rank sampler alone (cost
 exponential in the errors) covers this. <code>pairs</code> has the joint sampler sum the
 products of every two of its generators besides (quadratic in their number: a check
-on small circuits; the coherent sampler of a Clifford circuit ignores it). A coherent error at a Clifford angle
+on small circuits; the coherent sampler of a Clifford circuit ignores it). The joint
+sampler has no contraction (its cross terms are overlaps of the exact engine's states, not
+products of factors), so <code>max_contraction</code> has no effect on it: past twelve generators
+it sums up to <code>order</code> generators as above, a truncation, without a warning, and only
+<code>exact_weights</code> (False) reports it; an incomplete kernel still warns. A coherent error at a Clifford angle
 (<code>I_ERROR[R_Z(theta=0.7853981633974483)] 0</code>, a fixed S) is run as the gate it is, not
 drawn as a twirl: such a circuit gets the joint sampler too.</p>
 </div>
@@ -8291,9 +8304,13 @@ from the same stream of shots as <code><a href="#StabilizerRankSampler.sample">s
     <a class="headerlink" href="#StabilizerRankSampler.probability_of"></a>
     
             <div class="docstring"><p>The probability of each measurement record in <code>records</code> (a bool array of shape
-(measurements,) or (shots, measurements)): exact when the circuit has no noise channel
-or measurement flip; with noise, an average over <code>samples</code> draws of it (from the
-stream <code>seed</code>, so the same seed gives the same estimate).</p>
+(measurements,) or (shots, measurements)), every bit of it (<code>MPAD</code> bits and heralds as
+measurements): exact when the circuit has no noise channel or flip, a reset's unread
+outcome summed over where the qubit is entangled with the rest (up to 10 such on a path,
+past which the further ones are drawn, as noise is; a reset of a qubit on its own, a
+fresh qubit's <code>RX</code>, leaves the same state either way and is neither summed nor drawn);
+with noise, an average over <code>samples</code> draws of it (from the stream <code>seed</code>, so the
+same seed gives the same estimate).</p>
 </div>
 
 

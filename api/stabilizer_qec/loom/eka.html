@@ -4678,7 +4678,8 @@ key under which the interpreter files the outcome's classical bits.</p>
                 </section>
                 <section id="Eka">
                     <div class="attr class">
-            
+                    <div class="decorator decorator-dataclass">@dataclass(frozen=True)</div>
+
     <span class="def">class</span>
     <span class="name">Eka</span>:
 
@@ -4688,13 +4689,16 @@ key under which the interpreter files the outcome's classical bits.</p>
     
             <div class="docstring"><p>A logical computation: the lattice, the blocks at the start, and the operations, each
 time step a tuple of operations on disjoint blocks (a flat list runs them one by one).</p>
+
+<p>A frozen dataclass, as Loom's: equal field by field (so it reads back from its dict equal),
+its fields not assignable (so its checks hold), and the dataclass repr.</p>
 </div>
 
 
                             <div id="Eka.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">Eka</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">lattice</span><span class="p">:</span> <span class="n"><a href="#Lattice">Lattice</a></span>,</span><span class="param">	<span class="n">blocks</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n"><a href="#Block">Block</a></span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>,</span><span class="param">	<span class="n">operations</span><span class="p">:</span> <span class="n">Iterable</span> <span class="o">=</span> <span class="p">()</span></span>)</span>
+        <span class="name">Eka</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">lattice</span><span class="p">:</span> <span class="n"><a href="#Lattice">Lattice</a></span>,</span><span class="param">	<span class="n">blocks</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n"><a href="#Block">Block</a></span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>,</span><span class="param">	<span class="n">operations</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">()</span></span>)</span>
 
         
     </div>
@@ -4705,7 +4709,7 @@ time step a tuple of operations on disjoint blocks (a flat list runs them one by
                             </div>
                             <div id="Eka.lattice" class="classattr">
                                 <div class="attr variable">
-            <span class="name">lattice</span>
+            <span class="name">lattice</span><span class="annotation">: <a href="#Lattice">Lattice</a></span>
 
         
     </div>
@@ -4716,7 +4720,8 @@ time step a tuple of operations on disjoint blocks (a flat list runs them one by
                             </div>
                             <div id="Eka.blocks" class="classattr">
                                 <div class="attr variable">
-            <span class="name">blocks</span>
+            <span class="name">blocks</span><span class="annotation">: tuple[<a href="#Block">Block</a>, ...]</span>        =
+<span class="default_value">()</span>
 
         
     </div>
@@ -4727,7 +4732,8 @@ time step a tuple of operations on disjoint blocks (a flat list runs them one by
                             </div>
                             <div id="Eka.operations" class="classattr">
                                 <div class="attr variable">
-            <span class="name">operations</span>
+            <span class="name">operations</span><span class="annotation">: tuple</span>        =
+<span class="default_value">()</span>
 
         
     </div>
