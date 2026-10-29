@@ -15,11 +15,15 @@
 
 use crate::circuit::{Basis, Circuit, Instr};
 use crate::nonpauli::NonPauli;
+use crate::obsbits::ObsBits;
 use crate::surface_code::Xorshift;
 
 pub struct Shot {
     pub detectors: Vec<bool>,
+    /// The first 64 observables' flips (the decoders' form); `all_observables` has every one.
     pub observables: u64,
+    /// Every observable's flip, however many the circuit has.
+    pub all_observables: ObsBits,
     /// For a circuit with leakage, per measurement record, whether a measurement found its
     /// qubit leaked (false for other records); empty otherwise.
     pub heralds: Vec<bool>,
@@ -102,9 +106,6 @@ impl FrameSampler {
         let circuit: &Circuit = &view;
         circuit.check_runnable()?;
         let res = circuit.resolve()?;
-        if res.observables.len() > 64 {
-            return Err(format!("{} observables: the per-shot sampler takes at most 64 (the detector sampler takes any number)", res.observables.len()));
-        }
         let leaky = res.instrs.iter().any(|i| matches!(i, Instr::NonPauli(ops) if ops.iter().any(|o| o.is_leakage())));
         let reference = if leaky { crate::m2d::reference(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits) } else { Vec::new() };
         Ok(FrameSampler {
@@ -127,9 +128,6 @@ impl FrameSampler {
         circuit.check_runnable()?;
         let split = Circuit { instrs: crate::deltakit::sampler_instrs(&circuit.instrs)? };
         let res = split.resolve()?;
-        if res.observables.len() > 64 {
-            return Err(format!("{} observables: the per-shot sampler takes at most 64 (the detector sampler takes any number)", res.observables.len()));
-        }
         let mut reference = crate::m2d::reference(circuit, crate::batch_sampler::Counts::of(&circuit.instrs)?.qubits);
         // Deltakit's reference reads a herald as 0, an inverted target too.
         let mut m = 0usize;
@@ -179,13 +177,13 @@ impl FrameSampler {
         let (rec, pauli_obs, heralds) = self.run(rng);
         let parity = |recs: &[usize]| recs.iter().fold(false, |acc, &m| acc ^ rec[m]);
         let detectors = self.detectors.iter().map(|r| parity(r)).collect();
-        let mut observables = pauli_obs;
+        let mut all_observables = pauli_obs;
         for (k, r) in self.observables.iter().enumerate() {
             if parity(r) {
-                observables |= 1u64 << k;
+                all_observables.flip(k);
             }
         }
-        Shot { detectors, observables, heralds }
+        Shot { detectors, observables: all_observables.low(), all_observables, heralds }
     }
 
     /// The same sampler, ready for `sample_measurements` (a leaky one already is).
@@ -207,14 +205,14 @@ impl FrameSampler {
 
     /// One shot: its record as flips from the reference, its Pauli targets' observable flips,
     /// and its heralds.
-    fn run(&self, rng: &mut Xorshift) -> (Vec<bool>, u64, Vec<bool>) {
+    fn run(&self, rng: &mut Xorshift) -> (Vec<bool>, ObsBits, Vec<bool>) {
         let nq = self.num_qubits;
         let mut x = vec![false; nq];
         let mut z: Vec<bool> = (0..nq).map(|_| rng.next_u64() & 1 == 1).collect();
         let mut rec = Vec::with_capacity(self.num_measurements);
         // Whether the current chain of correlated errors has fired.
         let mut chain = false;
-        let mut pauli_obs = 0u64;
+        let mut pauli_obs = ObsBits::new();
         let mut leaked = vec![NOT_LEAKED; if self.leaky { nq } else { 0 }];
         let mut heralds = Vec::new();
         // A herald's readings, for the pads that follow its markers.
@@ -426,7 +424,7 @@ impl FrameSampler {
                     for &(q, p, _) in paulis {
                         let q = q as usize;
                         if (p & 1 != 0 && z[q]) != (p & 2 != 0 && x[q]) {
-                            pauli_obs ^= 1u64 << index;
+                            pauli_obs.flip(*index as usize);
                         }
                     }
                 }
@@ -593,6 +591,36 @@ mod tests {
             let shot = sampler.sample(&mut rng);
             assert!(shot.detectors.iter().all(|&b| !b));
             assert_eq!(shot.observables, 0);
+        }
+    }
+
+    /// Observables past 64 (a record's, and a Pauli target's) are sampled as the first are, by
+    /// both samplers: Deltakit's leakage model's (its herald read by the observables) and this
+    /// package's (an X_ERROR's record).
+    #[test]
+    fn observables_past_64() {
+        let obs: String = (0..70).map(|k| format!("OBSERVABLE_INCLUDE({k}) rec[-2]\n")).collect();
+        let tail = "X_ERROR(1) 1\nOBSERVABLE_INCLUDE(69) Z1\nOBSERVABLE_INCLUDE(100) Z1";
+        let leaky = format!("R 0 1\nLEAKAGE(0.5) 0\nHERALD_LEAKAGE_EVENT 0\nM 0\nDETECTOR rec[-1]\nDETECTOR rec[-2]\n{obs}{tail}");
+        let plain = format!("R 0 1\nX_ERROR(0.5) 0\nM 0 0\nDETECTOR rec[-1]\nDETECTOR rec[-2]\n{obs}{tail}");
+        let samplers = [FrameSampler::new_deltakit(&Circuit::parse(&leaky).unwrap()).unwrap(), FrameSampler::new(&Circuit::parse(&plain).unwrap()).unwrap()];
+        for sampler in samplers {
+            assert_eq!(sampler.num_observables(), 101);
+            let mut rng = Xorshift::new(3);
+            let mut fired = 0;
+            for _ in 0..400 {
+                let shot = sampler.sample(&mut rng);
+                let read = shot.detectors[1];
+                fired += read as usize;
+                for k in 0..69 {
+                    assert_eq!(shot.all_observables.bit(k), read, "L{k}");
+                }
+                // L69 reads the record and the Z1 the X_ERROR flipped; L100 that Z1 alone.
+                assert_eq!(shot.all_observables.bit(69), !read);
+                assert!(shot.all_observables.bit(100));
+                assert_eq!(shot.observables, shot.all_observables.low());
+            }
+            assert!(fired > 100 && fired < 300, "{fired}");
         }
     }
 }

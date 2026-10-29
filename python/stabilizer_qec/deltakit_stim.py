@@ -16,7 +16,15 @@ gate's partner depolarized after the leakage came). Everything else is this pack
 
 The circuit holds Deltakit's instructions as tagged lines Stim reads (``I_ERROR[LEAKAGE(p=…)]``
 and the rest, see ``Circuit.to_deltakit_text``), so ``stabilizer_qec.Circuit(c)`` is the same
-circuit to Stim, where nothing leaks.
+circuit to Stim, where nothing leaks; Deltakit's ``Circuit.from_stim_circuit`` reads either. What
+the circuit hands out is Deltakit's instructions, not those lines: its diagrams draw them (a
+herald on the qubit it reads), ``flattened_operations`` lists them, ``to_tableau`` and
+``time_reversed_for_flows`` refuse them as Deltakit's Stim does, ``approx_equals`` compares their
+probabilities, and ``explain_detector_error_model_errors`` explains only Stim's own noise, as
+Deltakit's Stim does (so Deltakit's ``parse_explained_dem`` reads it). Deltakit's Stim also takes
+a tag on its own instructions (``LEAKAGE[site](0.1) 0``, which ``deltakit.circuit``'s tagged
+``Leakage`` and ``Relax`` write); the lowered line's tag is where the instruction is held, so this
+package refuses one with ``ValueError``.
 
 The transport gates follow deltakit_stim's documentation: spreading, then mobility each way.
 deltakit_stim 0.2.7's simulator departs from it when one gate is given spreading and mobility
@@ -115,6 +123,50 @@ def _has_dialect(text: str) -> bool:
     return any(d in text for d in _DIALECT)
 
 
+def _raised(items: list) -> list:
+    """Items (``_items``) with each lowered instruction as Deltakit's, untagged."""
+    out = []
+    for it in items:
+        if it[0] == "repeat":
+            out.append(("repeat", it[1], it[2], _raised(it[3])))
+            continue
+        op = _dialect_op(it[1], it[2], it[3], it[4])
+        out.append(it if op is None else ("op", op[0], "", op[1], op[2]))
+    return out
+
+
+class _Items:
+    """Items standing in for a circuit, for a method that reads nothing else."""
+
+    __slots__ = ("_it",)
+
+    def __init__(self, items: list) -> None:
+        self._it = items
+
+    def _items(self) -> list:
+        return self._it
+
+
+def _tableau_refusal(name: str, args: list, ignore_noise: bool, ignore_measurement: bool, ignore_reset: bool) -> Optional[tuple]:
+    """Why Deltakit's Stim has no tableau for one of its instructions, as Stim checks each
+    instruction (a measurement, then a reset, then noise with an argument above 0): (kind, the
+    argument that ignores it), or None."""
+    if name == "HERALD_LEAKAGE_EVENT" and not ignore_measurement:
+        return "measurement", "ignore_measurement"
+    if name == "RL" and not ignore_reset:
+        return "reset", "ignore_reset"
+    if not ignore_noise and any(a > 0 for a in args):
+        return "noisy", "ignore_noise"
+    return None
+
+
+def _is_dialect_location(loc: Any) -> bool:
+    """Whether an explained error's location is a lowered Deltakit instruction (its leakage,
+    relaxation, leakage reset or herald), which Deltakit's Stim does not explain."""
+    gate, tag = loc.instruction_targets.gate, loc.noise_tag
+    return (gate == "I_ERROR" and _NOISE_TAG.fullmatch(tag) is not None) or (gate == "MPAD" and _HERALD_TAG.fullmatch(tag) is not None) or (gate == "I" and tag.strip() == "RL")
+
+
 class Circuit(_circuit.Circuit):
     """A circuit of Deltakit's Stim: Stim's, with ``LEAKAGE``, ``RELAX``, ``RL``,
     ``HERALD_LEAKAGE_EVENT`` and the transport gates' four arguments native (see the module).
@@ -185,8 +237,9 @@ class Circuit(_circuit.Circuit):
         return type(self)(text)
 
     def without_tags(self) -> "Circuit":
-        """The tags removed, Deltakit's instructions kept (they carry no tags in its Stim; here
-        their lowered forms' tags are what they are)."""
+        """The tags removed, Deltakit's instructions kept. (Deltakit's Stim also takes a tag on
+        its own instructions, ``LEAKAGE[t](0.1) 0``; this package refuses one, see the module,
+        so they have none to remove.)"""
         return type(self)(re.sub(r"(?m)^(\s*[A-Za-z_][A-Za-z0-9_]*)\[[^\]\n]*\]", r"\1", str(self)))
 
     def decomposed(self) -> "Circuit":
@@ -197,6 +250,105 @@ class Circuit(_circuit.Circuit):
         out = _circuit.Circuit(text).decomposed()._stim_exact_text()
         out = re.sub(r"(?m)^(\s*)I_ERROR\[RL\]", r"\1I[RL]", out)
         return type(self)(re.sub(r"\[LEAKAGE_TRANSPORT\([^)\]]*\)\]", "", out))
+
+    def flattened_operations(self) -> list:
+        """Stim's ``flattened_operations``, Deltakit's instructions as themselves
+        (``("LEAKAGE", [0], 0.1)``, ``("CX", [0, 1], [p1, p2, p3, p4])``)."""
+        return _circuit.Circuit.flattened_operations(_Items(_raised(self._items())))
+
+    def _drawn(self) -> "Circuit":
+        # The circuit with its lowered lines written back as Deltakit's instructions (run as
+        # before), which its pictures are drawn from.
+        out = type(self).__new__(type(self))
+        out._c = call(self._c.deltakit_view)
+        return out
+
+    def diagram(self, type: str = "timeline-text", **kwargs: Any) -> "_circuit.Diagram":
+        """Stim's ``diagram``, Deltakit's instructions drawn as Deltakit's Stim draws them:
+        ``LEAKAGE(0.1)``, ``RELAX(0.2)``, ``RL``, a herald as ``HERALD_LEAKAGE_EVENT(0.01):rec[k]``
+        on the qubit it reads, a transport gate's four arguments on both its ends
+        (``@(0.1,0.05,0.2,0.01)``)."""
+        return _circuit.Circuit.diagram(self._drawn(), type, **kwargs)
+
+    def to_tableau(self, *, ignore_noise: bool = False, ignore_measurement: bool = False, ignore_reset: bool = False) -> "_stim.Tableau":
+        """Stim's ``to_tableau``, refusing Deltakit's instructions as Deltakit's Stim does: a
+        herald as a measurement, ``RL`` as a reset, ``LEAKAGE``, ``RELAX``, a herald's flip and a
+        transport gate's four arguments as noise (unless 0); the first refused instruction is
+        named."""
+        if _has_dialect(self._stim_exact_text()):
+            items = self.flattened()._items()
+            for k, it in enumerate(items):
+                op = _dialect_op(it[1], it[2], it[3], it[4]) if it[0] == "op" else None
+                why = None if op is None else _tableau_refusal(op[0], op[1], ignore_noise, ignore_measurement, ignore_reset)
+                if why is None:
+                    continue
+                # An instruction of Stim's own before it is refused first.
+                _circuit.Circuit._of_items(items[:k]).to_tableau(ignore_noise=ignore_noise, ignore_measurement=ignore_measurement, ignore_reset=ignore_reset)
+                kind, flag = why
+                first = CircuitInstruction._make(op[0], "", op[1], op[2])
+                raise ValueError(f"The circuit has no well-defined tableau because it contains {kind} operations.\nTo ignore {kind} operations, pass the argument {flag}=True.\nThe first {kind} operation is: {first}")
+        return super().to_tableau(ignore_noise=ignore_noise, ignore_measurement=ignore_measurement, ignore_reset=ignore_reset)
+
+    def time_reversed_for_flows(self, flows: Any, *, dont_turn_measurements_into_resets: bool = False) -> tuple:
+        """Stim's ``time_reversed_for_flows``; as Deltakit's Stim, it cannot invert ``LEAKAGE``,
+        ``RELAX``, ``RL`` or a herald, and names the last of them (the first it meets, running
+        backwards). A transport gate keeps its arguments."""
+        last = None
+
+        def scan(items: list) -> None:
+            nonlocal last
+            for it in items:
+                if it[0] == "repeat":
+                    scan(it[3])
+                elif it[1] in _LEAKAGE_GATES:
+                    last = it
+
+        scan(_raised(self._items()))
+        if last is not None:
+            raise ValueError(f"Don't know how to invert {CircuitInstruction._make(last[1], '', last[3], last[4])}")
+        return super().time_reversed_for_flows(flows, dont_turn_measurements_into_resets=dont_turn_measurements_into_resets)
+
+    def approx_equals(self, other: object, *, atol: float) -> bool:
+        """Equal up to arguments differing by at most ``atol``, Deltakit's instructions' too
+        (``LEAKAGE(0.1)`` and ``LEAKAGE(0.1001)`` at ``atol=0.01``)."""
+        if not isinstance(other, _circuit.Circuit):
+            try:
+                other = Circuit(other)
+            except TypeError:
+                return False
+        # Their probabilities, which the lowered lines hold in their tags, compared apart; the
+        # rest (the tags with those probabilities blanked) compared as Stim compares.
+        nums: list = []
+
+        def blank(text: str) -> str:
+            def one(m: "re.Match") -> str:
+                found = [float(v) for v in re.findall(r"=\s*([^,)\s]+)", m.group(2))]
+                nums.append(found)
+                return m.group(1) + re.sub(r"=\s*[^,)\s]+", "=0", m.group(2)) + "]"
+
+            return re.sub(r"(\[(?:LEAKAGE|RELAX|LEAKAGE_TRANSPORT))(\([^)\]]*\))\]", one, text)
+
+        a = blank(self._stim_exact_text())
+        mine, nums = nums, []
+        b = blank(other._stim_exact_text())
+        if len(mine) != len(nums) or any(len(x) != len(y) or any(abs(u - v) > atol for u, v in zip(x, y)) for x, y in zip(mine, nums)):
+            return False
+        return _circuit.Circuit(a).approx_equals(_circuit.Circuit(b), atol=atol)
+
+    def explain_detector_error_model_errors(self, *, dem_filter: Any = None, reduce_to_one_representative_error: bool = False) -> list:
+        """Stim's explanation of the circuit's error model, as Deltakit's Stim gives it: its
+        leakage, relaxation and heralds are not fault locations (a fault only they make, such as
+        a herald's flip, is not explained, or with ``dem_filter`` is given no location), so
+        Deltakit's ``parse_explained_dem`` reads the result."""
+        out = super().explain_detector_error_model_errors(dem_filter=dem_filter, reduce_to_one_representative_error=reduce_to_one_representative_error)
+        kept = []
+        for e in out:
+            locations = [loc for loc in e.circuit_error_locations if not _is_dialect_location(loc)]
+            if len(locations) == len(e.circuit_error_locations):
+                kept.append(e)
+            elif locations or dem_filter is not None:
+                kept.append(type(e)(dem_error_terms=e.dem_error_terms, circuit_error_locations=locations))
+        return kept
 
     def compile_detector_sampler(self, *, seed: Union[int, None] = None) -> "_circuit.DetectorSampler":
         """Detection events and observable flips, as Deltakit's frame simulator draws them
@@ -293,7 +445,7 @@ class CircuitInstruction(_stim.CircuitInstruction):
             super().__init__(name, targets, gate_args, tag=tag)
             return
         if tag:
-            raise ValueError(f"Deltakit's {dialect} takes no tag here")
+            raise ValueError(f"Deltakit's {dialect} takes no tag here (deltakit_stim keeps one; this package does not carry it)")
         self._name = dialect
         self._targets = [_stim._gate_target_of(t) for t in (targets or [])]
         self._args = args

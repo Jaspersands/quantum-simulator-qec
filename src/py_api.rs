@@ -187,7 +187,7 @@ fn sample_b8<'py>(
     for _ in 0..num_shots {
         let shot = sampler.sample(&mut rng);
         pack_row(&shot.detectors, &mut dets);
-        let bits: Vec<bool> = (0..no).map(|k| (shot.observables >> k) & 1 == 1).collect();
+        let bits: Vec<bool> = (0..no).map(|k| shot.all_observables.bit(k)).collect();
         pack_row(&bits, &mut obs);
     }
     Ok((PyBytes::new(py, &dets), PyBytes::new(py, &obs)))

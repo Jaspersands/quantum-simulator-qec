@@ -630,7 +630,7 @@ class Circuit(Generic[T]):  # pylint: disable=too-many-public-methods
             ])
         ], iterations=1)
         """
-        stim_circuit = ours(stim_circuit, stim.Circuit)  # a Stim object too
+        stim_circuit = ours(stim_circuit, stim.Circuit)  # a Stim object, or this package's own Circuit, too
         qubit_mapping = (
             {
                 index: Qubit(Coordinate(*coords), index)
