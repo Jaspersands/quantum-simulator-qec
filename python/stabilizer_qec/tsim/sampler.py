@@ -363,10 +363,12 @@ class CompiledStateProbs:
     drawn as Tsim draws them, so P(state | f) is 0 where the bit drawn is not the state's. A seed's
     draws are the same whatever the state, so in each the outcomes' probabilities sum to 1.
 
-    A reset of a qubit left in superposition (``H 0``, ``CX 0 1``, ``R 0``) has its unread outcome
-    summed over, as in Tsim, so a noiseless circuit's probability is exact in every draw. Past ten
-    such resets on a path (the engine's ``MAX_SUMMED_RESETS``), the further ones' outcomes are drawn
-    with the noise: a draw's probability is given them too, and the mean is unchanged."""
+    A reset of a qubit entangled with the rest (``H 0``, ``CX 0 1``, ``R 0``) has its unread outcome
+    summed over, as in Tsim, so a noiseless circuit's probability is exact in every draw. A reset
+    of a qubit that is a factor of its own (a fresh qubit's ``RX``) leaves the same state whatever
+    its outcome, so one outcome stands for both: it is neither summed over nor drawn. Past ten
+    summed resets on a path (the engine's ``MAX_SUMMED_RESETS``), the further ones' outcomes are
+    drawn with the noise: a draw's probability is given them too, and the mean is unchanged."""
 
     def __init__(self, circuit: Any, *, sample_detectors: bool = False, strategy: str = "cat5", seed: Union[int, None] = None) -> None:
         """Create a probability estimator.

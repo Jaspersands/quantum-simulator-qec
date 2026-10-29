@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pickle
 import re
+import time
 
 import numpy as np
 import pytest
@@ -340,6 +341,23 @@ def test_state_probs_draw_resets_past_those_summed():
     # Eleven: the last outcome is drawn in each draw (0 or 2^-10), so the draws differ and their mean is 2^-11.
     drawn = CompiledStateProbs(tsim.Circuit(bell(11)), seed=1).probability_of(np.zeros(11, dtype=bool), batch_size=40)
     assert np.all(np.isclose(drawn * 2**10, 0) | np.isclose(drawn * 2**10, 1)) and 0 < (drawn > 0).sum() < 40
+
+
+def test_state_probs_take_one_outcome_of_a_reset_on_a_qubit_on_its_own():
+    # A fresh qubit's RX leaves the same state whatever its unread outcome, so it is neither
+    # summed over (2^10 runs a draw) nor drawn: seventeen of them in a repetition round, each
+    # detector state 2^9 records, cost one run per record, and the round's detectors never fire.
+    d, a = list(range(9)), list(range(9, 17))
+    lines = [f"RX {' '.join(map(str, d + a))}"] + [f"CX {a[i]} {d[i]} {a[i]} {d[i + 1]}" for i in range(8)]
+    lines += [f"MX {' '.join(map(str, a + d))}"] + [f"DETECTOR rec[-{17 - i}]" for i in range(8)]
+    probs = CompiledStateProbs(tsim.Circuit("\n".join(lines)), sample_detectors=True, seed=1)
+    start = time.perf_counter()
+    p = probs.probability_of(np.zeros(8, dtype=bool), batch_size=1)
+    assert time.perf_counter() - start < 10
+    assert np.allclose(p, 1, rtol=0, atol=1e-12)
+    qs = " ".join(map(str, range(20)))
+    p = CompiledStateProbs(tsim.Circuit(f"RX {qs}\nT 0\nMX {qs}"), seed=1).probability_of(np.zeros(20, dtype=bool), batch_size=3)
+    assert np.allclose(p, (1 + np.cos(np.pi / 4)) / 2, rtol=0, atol=1e-12)
 
 
 def test_state_probs_with_mpad_heralds_and_resets_match_tsim(real):
