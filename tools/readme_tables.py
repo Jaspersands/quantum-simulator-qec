@@ -4,6 +4,9 @@ behind what was measured.
     python3 tools/readme_tables.py            # print every table
     python3 tools/readme_tables.py --write    # replace them in README.md
     python3 tools/readme_tables.py --check    # exit 1 if any differs (CI)
+
+--check also fails when a recording in RERUN_EACH_RELEASE is stamped with a version older than
+the package's major.minor: a table can match its data while the data is a release behind.
 """
 import html, json, math, pathlib, re, sys
 
@@ -509,6 +512,46 @@ TABLES = [
 ]
 
 
+# The recordings the tables read that are the engine's own deterministic output, measured again
+# for every minor release. Each carries the version that made it ("version"), which must be the
+# package's major.minor or later. Timing records (data/bench, data/gpu, data/realtime) name the
+# build and machine they timed and stay valid as a record of that run, so they are not listed.
+RERUN_EACH_RELEASE = (
+    "data/distances.json",
+    "data/surgery/results.json",
+    "data/surgery/programs.json",
+    "data/clifford_t/inject.json",
+    "data/clifford_t/distill.json",
+    "data/decoders/check.json",
+    "data/coherent/validate.json",
+    "data/coherent/sweep.json",
+    "data/coherent/capacity.json",
+)
+
+
+def package_version():
+    """The package's version, from pyproject.toml (the check runs without the package built)."""
+    m = re.search(r'^version\s*=\s*"([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.M)
+    return m.group(1)
+
+
+def major_minor(v):
+    m = re.match(r"(\d+)\.(\d+)", str(v))
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def stale_data(paths=RERUN_EACH_RELEASE, current=None):
+    """Each recording in `paths` that is unstamped or stamped older than the package's
+    major.minor, as a message naming it."""
+    current = current or package_version()
+    out = []
+    for path in paths:
+        recorded = load(path).get("version")
+        if major_minor(recorded) is None or major_minor(recorded) < major_minor(current):
+            out.append(f"{path} was recorded by {recorded or 'an unstamped version'}, the package is {current}: run its tool again")
+    return out
+
+
 def phrases():
     """Numbers the README states in prose, each as the phrase it must contain, from the model."""
     V = estimate_json()["validation"]
@@ -538,10 +581,13 @@ def main():
         out = out[:m.start(2)] + body + out[m.end(2):]
         if "--write" not in sys.argv and "--check" not in sys.argv:
             print(f"## {name}\n{body}")
+    old = stale_data()
+    for msg in old:
+        print(f"Data out of date: {msg}")
     if "--check" in sys.argv:
         for name in stale:
             print(f"README table out of date: {name}")
-        return 1 if stale or missing else 0
+        return 1 if stale or missing or old else 0
     if "--write" in sys.argv:
         (ROOT / "README.md").write_text(out)
         print(f"rewrote {len(stale)} table(s): {', '.join(stale) or 'none'}")

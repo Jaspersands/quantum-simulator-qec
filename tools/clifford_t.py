@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 import pathlib
+import platform
 import sys
 import time
 from typing import Any
@@ -46,6 +47,12 @@ OUT = ROOT / "data" / "clifford_t"
 
 THETA = -np.arccos(np.sqrt(1 / 3)) / np.pi  # Tsim's distillation angle, in half-turns.
 P_PREP = 0.05
+
+
+def stamp() -> dict:
+    """The package version and platform a recording ran on (tools/readme_tables.py --check
+    refuses one older than the package's major.minor)."""
+    return {"version": sq.__version__, "platform": f"{platform.system()} {platform.machine()}"}
 
 
 def prep_text(p: float = P_PREP) -> str:
@@ -172,7 +179,7 @@ def timed(fn) -> tuple[Any, float]:
 def check(shots: int, out: pathlib.Path, tsim_encoded: bool = False) -> dict:
     import tsim
 
-    results: dict = {"tsim": getattr(tsim, "__version__", "0.1.5"), "shots": shots, "cases": {}}
+    results: dict = {**stamp(), "tsim": getattr(tsim, "__version__", "0.1.5"), "shots": shots, "cases": {}}
     out.parent.mkdir(parents=True, exist_ok=True)
 
     def save(name: str) -> None:
@@ -344,7 +351,7 @@ def inject(eps_list, shots: int, out: pathlib.Path) -> dict:
     calibrated on the noiseless circuit (|T_L⟩ has ⟨X_L⟩ = ⟨Y_L⟩ = 1/√2)."""
     from stabilizer_qec.tsim import SteaneEncoder
 
-    results: dict = {"shots": shots, "codes": {}}
+    results: dict = {**stamp(), "shots": shots, "codes": {}}
     for name, encoder_cls in (("steane_d3", SteaneEncoder), ("color_d5", ColorEncoder5)):
         base = {}
         for basis in "XY":
@@ -392,7 +399,7 @@ def distill(eps_list, shots: int, encoded_shots: int, out: pathlib.Path) -> dict
     infidelity (P(output = 1) given the syndrome [1, 0, 1, 1]) and the acceptance, unencoded
     (the state vector the truth) and encoded in the [[17,1,5]] colour code (85 qubits, with
     every stabilizer check of the final transversal measurements clean)."""
-    results: dict = {"shots": shots, "encoded_shots": encoded_shots, "unencoded": {}, "encoded": {}}
+    results: dict = {**stamp(), "shots": shots, "encoded_shots": encoded_shots, "unencoded": {}, "encoded": {}}
     plain = ours_tsim.Circuit(distillation_text(p=0.0) + "\n" + "\n".join(f"OBSERVABLE_INCLUDE({k}) rec[{k - 5}]" for k in range(5)))
     encoded = encoded_distillation(p_prep=0.0, noise=0.0)
     syndrome = np.array([True, False, True, True])

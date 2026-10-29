@@ -1,4 +1,7 @@
 {
+ "version": "2.2.0",
+ "platform": "Darwin arm64",
+ "note": "Recorded 2026-10-29 at 2.2.0 (engine 17b29d8 plus tool stamps) on an Apple M2 Pro shared with parallel build and test jobs (load average 16 to 55): the samples are deterministic (seed 0), the timings are slower than on an idle machine. Against the 2.0-era recording every sampled column is bit for bit the same.",
  "shots": 20000,
  "codes": {
   "steane_d3": {
@@ -27,15 +30,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.09575670899357647,
-       "coherent_s": 4.428888082999038,
+       "twirl_s": 0.07990733400220051,
+       "coherent_s": 2.5402022500056773,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
       },
       "Y": {
-       "twirl_s": 0.055663541999820154,
-       "coherent_s": 1.891402957997343,
+       "twirl_s": 0.06119745800970122,
+       "coherent_s": 2.76287679199595,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
@@ -65,15 +68,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.05337587499525398,
-       "coherent_s": 1.856609374997788,
+       "twirl_s": 0.07625849999021739,
+       "coherent_s": 2.4755776660022093,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
       },
       "Y": {
-       "twirl_s": 0.05942266700003529,
-       "coherent_s": 1.9918258339966997,
+       "twirl_s": 0.07376704100170173,
+       "coherent_s": 2.734264250000706,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
@@ -103,15 +106,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.055799624999053776,
-       "coherent_s": 1.7171623750036815,
+       "twirl_s": 0.06424999999580905,
+       "coherent_s": 2.509556416000123,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
       },
       "Y": {
-       "twirl_s": 0.052358332999574486,
-       "coherent_s": 2.360480417002691,
+       "twirl_s": 0.06926133399247192,
+       "coherent_s": 2.8347763329948066,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
@@ -141,15 +144,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.05197308300557779,
-       "coherent_s": 2.067428958005621,
+       "twirl_s": 0.09212945900799241,
+       "coherent_s": 2.837436624991824,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
       },
       "Y": {
-       "twirl_s": 0.05612745899998117,
-       "coherent_s": 2.135574291998637,
+       "twirl_s": 0.07960525000817142,
+       "coherent_s": 3.2292250000027707,
        "locations": 36,
        "exact_gates": 1,
        "generators": 48
@@ -184,15 +187,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.19971000000077765,
-       "coherent_s": 12.267322209001577,
+       "twirl_s": 0.6265979590098141,
+       "coherent_s": 18.356020542007172,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
       },
       "Y": {
-       "twirl_s": 0.18061433299590135,
-       "coherent_s": 13.67837587500253,
+       "twirl_s": 0.2391795000003185,
+       "coherent_s": 19.27056283300044,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
@@ -222,15 +225,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.13541958399582654,
-       "coherent_s": 12.22788841700094,
+       "twirl_s": 0.22082295900327154,
+       "coherent_s": 23.107236416995875,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
       },
       "Y": {
-       "twirl_s": 0.148275833002117,
-       "coherent_s": 12.590568542000256,
+       "twirl_s": 0.25239895800768863,
+       "coherent_s": 22.47504512500018,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
@@ -260,15 +263,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.14071437499660533,
-       "coherent_s": 13.675166166998679,
+       "twirl_s": 0.23315958300372586,
+       "coherent_s": 34.42438275000313,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
       },
       "Y": {
-       "twirl_s": 0.1464845000009518,
-       "coherent_s": 13.614952208998147,
+       "twirl_s": 0.5110433749941876,
+       "coherent_s": 47.65373479199479,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
@@ -298,15 +301,15 @@
      },
      "timing": {
       "X": {
-       "twirl_s": 0.1488725839953986,
-       "coherent_s": 13.220692874994711,
+       "twirl_s": 0.3157516250066692,
+       "coherent_s": 34.50718187500024,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125
       },
       "Y": {
-       "twirl_s": 0.14907949999906123,
-       "coherent_s": 15.559034291996795,
+       "twirl_s": 0.3669229590013856,
+       "coherent_s": 31.124709125011577,
        "locations": 99,
        "exact_gates": 1,
        "generators": 125

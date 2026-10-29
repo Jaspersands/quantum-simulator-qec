@@ -1,10 +1,14 @@
 {
- "version": "1.5.0",
+ "version": "2.2.0",
+ "platform": "Darwin arm64",
+ "generated": "2026-10-29",
  "search_limits": {
   "dont_explore_detection_event_sets_with_size_above": 6,
   "dont_explore_edges_with_degree_above": 6,
-  "dont_explore_edges_increasing_symptom_degree": false
+  "dont_explore_edges_increasing_symptom_degree": false,
+  "max_memory_bytes": 1000000000
  },
+ "time_limit": 300.0,
  "memories": [
   {
    "memory": "surface, rotated (Stim's)",
@@ -14,17 +18,17 @@
    "search": 3,
    "exact": 3,
    "proven": true,
-   "milp_seconds": 0.7
+   "milp_seconds": 0.4
   },
   {
    "memory": "surface, rotated (Stim's)",
    "code_distance": 5,
    "faults": 1677,
    "graphlike": 5,
-   "search": null,
+   "search": 5,
    "exact": 5,
    "proven": true,
-   "milp_seconds": 23.0
+   "milp_seconds": 13.6
   },
   {
    "memory": "surface, unrotated (Stim's)",
@@ -34,7 +38,7 @@
    "search": 3,
    "exact": 3,
    "proven": true,
-   "milp_seconds": 0.3
+   "milp_seconds": 0.2
   },
   {
    "memory": "colour code XYZ (Stim's)",
@@ -54,7 +58,7 @@
    "search": 3,
    "exact": 3,
    "proven": true,
-   "milp_seconds": 1.8
+   "milp_seconds": 1.1
   },
   {
    "memory": "surface, rotated, SD6",
@@ -74,7 +78,7 @@
    "search": 3,
    "exact": 3,
    "proven": true,
-   "milp_seconds": 0.2
+   "milp_seconds": 0.1
   },
   {
    "memory": "colour code 6.6.6 (CssCode)",
@@ -84,7 +88,7 @@
    "search": 2,
    "exact": 2,
    "proven": true,
-   "milp_seconds": 0.1
+   "milp_seconds": 0.0
   },
   {
    "memory": "Hamming hypergraph product [[58, 16, 3]] (CssCode)",
@@ -94,7 +98,7 @@
    "search": 3,
    "exact": 3,
    "proven": true,
-   "milp_seconds": 22.7
+   "milp_seconds": 14.4
   },
   {
    "memory": "bivariate bicycle [[72, 12, 6]]",
@@ -105,8 +109,8 @@
    "exact": null,
    "proven": false,
    "note": "the distance was not proven within 300.0 s (best found 6); raise time_limit, or use method='search' for a bound",
-   "milp_seconds": 300.1,
-   "upper": 6
+   "upper": 6,
+   "milp_seconds": 300.1
   },
   {
    "memory": "surface, rotated (Stim's)",
@@ -114,51 +118,52 @@
    "faults": 6023,
    "graphlike": 7,
    "search": null,
+   "search_note": "Failed to find any logical errors. (memory budget of 1000000000 bytes reached after 12140466 states)",
    "exact": null,
    "proven": false,
    "note": "the distance was not proven within 300.0 s (best found 7); raise time_limit, or use method='search' for a bound",
-   "milp_seconds": 300.2,
-   "upper": 7
+   "upper": 7,
+   "milp_seconds": 300.1
   },
   {
    "memory": "surface, unrotated (Stim's)",
    "code_distance": 5,
    "faults": 3139,
    "graphlike": 5,
-   "search": null,
+   "search": 5,
    "exact": 5,
    "proven": true,
-   "milp_seconds": 212.3
+   "milp_seconds": 110.1
   },
   {
    "memory": "colour code XYZ (Stim's)",
    "code_distance": 7,
    "faults": 3651,
    "graphlike": 4,
-   "search": null,
+   "search": 4,
    "exact": 4,
    "proven": true,
-   "milp_seconds": 85.2
+   "milp_seconds": 52.3
   },
   {
    "memory": "surface, rotated, SD6",
    "code_distance": 5,
    "faults": 1677,
    "graphlike": 5,
-   "search": null,
+   "search": 5,
    "exact": 5,
    "proven": true,
-   "milp_seconds": 38.7
+   "milp_seconds": 24.7
   },
   {
    "memory": "surface, XZZX, SD6",
    "code_distance": 5,
    "faults": 1677,
    "graphlike": 5,
-   "search": null,
+   "search": 5,
    "exact": 5,
    "proven": true,
-   "milp_seconds": 40.1
+   "milp_seconds": 24.4
   },
   {
    "memory": "colour code 6.6.6 (CssCode)",
@@ -168,7 +173,7 @@
    "search": 3,
    "exact": 3,
    "proven": true,
-   "milp_seconds": 2.8
+   "milp_seconds": 1.6
   },
   {
    "memory": "bivariate bicycle [[90, 8, 10]]",
@@ -176,11 +181,12 @@
    "faults": 990,
    "graphlike": null,
    "search": null,
+   "search_note": "Failed to find any logical errors. (memory budget of 1000000000 bytes reached after 14330630 states)",
    "exact": null,
    "proven": false,
    "note": "the distance was not proven within 300.0 s (best found 9); raise time_limit, or use method='search' for a bound",
-   "milp_seconds": 300.0,
-   "upper": 9
+   "upper": 9,
+   "milp_seconds": 300.0
   },
   {
    "memory": "bivariate bicycle [[108, 8, 10]]",
@@ -188,11 +194,12 @@
    "faults": 1188,
    "graphlike": null,
    "search": null,
+   "search_note": "Failed to find any logical errors. (memory budget of 1000000000 bytes reached after 14199598 states)",
    "exact": null,
    "proven": false,
-   "note": "the distance was not proven within 300.0 s (best found 11); raise time_limit, or use method='search' for a bound",
-   "milp_seconds": 300.1,
-   "upper": 11
+   "note": "the distance was not proven within 300.0 s (best found 9); raise time_limit, or use method='search' for a bound",
+   "upper": 9,
+   "milp_seconds": 300.0
   },
   {
    "memory": "bivariate bicycle [[144, 12, 12]] (gross)",
@@ -200,12 +207,12 @@
    "faults": 1584,
    "graphlike": null,
    "search": null,
+   "search_note": "Failed to find any logical errors. (memory budget of 1000000000 bytes reached after 12705525 states)",
    "exact": null,
    "proven": false,
    "note": "the distance was not proven within 300.0 s (best found 12); raise time_limit, or use method='search' for a bound",
-   "milp_seconds": 300.1,
-   "upper": 12
+   "upper": 12,
+   "milp_seconds": 300.1
   }
- ],
- "time_limit": 300.0
+ ]
 }
