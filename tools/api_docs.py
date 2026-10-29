@@ -25,6 +25,21 @@ ICON = (
 )
 
 
+def scrub(out: Path, package_dir: Path) -> None:
+    """Replace the machine's own paths in the rendered pages: a default value computed at import
+    time (a bundled file, a per-user cache) is shown with the directory it resolved to."""
+    pairs = [(str(package_dir.parent), "site-packages"), (str(package_dir.resolve().parent), "site-packages"),
+             (str(Path.home()), "~")]
+    for page in out.rglob("*"):
+        if page.suffix in (".html", ".js"):
+            text = page.read_text(encoding="utf-8")
+            new = text
+            for old, mark in pairs:
+                new = new.replace(old, mark)
+            if new != text:
+                page.write_text(new, encoding="utf-8")
+
+
 def main() -> None:
     import stabilizer_qec
 
@@ -49,6 +64,7 @@ def main() -> None:
         ],
         check=True,
     )
+    scrub(OUT, Path(stabilizer_qec.__file__).parent)
     print(f"wrote {OUT.relative_to(ROOT)}/ for stabilizer-qec {stabilizer_qec.__version__}")
 
 
