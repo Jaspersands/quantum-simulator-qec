@@ -15,7 +15,8 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #  =========================================================================  #
-# modified for stabilizer_qec: pecos is stabilizer_qec.pecos; refactor works with neither choose nor prefer.
+# modified for stabilizer_qec: pecos is stabilizer_qec.pecos; refactor works with neither choose nor prefer, and keeps
+# the new generator's sign (below).
 
 """
 Functions:
@@ -148,7 +149,13 @@ def refactor(state,
         # destab -> destab * destab_new
 
         # Stab update
+        # (stabilizer_qec: each generator is a sign times X^x Z^z, so stab_new * stab = X^a Z^b X^c Z^d picks up a -1
+        # for each qubit where stab_new's Z meets stab's X, as in find_logical_signs. PECOS's dropped these, flipping
+        # the new generator's sign, and with it the state, in about one refactor in five.)
+        reorder = 0
         for g in gens:
+
+            reorder += len(stabs.row_z[new_stab] & stabs.row_x[g])
 
             for q in stabs.row_x[g]:
                 stabs.col_x[q] ^= {new_stab}
@@ -175,7 +182,7 @@ def refactor(state,
         gen_i = gens & stabs.signs_i
         gen_minus = gens & stabs.signs_minus
 
-        num_minus = len(gen_minus)
+        num_minus = len(gen_minus) + reorder
         if len(gen_i) % 4 > 1:  # i.e. -1 or -i
             num_minus += 1
 

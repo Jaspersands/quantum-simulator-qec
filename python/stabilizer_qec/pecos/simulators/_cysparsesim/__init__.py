@@ -22,11 +22,14 @@
 # Random outcomes come from NumPy's global generator, drawn where PECOS's Python SparseSim draws
 # them, so that np.random.seed reproduces a run (the C++ calls rand()).
 # Where PECOS's Python SparseSim has more than the C++ one, this one has it too: print_stabs's
-# print_y and print_destabs, copy, refactor, find_stab, run_direct and 'G2'. Two bugs are fixed:
+# print_y and print_destabs, copy, refactor, find_stab, run_direct, 'G2', deepcopy and pickling (as the Python
+# SparseSim's, which is PECOS 0.2.0's SparseSim as installed: its wheel has no compiled C++, and its sdist cannot
+# build it), and its check that num_qubits is an integer. Two bugs are fixed:
 # 'init |-i>' prepares |-i> (the C++'s, |1> then H6, prepares |+i>), and Y's sign prints right
 # (the Python one's print_y drops the -1 of i*i).
 
 import copy as _copy
+import operator
 from types import SimpleNamespace
 
 import numpy as np
@@ -108,8 +111,12 @@ class SparseSim:
     """PECOS's C++ sparse stabilizer simulator (cySparseSim), on this package's Rust one."""
 
     def __init__(self, num_qubits, reserve_buckets=0):
-        self._state = _Rust(int(num_qubits))
-        self.num_qubits = int(num_qubits)
+        try:  # (stabilizer_qec: an integer, as the Python SparseSim's; int() would take 2.5 as 2)
+            num_qubits = operator.index(num_qubits)
+        except TypeError:
+            raise TypeError('``num_qubits`` should be of type ``int.``') from None
+        self._state = _Rust(num_qubits)
+        self.num_qubits = num_qubits
         self.reserve_buckets = reserve_buckets  # (Bucket reservation is the C++'s; kept for its interface.)
         self.bindings = bindings
 
@@ -212,6 +219,24 @@ class SparseSim:
         new._state = _copy.copy(self._state)
         return new
 
+    def __getstate__(self):
+        # (stabilizer_qec: for deepcopy and pickle, as the Python SparseSim's: the generators by rows, and the signs.)
+        state = {k: v for k, v in self.__dict__.items() if k not in ('_state', 'bindings')}
+        stabs, destabs = self.stabs, self.destabs
+        state['_rows'] = tuple([sorted(r) for r in gen[part]] for gen in (stabs, destabs) for part in ('row_x', 'row_z'))
+        state['_signs'] = (sorted(self.signs_minus), sorted(self.signs_i))
+        state['_custom_bindings'] = None if self.bindings is bindings else self.bindings
+        return state
+
+    def __setstate__(self, state):
+        state = dict(state)
+        rows, signs, custom = state.pop('_rows'), state.pop('_signs'), state.pop('_custom_bindings')
+        self.__dict__.update(state)
+        self.bindings = bindings if custom is None else custom
+        self._state = _Rust(self.num_qubits)
+        self._state.set_rows(*rows)
+        self._state.set_signs(*signs)
+
     def _gens(self):
         # The generators as the Python SparseSim's Gens: lists of sets, the signs on the stabilizers.
         stabs, destabs = (SimpleNamespace(**gen) for gen in (self.stabs, self.destabs))
@@ -231,10 +256,14 @@ class SparseSim:
         gens = self._gens()
         result = refactor(gens, set(xs), set(zs), choose, prefer, protected)
         if result[0]:
-            self._state.set_rows([sorted(r) for r in gens.stabs.row_x], [sorted(r) for r in gens.stabs.row_z],
-                                 [sorted(r) for r in gens.destabs.row_x], [sorted(r) for r in gens.destabs.row_z])
-            self._state.set_signs(sorted(gens.stabs.signs_minus), sorted(gens.stabs.signs_i))
+            self._set_gens(gens)
         return result
+
+    def _set_gens(self, gens):
+        # The generators back from _gens's form (after a function written for the Python SparseSim changed them).
+        self._state.set_rows([sorted(r) for r in gens.stabs.row_x], [sorted(r) for r in gens.stabs.row_z],
+                             [sorted(r) for r in gens.destabs.row_x], [sorted(r) for r in gens.destabs.row_z])
+        self._state.set_signs(sorted(gens.stabs.signs_minus), sorted(gens.stabs.signs_i))
 
     @property
     def signs_minus(self):

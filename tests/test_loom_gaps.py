@@ -307,6 +307,47 @@ def test_refusals_are_looms(name):
         assert str(info.value) == loom_message(ref)
 
 
+def test_aux_cnot_takes_exactly_two_block_names():
+    # Loom types AuxCNOT's input_blocks_name tuple[str, str] and refuses any other length when the operation is built
+    # (pydantic's "Tuple should have at most 2 items after validation, not 3", "Field required"; a bare string, "Input
+    # should be a valid tuple"); the port says so in its words, as for Merge and Split. (It took three names and
+    # dropped the third, and failed on one later, with an IndexError.)
+    for names in (("a", "b", "c"), ("a",), (), "ct"):
+        with pytest.raises(ValueError, match="input_blocks_name must be two block names"):
+            loom.AuxCNOT(names)
+    assert loom.AuxCNOT(["a", "b"]).input_blocks_name == ("a", "b")
+    lat = Lattice.square_2d((15, 15))
+    blocks = [loom.RotatedSurfaceCode.create(3, 3, lat, unique_label=name, position=(5 * i, 0)) for i, name in enumerate("abc")]
+    with pytest.raises(ValueError):
+        loom.interpret_eka(Eka(lat, blocks=blocks, operations=[loom.AuxCNOT(("a", "b", "c"))]))
+
+
+def test_eka_is_a_frozen_dataclass_as_looms():
+    # Loom's Eka is a frozen (pydantic) dataclass: equal field by field, so it reads back from its dict equal; its
+    # fields cannot be assigned (which would skip its checks); and the dataclass repr.
+    lat = Lattice.square_2d((10, 10))
+
+    def build():
+        b = loom.RotatedSurfaceCode.create(3, 3, lat, unique_label="q")
+        return Eka(lat, blocks=[b], operations=[loom.ResetAllDataQubits("q", state="0"), loom.MeasureBlockSyndromes("q", n_cycles=1), loom.MeasureLogicalZ("q")])
+
+    e = build()
+    assert e == build() and hash(e) == hash(build())
+    assert Eka.fromdict(e.asdict(), block_class=loom.RotatedSurfaceCode) == e
+    assert e != Eka(lat, blocks=e.blocks, operations=e.operations[:1])
+    assert e != Eka(Lattice.square_2d((9, 9)), blocks=e.blocks, operations=e.operations)
+    assert repr(Eka(lat)) == f"Eka(lattice={lat!r}, blocks=(), operations=())"
+    far = loom.RotatedSurfaceCode.create(5, 5, Lattice.square_2d((20, 20)), unique_label="far", position=(12, 12))
+    for field_name, value in (("blocks", (far,)), ("operations", ()), ("lattice", Lattice.square_2d((2, 2)))):
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            setattr(e, field_name, value)
+    assert e == build()
+    with pytest.raises(ValueError, match="too large for the lattice"):
+        Eka(lat, blocks=[far])
+    with pytest.raises(ValueError, match="unique labels"):
+        Eka(Lattice.square_2d((30, 30)), blocks=[e.blocks[0], loom.RotatedSurfaceCode.create(3, 3, lat, unique_label="q", position=(5, 5))])
+
+
 def test_logical_states_and_transformations_are_looms():
     ref = FIXTURES["accepted"]
     state = LogicalState(("+Z0", "-X1"))

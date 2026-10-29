@@ -19,13 +19,25 @@ Performance Estimator of Codes On Surfaces (PECOS)
 
 A framework for developing, studying, and evaluating quantum error-correcting codes.
 
-(stabilizer_qec: PECOS 0.2.0, ported. Where PECOS has a bug, the port fixes it; each fix is marked where it is made:
+(stabilizer_qec: PECOS 0.2.0, ported. Where PECOS has a bug, the port fixes it; each fix is marked where it is made.
 
-* ``simulators.SparseSim`` (PECOS's C++ simulator, here in Rust): ``'init |-i>'`` prepares :math:`|-i\\rangle` (the
-  C++ prepared :math:`|+i\\rangle`); it has the Python ``SparseSim``'s ``print_stabs(print_destabs=..., print_y=...)``,
-  ``copy``, ``refactor``, ``find_stab``, ``run_direct`` and ``'G2'``, which PECOS's docs use on it.
+``simulators.SparseSim`` is PECOS's C++ simulator (``cySparseSim``, here in Rust), which PECOS's source makes its
+default where it is compiled. PECOS 0.2.0 as installed from PyPI never has it (its wheel has no compiled C++, and its
+sdist cannot build it), so there ``SparseSim`` is the Python simulator, which is ``simulators.pySparseSim`` here. The
+two hold the same states but differ in form: the C++ one's ``stabs`` and ``destabs`` are dicts of ``col_x``, ``col_z``,
+``row_x`` and ``row_z`` (not ``Gens``), its signs are its own ``signs_minus`` and ``signs_i``, it has no ``gens``, it
+may order the generators differently, and its ``'init |->'`` (:math:`|1\\rangle`, then H) collapses an entangled
+qubit to 1 where the Python one's (:math:`|0\\rangle`, then H2) collapses it to 0, so a seeded run can differ. Use
+``pySparseSim`` for PyPI PECOS's behaviour exactly.
+
+* ``simulators.SparseSim``: ``'init |-i>'`` prepares :math:`|-i\\rangle` (the C++ prepared :math:`|+i\\rangle`); it
+  has the Python ``SparseSim``'s ``print_stabs(print_destabs=..., print_y=...)``, ``copy``, ``refactor``,
+  ``find_stab``, ``run_direct`` and ``'G2'``, which PECOS's docs use on it, its deepcopy and pickling, and its check
+  that ``num_qubits`` is an integer; ``misc.stabilizer_funcs`` takes it as well as the Python one.
 * ``simulators.pySparseSim``: ``print_y`` prints Y's sign right (PECOS's printed ``-Y`` for :math:`|+i\\rangle`);
-  ``copy`` returns the copy; ``refactor`` works with neither ``choose`` nor ``prefer``; a random measurement's
+  ``copy`` returns the copy; ``refactor`` works with neither ``choose`` nor ``prefer``, and keeps the stabilizer
+  group's signs (PECOS's dropped the -1s of reordering the generators it multiplies, flipping the new generator's
+  sign in about one refactor in five; ``SparseSim.refactor`` is this one too); a random measurement's
   ``forced_outcome=-1``, its gates' default, draws the outcome.
 * ``error_gens``: ``model_level='phenomenological'`` works (PECOS raised KeyError); ``GatewiseGen`` takes a set mixing
   gates and tuples, e.g. ``{('I', 'X'), ('X', 'X'), 'CNOT'}``, on NumPy 1.24 and later.
