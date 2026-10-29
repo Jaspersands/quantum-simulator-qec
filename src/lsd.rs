@@ -477,6 +477,10 @@ pub struct BpLsdWork {
     pub bp: BpWork,
     /// The serial schedule's order and generator, kept from decode to decode.
     pub serial: SerialState,
+    /// The last decode's syndrome and the serial schedule's state it started from, where its BP
+    /// moved that state on (a random or relative serial schedule): `merge_order_outcomes` of
+    /// that syndrome runs BP from there.
+    pub before: Option<(Vec<u8>, SerialState)>,
     /// The correction: one byte per fault.
     pub correction: Vec<u8>,
     /// Choices made where ldpc's order is not reproducible (see the module comment).
@@ -612,7 +616,7 @@ impl BpLsd {
     }
 
     pub fn work(&self) -> BpLsdWork {
-        BpLsdWork { bp: self.bp.work(), serial: SerialState::new(self.columns.len()), correction: vec![0; self.columns.len()], ties: 0, record: false, cluster_bits: Vec::new(), do_stats: false, stats: LsdStats { lsd_method: 3, ..LsdStats::default() } }
+        BpLsdWork { bp: self.bp.work(), serial: SerialState::new(self.columns.len()), before: None, correction: vec![0; self.columns.len()], ties: 0, record: false, cluster_bits: Vec::new(), do_stats: false, stats: LsdStats { lsd_method: 3, ..LsdStats::default() } }
     }
 
     /// Decode a syndrome (one byte per check); the correction is left in `w.correction`.
@@ -621,7 +625,21 @@ impl BpLsd {
         w.cluster_bits.clear();
         if self.zero_shortcut && syndrome.iter().all(|&s| s == 0) {
             w.correction.fill(0);
+            w.before = None;
             return BpLsdOutcome { converged: true, iterations: 0, solved: true };
+        }
+        // The state this BP starts from, where it moves it on, for `merge_order_outcomes`.
+        if self.schedule != Schedule::Parallel && (w.serial.random || self.schedule == Schedule::SerialRelative) {
+            match &mut w.before {
+                Some((s, state)) => {
+                    s.clear();
+                    s.extend_from_slice(syndrome);
+                    state.clone_from(&w.serial);
+                }
+                None => w.before = Some((syndrome.to_vec(), w.serial.clone())),
+            }
+        } else {
+            w.before = None;
         }
         let out = self.bp.decode_scheduled(syndrome, self.method, self.max_iter, self.schedule, &mut w.serial, &mut w.bp);
         if out.converged && !self.always_run {
@@ -651,13 +669,16 @@ impl BpLsd {
     }
 
     /// Every correction a decode of `syndrome` reaches over the merge orders ldpc can take (see
-    /// the module comment): BP once, as `decode`, then LSD along at most `max_paths` paths
+    /// the module comment): BP once, as that decode's, then LSD along at most `max_paths` paths
     /// through the merges' choices, fewest departures from `decode`'s order first
     /// (`walk_departures_first`). With a `target` correction, the walk stops at the first path
     /// that reaches it, so the last correction is the target when one is reached. A syndrome no
     /// correction explains has none, after one path. A debug hook, for checking against ldpc:
     /// one path costs a whole LSD decode (tens of ms on a large window), so asking whether
-    /// ldpc's answer is reachable should stop when it is.
+    /// ldpc's answer is reachable should stop when it is. The decode is the last one when that
+    /// was of this syndrome (its BP runs again from the serial schedule's state that decode
+    /// started from), else the next one (from the state now); either way `w.serial` is left as
+    /// it was, so `decode`'s answer is the first correction, whatever the schedule.
     pub fn merge_order_outcomes(&self, syndrome: &[u8], max_paths: usize, target: Option<&[u8]>, w: &mut BpLsdWork) -> MergeOrderOutcomes {
         w.ties = 0;
         w.cluster_bits.clear();
@@ -665,7 +686,11 @@ impl BpLsd {
         if self.zero_shortcut && syndrome.iter().all(|&s| s == 0) {
             return one(vec![0; self.columns.len()]);
         }
-        let out = self.bp.decode_scheduled(syndrome, self.method, self.max_iter, self.schedule, &mut w.serial, &mut w.bp);
+        let mut serial = match &w.before {
+            Some((s, state)) if s.as_slice() == syndrome => state.clone(),
+            _ => w.serial.clone(),
+        };
+        let out = self.bp.decode_scheduled(syndrome, self.method, self.max_iter, self.schedule, &mut serial, &mut w.bp);
         if out.converged && !self.always_run {
             return one(w.bp.hard.clone());
         }
@@ -1001,6 +1026,51 @@ mod tests {
             }
         }
         assert!(tied > 30, "{tied} decodes with a merge ldpc may order otherwise");
+    }
+
+    /// Under a schedule whose BP moves its state on (random serial, serial relative), the search
+    /// after a decode runs that decode's BP again, so its answer comes first; a search of another
+    /// syndrome is the next decode's; and neither moves the schedule on.
+    #[test]
+    fn merge_orders_follow_the_serial_schedule() {
+        let mut rng = Xorshift::new(41);
+        let (m, n) = (30, 70);
+        let columns = random_code(m, n, &mut rng);
+        for (schedule, random, priors) in [(Schedule::Serial, true, vec![0.05; n]), (Schedule::SerialRelative, false, vec![0.05; n]), (Schedule::SerialRelative, false, (0..n).map(|i| 0.02 + 0.001 * i as f64).collect())] {
+            let mut dec = BpLsd::new(m, columns.clone(), &priors, Method::MinSum { scale: 1.0 }, 3, OsdMethod::CombinationSweep(3), 1, true).unwrap();
+            dec.schedule = schedule;
+            let (mut w, mut twin) = (dec.work(), dec.work());
+            for x in [&mut w, &mut twin] {
+                x.serial.random = random;
+                x.serial.seed(7);
+            }
+            let mut moved = 0;
+            for _ in 0..40 {
+                let e: Vec<u8> = (0..n).map(|_| u8::from(rng.next_f64() < 0.08)).collect();
+                let s = syndrome_of(&columns, m, &e);
+                let order = w.serial.order.clone();
+                dec.decode(&s, &mut w);
+                dec.decode(&s, &mut twin);
+                // (The twin never searches: the searches leave the schedule where it was.)
+                assert_eq!(w.correction, twin.correction);
+                moved += usize::from(w.serial.order != order);
+                let first = w.correction.clone();
+                let after = w.serial.order.clone();
+                assert_eq!(dec.merge_order_outcomes(&s, 16, None, &mut w).corrections[0], first, "{schedule:?}");
+                assert_eq!(w.serial.order, after);
+                // Another syndrome's search is what decoding it next gives.
+                let e2: Vec<u8> = (0..n).map(|_| u8::from(rng.next_f64() < 0.08)).collect();
+                let s2 = syndrome_of(&columns, m, &e2);
+                if s2 != s {
+                    let next = dec.merge_order_outcomes(&s2, 1, None, &mut w).corrections;
+                    let mut ahead = dec.work();
+                    ahead.serial = twin.serial.clone();
+                    dec.decode(&s2, &mut ahead);
+                    assert_eq!(next, vec![ahead.correction.clone()], "{schedule:?}");
+                }
+            }
+            assert!(moved > 20, "{schedule:?}: the schedule moved on {moved} times");
+        }
     }
 
     /// A decode (found by search) whose correction depends on the order its clusters merge in.

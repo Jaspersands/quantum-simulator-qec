@@ -53,6 +53,24 @@ impl Mt19937 {
         y ^= (y << 15) & 0xefc6_0000;
         y ^ (y >> 18)
     }
+
+    /// The engine's state: its 624 words, then its position among them (for a copy to carry
+    /// on where this one is).
+    pub fn words(&self) -> Vec<u32> {
+        let mut out = self.state.to_vec();
+        out.push(self.index as u32);
+        out
+    }
+
+    /// The engine `words` gave: None for anything else.
+    pub fn from_words(words: &[u32]) -> Option<Mt19937> {
+        if words.len() != 625 || words[624] > 624 {
+            return None;
+        }
+        let mut state = [0u32; 624];
+        state.copy_from_slice(&words[..624]);
+        Some(Mt19937 { state, index: words[624] as usize })
+    }
 }
 
 impl Urbg for Mt19937 {

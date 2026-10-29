@@ -2006,6 +2006,20 @@ fn checked_order(order: &[u32], n: usize) -> PyResult<()> {
     Ok(())
 }
 
+/// A serial schedule's state, for a copy to go on from: (order, random, the generator's words).
+type SerialWords = (Vec<u32>, bool, Vec<u32>);
+
+fn serial_words(s: &crate::bp::SerialState) -> SerialWords {
+    (s.order.clone(), s.random, s.rng.words())
+}
+
+fn serial_from_words(state: SerialWords, n: usize) -> PyResult<crate::bp::SerialState> {
+    let (order, random, words) = state;
+    checked_order(&order, n)?;
+    let rng = crate::cpp_random::Mt19937::from_words(&words).ok_or_else(|| err("a serial schedule's generator is 624 words and a position up to 624".to_string()))?;
+    Ok(crate::bp::SerialState { order, random, rng })
+}
+
 /// Belief propagation on a check matrix given by its columns, as `ldpc`'s `BpDecoder`: every
 /// schedule, and the state `ldpc` keeps from decode to decode (the last decision and
 /// posteriors, the serial order and its generator).
@@ -2066,6 +2080,16 @@ impl PyBp {
 
     fn seed(&mut self, seed: u32) {
         self.serial.seed(seed);
+    }
+
+    /// The serial schedule's order, whether it is random, and its generator, as they are now.
+    fn serial_state(&self) -> SerialWords {
+        serial_words(&self.serial)
+    }
+
+    fn set_serial_state(&mut self, state: SerialWords) -> PyResult<()> {
+        self.serial = serial_from_words(state, self.bp.num_vars)?;
+        Ok(())
     }
 
     /// (hard decision, posterior log-likelihood ratios, converged, iterations).
@@ -2178,6 +2202,16 @@ impl PyBpOsd {
         self.work.serial.seed(seed);
     }
 
+    /// The serial schedule's order, whether it is random, and its generator, as they are now.
+    fn serial_state(&self) -> SerialWords {
+        serial_words(&self.work.serial)
+    }
+
+    fn set_serial_state(&mut self, state: SerialWords) -> PyResult<()> {
+        self.work.serial = serial_from_words(state, self.dec.bp.num_vars)?;
+        Ok(())
+    }
+
     /// The OSD order now (the candidates stay those set up at construction, as in `ldpc`).
     fn set_osd_order(&mut self, order: usize) {
         self.dec.order = order;
@@ -2242,9 +2276,11 @@ impl PyBpLsd {
         Ok(())
     }
 
+    // (A schedule set anew: a search of the last decode's syndrome is the next decode's.)
     fn set_order(&mut self, order: Vec<u32>) -> PyResult<()> {
         checked_order(&order, self.dec.bp.num_vars)?;
         self.work.serial.order = order;
+        self.work.before = None;
         Ok(())
     }
 
@@ -2254,10 +2290,23 @@ impl PyBpLsd {
 
     fn set_random(&mut self, random: bool) {
         self.work.serial.random = random;
+        self.work.before = None;
     }
 
     fn seed(&mut self, seed: u32) {
         self.work.serial.seed(seed);
+        self.work.before = None;
+    }
+
+    /// The serial schedule's order, whether it is random, and its generator, as they are now.
+    fn serial_state(&self) -> SerialWords {
+        serial_words(&self.work.serial)
+    }
+
+    fn set_serial_state(&mut self, state: SerialWords) -> PyResult<()> {
+        self.work.serial = serial_from_words(state, self.dec.bp.num_vars)?;
+        self.work.before = None;
+        Ok(())
     }
 
     /// The LSD method and order now (`ldpc`'s `lsd_method` and `lsd_order` setters, which the
@@ -2351,8 +2400,9 @@ impl PyBpLsd {
     /// (Every correction a decode of `syndrome` reaches over at most `max_paths` of the merge
     /// orders `ldpc` can take, `decode`'s first, stopping at `target` when given, and none when
     /// no correction explains the syndrome; paths walked; the departures from `decode`'s order
-    /// up to which every path was walked; whether every path was): `BpLsd::merge_order_outcomes`.
-    /// The serial schedule and statistics are left as they were.
+    /// up to which every path was walked; whether every path was): `BpLsd::merge_order_outcomes`,
+    /// of the last decode when that was of `syndrome`, else of the next. The serial schedule and
+    /// statistics are left as they were.
     #[pyo3(signature = (syndrome, max_paths, target=None))]
     #[allow(clippy::type_complexity)]
     fn merge_order_outcomes(&mut self, syndrome: Vec<u8>, max_paths: usize, target: Option<Vec<u8>>) -> PyResult<(Vec<Vec<u32>>, usize, usize, bool)> {
@@ -2362,12 +2412,10 @@ impl PyBpLsd {
                 return Err(err(format!("{} target bits for {} bits", t.len(), self.dec.bp.num_vars)));
             }
         }
-        let serial = self.work.serial.clone();
         let stats = std::mem::take(&mut self.work.stats);
         let do_stats = std::mem::replace(&mut self.work.do_stats, false);
         self.work.record = false;
         let found = self.dec.merge_order_outcomes(&syndrome, max_paths, target.as_deref(), &mut self.work);
-        self.work.serial = serial;
         self.work.stats = stats;
         self.work.do_stats = do_stats;
         Ok((found.corrections.iter().map(|c| bits(c)).collect(), found.paths, found.departures, found.complete))

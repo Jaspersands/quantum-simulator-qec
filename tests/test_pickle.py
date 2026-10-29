@@ -91,3 +91,99 @@ def test_a_process_pool_decodes_as_one_process_does(setup):
     with ProcessPoolExecutor(2, mp_context=multiprocessing.get_context("spawn")) as pool:
         parts = list(pool.map(_decode_chunk, [decoder] * len(chunks), chunks))
     assert np.array_equal(np.concatenate(parts), decoder.decode_batch(shots))
+
+
+def _set_lsd_order(d):
+    d.lsd_order = 0
+
+
+def _set_lsd_method(d):
+    d.lsd_method = "lsd_0"
+
+
+def _set_lsd_e(d):
+    d.lsd_method = "lsd_e"
+    d.lsd_order = 3
+
+
+def _set_osd_order(d):
+    d.osd_order = 0
+
+
+def _set_order(d):
+    d.schedule = "serial"
+    d.serial_schedule_order = list(range(d.bit_count))[::-1]
+
+
+def _set_seed(d):
+    d.schedule = "serial"
+    d.random_schedule_seed = 42
+
+
+def _set_relative(d):
+    d.schedule = "serial_relative"
+
+
+def _set_stats(d):
+    d.set_do_stats(True)
+
+
+@pytest.mark.parametrize(
+    "make, change",
+    [
+        (lambda h, ch: sq.BpLsdDecoder(h, error_channel=ch, max_iter=2, lsd_method="lsd_cs", lsd_order=4), _set_lsd_order),
+        (lambda h, ch: sq.BpLsdDecoder(h, error_channel=ch, max_iter=2, lsd_method="lsd_cs", lsd_order=4), _set_lsd_method),
+        (lambda h, ch: sq.BpLsdDecoder(h, error_channel=ch, max_iter=2), _set_lsd_e),
+        (lambda h, ch: sq.BpLsdDecoder(h, error_channel=ch, max_iter=2), _set_stats),
+        (lambda h, ch: sq.BpLsdDecoder(h, error_channel=ch, max_iter=2, lsd_order=2, always_run_lsd=True), _set_seed),
+        (lambda h, ch: sq.BpOsdDecoder(h, error_channel=ch, max_iter=2, osd_method="osd_cs", osd_order=5), _set_osd_order),
+        (lambda h, ch: sq.BpOsdDecoder(h, error_channel=ch, max_iter=2, osd_method="osd_cs", osd_order=3), _set_order),
+        (lambda h, ch: sq.BpOsdDecoder(h, error_channel=ch, max_iter=2, osd_method="osd_cs", osd_order=3), _set_seed),
+        (lambda h, ch: sq.BpDecoder(h, error_channel=ch, max_iter=2), _set_order),
+        (lambda h, ch: sq.BpDecoder(h, error_channel=ch, max_iter=2), _set_seed),
+        (lambda h, ch: sq.BpDecoder(h, error_rate=0.05, max_iter=2, bp_method="ms"), _set_relative),
+        (lambda h, ch: sq.BeliefFindDecoder(h, error_channel=ch, max_iter=2, uf_method="inversion"), _set_seed),
+    ],
+)
+def test_check_matrix_decoders_copy_the_settings_they_decode_with(make, change):
+    # Settings changed after construction, and the serial schedule's state after some decodes
+    # (a random schedule's generator, a relative schedule's order): a copy decodes on as the
+    # original does, and says the same of itself.
+    rng = np.random.default_rng(3)
+    m, n = 20, 40
+    h = (rng.random((m, n)) < 0.15).astype(np.uint8)
+    h[rng.integers(m, size=n), np.arange(n)] = 1
+    ch = list(rng.uniform(0.02, 0.12, n))
+    syndromes = [(h @ (rng.random(n) < np.array(ch))) % 2 for _ in range(220)]
+    d = make(h, ch)
+    change(d)
+    for s in syndromes[:20]:
+        d.decode(s)
+    copies = [pickle.loads(pickle.dumps(d)), copy.deepcopy(d), copy.copy(d)]
+    names = ("lsd_method", "lsd_order", "osd_method", "osd_order", "schedule", "random_serial_schedule", "random_schedule_seed", "do_stats")
+    for c in copies:
+        for name in names:
+            if hasattr(d, name):
+                assert getattr(c, name) == getattr(d, name), name
+        assert np.array_equal(c.serial_schedule_order, d.serial_schedule_order)
+    for s in syndromes[20:]:
+        want = d.decode(s)
+        for c in copies:
+            assert np.array_equal(c.decode(s), want)
+
+
+def test_lsd_decoder_copies_its_lsd_settings():
+    rng = np.random.default_rng(3)
+    m, n = 20, 40
+    h = (rng.random((m, n)) < 0.15).astype(np.uint8)
+    h[rng.integers(m, size=n), np.arange(n)] = 1
+    ch = rng.uniform(0.02, 0.12, n)
+    w = np.log((1 - ch) / ch)
+    d = sq.LsdDecoder(h, lsd_method="lsd_0", lsd_order=0)
+    d.lsd_method = "lsd_cs"
+    d.lsd_order = 4
+    for c in (pickle.loads(pickle.dumps(d)), copy.deepcopy(d)):
+        assert (c.lsd_method, c.lsd_order) == ("LSD_CS", 4)
+        for _ in range(300):
+            s = (h @ (rng.random(n) < ch)) % 2
+            assert np.array_equal(c.decode(s, w), d.decode(s, w))
