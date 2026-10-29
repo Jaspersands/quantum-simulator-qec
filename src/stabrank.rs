@@ -1258,7 +1258,7 @@ impl Source for Forced<'_> {
 
     fn reset(&mut self, p1: f64) -> bool {
         let p1 = p1.clamp(0.0, 1.0);
-        if p1 < RESET_TOLERANCE || p1 > 1.0 - RESET_TOLERANCE {
+        if !(RESET_TOLERANCE..=1.0 - RESET_TOLERANCE).contains(&p1) {
             return p1 > 0.5;
         }
         if self.summed == MAX_SUMMED_RESETS {
