@@ -5,6 +5,7 @@ scipy.optimize and uncertainties against those packages."""
 from __future__ import annotations
 
 import math
+import sys
 import warnings
 
 import numpy as np
@@ -116,6 +117,76 @@ def test_upper_bound_circuit_distance_takes_a_decoder_over_each_error():
     assert upper == len(errors) >= 2
     dets, obs = _flips(errors)
     assert dets == set() and obs
+
+
+def _threshold_data():
+    rng = np.random.default_rng(7)
+    ps = np.linspace(0.005, 0.015, 7)
+    data = {}
+    for d in (3, 5, 7):
+        x = (ps - 0.01) * d ** (1 / 1.5)
+        rate = np.clip(0.2 + 2 * x + 30 * x**2, 1e-4, 0.5)
+        n = np.full(len(ps), 100_000)
+        data[d] = (ps, rng.binomial(n, rate).astype(float), n.astype(float))
+    return data
+
+
+def test_leastsq_without_scipy_is_minpacks():
+    """_lsq.leastsq is MINPACK's lmdif, as scipy.optimize.leastsq: the same path (evaluations and
+    stopping reason) and the same solution and covariance, with scipy's and lmfit's options."""
+    optimize = pytest.importorskip("scipy.optimize")
+    from stabilizer_qec.analysis import _lsq
+
+    t = np.linspace(0, 4, 30)
+    noise = np.random.default_rng(3).normal(0, 0.01, len(t))
+    problems = [
+        (lambda p: p[0] * np.exp(-p[1] * t) + p[2] - (2.5 * np.exp(-1.3 * t) + 0.5 + noise), [1.0, 1.0, 1.0]),
+        (lambda p: np.array([10 * (p[1] - p[0] ** 2), 1 - p[0]]), [-1.2, 1.0]),
+        (lambda p: p[0] * np.exp(-((t - p[1]) ** 2) / (2 * p[2] ** 2)) - 3 * np.exp(-((t - 2.1) ** 2) / (2 * 0.4**2)) - noise, [1.0, 1.5, 1.0]),
+    ]
+    for f, x0 in problems:
+        for kw in ({}, {"epsfcn": 1e-10, "ftol": 1.5e-8, "xtol": 1.5e-8, "maxfev": 6000}):
+            x, cov, info, _, ier = optimize.leastsq(f, x0, full_output=True, **kw)
+            mx, mcov, minfo, _, mier = _lsq.leastsq(f, x0, **kw)
+            assert (mier, minfo["nfev"]) == (ier, info["nfev"])
+            assert mx == pytest.approx(x, rel=1e-8, abs=1e-10)
+            assert np.allclose(mcov, cov, rtol=1e-6, atol=1e-6 * np.abs(cov).max())
+    with pytest.raises(TypeError, match="func input vector length N=2 must not exceed func output vector length M=1"):
+        _lsq.leastsq(lambda p: p[:1], [1.0, 2.0])
+
+
+def test_threshold_fit_without_scipy_is_scipys(monkeypatch):
+    """Without scipy, get_threshold's fits are MINPACK's as scipy's curve_fit: the same optimum
+    and standard error (to 10^-3 of it; tanh's fit, ill-conditioned, moves by more than that in
+    scipy itself when its data move by one ulp), and an infinite one, with scipy's warning, where
+    the fit cannot determine the threshold."""
+    pytest.importorskip("scipy.optimize")
+    data = _threshold_data()
+    zeros = {d: (ps, np.zeros(len(ps)), np.full(len(ps), 1000.0)) for d, (ps, _, _) in data.items()}
+
+    def fits():
+        out = {}
+        for name in ("poly-2", "poly-3", "poly-4", "tanh"):
+            out[name] = ours.threshold.get_threshold(data, fit_func_name=name, num_samples_bootstrap=0)
+        with pytest.warns(UserWarning, match="Covariance of the parameters could not be estimated"):
+            out["poly-9"] = ours.threshold.get_threshold(data, fit_func_name="poly-9", num_samples_bootstrap=0)
+        out["zeros"] = ours.threshold.get_threshold(zeros, fit_func_name="poly-2", num_samples_bootstrap=0)
+        return out
+
+    theirs = fits()
+    monkeypatch.setitem(sys.modules, "scipy.optimize", None)  # importing it now fails, as when not installed
+    with pytest.raises(ImportError):
+        import scipy.optimize  # noqa: F401
+    mine = fits()
+    for name in ("poly-2", "poly-3", "poly-4", "tanh"):
+        (t, _, hi), (u, _, mhi) = theirs[name], mine[name]
+        sd, msd = hi - t, mhi - u
+        assert abs(u - t) <= 1e-3 * sd, name
+        assert msd == pytest.approx(sd, rel=1e-3 if name != "tanh" else 0.05), name
+    t, lo, hi = mine["poly-9"]
+    assert abs(t - theirs["poly-9"][0]) <= 1e-6 and lo == 0.0 and hi == math.inf
+    t, lo, hi = mine["zeros"]
+    assert t == pytest.approx(theirs["zeros"][0], abs=1e-6) and lo == 0.0 and hi > 1.0
 
 
 def test_brentq_and_bounded_minimisation_are_scipys():
