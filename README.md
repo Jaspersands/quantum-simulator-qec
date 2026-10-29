@@ -84,15 +84,19 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
 - **Docs.** A guide and the full reference at
   [qcompiler.jaspersands.com/api](https://qcompiler.jaspersands.com/api/) (`tools/api_docs.py`
   builds it from the docstrings, whose examples the tests run). The package is typed.
-- **Promises.** Seed reproducibility belongs to each documented sampler/version contract and
-  supported thread counts; algorithm corrections can change outcomes (including coherent shots
-  in 2.2). Bad input
-  raises `ValueError` or `TypeError` (a port raises its original's errors where they differ, as the
-  QDK's parameter classes raise `LookupError` and `Exception`); an engine bug raises `RuntimeError`.
-  From 1.0, semantic versioning: the public API (everything in `stabilizer_qec` without a leading
-  underscore) follows the compatibility policy with documented corrections/migrations, and
-  anything removed is deprecated first (see
-  [CHANGELOG.md](CHANGELOG.md)). The Rust crate is versioned on its own, under its documented compatibility policy.
+- **Promises.** These are the [compatibility policy](CONTRIBUTING.md#compatibility-policy)'s.
+  Within a version, a seed and shot position give the same shots on any number of threads; a
+  correction to a sampler can change its seeded shots, and [CHANGELOG.md](CHANGELOG.md) names it
+  (2.2's coherent corrections do). Bad input raises `ValueError` or `TypeError` (a port raises its
+  original's errors where they differ, as the QDK's parameter classes raise `LookupError` and
+  `Exception`); an engine panic the core catches raises `RuntimeError` asking for a report, and
+  beyond that a crash or a hang is a bug to report, not a supported response. From 1.0, semantic
+  versioning: the public API (everything in `stabilizer_qec` without a leading underscore) keeps
+  its names and signatures through every 2.x release, and anything removed is deprecated first;
+  behaviour changes in a minor release only to correct it (a port to its upstream, or a defect),
+  and the changelog names each such change. 2.2 narrowed 2.1's wording of these promises to the
+  policy's, as the changelog's "The compatibility promise" says. The Rust crate is versioned on
+  its own, under the same policy for its documented items.
 - **Tests.** `tests/` (pytest and Hypothesis) runs on Python 3.9 to 3.14 on Linux, macOS and
   Windows, against Stim, PyMatching, `ldpc` and `beliefmatching` where they install.
   `python tools/smoke.py`, run from outside the repository, checks an installed wheel end to end.
