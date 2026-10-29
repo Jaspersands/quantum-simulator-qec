@@ -2602,20 +2602,23 @@ type RelayResult = (Vec<u32>, Vec<u32>, Vec<f64>, bool, usize, usize, f64);
 
 /// IBM's `relay_bp` decoders (`RelayDecoder*` with `relay`, `MinSumBPDecoder*` without) in the
 /// number type `kind` ("f32", "f64", "i8", "i16", "i32", "i64", or "fixed" with `frac_bits`).
-/// Its state, random memory strengths included, continues from decode to decode.
+/// Its state, random memory strengths included, continues from decode to decode. Calls from
+/// several threads take turns: each takes the state's lock with the GIL released, so a batch
+/// running on one thread holds up another's call to the same decoder, not the interpreter.
 #[pyclass(name = "RelayEngine", module = "stabilizer_qec._core")]
 pub struct PyRelayEngine {
-    eng: Box<dyn DynRelay>,
+    eng: std::sync::Mutex<Box<dyn DynRelay>>,
     relay: bool,
     num_checks: usize,
     num_vars: usize,
 }
 
 impl PyRelayEngine {
-    fn one(&mut self, syndrome: &[u8]) -> RelayResult {
-        let out = self.eng.run(syndrome, self.relay);
-        let (c, d, p) = self.eng.result();
-        (c, d, p, out.converged, out.iterations, out.max_iter, out.weight)
+    /// `f` on the decoder, its turn taken without the GIL (a panic in another call leaves the
+    /// state as that call left it).
+    fn with<R: Send>(&self, py: Python<'_>, f: impl FnOnce(&mut dyn DynRelay) -> R + Send) -> R {
+        let eng = &self.eng;
+        py.detach(move || f(&mut **eng.lock().unwrap_or_else(|e| e.into_inner())))
     }
 }
 
@@ -2668,17 +2671,23 @@ impl PyRelayEngine {
             "fixed" => fixed!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31),
             _ => return Err(err(format!("unknown number type {kind:?}"))),
         };
-        Ok(PyRelayEngine { eng, relay, num_checks, num_vars: columns.len() })
+        Ok(PyRelayEngine { eng: std::sync::Mutex::new(eng), relay, num_checks, num_vars: columns.len() })
     }
 
     /// The decoder with its state as it is now, to go on independently.
-    fn copy(&self) -> Self {
-        PyRelayEngine { eng: self.eng.boxed_clone(), relay: self.relay, num_checks: self.num_checks, num_vars: self.num_vars }
+    fn copy(&self, py: Python<'_>) -> Self {
+        let eng = self.with(py, |e| e.boxed_clone());
+        PyRelayEngine { eng: std::sync::Mutex::new(eng), relay: self.relay, num_checks: self.num_checks, num_vars: self.num_vars }
     }
 
-    fn decode(&mut self, syndrome: Vec<u8>) -> PyResult<RelayResult> {
+    fn decode(&self, py: Python<'_>, syndrome: Vec<u8>) -> PyResult<RelayResult> {
         checked_syndrome(&syndrome, self.num_checks)?;
-        Ok(self.one(&syndrome))
+        let relay = self.relay;
+        Ok(self.with(py, |e| {
+            let out = e.run(&syndrome, relay);
+            let (c, d, p) = e.result();
+            (c, d, p, out.converged, out.iterations, out.max_iter, out.weight)
+        }))
     }
 
     /// `count` rows of syndrome bytes (one per check), without the GIL: each in turn, the state
@@ -2691,7 +2700,7 @@ impl PyRelayEngine {
     #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     #[pyo3(signature = (rows, count, fresh, threads=0, posteriors=true, logs=false))]
     fn decode_rows<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         rows: &[u8],
         count: usize,
@@ -2702,8 +2711,7 @@ impl PyRelayEngine {
     ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<(bool, usize, usize, f64)>, Vec<Vec<String>>)> {
         check_rows(rows.len(), self.num_checks, count, self.num_checks, "syndrome bits")?;
         let relay = self.relay;
-        let eng = &mut self.eng;
-        let out = py.detach(move || eng.batch(rows, count, relay, fresh, threads, posteriors, logs));
+        let out = self.with(py, |e| e.batch(rows, count, relay, fresh, threads, posteriors, logs));
         let corrections: Vec<u8> = out.iter().flat_map(|r| r.correction.iter().copied()).collect();
         let decoded: Vec<u8> = out.iter().flat_map(|r| r.decoded.iter().copied()).collect();
         let post = le_f64(out.iter().flat_map(|r| r.posteriors.iter().copied()));
@@ -2713,16 +2721,16 @@ impl PyRelayEngine {
     }
 
     /// IBM's decoding quality of an error: Σ ln((1 − p)/p) over its faults (finite ones).
-    fn quality(&self, error: Vec<u8>) -> PyResult<f64> {
+    fn quality(&self, py: Python<'_>, error: Vec<u8>) -> PyResult<f64> {
         if error.len() != self.num_vars {
             return Err(err(format!("{} error bits for {} faults", error.len(), self.num_vars)));
         }
-        Ok(self.eng.quality(&error))
+        Ok(self.with(py, |e| e.quality(&error)))
     }
 
     /// IBM's Relay log lines for the last decode.
-    fn log_lines(&self) -> Vec<String> {
-        self.eng.log_lines()
+    fn log_lines(&self, py: Python<'_>) -> Vec<String> {
+        self.with(py, |e| e.log_lines())
     }
 }
 

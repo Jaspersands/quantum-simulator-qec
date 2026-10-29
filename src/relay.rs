@@ -157,7 +157,8 @@ pub struct RelayOutcome {
 }
 
 impl<N: RelayNum> RelayCore<N> {
-    /// `columns[v]` lists the checks fault `v` sets off; `priors[v]` is its probability.
+    /// `columns[v]` lists the checks fault `v` sets off (a check listed twice, none);
+    /// `priors[v]` is its probability.
     pub fn new(num_checks: usize, columns: &[Vec<u32>], priors: &[f64], config: RelayConfig) -> Result<RelayCore<N>, String> {
         Self::with_values(num_checks, columns, None, priors, config)
     }
@@ -189,7 +190,9 @@ impl<N: RelayNum> RelayCore<N> {
         let mut degree = vec![0u32; num_checks];
         let mut parity = Vec::new();
         for (v, col) in columns.iter().enumerate() {
-            // (check, value parity), sorted, a repeated entry once with its values' parity.
+            // (check, value parity), sorted, a repeated entry once with its values' parity:
+            // without values each stored entry is a 1, so a check stored twice sums to 2 and sets
+            // off nothing (it stays an edge, as one with an even value does).
             let mut entries: Vec<(u32, u8)> = match values {
                 Some(vals) => col.iter().copied().zip(vals[v].iter().map(|&x| x & 1)).collect(),
                 None => col.iter().map(|&c| (c, 1)).collect(),
@@ -198,11 +201,7 @@ impl<N: RelayNum> RelayCore<N> {
             let mut merged: Vec<(u32, u8)> = Vec::with_capacity(entries.len());
             for (c, p) in entries {
                 match merged.last_mut() {
-                    Some(last) if last.0 == c => {
-                        if values.is_some() {
-                            last.1 ^= p;
-                        }
-                    }
+                    Some(last) if last.0 == c => last.1 ^= p,
                     _ => merged.push((c, p)),
                 }
             }
@@ -212,9 +211,7 @@ impl<N: RelayNum> RelayCore<N> {
                 }
                 edge_check.push(c);
                 edge_var.push(v as u32);
-                if values.is_some() {
-                    parity.push(p);
-                }
+                parity.push(p);
                 degree[c as usize] += 1;
             }
             var_start.push(edge_check.len() as u32);

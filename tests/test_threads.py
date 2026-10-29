@@ -113,3 +113,36 @@ def test_check_matrix_decoders_shared_between_threads():
     for name, decode in decoders.items():
         wrong, errors = _shared_by_threads(decode, syndromes)
         assert (wrong, errors) == ([0] * len(wrong), []), name
+
+
+def test_relay_decoders_shared_between_threads():
+    # Calls on one Relay-BP decoder from several threads take turns (relay_bp's hold the GIL):
+    # none fails, and min-sum BP, which keeps no state from decode to decode, answers each
+    # syndrome as it does alone.
+    from stabilizer_qec import relay_bp
+
+    rng = np.random.default_rng(0)
+    h = (rng.random((60, 200)) < 0.05).astype(np.uint8)
+    p = rng.uniform(0.01, 0.05, 200)
+    dets = ((rng.random((200, 200)) < 0.03).astype(np.uint8) @ h.T % 2).astype(np.uint8)
+    relay = relay_bp.RelayDecoderF64(h, p, pre_iter=20, num_sets=30, set_max_iter=20, stop_nconv=3, seed=1)
+    runner = relay_bp.ObservableDecoderRunner(relay, (rng.random((2, 200)) < 0.1).astype(np.uint8), include_decode_result=False)
+    errors = []
+
+    def call(f):
+        try:
+            f()
+        except Exception as e:  # pragma: no cover - reported below
+            errors.append(f"{type(e).__name__}: {e}")
+
+    work = [lambda: relay.decode_batch(dets), lambda: [relay.decode(s) for s in dets[:100]], lambda: relay.decode_batch(dets)]
+    work += [lambda: runner.decode_observables_batch(dets, progress_bar=False)] * 3
+    with ThreadPoolExecutor(len(work)) as pool:
+        list(pool.map(call, work))
+    assert errors == []
+    min_sum = relay_bp.MinSumBPDecoderF64(h, p, max_iter=30)
+    batch = min_sum.decode_batch(dets)
+    with ThreadPoolExecutor(4) as pool:
+        assert all(np.array_equal(b, batch) for b in pool.map(min_sum.decode_batch, [dets] * 4))
+    wrong, errors = _shared_by_threads(min_sum.decode, dets[:60], threads=4)
+    assert (wrong, errors) == ([0] * 4, [])
