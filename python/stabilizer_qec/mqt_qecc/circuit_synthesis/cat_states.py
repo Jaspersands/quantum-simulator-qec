@@ -109,6 +109,7 @@ class CatStatePreparationExperiment:
             permutation: perm over 0..w2-1 (ancilla targets)
             controls: length-w2 list of data controls (subset of 0..w1-1)
         """
+        circ1, circ2 = ours(circ1), ours(circ2)  # Stim objects too
         w1 = circ1.num_qubits
         w2 = circ2.num_qubits
         if w1 < 1 or w2 < 1:

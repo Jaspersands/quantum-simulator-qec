@@ -91,6 +91,14 @@ class SubsetSampler:
         
     
     def save(self, path):
+        """Save sampler to path (see `qsample.utils.save`: lambda or nested check functions need
+        dill installed, and a save that fails leaves the file at ``path`` as it was)
+
+        Parameters
+        ----------
+        path : str
+            File path to save to
+        """
         utils.save(self, path)
         
     def _choose_subset(self, tnode, circuit):

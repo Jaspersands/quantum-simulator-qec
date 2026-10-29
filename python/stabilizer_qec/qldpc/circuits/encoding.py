@@ -12,7 +12,7 @@ from collections.abc import Sequence
 import galois
 import numpy as np
 import stabilizer_qec as stim
-from stabilizer_qec._util import ours
+from stabilizer_qec.qldpc._stim_inputs import ours
 
 from stabilizer_qec.qldpc import codes, math
 from stabilizer_qec.qldpc.objects import Pauli
@@ -173,6 +173,7 @@ def get_state_stabilizers(
         A list of Pauli strings supported on the specified qubits.  The strings are compacted into
         the requested-qubit frame: position ``i`` refers to ``qubits[i]`` in the input circuit.
     """
+    state_prep_circuit = ours(state_prep_circuit)  # a Stim object too
     resets = stim.Circuit("R " + " ".join(map(str, range(state_prep_circuit.num_qubits))))
     flow_generators = (resets + state_prep_circuit.without_noise()).flow_generators()
 
@@ -276,6 +277,7 @@ def get_logical_state_stabilizers(
     Returns:
         A list of Pauli strings supported on the data qubits of the provided code.
     """
+    state_prep_circuit = ours(state_prep_circuit)  # a Stim object too
     qubit_ids = QubitIDs.validated(qubit_ids or QubitIDs.from_code(code), code)
     encoder = get_encoding_circuit(code)
     circuit = state_prep_circuit + with_remapped_qubits(encoder.inverse(), qubit_ids.data)

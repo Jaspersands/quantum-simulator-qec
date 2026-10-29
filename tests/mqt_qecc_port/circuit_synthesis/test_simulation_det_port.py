@@ -109,3 +109,21 @@ def test_doc_example_runs(steane: CSSCode, zero_prep) -> None:
     assert np.all(np.asarray(stats[0], dtype=float) < np.array([1e-4, 1e-3, 1e-2]))
     slopes = np.diff(np.log10(upper)) / np.diff(np.log10([1e-4, 1e-3, 1e-2]))
     assert np.all(slopes > 1.5)
+
+
+def test_simulators_keep_their_own_check_functions(steane: CSSCode, zero_prep, plus_prep) -> None:
+    # qsample's Protocol shared one default check-function dict, so building a |0> simulator after a
+    # |+> one rebound the |+> one's decoder and checks to the |0> one's: its p_L rose about fourfold.
+    sp_plus, (v0, v1) = plus_prep
+    plus = NoisyDFTStatePrepSimulator(sp_plus.circ.to_qiskit_circuit(), (v1, v0), steane, noise.E1_1, False)
+
+    def rate() -> float:
+        np.random.seed(1)
+        return float(np.asarray(plus.mc_logical_error_rates({"q": [0.02]}, shots=1000)[0])[0])
+
+    alone = rate()
+    sp_zero, verifications = zero_prep
+    zero = NoisyDFTStatePrepSimulator(sp_zero.circ.to_qiskit_circuit(), verifications, steane, noise.E1_1, True)
+    assert rate() == alone
+    assert plus.protocol.check_functions is not zero.protocol.check_functions
+    assert plus.protocol.check_functions["decode_failure"].keywords["zero_state"] is False

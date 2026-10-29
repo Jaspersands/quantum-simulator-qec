@@ -15,6 +15,7 @@ import numpy.typing as npt
 import stabilizer_qec as stim
 
 from stabilizer_qec.qldpc import abstract, cache, codes
+from stabilizer_qec.qldpc._stim_inputs import ours
 from stabilizer_qec.qldpc.math import op_to_string
 from stabilizer_qec.qldpc.objects import Pauli
 
@@ -266,6 +267,7 @@ def get_transversal_circuits(
         thereby generally has exponential runtime.
 
     """
+    logical_circuits_or_tableaus = [ours(op) for op in logical_circuits_or_tableaus]  # Stim objects too
     physical_circuits = [None] * len(logical_circuits_or_tableaus)
 
     # convert logical Cliffords into tableaus
