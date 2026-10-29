@@ -392,7 +392,16 @@ def colour():
     return c, dets, obs
 
 
-def test_make_decoder_builds_the_model_sinters_sampler_builds(memory, colour):
+@pytest.fixture(scope="module")
+def small_noisy():
+    # A distance-3 surface code at p=0.01, where ambiguity clustering predicts differently on the
+    # decomposed and the undecomposed model (11 of these 1000 shots), so the model it gets shows.
+    c = sq.memory_circuit(distance=3, rounds=3, p=0.01)
+    dets, obs = c.compile_detector_sampler(seed=4).sample(1000, separate_observables=True)
+    return c, dets, obs
+
+
+def test_make_decoder_builds_the_model_sinters_sampler_builds(memory, colour, small_noisy):
     """Every decoder kind gets the same model from a circuit in make_decoder (and so in
     `stabilizer-qec serve --circuit` and `DecoderClient.spawn(circuit=...)`) as in
     `sinter.Sampler(kind)`: decomposed only for the decoders that match on a graph, so Chromobius
@@ -402,16 +411,20 @@ def test_make_decoder_builds_the_model_sinters_sampler_builds(memory, colour):
     with pytest.raises(ValueError, match="graph-like"):
         colour[0].detector_error_model(decompose_errors=True)
     for name in realtime.DECODERS:
-        c, dets, obs = colour if name == "color_matching" else memory
-        dets = dets[:60]
+        c, dets, obs = {"color_matching": colour, "ambiguity_clustering": small_noisy}.get(name, memory)
+        dets = dets[:60] if name != "ambiguity_clustering" else dets
         want = sinter.Sampler(name).compiled_sampler_for_task(sinter.Task(circuit=c)).decoder.decode_batch(dets)
         assert np.array_equal(make_decoder(name, circuit=c).decode_batch(dets), want), name
     c, dets, obs = colour
     got = make_decoder("color_matching", circuit=c).decode_batch(dets)
     assert np.array_equal(got, sq.ColorMatching(c.detector_error_model(approximate_disjoint_errors=True)).decode_batch(dets))
     assert (got != obs).any(axis=1).mean() < 0.2
-    c, dets, obs = memory
-    assert np.array_equal(make_decoder("ambiguity_clustering", circuit=c).decode_batch(dets), sq.AmbiguityClustering(c.detector_error_model()).decode_batch(dets))
+    c, dets, obs = small_noisy
+    got = make_decoder("ambiguity_clustering", circuit=c).decode_batch(dets)
+    undecomposed = sq.AmbiguityClustering(c.detector_error_model(approximate_disjoint_errors=True)).decode_batch(dets)
+    decomposed = sq.AmbiguityClustering(c.detector_error_model(decompose_errors=True, approximate_disjoint_errors=True)).decode_batch(dets)
+    assert (decomposed != undecomposed).any(axis=1).sum() > 0  # the fixture tells the two models apart
+    assert np.array_equal(got, undecomposed)
 
 
 def test_spawn_serves_color_matching_on_a_colour_code_circuit(colour, tmp_path):
