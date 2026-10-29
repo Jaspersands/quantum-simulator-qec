@@ -983,6 +983,9 @@ class ConditionalLogicalZ(CodeOperation):
 class AuxCNOT(CodeOperation):
     input_blocks_name: tuple[str, str]
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "input_blocks_name", _pair("input_blocks_name", self.input_blocks_name))
+
 
 @dataclass(frozen=True)
 class TransversalHadamard(CodeOperation):
@@ -1073,13 +1076,21 @@ class T(LogicalOperation):
 # ---------------------------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
 class Eka:
     """A logical computation: the lattice, the blocks at the start, and the operations, each
-    time step a tuple of operations on disjoint blocks (a flat list runs them one by one)."""
+    time step a tuple of operations on disjoint blocks (a flat list runs them one by one).
 
-    def __init__(self, lattice: Lattice, blocks: Iterable[Block] = (), operations: Iterable = ()) -> None:
-        self.lattice = lattice
-        blocks = tuple(blocks)
+    A frozen dataclass, as Loom's: equal field by field (so it reads back from its dict equal),
+    its fields not assignable (so its checks hold), and the dataclass repr."""
+
+    lattice: Lattice
+    blocks: tuple[Block, ...] = ()
+    operations: tuple = ()
+
+    def __post_init__(self) -> None:
+        lattice = self.lattice
+        blocks = tuple(self.blocks)
         for block in blocks:
             if any(any(c < 0 for c in q) for q in block.data_qubits):
                 raise ValueError(f"Block '{block.unique_label}' has negative data qubit indices.")
@@ -1096,8 +1107,8 @@ class Eka:
         Block.blocks_no_overlap(blocks)
         if len({b.unique_label for b in blocks}) != len(blocks):
             raise ValueError("Not all blocks have unique labels.")
-        self.blocks = blocks
-        operations = tuple(operations)
+        object.__setattr__(self, "blocks", blocks)
+        operations = tuple(self.operations)
         if all(isinstance(op, Operation) for op in operations):
             operations = tuple((op,) for op in operations)
         else:
@@ -1109,7 +1120,11 @@ class Eka:
                 if used & inputs:
                     raise ValueError(f"Operations are not disjoint, {used & inputs} is subject to multiple operations at the same time.")
                 used |= inputs
-        self.operations = operations
+        object.__setattr__(self, "operations", operations)
+
+    def __hash__(self) -> int:
+        # (Equal Ekas hash equal: a block hashes by its uuid, which its equality ignores, so by its label here.)
+        return hash((self.lattice, tuple(b.unique_label for b in self.blocks), self.operations))
 
     def asdict(self) -> dict:
         return {"lattice": self.lattice.asdict(), "blocks": [b.asdict() for b in self.blocks], "operations": [[op.asdict() for op in step] for step in self.operations]}
