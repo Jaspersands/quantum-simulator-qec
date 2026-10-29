@@ -94,6 +94,14 @@ def test_rich_fields_are_data_with_fixed_formatting(markdown, monkeypatch):
     '<a href="http://[/">link</a>',
     '<a href="https:///missing-host">link</a>',
     '<a href="https://example.invalid:bad/">link</a>',
+    # Schemes with a host, which pass the netloc and hostname checks: only the http/https allowlist drops them.
+    '<a href="javascript://example.invalid/%0Aalert(1)">link</a>',
+    '<a href="JavaScript://example.invalid/%0Aalert(1)">link</a>',
+    '<a href="&#106;avascript://example.invalid/%0Aalert(1)">link</a>',
+    '<a href="vbscript://example.invalid/msgbox">link</a>',
+    '<a href="data://example.invalid/text/html,marker">link</a>',
+    '<a href="file://example.invalid/etc/passwd">link</a>',
+    '<a href="ftp://example.invalid/marker">link</a>',
     '<script type="math/tex">synthetic math</script><style>synthetic style</style>',
     '<audit-marker/><img src="synthetic"><!-- comment --><!DOCTYPE audit>',
     '<p><strong>unclosed</p></strong>',
@@ -123,6 +131,52 @@ def test_rich_fragment_policy_and_balance(fragment):
     balanced = Balanced()
     balanced.feed(result)
     assert not balanced.stack
+
+
+class Identity:
+    def convert(self, value):
+        return value
+
+
+@pytest.mark.parametrize('fragment', [
+    '<p>Uses <code>&lt;img src=x onerror=alert(1)&gt;</code> here</p>',
+    '<p>&lt;script&gt;alert(1)&lt;/script&gt; &amp;lt;b&amp;gt;</p>',
+    '<pre><code>&#60;audit-marker data-note="inert"&#62;</code></pre>',
+])
+def test_entity_decoded_text_is_escaped_again(fragment):
+    # HTMLParser decodes `&lt;` in text to `<`: the text it hands back must be escaped again, or an escaped tag
+    # (what Markdown makes of HTML in a code span) is re-emitted as live markup.
+    result = rep._report_rich_text(fragment, Identity())
+    parsed = Parsed(result)
+    assert [tag for tag, _ in parsed.starts] == [tag for tag, _ in Parsed(fragment).starts]
+    assert all(not attrs for _, attrs in parsed.starts)
+    assert ''.join(parsed.text) == ''.join(Parsed(fragment).text)
+
+
+def test_real_markdown_code_span_html_stays_text():
+    if not rep.has_markdown:
+        pytest.skip('optional markdown and mdx_math are absent')
+    data = source()
+    data['reportData']['groups'][0]['entries'][0]['explanation'] = 'Uses `<img src=x onerror=alert(1)>` here'
+    parsed = Parsed(EstimatorResult(data)._repr_html_())
+    assert not any(tag == 'img' or 'onerror' in attrs for tag, attrs in parsed.starts)
+    assert '<img src=x onerror=alert(1)>' in ''.join(parsed.text)
+
+
+@pytest.mark.parametrize('href', [
+    'https://example.invalid/"onmouseover="alert(1)',
+    "https://example.invalid/'onmouseover='alert(1)",
+    'https://example.invalid/"><img/src=x/onerror=alert(1)>',
+    'https://example.invalid/?a=1&amp;b=2&quot;',
+])
+def test_kept_href_is_one_attribute(href):
+    # A permitted http(s) link may hold quotes and markup once HTMLParser has decoded it: written back, it must
+    # stay the one href value, with no attribute or tag of its own.
+    fragment = '<a href="' + href.replace('&', '&amp;').replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;') + '">x</a>'
+    result = rep._report_rich_text(fragment, Identity())
+    parsed = Parsed(result)
+    assert parsed.starts == [('a', {'href': href})]
+    assert ''.join(parsed.text) == 'x'
 
 
 @pytest.mark.parametrize('error', [ValueError, AssertionError, NotImplementedError])
