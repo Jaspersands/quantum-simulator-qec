@@ -100,18 +100,74 @@ def test_the_merged_twirl_reads_tagged_clifford_gates_as_the_gates(tagged):
             assert abs(dist.get(key, 0.0) - exact.get(key, 0.0)) < 1e-12, (key, dist, exact)
 
 
-def test_the_merged_twirl_does_not_merge_across_a_non_clifford_gate():
-    """A tagged gate at a non-Clifford angle is a barrier: its angle is never an error's (the
-    gate still runs), and the errors either side of it are not one fault (they need not commute
-    with it: Z either side of R_X). Around a Clifford gate they merge."""
-    p = lambda c: sorted(float(line.split("(")[1].split(")")[0]) for line in errors(c))
-    for gate, axis in [("I[R_X(theta=0.3)]", "X"), ("I[R_X(theta=0.3)]", "Z"), ("I[T]", "X")]:
-        c = sq.Circuit(f"RX 0\nI_ERROR[R_{axis}(theta=0.1)] 0\n{gate} 0\nI_ERROR[R_{axis}(theta=0.2)] 0\nMX 0\nDETECTOR rec[-1]")
-        m = c.twirled(merge=True)
-        assert m.num_non_clifford_gates() == 1
-        assert np.allclose(p(m), sorted([math.sin(0.1) ** 2, math.sin(0.2) ** 2]), atol=1e-6), (gate, axis, str(m))
+def probabilities(c: sq.Circuit) -> list[float]:
+    return sorted(float(line.split("(")[1].split(")")[0]) for line in errors(c))
+
+
+def assert_same_distribution(a: sq.Circuit, b: sq.Circuit) -> None:
+    da, db = a.exact_distribution(method="stabilizer_rank"), b.exact_distribution(method="stabilizer_rank")
+    for key in da.keys() | db.keys():
+        assert abs(da.get(key, 0.0) - db.get(key, 0.0)) < 1e-12, (str(a), key, da, db)
+
+
+@pytest.mark.parametrize("gate, axis, basis", [
+    ("I[R_X(theta=0.3)]", "X", ""),
+    ("I[R_Z(theta=0.3)]", "Z", "X"),
+    ("I[R_PAULI(theta=0.3, pauli=Y)]", "Y", "X"),
+])
+def test_the_merged_twirl_merges_errors_beside_a_gate_they_commute_with(gate, axis, basis):
+    """Errors either side of a non-Clifford gate of their own axis commute with it, so they are
+    one fault and merge, to sin²(0.1 + 0.2) beside the gate; the gate's angle is never added
+    into them (it still runs, once)."""
+    c = sq.Circuit(f"R{basis} 0\nI_ERROR[R_{axis}(theta=0.1)] 0\n{gate} 0\nI_ERROR[R_{axis}(theta=0.2)] 0\nM{basis} 0\nDETECTOR rec[-1]")
+    m = c.twirled(merge=True)
+    assert m.num_non_clifford_gates() == 1
+    assert np.allclose(probabilities(m), [math.sin(0.3) ** 2], atol=1e-6), str(m)
+    # The gate flips with probability sin²(0.3) and the error with sin²(0.3), independently.
+    q = math.sin(0.3) ** 2
+    assert abs(m.exact_distribution(method="stabilizer_rank")[((True,), ())] - 2 * q * (1 - q)) < 1e-12, str(m)
+
+
+@pytest.mark.parametrize("gate, axis, basis", [
+    ("I[R_X(theta=0.3)]", "Z", "X"),
+    ("I[T]", "X", ""),
+    ("I[R_PAULI(theta=0.3, pauli=X)]", "Y", ""),
+])
+def test_the_merged_twirl_does_not_merge_across_a_gate_they_anticommute_with(gate, axis, basis):
+    """Errors either side of a gate they anticommute with (Z either side of R_X, X either side of
+    T) are not one fault: they stay two errors, and the gate is kept once."""
+    c = sq.Circuit(f"R{basis} 0\nI_ERROR[R_{axis}(theta=0.1)] 0\n{gate} 0\nI_ERROR[R_{axis}(theta=0.2)] 0\nM{basis} 0\nDETECTOR rec[-1]")
+    m = c.twirled(merge=True)
+    assert m.num_non_clifford_gates() == 1
+    assert np.allclose(probabilities(m), sorted([math.sin(0.1) ** 2, math.sin(0.2) ** 2]), atol=1e-6), str(m)
+
+
+def test_the_merged_twirl_merges_across_a_clifford_angle_gate():
     m = sq.Circuit("RX 0\nI_ERROR[R_X(theta=0.1)] 0\nI[R_X(theta=1.5707963267948966)] 0\nI_ERROR[R_X(theta=0.2)] 0\nMX 0\nDETECTOR rec[-1]").twirled(merge=True)
-    assert np.allclose(p(m), [math.sin(0.3) ** 2], atol=1e-6), str(m)
+    assert np.allclose(probabilities(m), [math.sin(0.3) ** 2], atol=1e-6), str(m)
+    m = sq.Circuit("R 0\nI_ERROR[R_X(theta=0.1)] 0\nI[R_X(theta=1.5707963267948966)] 0\nI_ERROR[R_X(theta=0.2)] 0\nM 0\nDETECTOR rec[-1]").twirled(merge=True)
+    assert np.allclose(probabilities(m), [math.sin(0.3) ** 2], atol=1e-6), str(m)
+
+
+ELSEWHERE = [
+    "R 0 1\nI_ERROR[R_X(theta=0.1)] 0\nI[T] 1\nI_ERROR[R_X(theta=0.1)] 0\nM 0 1\nDETECTOR rec[-2]",
+    "R 0 1\nI_ERROR[R_X(theta=0.1)] 0\nTICK\nH 1\nI[T] 1\nH 1\nTICK\nI_ERROR[R_X(theta=0.1)] 0\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]",
+    "R 0 1\nREPEAT 3 {\nI_ERROR[R_X(theta=0.05)] 0\nI[T] 1\n}\nM 0 1\nDETECTOR rec[-2]",
+    "R 0 1\nI_ERROR[R_X(theta=0.1)] 0\nI[R_X(theta=0.3)] 0\nI[T] 1\nI_ERROR[R_X(theta=0.2)] 0\nM 0 1\nDETECTOR rec[-2]",
+]
+
+
+@pytest.mark.parametrize("text", ELSEWHERE)
+def test_the_merged_twirl_merges_across_a_gate_on_another_qubit(text):
+    """A non-Clifford gate on another qubit (a T layer between a fault's places) leaves the fault
+    alone: its rotations merge into one error, and the merged twirl is the circuit's exact
+    distribution, the gates kept once."""
+    c = sq.Circuit(text)
+    m = c.twirled(merge=True)
+    assert len(errors(m)) == 1, str(m)
+    assert m.num_non_clifford_gates() == c.flattened().num_non_clifford_gates()
+    if "R_X(theta=0.3)" not in text:
+        assert_same_distribution(m, c)
 
 
 # The time reversal of a tagged gate is its inverse (as `Circuit.inverse` writes it): each R_PAULI

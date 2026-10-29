@@ -911,8 +911,10 @@ impl Signed {
 /// (`kernel::Group`) become one, at the last of those places, with their angles added
 /// (sin²(Σ ±θ)): the coherence-aware model. A tagged gate at a Clifford angle is the Clifford
 /// gate there (as in the coherent samplers: `I[R_Z(theta=π/4)]` is S, so the rotations either
-/// side of it merge as they do around S); a non-Clifford gate is a barrier, never merged into an
-/// error nor an error moved past it (it need not commute with the error). Merging flattens loops.
+/// side of it merge as they do around S). A non-Clifford gate is never merged into an error (it
+/// still runs, once); errors either side of it merge when they commute with it (a T on another
+/// qubit, R_X between X errors) and stay apart when they do not (Z either side of R_X). Merging
+/// flattens loops.
 pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
     let pauli_error = |paulis: &[(u32, u8)], p: f64| -> Instr {
         match paulis {
@@ -1015,26 +1017,24 @@ pub fn twirled(circuit: &Circuit, merge: bool) -> Result<Circuit, String> {
     if is_gate.len() != program.locations.len() || op_index != clifford.len() {
         return Err(format!("internal error in twirled: {} locations and {} non-Pauli ops, where the program has {} and the circuit {}", is_gate.len(), op_index, program.locations.len(), clifford.len()));
     }
-    // Each error's probability: its own, or its run's merged angle at the run's last place. A
-    // group's errors are cut into runs at every gate between them.
-    let mut gates_before = vec![0usize; is_gate.len() + 1];
-    for (l, &g) in is_gate.iter().enumerate() {
-        gates_before[l + 1] = gates_before[l] + usize::from(g);
-    }
+    // Each error's probability: its own, or its group's merged angle at the group's last error.
+    // A group never spans a location that anticommutes with it (`Kernel::new` cuts its runs at
+    // `anticommuting_after`), so its errors commute with every gate between them and move to the
+    // last one exactly: a T on another qubit, or a gate of their own axis, is no barrier, and Z
+    // either side of R_X are two groups. A gate in the group (R_X between X errors) is the same
+    // fault but no error: it still runs, so its angle is not added.
     let mut prob: Vec<f64> = program.locations.iter().map(|l| l.theta.sin().powi(2)).collect();
     let mut shown = vec![true; is_gate.len()];
     for g in &kernel.groups {
         let mut errors: Vec<(usize, f64)> = g.members.iter().zip(&g.mu).filter(|&(&l, _)| !is_gate[l]).map(|(&l, mu)| (l, program.locations[l].theta * if mu.re < 0.0 { -1.0 } else { 1.0 })).collect();
         errors.sort_by_key(|&(l, _)| l);
-        for run in errors.chunk_by(|a, b| gates_before[a.0] == gates_before[b.0]) {
-            let angle: f64 = run.iter().map(|&(_, a)| a).sum();
-            for &(l, _) in run {
-                shown[l] = false;
-            }
-            let last = run.last().unwrap().0;
-            shown[last] = true;
-            prob[last] = angle.sin().powi(2);
+        let Some(&(last, _)) = errors.last() else { continue };
+        let angle: f64 = errors.iter().map(|&(_, a)| a).sum();
+        for &(l, _) in &errors {
+            shown[l] = false;
         }
+        shown[last] = true;
+        prob[last] = angle.sin().powi(2);
     }
     let out = pieces
         .into_iter()
@@ -1124,9 +1124,6 @@ mod tests {
         assert_eq!(f[1], Vec::<usize>::new());
     }
 
-    /// The reference the records are flips from is Stim's reference sample, as every other
-    /// engine's (`m2d::reference`): a random measurement reads 0 in it, however many random
-    /// outcomes come before it. A seeded run instead complemented detectors on random outcomes.
     /// A gate of several targets (`I[T] 0 1`, a rotation written on `I` or `II`, a channel of
     /// a tag) is kept once by the twirl, not once per target: with no coherent error the twirl
     /// is the circuit. Errors twirl target by target.
@@ -1148,7 +1145,9 @@ mod tests {
 
     /// A tagged gate at a Clifford angle is the Clifford gate in the merge, as in the coherent
     /// samplers: X before a tagged H and Z after it are one fault, as around H. A non-Clifford
-    /// gate is a barrier: its angle is never an error's, nor are errors either side of it merged.
+    /// gate's angle is never an error's (it still runs); errors either side of it merge when they
+    /// commute with it (X around R_X, X on another qubit than a T) and not when they anticommute
+    /// (Z around R_X).
     #[test]
     fn merged_twirl_reads_tagged_clifford_gates() {
         let text = |h: &str, s: &str| format!("R 0 1\nI_ERROR[R_X(theta=0.1)] 0\n{h} 0\nI_ERROR[R_Z(theta=0.15)] 0\n{h} 0\n{s} 1\nI_ERROR[R_Y(theta=0.2)] 1\n{s} 1\nI_ERROR[R_X(theta=0.05)] 1\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]");
@@ -1157,11 +1156,16 @@ mod tests {
         let tagged = twirled(&Circuit::parse(&text("I[U3(theta=1.5707963267948966, phi=0, lambda=3.141592653589793)]", "I[R_Z(theta=0.7853981633974483)]")).unwrap(), true).unwrap();
         assert_eq!(errors(&plain).len(), 2);
         assert_eq!(errors(&tagged), errors(&plain));
-        let gated = twirled(&Circuit::parse("R 0\nI_ERROR[R_X(theta=0.1)] 0\nI[R_X(theta=0.3)] 0\nI_ERROR[R_X(theta=0.2)] 0\nM 0").unwrap(), true).unwrap();
-        let p: Vec<f64> = gated.instrs.iter().filter_map(|i| match i { Instr::PauliError { p, .. } => Some(*p), _ => None }).collect();
-        assert_eq!(p, vec![0.1f64.sin().powi(2), 0.2f64.sin().powi(2)]);
+        let p = |text: &str| -> Vec<f64> { twirled(&Circuit::parse(text).unwrap(), true).unwrap().instrs.iter().filter_map(|i| match i { Instr::PauliError { p, .. } => Some(*p), _ => None }).collect() };
+        assert_eq!(p("R 0\nI_ERROR[R_X(theta=0.1)] 0\nI[R_X(theta=0.3)] 0\nI_ERROR[R_X(theta=0.2)] 0\nM 0"), vec![(0.1f64 + 0.2).sin().powi(2)]);
+        assert_eq!(p("R 0 1\nI_ERROR[R_X(theta=0.1)] 0\nI[T] 1\nI_ERROR[R_X(theta=0.1)] 0\nM 0 1"), vec![0.2f64.sin().powi(2)]);
+        assert_eq!(p("RX 0\nI_ERROR[R_Z(theta=0.1)] 0\nI[R_X(theta=0.3)] 0\nI_ERROR[R_Z(theta=0.2)] 0\nMX 0"), vec![0.1f64.sin().powi(2), 0.2f64.sin().powi(2)]);
+        assert_eq!(p("R 0\nI_ERROR[R_X(theta=0.1)] 0\nI[T] 0\nI_ERROR[R_X(theta=0.2)] 0\nM 0"), vec![0.1f64.sin().powi(2), 0.2f64.sin().powi(2)]);
     }
 
+    /// The reference the records are flips from is Stim's reference sample, as every other
+    /// engine's (`m2d::reference`): a random measurement reads 0 in it, however many random
+    /// outcomes come before it. A seeded run instead complemented detectors on random outcomes.
     #[test]
     fn reference_is_the_converters() {
         for text in [
