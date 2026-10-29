@@ -32,9 +32,10 @@ neighbours with Z-type walls (X⊗X), so a graph's cubes must all be of one of t
 ``?X?``/``?Z?`` patterns with the X walls along one axis, which becomes the engine's column
 axis. Hadamard pipes (CZ) and spatial cubes are available through tqec's pipeline:
 junctions of two spatial directions and one-basis walls (the stability experiment,
-three CNOTs, move and rotation, Steane encoding). Spatial Hadamard pipes along x require
-``convention="fixed_boundary"``; tqec 0.2.0 has no fixed-bulk template for them. Y half cubes
-are unsupported by both routes; fill open ports before compiling."""
+three CNOTs, move and rotation, Steane encoding). A spatial Hadamard pipe between two
+non-spatial cubes, along x or y, requires ``convention="fixed_boundary"``: tqec 0.2.0 has no
+fixed-bulk template for it. One that touches a spatial cube (the CZ's) compiles in both
+conventions. Y half cubes are unsupported by both routes; fill open ports before compiling."""
 
 from __future__ import annotations
 
@@ -141,7 +142,10 @@ def _compile(graph: "BlockGraph", distance: int, *, p: float = 0.0, rounds: Opti
     cubes = graph.cubes
     for pipe in graph.pipes:
         if pipe.kind.has_hadamard:
-            hint = "compile_block_graph(graph, convention='fixed_boundary').generate_stim_circuit(k) compiles it as tqec does; fixed_bulk has no template for spatial Hadamard pipes along x" if pipe.kind.is_spatial and pipe.direction == Direction3D.X else _REFUSED
+            # tqec 0.2.0's fixed_bulk has no template for a spatial Hadamard pipe between two
+            # non-spatial cubes, along x or y; one that touches a spatial cube takes the spatial
+            # cube's pipe template, which ignores the Hadamard, and compiles in both conventions.
+            hint = "compile_block_graph(graph, convention='fixed_boundary').generate_stim_circuit(k) compiles it as tqec does; fixed_bulk has no template for a spatial Hadamard pipe between two non-spatial cubes" if pipe.kind.is_spatial and not (pipe.u.is_spatial or pipe.v.is_spatial) else _REFUSED
             raise TQECError(f"the pipe {pipe} has a Hadamard; the surgery engine has no Hadamard pipes ({hint})")
     for cube in cubes:
         if not isinstance(cube.kind, ZXCube):

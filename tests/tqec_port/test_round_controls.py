@@ -110,3 +110,40 @@ def test_direct_round_controls_on_graphs_only_tqec_compiles(name, build, referen
             tqec.TopologicalComputationGraph(graph, **controls).generate_stim_circuit(1)
         assert not isinstance(refused.value, tqec.TQECError), controls
         assert "2k + 1 = 3 rounds" in str(refused.value)
+
+
+def _hadamard_graph(u_kind, v_kind, v_position):
+    graph = tqec.BlockGraph()
+    graph.add_cube(tqec.Position3D(0, 0, 0), u_kind)
+    graph.add_cube(v_position, v_kind)
+    graph.add_pipe(tqec.Position3D(0, 0, 0), v_position)
+    return graph
+
+
+HADAMARDS = [
+    # Between two non-spatial cubes, along x and along y: fixed_bulk has no template.
+    ("x_regular", lambda: _hadamard_graph("ZXZ", "XZX", tqec.Position3D(1, 0, 0)), True),
+    ("y_regular", lambda: _hadamard_graph("XZZ", "ZXX", tqec.Position3D(0, 1, 0)), True),
+    ("y_regular_zoxh", lambda: _hadamard_graph("ZXX", "XZZ", tqec.Position3D(0, 1, 0)), True),
+    # Touching a spatial cube (the CZ's XXZ): the spatial cube's template, in both conventions.
+    ("cz_junction", lambda: tqec.gallery.cz("XI -> XZ"), False),
+]
+
+
+@pytest.mark.parametrize("name,build,needs_fixed_boundary", HADAMARDS, ids=[c[0] for c in HADAMARDS])
+def test_spatial_hadamard_hint_names_a_route_that_compiles(name, build, needs_fixed_boundary):
+    graph = build()
+    with pytest.raises(tqec.TQECError, match="has no Hadamard pipes") as refused:
+        graph.compile(3)
+    message = str(refused.value)
+    assert ("convention='fixed_boundary'" in message) == needs_fixed_boundary
+    assert ("fixed_bulk has no template" in message) == needs_fixed_boundary
+    hinted = "fixed_boundary" if needs_fixed_boundary else "fixed_bulk"
+    circuit = tqec.compile_block_graph(graph, convention=hinted).generate_stim_circuit(1)
+    assert circuit.num_qubits > 0
+    if needs_fixed_boundary:
+        # The claim the hint makes: tqec 0.2.0's fixed_bulk has no template for it.
+        with pytest.raises(NotImplementedError, match="hadamard"):
+            tqec.compile_block_graph(graph).generate_stim_circuit(1)
+    else:
+        assert str(circuit) == fixture("cz_XIXZ_fixed_bulk_k1")
