@@ -166,12 +166,19 @@ def get_upper_bound_circuit_distance(
     int
         Upper bound for the circuit distance.
     error
-        Error corresponding to the upper bound.
+        Error corresponding to the upper bound: the error instructions the decoder chose, which
+        together flip some observables and no detector.
 
     Notes
     -----
-    The default decoder is this package's BP+OSD (qec-util's is ``dem_decoders``'), with the
-    same options.
+    The default decoder is this package's BP+OSD (qec-util's is ``dem_decoders``' ``BP_OSD``),
+    with the same options and the same check matrix: errors flipping the same detectors are one
+    column, their probabilities combined, so the bound is qec-util's. A decoder's faults are read
+    as those merged columns when there are as many of them, otherwise as one per error
+    instruction of the flattened model; each fault adds one error instruction (a merged column's
+    first) to ``error``. qec-util takes the fault indices as indices of every instruction of the
+    flattened model, detector lines included, so the error it returns can be detector lines or
+    errors that flip detectors.
     """
     if kargs == {} and (decoder is None):
         decoder = _BpOsdFaults
@@ -184,6 +191,7 @@ def get_upper_bound_circuit_distance(
             "osd_method": "osd_cs",
         }
 
+    dem = ours(dem)  # a Stim DetectorErrorModel too
     num_obs = dem.num_observables
     if num_obs == 0:
         raise ValueError("'dem' does not contain any logical observable.")
@@ -191,6 +199,11 @@ def get_upper_bound_circuit_distance(
     dem = dem.flattened()
     new_dem = observables_to_detectors(dem)
     decoder_dem = decoder(new_dem, **kargs)
+    # A fault is a column of the check matrix: the merged ones of dem_decoders' BP_OSD (and of
+    # the default decoder), or one per error instruction. Either way it stands for an error
+    # instruction of ``dem``, whose errors are ``new_dem``'s in the same order.
+    errors = [instr for instr in dem if instr.type == "error"]
+    _, merged, _ = _error_columns(new_dem)
 
     num_faults: int = np.inf
     error = stim.DetectorErrorModel()
@@ -207,9 +220,10 @@ def get_upper_bound_circuit_distance(
             continue
 
         fault_inds = np.where(faults)[0]
+        columns = merged if len(faults) == len(merged) else range(len(errors))
         error = stim.DetectorErrorModel()
         for fault_ind in fault_inds:
-            error += dem[fault_ind : fault_ind + 1]  # object is a DetectorErrorModel
+            error.append(errors[columns[fault_ind]])
         num_faults = len(error)
 
     num_faults = num_faults if num_faults != np.inf else -1
@@ -217,20 +231,48 @@ def get_upper_bound_circuit_distance(
     return num_faults, error
 
 
+def _error_columns(dem: stim.DetectorErrorModel) -> tuple[list[list[int]], list[int], list[float]]:
+    """The columns of ``dem_decoders``' ``dem_to_hplc`` check matrix: the error instructions of
+    the flattened model, those flipping the same detectors (as listed) merged into one, the
+    probability of an odd number of them, in order of first appearance. Returns each column's
+    detectors, the index (among the error instructions) of its first error, and its
+    probability."""
+    dets_of: list[list[int]] = []
+    first: list[int] = []
+    probs: list[float] = []
+    column: dict[tuple[int, ...], int] = {}
+    errors = [instr for instr in dem.flattened() if instr.type == "error"]
+    for k, instr in enumerate(errors):
+        p = instr.args_copy()[0]
+        dets = [t.val for t in instr.targets_copy() if t.is_relative_detector_id()]
+        c = column.get(tuple(dets))
+        if c is None:
+            column[tuple(dets)] = len(dets_of)
+            dets_of.append(dets)
+            first.append(k)
+            probs.append(p)
+        else:
+            q = probs[c]
+            probs[c] = p * (1 - q) + (1 - p) * q  # dem_decoders' comb_probs(p, q)
+    return dets_of, first, probs
+
+
 class _BpOsdFaults:
-    """BP+OSD over a model's errors, as ``dem_decoders``' ``BP_OSD``: ``decode_to_faults_array``
-    gives the errors (one per instruction of the flattened model) explaining a syndrome."""
+    """BP+OSD over a model's errors, as ``dem_decoders``' ``BP_OSD``: the check matrix is
+    ``dem_to_hplc``'s, whose columns are the error instructions of the flattened model with
+    those flipping the same detectors merged (see ``_error_columns``); ``decode_to_faults_array``
+    gives the columns explaining a syndrome. A detector listed twice in one error (in two
+    components of a decomposed error) is flipped twice, so not at all; dem_decoders refuses
+    that matrix."""
 
     def __init__(self, dem: stim.DetectorErrorModel, **kargs: object) -> None:
         from stabilizer_qec import BpOsdDecoder
 
-        errors = [instr for instr in dem.flattened() if instr.type == "error"]
-        pcm = np.zeros((dem.num_detectors, len(errors)), dtype=np.uint8)
-        for k, instr in enumerate(errors):
-            for t in instr.targets_copy():
-                if t.is_relative_detector_id():
-                    pcm[t.val, k] ^= 1
-        priors = [instr.args_copy()[0] for instr in errors]
+        columns, _, priors = _error_columns(dem)
+        pcm = np.zeros((dem.num_detectors, len(columns)), dtype=np.uint8)
+        for k, dets in enumerate(columns):
+            for d in dets:
+                pcm[d, k] ^= 1
         self._decoder = BpOsdDecoder(pcm, error_channel=priors, **kargs)
 
     def decode_to_faults_array(self, syndrome: npt.NDArray[np.bool_]) -> npt.NDArray[np.bool_]:

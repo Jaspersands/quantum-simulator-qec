@@ -238,8 +238,11 @@ def test_performance():
     rounds = np.array([1, 2, 3, 4, 6, 8, 10, 14])
     for seed in range(5):
         data = ours.performance.logical_error_prob_decay(rounds, 0.02 + 0.01 * seed, 0.3) + np.random.default_rng(seed).normal(0, 0.002, len(rounds))
-        a = qec_util.performance.metrics.get_error_rate(rounds, data, return_round_offset=True)
-        b = ours.performance.metrics.get_error_rate(rounds, data, return_round_offset=True)
+        # qec-util passes its fit a 'guess' keyword, which lmfit ignores with a warning.
+        with pytest.warns(UserWarning, match="keyword argument guess"):
+            a = qec_util.performance.metrics.get_error_rate(rounds, data, return_round_offset=True)
+        with pytest.warns(UserWarning, match="keyword argument guess"):
+            b = ours.performance.metrics.get_error_rate(rounds, data, return_round_offset=True)
         for x, y in zip(a, b):
             assert y.nominal_value == pytest.approx(x.nominal_value, rel=1e-5)
             assert y.std_dev == pytest.approx(x.std_dev, rel=1e-3)
@@ -265,6 +268,109 @@ def test_decay_fit_without_lmfit_is_lmfits():
                 if err:
                     assert abs(mine.params[name].value - theirs.params[name].value) <= 1e-3 * err
                     assert mine.params[name].stderr == pytest.approx(err, rel=1e-4)
+
+
+_DECAY_WITHOUT_LMFIT = r"""
+import json, sys, warnings
+for name in ("lmfit", "uncertainties", "scipy"):
+    sys.modules[name] = None  # importing them now fails, as when not installed
+import numpy as np
+from stabilizer_qec import analysis as a
+from stabilizer_qec.analysis.performance import _fitting
+assert _fitting.Model is _fitting._Model, "lmfit was used"
+rounds = np.array([1, 2, 3, 4, 6, 8, 10, 14])
+data = a.performance.logical_error_prob_decay(rounds, 0.03, 0.3) + np.random.default_rng(1).normal(0, 0.002, len(rounds))
+weights = np.array([1, 1, 1, 1, 1, 1, 100, 100.0])
+M = a.performance.LogicalErrorProbDecayModel
+def params(r):
+    return {**{k: [p.value, p.stderr] for k, p in r.params.items()}, "success": r.success}
+def outcome(f):
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        try:
+            out = f()
+        except Exception as e:
+            out = ["raised", type(e).__name__, str(e)]
+    return [out, sorted({str(x.message) for x in w})]
+nan, inf = data.copy(), data.copy()
+nan[3], inf[3] = np.nan, np.inf
+out = {
+    "plain": outcome(lambda: params(M().fit(data, rounds))),
+    "weights": outcome(lambda: params(M().fit(data, rounds, weights=weights))),
+    "fixed offset": outcome(lambda: params(M(vary_round_offset=False).fit(data, rounds, weights=weights))),
+    "nan": outcome(lambda: params(M().fit(nan, rounds))),
+    "inf": outcome(lambda: params(M().fit(inf, rounds))),
+    "omit": outcome(lambda: params(M().fit(nan, rounds, nan_policy="omit"))),
+    "empty": outcome(lambda: params(M().fit(data, rounds, min_round_fit=100))),
+    "one point": outcome(lambda: params(M().fit(data, rounds, min_round_fit=14))),
+    "max_nfev": outcome(lambda: params(M().fit(data, rounds, max_nfev=5))),
+    "unknown": outcome(lambda: params(M().fit(data, rounds, colour=1))),
+    "error rate": outcome(lambda: [[x.nominal_value, x.std_dev] for x in a.performance.metrics.get_error_rate(rounds, data, return_round_offset=True)]),
+}
+print(json.dumps(out))
+"""
+
+
+def test_decay_model_without_lmfit_is_qec_utils():
+    """Without lmfit (or scipy), LogicalErrorProbDecayModel fits as lmfit does: weighted, with
+    max_nfev, lmfit's errors for NaN, inf and too few points, and its warning for an unknown
+    keyword."""
+    import json
+    import subprocess
+    import sys
+    import warnings
+
+    run = subprocess.run([sys.executable, "-c", _DECAY_WITHOUT_LMFIT], capture_output=True, text=True)
+    assert run.returncode == 0 and run.stderr == "", run.stderr
+    mine = json.loads(run.stdout)
+
+    rounds = np.array([1, 2, 3, 4, 6, 8, 10, 14])
+    data = qec_util.performance.logical_error_prob_decay(rounds, 0.03, 0.3) + np.random.default_rng(1).normal(0, 0.002, len(rounds))
+    weights = np.array([1, 1, 1, 1, 1, 1, 100, 100.0])
+    M = qec_util.performance.LogicalErrorProbDecayModel
+
+    def params(r):
+        return {**{k: [p.value, p.stderr] for k, p in r.params.items()}, "success": r.success}
+
+    def outcome(f):
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            try:
+                out = f()
+            except Exception as e:  # noqa: BLE001
+                out = ["raised", type(e).__name__, str(e)]
+        return [out, sorted({str(x.message) for x in w})]
+
+    nan, inf = data.copy(), data.copy()
+    nan[3], inf[3] = np.nan, np.inf
+    theirs = {
+        "plain": outcome(lambda: params(M().fit(data, rounds))),
+        "weights": outcome(lambda: params(M().fit(data, rounds, weights=weights))),
+        "fixed offset": outcome(lambda: params(M(vary_round_offset=False).fit(data, rounds, weights=weights))),
+        "nan": outcome(lambda: params(M().fit(nan, rounds))),
+        "inf": outcome(lambda: params(M().fit(inf, rounds))),
+        "omit": outcome(lambda: params(M().fit(nan, rounds, nan_policy="omit"))),
+        "empty": outcome(lambda: params(M().fit(data, rounds, min_round_fit=100))),
+        "one point": outcome(lambda: params(M().fit(data, rounds, min_round_fit=14))),
+        "max_nfev": outcome(lambda: params(M().fit(data, rounds, max_nfev=5))),
+        "unknown": outcome(lambda: params(M().fit(data, rounds, colour=1))),
+        "error rate": outcome(lambda: [[x.nominal_value, x.std_dev] for x in qec_util.performance.metrics.get_error_rate(rounds, data, return_round_offset=True)]),
+    }
+    assert set(mine) == set(theirs)
+    for case, (got, warned) in mine.items():
+        want, want_warned = theirs[case]
+        assert warned == want_warned, case
+        if isinstance(want, list) and want[0] == "raised":
+            assert got == want, case
+            continue
+        if case == "error rate":
+            assert np.allclose(got, want, rtol=1e-7), case
+            continue
+        assert got["success"] == want["success"], case
+        for name in ("error_rate", "round_offset"):
+            (v, e), (w, f) = got[name], want[name]
+            assert v == pytest.approx(w, rel=1e-7, abs=1e-12), (case, name)
+            assert (e is None) == (f is None) and (e is None or e == pytest.approx(f, rel=1e-6, abs=1e-15)), (case, name)
 
 
 def test_threshold_fit():

@@ -149,7 +149,7 @@ def test_qec_util_hyperedge_decomposition_takes_stim_models():
         assert same(outcome(dem_instrs.decompose_hyperedge_to_edges, instr, stim.DetectorErrorModel(str(edges)), True), outcome(dem_instrs.decompose_hyperedge_to_edges, mine_instr(instr), edges, True))
 
 
-@pytest.mark.parametrize("name,extra", [("get_detectors", ()), ("get_observables", ()), ("has_separator", ()), ("decomposed_detectors", ()), ("decomposed_observables", ()), ("decomposed_instrs", ()), ("sorted_dem_instr", ()), ("remove_detectors", ([0, 1, 2],)), ("detectors_to_observables", ({0: [0]},))])
+@pytest.mark.parametrize("name,extra", [("get_detectors", ()), ("get_observables", ()), ("has_separator", ()), ("decomposed_detectors", ()), ("decomposed_observables", ()), ("decomposed_instrs", ()), ("sorted_dem_instr", ()), ("remove_detectors", ([0, 1, 2],)), ("detectors_to_observables", ({stim.target_relative_detector_id(k): stim.target_logical_observable_id(5 + k) for k in range(4)},))])
 def test_qec_util_instruction_tools_take_stim_instructions(name, extra):
     from stabilizer_qec.analysis import dem_instrs
 
@@ -158,6 +158,36 @@ def test_qec_util_instruction_tools_take_stim_instructions(name, extra):
     errors = [i for i in model.flattened() if i.type == "error"]
     for instr in errors[:: max(1, len(errors) // 12)]:
         assert same(outcome(fn, instr, *extra), outcome(fn, mine_instr(instr), *extra)), (name, str(instr))
+
+
+def test_qec_util_detectors_to_observables_takes_stim_targets():
+    """A mapping keyed by Stim's own DemTargets is applied (it neither equals nor hashes like
+    this package's targets, so it once matched nothing and the model came back unchanged), as
+    qec-util applies it."""
+    from stabilizer_qec.analysis import dem_instrs, dems
+
+    model = real_circuit().detector_error_model(decompose_errors=True)
+    theirs = {stim.target_relative_detector_id(k): stim.target_logical_observable_id(5 + k) for k in (0, 3)}
+    own = {sq.target_relative_detector_id(k): sq.target_logical_observable_id(5 + k) for k in (0, 3)}
+    got = dems.detectors_to_observables(model, theirs)
+    assert str(got) == str(dems.detectors_to_observables(mine(model), own))
+    assert "L5" in str(got) and "L8" in str(got)
+    assert not any(i.type == "detector" and str(i.targets_copy()[0]) in ("D0", "D3") for i in got)
+    small = stim.DetectorErrorModel("detector(0) D0\nerror(0.1) D0 D1\nerror(0.2) D1 L0")
+    assert str(dems.detectors_to_observables(small, {stim.target_relative_detector_id(0): stim.target_logical_observable_id(5)})) == "error(0.1) L5 D1\nerror(0.2) D1 L0"
+    assert str(dem_instrs.detectors_to_observables(small[1], {stim.target_relative_detector_id(0): stim.target_logical_observable_id(5)})) == "error(0.1) L5 D1"
+    errors = [i for i in model.flattened() if i.type == "error"]
+    changed = [i for i in errors if str(dem_instrs.detectors_to_observables(i, theirs)) != str(i)]
+    assert changed
+    for instr in errors:
+        assert str(dem_instrs.detectors_to_observables(instr, theirs)) == str(dem_instrs.detectors_to_observables(mine_instr(instr), own))
+    try:
+        import qec_util
+    except ImportError:
+        return
+    assert str(qec_util.dems.detectors_to_observables(model, theirs)) == str(got)
+    for instr in changed:
+        assert str(qec_util.dem_instrs.detectors_to_observables(instr, theirs)) == str(dem_instrs.detectors_to_observables(instr, theirs))
 
 
 def test_qec_util_distance_takes_stim_models():

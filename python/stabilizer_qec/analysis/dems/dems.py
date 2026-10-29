@@ -8,6 +8,7 @@ import numpy as np
 import stabilizer_qec as stim
 from stabilizer_qec._util import ours
 
+from ..dem_instrs.dem_instrs import _own_targets
 from ..dem_instrs import detectors_to_observables as detectors_to_observables_instr
 from ..dem_instrs import (
     get_detectors,
@@ -641,6 +642,8 @@ def detectors_to_observables(
             ): stim.target_logical_observable_id(n)
             for n in range(det_to_obs)
         }
+    elif isinstance(det_to_obs, dict):
+        det_to_obs = _own_targets(det_to_obs)  # keyed by Stim's own DemTargets too
 
     new_dem = stim.DetectorErrorModel()
     for instr in dem.flattened():
