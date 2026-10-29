@@ -1896,12 +1896,12 @@ data qubits, 801 coherent rotations, 10 non-Clifford gates), where no state vect
 
 | circuit | ε | qubits | rotations | acceptance: twirl / joint / exact | output infidelity: twirl / joint / exact | sample size kept | per shot |
 |---|---|---|---|---|---|---|---|
-| 5 qubits | 0.01 | 5 | 34 | 0.164 / 0.166 / 0.168 | 6.1 × 10⁻⁴ / 6.1 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 517 µs |
-| 5 qubits | 0.02 | 5 | 34 | 0.164 / 0.166 / 0.168 | 1.8 × 10⁻³ / 1.3 × 10⁻³ / 5.2 × 10⁻⁵ | 96% | 535 µs |
-| 5 qubits | 0.05 | 5 | 34 | 0.157 / 0.161 / 0.167 | 1.1 × 10⁻² / 9.3 × 10⁻³ / 1.0 × 10⁻⁵ | 77% | 555 µs |
-| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.148 / 0.151 / — | 2.2 × 10⁻¹ / 2.2 × 10⁻¹ / — | 94% | 190.5 ms |
-| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.120 / 0.129 / — | 2.1 × 10⁻¹ / 2.1 × 10⁻¹ / — | 79% | 195.4 ms |
-| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.029 / 0.047 / — | 2.8 × 10⁻¹ / 2.8 × 10⁻¹ / — | 28% | 220.1 ms |
+| 5 qubits | 0.01 | 5 | 34 | 0.164 / 0.166 / 0.168 | 6.1 × 10⁻⁴ / 6.1 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 349 µs |
+| 5 qubits | 0.02 | 5 | 34 | 0.164 / 0.166 / 0.168 | 1.8 × 10⁻³ / 1.3 × 10⁻³ / 5.2 × 10⁻⁵ | 96% | 352 µs |
+| 5 qubits | 0.05 | 5 | 34 | 0.157 / 0.161 / 0.167 | 1.1 × 10⁻² / 9.3 × 10⁻³ / 1.0 × 10⁻⁵ | 77% | 366 µs |
+| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.148 / 0.151 / — | 2.2 × 10⁻¹ / 2.2 × 10⁻¹ / — | 94% | 144.0 ms |
+| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.120 / 0.129 / — | 2.1 × 10⁻¹ / 2.1 × 10⁻¹ / — | 79% | 141.8 ms |
+| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.029 / 0.047 / — | 2.8 × 10⁻¹ / 2.8 × 10⁻¹ / — | 28% | 163.7 ms |
 
 The unencoded rows use 20,000 shots each; encoded rows use 2,000 shots each. All six
 selected truncated weights (`exact_weights=False`): the unencoded circuits have 54 kernel
@@ -1917,7 +1917,9 @@ At ε = 0.01, unencoded acceptance (twirl / joint / state vector) is
 and 6.11 × 10⁻⁴), both about 25 times the state vector's. The table preserves any remaining
 joint/state-vector gap. The old attribution to truncation alone is not established by this remeasurement.
 The per-shot column is coherent compilation-plus-sampling wall time divided by input shots,
-with `threads=0` (all cores). The encoded circuit has no state-vector control; its weighted
+with `threads=0` (all cores), from the 2026-10-23 recording: the 2.2.0 re-recording drew the
+same joint-sampler samples on a machine too busy to time them (`data/clifford_t/distill.json`'s
+note). The encoded circuit has no state-vector control; its weighted
 estimates and timings do not validate the approximation.
 
 **Limits.** The joint sampler still omits products beyond its twelve-generator whole-sum route.
