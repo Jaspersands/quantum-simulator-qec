@@ -3,6 +3,14 @@
 //! it came from (numbered as Stim numbers them, adjacent identical instructions joined), its
 //! targets, the Pauli product or measurement it flips, the `TICK`s before it and the loop
 //! passes around it. Faults are grouped by what they set off and written as Stim writes them.
+//!
+//! As Stim's matcher, the walk allows detectors that depend on a random outcome (gauge
+//! detectors; observables must still be deterministic), and it reads the faults as that matcher
+//! does: its analyzer keeps what it meets in one map, and each fault site (a case of a noise
+//! channel, a measurement) reads the map's least entry as its fault and empties it. A
+//! measurement's collapse is part of its own site; a reset's, and an `MPAD` flip, wait in the map
+//! for the next site the walk meets; a heralded channel's cases are read directly, and it empties
+//! the map (see `Mark`).
 
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -23,6 +31,29 @@ pub(crate) struct Detail {
     /// The instruction it belongs to, when not the one being undone (an `ELSE_CORRELATED_ERROR`
     /// case, added at its `E`).
     pub item: Option<Rc<Item>>,
+    /// What the record is to Stim's matcher.
+    pub mark: Mark,
+}
+
+/// What a record is to Stim's matcher (`ErrorMatcher`), whose analyzer keeps every fault it
+/// meets in one map (keyed by symptoms, then tag) until a fault site (`err_atom`) reads it: the
+/// site takes the map's least key as its fault (none when that key has no symptoms) and empties
+/// the map.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Mark {
+    /// A fault site, with its own fault (symptoms empty or not).
+    Site,
+    /// A fault site with no fault of its own (a noiseless measurement): it reads what waits.
+    Open,
+    /// Another fault of the site just recorded (a measurement's flip, its collapse).
+    Also,
+    /// A fault met outside any site (a reset's collapse, an `MPAD` flip): it waits for the next
+    /// site.
+    Pending,
+    /// A heralded channel's case: recorded as it is, the map left alone.
+    Direct,
+    /// Where Stim empties the map unread (each heralded target).
+    Clear,
 }
 
 /// Stim's number for a case of a channel: each qubit's Pauli (I 0, X 1, Y 2, Z 3), the first
@@ -181,7 +212,7 @@ pub(crate) struct Recorder {
     current: Option<Rc<Item>>,
     gates: Vec<GateCtx>,
     views: HashMap<(usize, usize), Rc<Vec<Rc<Item>>>>,
-    pub(crate) records: Vec<(Vec<u64>, Location, u32)>,
+    pub(crate) records: Vec<(Vec<u64>, Location, u32, Mark)>,
 }
 
 impl Recorder {
@@ -249,10 +280,9 @@ impl Recorder {
         (0, self.current.as_ref().map_or(0, |c| c.tokens.len() as u32))
     }
 
+    /// A record (`Mark`) for Stim's matcher: one with no symptoms is kept, as it can stand for
+    /// a site.
     pub(crate) fn record(&mut self, symptom: Vec<u64>, d: Detail) {
-        if symptom.is_empty() {
-            return;
-        }
         let Some(item) = d.item.clone().or_else(|| self.current.clone()) else { return };
         let (a, b) = (d.range.0.min(item.tokens.len() as u32), d.range.1.min(item.tokens.len() as u32));
         let loc = Location {
@@ -271,7 +301,7 @@ impl Recorder {
             },
             tag: item.tag.clone(),
         };
-        self.records.push((symptom, loc, d.rank));
+        self.records.push((symptom, loc, d.rank, d.mark));
     }
 }
 
@@ -446,9 +476,10 @@ pub fn explain(circuit: &Circuit, filter: Option<&[Vec<u64>]>, reduce: bool) -> 
         }
         start = end;
     }
+    let records = read_as_stim(records);
     let mut groups: Vec<(Vec<u64>, Vec<Location>)> = Vec::new();
     let mut at: HashMap<Vec<u64>, usize> = HashMap::new();
-    for (symptom, loc, _) in records {
+    for (symptom, loc) in records {
         let k = *at.entry(symptom.clone()).or_insert_with(|| {
             groups.push((symptom, Vec::new()));
             groups.len() - 1
@@ -481,14 +512,54 @@ pub fn explain(circuit: &Circuit, filter: Option<&[Vec<u64>]>, reduce: bool) -> 
     Ok(out)
 }
 
-/// Stim's representative of a fault class: its simplest location (fewest qubits and flipped
-/// measurements), then the earliest, then the least Pauli product, the targets' place in the
-/// instruction, the least targets, arguments and gate type in Stim's order; among equals with one tag the first in
-/// the circuit, among tags the last.
+/// The walk's records (in the order Stim's matcher meets them) read as that matcher reads them
+/// (`Mark`): each site's fault, with where it arises. A fault that waits takes the place of the
+/// next site's own when its key is less, and that site's place in the output, its tag the
+/// waiting fault's.
+fn read_as_stim(records: Vec<(Vec<u64>, Location, u32, Mark)>) -> Vec<(Vec<u64>, Location)> {
+    let mut out = Vec::new();
+    let mut waiting: Vec<(Vec<u64>, String)> = Vec::new();
+    let mut it = records.into_iter().peekable();
+    while let Some((symptom, mut loc, _, mark)) = it.next() {
+        match mark {
+            Mark::Pending => waiting.push((symptom, loc.tag)),
+            Mark::Clear => waiting.clear(),
+            Mark::Direct => {
+                if !symptom.is_empty() {
+                    out.push((symptom, loc));
+                }
+            }
+            Mark::Site | Mark::Open | Mark::Also => {
+                let mut keys = std::mem::take(&mut waiting);
+                if mark != Mark::Open {
+                    keys.push((symptom, loc.tag.clone()));
+                }
+                while let Some((symptom, also, ..)) = it.next_if(|r| r.3 == Mark::Also) {
+                    keys.push((symptom, also.tag));
+                }
+                if let Some((symptom, tag)) = keys.into_iter().min().filter(|k| !k.0.is_empty()) {
+                    loc.tag = tag;
+                    out.push((symptom, loc));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Stim's representative of a fault class, chosen as its matcher chooses it: the locations in
+/// the order the matcher meets them, each replacing the one kept when it is simpler
+/// (`CircuitErrorLocation::is_simpler_than`). That test never replaces across a difference in the
+/// measured observable's size (it compares the other location's size with itself), so a
+/// measurement's flip met first is kept against a Pauli fault met later and the other way round;
+/// otherwise fewer flipped Paulis win, then Stim's order of locations: tick, Pauli product,
+/// flipped measurement, the targets' range, the targets, arguments, gate, then the stack.
+/// Among equals the first met is kept.
 fn representative(locs: &[Location]) -> Option<Location> {
-    let size = |l: &Location| l.pauli.len() + usize::from(l.measurement.is_some());
     // Stim compares targets by their bits: a Z flag below an X flag below both (Y), then qubit.
-    let product = |l: &Location| l.pauli.iter().map(|&(q, p)| ([0u8, 2, 1, 3][(p & 3) as usize], q)).collect::<Vec<_>>();
+    let product = |ps: &[(u32, u8)]| ps.iter().map(|&(q, p)| ([0u8, 2, 1, 3][(p & 3) as usize], q)).collect::<Vec<_>>();
+    // No flipped measurement is record index 2^64 - 1 to Stim, after every real one.
+    let measured = |l: &Location| l.measurement.as_ref().map_or((u64::MAX, Vec::new()), |(k, obs)| (*k, product(obs)));
     // Arguments compare as numbers (they are never negative, so their bits order alike).
     let args = |l: &Location| l.args.iter().map(|a| a.to_bits()).collect::<Vec<_>>();
     // Targets compare as Stim stores them: Pauli flags above the qubit (Z < X < Y), `!` above all.
@@ -508,14 +579,37 @@ fn representative(locs: &[Location]) -> Option<Location> {
             })
             .collect::<Vec<_>>()
     };
-    let key = |l: &Location| (size(l), l.tick_offset, product(l), l.range, targets(l), args(l), gate_rank(&l.gate));
-    // Stim reduces each tag's faults on their own (the earliest of equals), and a later tag's
-    // choice replaces an equal earlier one.
-    let mut tags: Vec<&str> = locs.iter().map(|l| l.tag.as_str()).collect();
-    tags.sort_unstable();
-    tags.dedup();
-    let per_tag = tags.iter().filter_map(|t| locs.iter().filter(|l| l.tag == *t).min_by_key(|l| (key(l), l.stack.clone(), l.range)));
-    per_tag.min_by_key(|l| (key(l), std::cmp::Reverse(l.stack.clone()))).cloned()
+    // Stim's `operator<`: the instructions' parts are compared only where they differ, and a
+    // difference in the instruction's tag alone counts as a difference that orders neither first,
+    // so neither location is less than the other.
+    let less = |a: &Location, b: &Location| {
+        let (ka, kb) = ((a.tick_offset, product(&a.pauli), measured(a)), (b.tick_offset, product(&b.pauli), measured(b)));
+        if ka != kb {
+            return ka < kb;
+        }
+        let (ia, ib) = ((a.range, targets(a), args(a), gate_rank(&a.gate)), (b.range, targets(b), args(b), gate_rank(&b.gate)));
+        if ia != ib || a.head != b.head {
+            return ia < ib;
+        }
+        a.stack < b.stack
+    };
+    let observed = |l: &Location| l.measurement.as_ref().map_or(0, |m| m.1.len());
+    let simpler = |a: &Location, b: &Location| {
+        if observed(a) != observed(b) {
+            false
+        } else if a.pauli.len() != b.pauli.len() {
+            a.pauli.len() < b.pauli.len()
+        } else {
+            less(a, b)
+        }
+    };
+    let mut kept: Option<&Location> = None;
+    for l in locs {
+        if kept.is_none_or(|k| simpler(l, k)) {
+            kept = Some(l);
+        }
+    }
+    kept.cloned()
 }
 
 /// Stim's order of its gate types (its `GateType` enumeration), for the gates that carry faults.

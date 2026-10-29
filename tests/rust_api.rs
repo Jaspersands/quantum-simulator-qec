@@ -363,3 +363,23 @@ fn coherent_exact_and_twirled() {
     let (hit, total) = w.weights.iter().enumerate().fold((0.0, 0.0), |(h, t), (k, &x)| (h + if w.detectors.get(k, 0) { x } else { 0.0 }, t + x));
     assert!((hit / total - p).abs() < 0.02);
 }
+
+#[test]
+fn a_collapse_explained_at_the_next_fault_keeps_both_tags_as_stim_does() {
+    // Stim's matcher puts a reset's collapse on the next fault it meets when the collapse's
+    // symptoms are the lesser, with the collapse's tag as the noise tag and the fault's own
+    // instruction (and its tag) as the place. Texts from Stim 1.16.
+    let place = |head: &str| {
+        format!("        Circuit location stack trace:\n            (after 0 TICKs)\n            at instruction #1 (X_ERROR) in the circuit\n            at target #1 of the instruction\n            resolving to {head} 1\n    }}\n}}")
+    };
+    for (text, noise_tag, head) in [
+        ("X_ERROR(0.1) 1\nRX[foo] 0\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]", "        noise_tag: foo\n", "X_ERROR(0.1)"),
+        ("X_ERROR[t](0.1) 1\nRX 0\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]", "", "X_ERROR[t](0.1)"),
+    ] {
+        let want = format!("ExplainedError {{\n    dem_error_terms: D0\n    CircuitErrorLocation {{\n{noise_tag}        flipped_pauli_product: X1\n{}", place(head));
+        for reduce in [false, true] {
+            let got: Vec<String> = Circuit::parse(text).unwrap().explain_errors(None, reduce).unwrap().iter().map(|e| e.to_string()).collect();
+            assert_eq!(got, vec![want.clone()], "{text}");
+        }
+    }
+}
