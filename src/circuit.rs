@@ -613,7 +613,29 @@ fn parse_line(line: &str) -> Result<Instr, String> {
     // A tag that asks for a non-Pauli operation on an identity (`I_ERROR[R_Z(theta=0.1)] 0`)
     // runs it in the engines that honour it, and nothing in the rest.
     if let (Instr::Gate { line, tag, .. }, "I" | "II" | "I_ERROR" | "II_ERROR") = (&ins, name.as_str()) {
-        if let Some(ops) = crate::nonpauli::parse(&name, tag, &qubit_targets(&t, &name)?)? {
+        let qs = qubit_targets(&t, &name)?;
+        let ops = match crate::nonpauli::parse(&name, tag, &qs) {
+            // Stim runs the gate target by target (pair by pair for II): a tag that does not
+            // fit all the targets at once (`II[R_PAULI(theta=0.3, pauli=XZ)] 0 1 2 3`, two
+            // letters for four targets) is read on each in turn, as Stim reads such text.
+            Err(whole) => {
+                let arity = if name.starts_with("II") { 2 } else { 1 };
+                let mut each = Some(Vec::new());
+                if qs.len() > arity {
+                    for group in qs.chunks(arity) {
+                        match (crate::nonpauli::parse(&name, tag, group), each.as_mut()) {
+                            (Ok(Some(ops)), Some(all)) => all.extend(ops),
+                            _ => each = None,
+                        }
+                    }
+                } else {
+                    each = None;
+                }
+                Some(each.ok_or(whole)?)
+            }
+            Ok(ops) => ops,
+        };
+        if let Some(ops) = ops {
             return Ok(Instr::Gate { line: line.clone(), tag: tag.clone(), body: vec![Instr::NonPauli(ops)] });
         }
     }
