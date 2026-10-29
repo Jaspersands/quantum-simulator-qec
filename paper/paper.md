@@ -88,9 +88,8 @@ sampler, an error-model builder and a decoder in the same process, compiled to W
 no Python available. Building that engine was therefore needed; it was not a choice made instead
 of contributing to Stim or PyMatching. Some stages were written independently of their
 reference: the error-model builder, the samplers and the engine's own sparse-blossom matcher.
-Their agreement with Stim and PyMatching, fault for fault and shot for shot, is itself a result:
-two independent implementations that agree are evidence that both are right. Others are ports,
-translated from the reference's source to reproduce its answers exactly: PyMatching's sparse
+Their agreement with Stim and PyMatching, fault for fault and shot for shot, is evidence that
+both are right. Others are ports, translated from the reference's source: PyMatching's sparse
 blossom behind the package's PyMatching interface (from version 2.2), Stim's tableau, flow and
 circuit-transformation algorithms, `ldpc`'s BP, OSD and LSD, IBM's Relay-BP, Tesseract and
 Chromobius. A port's agreement with its source shows that the port is faithful, not that the
@@ -172,11 +171,9 @@ draft of this paper were written with Anthropic's Claude models, through Claude 
 directed the work, chose its scope, reviewed the results, and is responsible for the content.
 Because generated code can be plausible and wrong, the project's verification does not rely on
 the code reviewing itself. Each stage is compared with its reference implementation (Stim,
-PyMatching, `ldpc`, `beliefmatching` and the other tools it ports) or with Google's published
-hardware data, as described above. A stage written independently is checked against code it
-shares nothing with; a port is checked against the source it was translated from, which shows
-that the port is faithful rather than that the source is right. The figures in this paper all
-come from those comparisons.
+PyMatching, `ldpc`, `beliefmatching` and the other tools the project ports) or with Google's
+published hardware data, as described above; for a port, that shows it is faithful to its
+source. The figures in this paper all come from those comparisons.
 
 # Acknowledgements
 
