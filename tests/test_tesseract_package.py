@@ -453,6 +453,8 @@ def test_errors_raised_as_tesseracts_binding_raises_them(tmp_path):
         "an int method for sinter": lambda m, d: m.TesseractSinterDecoder(det_order_method=0),
         "counts over no shots": lambda m, d: m.common.dem_from_counts(d, [1, 2, 3, 4], 0),
         "no counts over no shots": lambda m, d: m.common.dem_from_counts(d, [0, 0, 0, 0], 0),
+        # (Tesseract's C++ model holds the first estimate, NaN, and refuses the second, ∞.)
+        "a NaN estimate, then an infinite one": lambda m, d: m.common.dem_from_counts(d, [0, 3, 0, 0], 0),
         "counts above the shots": lambda m, d: m.common.dem_from_counts(d, [20, 0, 0, 0], 10),
         "a negative count": lambda m, d: m.common.dem_from_counts(d, [-1, 0, 0, 0], 10),
         "a float detector": lambda m, d: m.common.Symptom([1.0], []),

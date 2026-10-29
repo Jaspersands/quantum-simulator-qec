@@ -159,6 +159,46 @@ def test_cli_multipass_equals_tesseracts(run_index, tmp_path, capsys):
     assert re.search(r"\ncomponents: 2\n  component 0: label=0, active_detectors=\d+, decoder_detectors=24, observable=(yes|no), error_mechanisms=\d+, "
                      r"average_active_detector_degree=[0-9.e+-]+, sparsify_reactivate_limit=disabled\n", err)
     assert err.endswith("]\n") and "\nschedule:\n  pass 1: [" in err
+    # The plan's dependencies and schedule: the schedule is the one Tesseract builds for the
+    # strategy asked for (build_static_schedule: every component in every pass;
+    # build_causal_schedule: the components that touch an observable last, before them those
+    # with a rule into the next pass), from the plan's own components and dependencies, and
+    # both are those of the Python API's decoder for that strategy.
+    observable = [m[1] == "yes" for m in re.finditer(r"\n  component \d+: .*?observable=(yes|no),", err)]
+    dependencies = {(int(m[1]), int(m[2])): int(m[3]) for m in re.finditer(r"\n  component (\d+) -> component (\d+): (\d+) rules", err)}
+    schedule = [[int(c) for c in m[2].split(", ") if c] for m in re.finditer(r"\n  pass (\d+): \[([0-9, ]*)\]", err)]
+    # (Reweighting rules exist only for a second pass to use.)
+    assert len(observable) == 2 and bool(dependencies) == (mp["passes"] == 2) and len(schedule) == mp["passes"]
+    assert schedule == tesseracts_schedule(strategy, mp["passes"], observable, dependencies)
+    # (On this model the two strategies' schedules differ, so a swap cannot pass.)
+    other = "static" if strategy == "causal" else "causal"
+    assert tesseracts_schedule(other, mp["passes"], observable, dependencies) != schedule
+    from stabilizer_qec.tesseract_decoder import SchedulingStrategy
+    from stabilizer_qec.tesseract_decoder._multi_pass import MultiPassTesseractDecoder
+
+    config = TesseractConfig(sq.DetectorErrorModel(model["multipass"]["dem"]), det_beam=5, no_revisit_dets=True, pqlimit=100000)
+    api = MultiPassTesseractDecoder(config, mp["passes"], (), int(getattr(SchedulingStrategy, strategy.capitalize())))
+    assert api.pass_schedule == schedule and api.affects_observable == observable
+    counts: dict = {}
+    for source, rules in enumerate(api.reweight_rules):
+        for entries in rules.values():
+            for rule in entries:
+                counts[(source, rule[0])] = counts.get((source, rule[0]), 0) + 1
+    assert counts == dependencies
+
+
+def tesseracts_schedule(strategy, passes, observable, dependencies):
+    """Tesseract's MultiPassTesseractDecoder::build_static_schedule and build_causal_schedule
+    (src/multi_pass/multi_pass_tesseract_decoder.cc), from a plan's components (whether each
+    affects an observable) and its dependencies (source component, target component)."""
+    n = len(observable)
+    if strategy == "static":
+        return [list(range(n)) for _ in range(passes)]
+    sets = [set() for _ in range(passes)]
+    sets[-1] = {c for c in range(n) if observable[c]}
+    for p in range(passes - 2, -1, -1):
+        sets[p] = {source for (source, target) in dependencies if target in sets[p + 1]}
+    return [sorted(s) for s in sets]
 
 
 def test_cli_stats_out_json_keys(tmp_path, capsys):
@@ -411,3 +451,124 @@ def test_prediction_stdout_callable_preserves_stream_ownership(tmp_path, monkeyp
         assert sys.stdout is stream and not stream.closed
     assert capsys.readouterr().err == f"tesseract: {OSError(errno.EFBIG, 'caller-owned flush failure')}\n"
     stream.close()  # cleanup belongs to the caller
+
+
+def test_prediction_close_failure_inside_callers_except_block(tmp_path, monkeypatch, capsys):
+    # A prediction file whose close fails (a full disk, say) is reported, and the exit status is
+    # 1, also when main is called while its caller handles an exception of its own.
+    from stabilizer_qec.tesseract_decoder import __main__ as cli
+
+    closed = []
+    real_close = cli._Writer.close
+
+    def failing_close(self):
+        real_close(self)
+        closed.append(True)
+        raise OSError(errno.ENOSPC, os.strerror(errno.ENOSPC))
+
+    monkeypatch.setattr(cli._Writer, "close", failing_close)
+    args = _prediction_stdout_args(tmp_path)
+    args[args.index("-")] = str(tmp_path / "p.01")
+    for inside in (False, True):
+        closed.clear()
+        if inside:
+            try:
+                raise LookupError("the caller's own error")
+            except LookupError:
+                code = main(args)
+        else:
+            code = main(args)
+        out = capsys.readouterr()
+        assert (code, out.err, closed) == (1, f"tesseract: {OSError(errno.ENOSPC, os.strerror(errno.ENOSPC))}\n", [True]), inside
+    # An error already in flight (here --dem-out's, after the predictions) is kept over a
+    # failing close, inside or outside the caller's except block.
+    bad = str(tmp_path / "no" / "x.dem")
+    for inside in (False, True):
+        closed.clear()
+        if inside:
+            try:
+                raise LookupError("the caller's own error")
+            except LookupError:
+                code = main(args + ["--dem-out", bad])
+        else:
+            code = main(args + ["--dem-out", bad])
+        assert (code, capsys.readouterr().err, closed) == (134, failure("Failed to open " + bad), [True]), inside
+
+
+SMALL_DEM = "error(0.1) D0 L0\nerror[t](0.1) D0 D1\nerror(0.2) D1 L1\ndetector(0, 0) D0\ndetector(1, 0) D1\n"
+
+
+def tesseracts_nan() -> str:
+    """How Tesseract's program prints the NaN 0.0/0.0 makes (Stim writes a model's arguments
+    to a C++ stream): its sign bit is set on x86 ("-nan" from Linux's C library, "-nan(ind)"
+    from Windows'); clear on ARM64, and macOS's C library prints no sign for a NaN ("nan")."""
+    import platform
+
+    x86 = platform.machine().lower() in ("x86_64", "amd64")
+    if x86 and sys.platform.startswith("linux"):
+        return "-nan"
+    if x86 and sys.platform == "win32":
+        return "-nan(ind)"
+    return "nan"
+
+
+@pytest.mark.parametrize("shots", ["1000\n", "1000\n1000\n", ""], ids=["one-shot-wrong", "every-shot-wrong", "no-shots"])
+def test_cli_dem_out_without_usable_shots(shots, tmp_path, capsys):
+    # With no shot to count from (every shot a logical error, or none), Tesseract's
+    # dem_from_counts divides 0 by 0: each estimate is NaN, which Stim's validate lets
+    # through and its stream prints; the stats and the final line follow, and it exits 0.
+    (tmp_path / "s.dem").write_text(SMALL_DEM)
+    (tmp_path / "s.01").write_text(shots)
+    code, out, err = run(
+        ["--dem", tmp_path / "s.dem", "--in", tmp_path / "s.01", "--in-format", "01", "--in-includes-appended-observables",
+         "--dem-out", tmp_path / "o.dem", "--stats-out", tmp_path / "st.json", "--out", tmp_path / "p.01", "--out-format", "01"],
+        capsys,
+    )
+    n = shots.count("\n")
+    assert (code, err) == (0, "")
+    nan = tesseracts_nan()
+    assert (tmp_path / "o.dem").read_text() == (
+        f"error({nan}) D0 L0\nerror[t]({nan}) D0 D1\nerror({nan}) D1 L1\ndetector(0, 0) D0\ndetector(1, 0) D1\n"
+    )
+    assert (tmp_path / "p.01").read_text() == "10\n" * n
+    stats = json.loads((tmp_path / "st.json").read_text())
+    assert (stats["num_shots"], stats["num_errors"]) == (n, n)
+    assert (final_line(out)["num_shots"], final_line(out)["num_errors"]) == (n, n)
+    if not shots:
+        # Without observables the count is over every shot: none here.
+        code, out, err = run(["--dem", tmp_path / "s.dem", "--in", tmp_path / "s.01", "--in-format", "01", "--dem-out", tmp_path / "o2.dem"], capsys)
+        assert (code, err) == (0, "") and (tmp_path / "o2.dem").read_text() == (tmp_path / "o.dem").read_text()
+        assert final_line(out) == {"num_shots": 0, "num_low_confidence": 0, "num_errors": None, "time": 0.0}
+    # One shot decoded right: an estimate of 0 or 1, as before.
+    (tmp_path / "ok.01").write_text("0000\n")
+    code, out, err = run(["--dem", tmp_path / "s.dem", "--in", tmp_path / "ok.01", "--in-format", "01", "--in-includes-appended-observables", "--dem-out", tmp_path / "o3.dem"], capsys)
+    assert (code, err) == (0, "") and (tmp_path / "o3.dem").read_text() == "error(0) D0 L0\nerror[t](0) D0 D1\nerror(0) D1 L1\ndetector(0, 0) D0\ndetector(1, 0) D1\n"
+
+
+def test_cli_reads_models_with_non_utf8_comment_bytes(tmp_path, capsys):
+    # Stim reads a model's or circuit's bytes and passes over those in a comment, so Tesseract's
+    # program reads such a file; here a byte that is not UTF-8 is replaced, as the Chromobius
+    # program replaces it, and the file decodes as the same file without it.
+    (tmp_path / "plain.dem").write_text(SMALL_DEM)
+    (tmp_path / "high.dem").write_bytes(SMALL_DEM.replace("error(0.2) D1 L1\n", "error(0.2) D1 L1 # caf\xe9 \xff\n").encode("latin-1"))
+    (tmp_path / "s.01").write_text("1000\n0110\n0101\n")
+    got = []
+    for name in ("plain", "high"):
+        code, out, err = run(["--dem", tmp_path / f"{name}.dem", "--in", tmp_path / "s.01", "--in-format", "01", "--in-includes-appended-observables",
+                              "--out", tmp_path / f"{name}.01", "--out-format", "01", "--dem-out", tmp_path / f"{name}_out.dem"], capsys)
+        assert (code, err) == (0, ""), name
+        got.append(((tmp_path / f"{name}.01").read_text(), (tmp_path / f"{name}_out.dem").read_text(), final_line(out)["num_errors"]))
+    assert got[0] == got[1]
+    # A tag's UTF-8 is written back to --dem-out as it was read.
+    (tmp_path / "tag.dem").write_bytes(SMALL_DEM.replace("[t]", "[caf\xe9]").encode("utf-8"))
+    code, out, err = run(["--dem", tmp_path / "tag.dem", "--in", tmp_path / "s.01", "--in-format", "01", "--in-includes-appended-observables", "--dem-out", tmp_path / "tag_out.dem"], capsys)
+    assert (code, err) == (0, "") and (tmp_path / "tag_out.dem").read_bytes() == got[0][1].replace("[t]", "[caf\xe9]").encode("utf-8")
+    circuit = MODELS["repetition_d3"]["circuit"]
+    (tmp_path / "plain.stim").write_text(circuit)
+    (tmp_path / "high.stim").write_bytes(b"# \xe9t\xe9 \xff\n" + circuit.encode())
+    got = []
+    for name in ("plain", "high"):
+        code, out, err = run(["--circuit", tmp_path / f"{name}.stim", "--sample-num-shots", 20, "--sample-seed", 3, "--out", tmp_path / f"{name}.c01", "--out-format", "01"], capsys)
+        assert (code, err) == (0, ""), name
+        got.append(((tmp_path / f"{name}.c01").read_text(), final_line(out)["num_errors"]))
+    assert got[0] == got[1]
