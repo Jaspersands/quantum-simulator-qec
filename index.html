@@ -2159,14 +2159,15 @@
     <p>
       Finite controls include exhaustive branch checks on 150 random small circuits to 10⁻¹⁰, whole-class
       comparisons and state-vector regressions. They do not establish all numerical ranges or distance scaling.
-      The raw coherent data archive (<a href="data/coherent/sweep.json">sweep</a>,
-      <a href="data/coherent/validate.json">validation</a>, <a href="data/coherent/capacity.json">capacity</a>,
-      <a href="data/coherent/crosstalk.json">crosstalk</a>) preserves measurements made before the inherited
-      merged-proposal correction. Earlier development-2.2 data remain in Git history and preserved evidence;
-      unrefreshed rows are not current quantitative validation. Current figures accept only <span class="mono">generation_revision=coherent-merged-proposal-v1</span>;
-      the marker records provenance, independently of exactness or successful validation. The actual final 2.2.0 wheel
-      refreshed all eight validation, six d = 3 sweep, four d = 3 crosstalk and 28 capacity rows. The 17 unchanged
-      larger-distance sweep/crosstalk rows remain archival and are excluded from current distance-scaling conclusions.
+      The raw coherent data (<a href="data/coherent/validate.json">validation</a>,
+      <a href="data/coherent/capacity.json">capacity</a>, <a href="data/coherent/sweep.json">sweep</a>,
+      <a href="data/coherent/crosstalk.json">crosstalk</a>) were remeasured with the actual final 2.2.0 wheel:
+      all eight validation, six d = 3 sweep, four d = 3 crosstalk and 28 capacity rows. Current figures accept
+      only <span class="mono">generation_revision=coherent-merged-proposal-v1</span>; the marker records
+      provenance, independently of exactness or successful validation. Only the 12 larger-distance sweep and 5
+      crosstalk rows, measured by 1.8.0 before the inherited merged-proposal correction, remain archival; they
+      are not current quantitative validation and are excluded from current distance-scaling conclusions.
+      Earlier development-2.2 measurements remain in Git history and the preserved raw evidence.
     </p>
   </div>
 

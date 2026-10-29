@@ -72,17 +72,24 @@ PyMatching (`Matching`, `decode_batch`, `enable_correlations`) and `ldpc` (`BpDe
 sampler/version contract and supported
 thread counts. Algorithm corrections, including 2.2's coherent merged-proposal and stable-group
 arithmetic fixes, can change seeded outcomes. Coherent whole-class sums require a completed
-kernel and a fitting contraction plan (or at most twelve generators); larger/incomplete sums
-are approximations and warn. `exact_weights` describes coverage in floating-point arithmetic,
+kernel and a fitting contraction plan (or at most twelve generators); larger or incomplete sums
+are approximations. An incomplete kernel warns, and so does the coherent sampler of a Clifford
+circuit past its contraction budget. The joint sampler (non-Clifford gates or Clifford-angle
+errors) has no contraction plan and ignores `max_contraction`: past twelve generators it
+truncates without a warning, and only `exact_weights=False` reports it.
+`exact_weights` describes coverage in floating-point arithmetic,
 not universal numerical validation. Entry budgets are not byte limits and successful planning
 can dominate compilation.
 
 The [root guide](https://github.com/Jaspersands/quantum-simulator-qec/blob/master/README.md)
 documents port-specific refusals, exceptions, tie choices and migration changes. Crashes and
 hangs remain bugs to report; resource checks do not make all allocation failures recoverable.
-Old coherent measurements, including development rows labeled 2.2.0, predate the merged-proposal
-correction and are archival until remeasured with the explicit generation revision. That marker
-records provenance independently of exactness and validation.
+All coherent validation and capacity rows, and the d = 3 sweep and crosstalk rows, were
+remeasured with the actual 2.2.0 wheel and carry the generation revision `coherent-merged-proposal-v1`, which records
+provenance independently of exactness and validation; current tables accept only those rows.
+Only the 12 larger-distance sweep and 5 crosstalk rows, measured by 1.8.0 before the
+merged-proposal correction, remain archival and are excluded from current tables. Earlier
+development-2.2 measurements remain in Git history and the preserved raw evidence.
 See the [changelog](https://github.com/Jaspersands/quantum-simulator-qec/blob/master/CHANGELOG.md).
 
 The explainer, its figures running the engine in the browser, is at

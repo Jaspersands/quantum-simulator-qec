@@ -1001,7 +1001,11 @@ class Circuit:
         sampler (a Clifford reference circuit) nor a stabilizer-rank sampler alone (cost
         exponential in the errors) covers this. ``pairs`` has the joint sampler sum the
         products of every two of its generators besides (quadratic in their number: a check
-        on small circuits; the coherent sampler of a Clifford circuit ignores it). A coherent error at a Clifford angle
+        on small circuits; the coherent sampler of a Clifford circuit ignores it). The joint
+        sampler has no contraction (its cross terms are overlaps of the exact engine's states, not
+        products of factors), so ``max_contraction`` has no effect on it: past twelve generators
+        it sums up to ``order`` generators as above, a truncation, without a warning, and only
+        ``exact_weights`` (False) reports it; an incomplete kernel still warns. A coherent error at a Clifford angle
         (``I_ERROR[R_Z(theta=0.7853981633974483)] 0``, a fixed S) is run as the gate it is, not
         drawn as a twirl: such a circuit gets the joint sampler too."""
         return CoherentSampler(self, order, seed, pairs=pairs, max_complete=max_complete, max_contraction=max_contraction)
