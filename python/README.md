@@ -68,10 +68,9 @@ stats = sinter.collect(tasks=tasks, decoders=["pymatching", "belief_matching", "
 
 The names follow Stim (`Circuit`, `compile_detector_sampler`, `separate_observables`),
 PyMatching (`Matching`, `decode_batch`, `enable_correlations`) and `ldpc` (`BpDecoder`,
-`BpOsdDecoder`, `error_channel`). Seed reproducibility applies within the documented
-sampler/version contract and supported
-thread counts. Algorithm corrections, including 2.2's coherent merged-proposal and stable-group
-arithmetic fixes, can change seeded outcomes. Coherent whole-class sums require a completed
+`BpOsdDecoder`, `error_channel`). Within a version, a seed and shot position give the same shots
+on any number of threads; a correction to a sampler can change its seeded shots, and the
+changelog names it (2.2's coherent merged-proposal and stable-group arithmetic fixes do). Coherent whole-class sums require a completed
 kernel and a fitting contraction plan (or at most twelve generators); larger or incomplete sums
 are approximations. An incomplete kernel warns, and so does the coherent sampler of a Clifford
 circuit past its contraction budget. The joint sampler (non-Clifford gates or Clifford-angle

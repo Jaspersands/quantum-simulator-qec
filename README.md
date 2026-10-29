@@ -584,8 +584,8 @@ circuit that does not parse is refused with this package's parser's message, not
 (`line 2: unsupported instruction 'FOO'`, where Stim raises `Unrecognized instruction name:
 foo`). The exception is a model fault that Stim's parser throws `std::out_of_range` for:
 an unrecognized instruction name, a number of 2^60 or more, a `{` never closed or a `}` never
-opened. Chromobius's program does not catch it, so the Chromobius program aborts there with
-Stim's message and status 134, as Chromobius's does. Code ported from Stim is listed in
+opened. Chromobius's program does not catch it, so this package's port of that program aborts
+there with Stim's message and status 134, as the original does. Code ported from Stim is listed in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Plain independent decode/search calls on a stable `Matching` lease separate mutable scratch.
@@ -2806,7 +2806,7 @@ src/wasm_session.rs   the WebAssembly session behind the explainer's first secti
 src/py_objects.rs     the compiled objects the public Python API wraps
 src/py_api.rs         the extension's own functions (stabilizer_qec._core), which the tools use
 src/parallel.rs       work over shots, one contiguous range per thread
-src/fuzzing.rs        what the fuzzers drive: any text through every stage that reads it
+src/fuzzing.rs        what the fuzzers drive: generated text through the parsers, samplers and model decoders
 src/wasm_xc.rs        WASM exports for Figure 8 and SD6
 src/wasm_hw.rs        WASM exports for Figure 10: raw readouts to predictions
 src/wasm_rt.rs        WASM exports for Figure 12: streams window-decoded and globally decoded
