@@ -98,8 +98,11 @@ class PauliString:
         return out
 
     def __reduce__(self) -> tuple:
-        # Rebuilt as its own class, as Stim's: a subclass stays one.
-        return (type(self), (str(self),))
+        # Rebuilt as its own class, as Stim's: a subclass stays one, rebuilt without calling its
+        # constructor, which may take other arguments than the text (as ``Tableau``'s).
+        if type(self) is PauliString:
+            return (PauliString, (str(self),))
+        return (_pauli_of_class, (type(self), str(self)))
 
     # Text and comparison.
     def __str__(self) -> str:
@@ -697,6 +700,11 @@ def _tableau_from_bits(n: int, *bits: bytes) -> "Tableau":
     """A tableau from its bit tables (``TableauCore.to_bits``), for pickling (and for the
     pickles of 2.1 and before, which name this function)."""
     return Tableau._wrap(_core.TableauCore.from_bits(n, *bits))
+
+
+def _pauli_of_class(cls: type, text: str) -> "PauliString":
+    """A Pauli string of class ``cls`` (``PauliString``'s subclass) from its text, for pickling."""
+    return cls._wrap(_core.PauliStringCore.from_text(text))
 
 
 def _tableau_of_class(cls: type, n: int, *bits: bytes) -> "Tableau":

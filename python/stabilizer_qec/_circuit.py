@@ -129,8 +129,13 @@ class Circuit:
         # Pickled, copied and sent to other processes as its exact text, rebuilt as its own
         # class, as Stim's are: a subclass stays one, and Deltakit's circuit
         # (``stabilizer_qec.deltakit_stim``), whose exact text holds its leakage as tagged
-        # lines, comes back leaking.
-        return (type(self), (self._stim_exact_text(),))
+        # lines, comes back leaking. A subclass is rebuilt without calling its constructor,
+        # which may take other arguments than the text (Stim's copy calls none either, and
+        # keeps none of the instance's own attributes); a plain circuit names the class, as
+        # 2.1's pickles do, so they still load there.
+        if type(self) is Circuit:
+            return (Circuit, (self._stim_exact_text(),))
+        return (_circuit_of_class, (type(self), self._stim_exact_text()))
 
     # Stim's list-of-instructions interface. The core circuit's lines are its items: Stim's
     # parser and ``append`` fuse neighbouring instructions that can be one (``H 0`` then
@@ -1657,8 +1662,11 @@ class DetectorErrorModel:
         return self._d.exact_text() == other._d.exact_text()
 
     def __reduce__(self) -> tuple:
-        # Rebuilt as its own class, as Stim's: a subclass stays one.
-        return (type(self), (self._d.exact_text(),))
+        # Rebuilt as its own class, as Stim's: a subclass stays one, rebuilt without calling its
+        # constructor (see ``Circuit.__reduce__``).
+        if type(self) is DetectorErrorModel:
+            return (DetectorErrorModel, (self._d.exact_text(),))
+        return (_dem_of_class, (type(self), self._d.exact_text()))
 
     __hash__ = None  # type: ignore[assignment]
 
@@ -1751,6 +1759,20 @@ class DetectorErrorModel:
         """The model without ``repeat`` blocks or ``shift_detectors``, as Stim's ``flattened``:
         every detector absolute, every coordinate shifted."""
         return DetectorErrorModel._wrap(call(self._d.flattened))
+
+
+def _circuit_of_class(cls: type, text: str) -> Circuit:
+    """A circuit of class ``cls`` (a subclass of ``Circuit``) from its exact text, for pickling
+    and copying: its constructor is not called, as it may take other arguments."""
+    out = cls.__new__(cls)
+    out._c = call(_core.Circuit, text)
+    return out
+
+
+def _dem_of_class(cls: type, text: str) -> "DetectorErrorModel":
+    """A model of class ``cls`` (a subclass of ``DetectorErrorModel``) from its exact text, for
+    pickling and copying: its constructor is not called, as it may take other arguments."""
+    return cls._wrap(call(_core.Dem, text))
 
 
 def _milp_distance(errors: list, time_limit: float) -> int:

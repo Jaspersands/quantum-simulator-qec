@@ -1,6 +1,6 @@
 """The Python facade's Circuit, DetectorErrorModel, PauliString, Tableau and Matching where they
-once departed from Stim and PyMatching: copies keep their class (and Deltakit's circuit its
-leakage), the reference signs read tagged Clifford-angle gates as the reference run does, a
+once departed from Stim and PyMatching: copies keep their class without calling a subclass's
+constructor (and Deltakit's circuit its leakage), the reference signs read tagged Clifford-angle gates as the reference run does, a
 model's tags may hold '#', indexing parses once, model files with a stray non-UTF-8 byte in a
 comment load, the WDIMACS writer takes a certain error, the exact distance skips faults that
 never happen, and heavy networkx / rustworkx edges are left out with PyMatching's warning."""
@@ -37,6 +37,27 @@ class MyTableau(sq.Tableau):
     pass
 
 
+# Subclasses whose constructors take other arguments than the text: a copy must not call them.
+class HadamardOn(sq.Circuit):
+    def __init__(self, qubit):
+        super().__init__(f"H {int(qubit)}")
+
+
+class OneError(sq.DetectorErrorModel):
+    def __init__(self, p):
+        super().__init__(f"error({float(p)}) D0")
+
+
+class AllX(sq.PauliString):
+    def __init__(self, n):
+        super().__init__("X" * int(n))
+
+
+class Identity(sq.Tableau):
+    def __init__(self, n):
+        super().__init__(int(n))
+
+
 class FlippedMatching(sq.Matching):
     def decode(self, z, **kwargs):
         return 1 - super().decode(z, **kwargs)
@@ -60,6 +81,24 @@ def test_subclasses_copy_and_pickle_as_themselves(how, again):
     # The base classes are as they were.
     assert type(again(sq.Matching(np.array([[1, 1]])))) is sq.Matching
     assert type(again(sq.Tableau(1))) is sq.Tableau
+    for obj in (sq.Circuit("H 0"), sq.DetectorErrorModel("error(0.1) D0"), sq.PauliString("-XZ")):
+        assert type(again(obj)) is type(obj) and again(obj) == obj
+
+
+@pytest.mark.parametrize("how,again", _ROUND_TRIPS, ids=[h for h, _ in _ROUND_TRIPS])
+def test_subclasses_with_their_own_constructors_copy_without_calling_them(how, again):
+    # As Stim 1.16's: the copy is the subclass, equal, its constructor not called with the text
+    # (which here would raise), and the instance's own attributes not kept.
+    for obj, text in ((HadamardOn(3), "H 3"), (OneError(0.1), "error(0.1) D0"), (AllX(2), "+XX"), (Identity(1), str(sq.Tableau(1)))):
+        obj.note = "dropped"
+        y = again(obj)
+        assert type(y) is type(obj) and y == obj and str(y) == text, (how, obj)
+        assert not hasattr(y, "note")
+    # Deltakit's circuit and Tsim's, subclasses of Circuit, still come back as themselves.
+    from stabilizer_qec import tsim
+    for obj in (dk.Circuit("LEAKAGE(0.2) 0\nM 0"), tsim.Circuit("R 0\nT 0\nM 0")):
+        y = again(obj)
+        assert type(y) is type(obj) and y == obj and str(y) == str(obj)
 
 
 @pytest.mark.parametrize("how,again", _ROUND_TRIPS, ids=[h for h, _ in _ROUND_TRIPS])
