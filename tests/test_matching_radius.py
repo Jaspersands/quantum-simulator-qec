@@ -1,4 +1,9 @@
-"""Long uniform paths must finish even when scaled radius offsets exceed i32."""
+"""Long uniform paths must finish even when scaled radius offsets exceed i32.
+
+This is a deliberate divergence from the reference: PyMatching 2.4.0's
+``DetectorNode::compute_wrapped_radius`` returns ``int32_t``, so on these chains (131 nodes or more,
+at weight 1.5 or 16,777,214.5) its decoder never finishes, while 130 nodes decode. The port's radius
+offsets are i64 (src/pm_exact/flooder.rs), and the CHANGELOG lists the divergence."""
 import os
 import subprocess
 import sys
