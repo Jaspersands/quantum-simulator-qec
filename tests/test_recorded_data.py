@@ -13,6 +13,8 @@ import sys
 import numpy as np
 import pytest
 
+import stabilizer_qec as sq
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TOOLS = ROOT / "tools"
 
@@ -29,6 +31,27 @@ def tool(name):
 
 def data(path):
     return json.loads((ROOT / path).read_text())
+
+
+def test_every_rerun_recording_is_from_this_release():
+    tables = tool("readme_tables")
+    assert tables.package_version() == sq.__version__
+    assert tables.stale_data() == []
+    for path in tables.RERUN_EACH_RELEASE:
+        assert tables.major_minor(data(path)["version"]) == tables.major_minor(sq.__version__), path
+
+
+def test_stale_data_names_old_and_unstamped_recordings(tmp_path, monkeypatch):
+    tables = tool("readme_tables")
+    (tmp_path / "data").mkdir()
+    for name, doc in (("old", {"version": "2.1.9"}), ("unstamped", {"points": {}}), ("same", {"version": "2.2.0"}), ("patch", {"version": "2.2.3"}), ("newer", {"version": "2.3.0"})):
+        (tmp_path / "data" / f"{name}.json").write_text(json.dumps(doc))
+    monkeypatch.setattr(tables, "ROOT", tmp_path)
+    paths = [f"data/{n}.json" for n in ("old", "unstamped", "same", "patch", "newer")]
+    stale = tables.stale_data(paths, current="2.2.1")
+    assert [m.split(" ")[0] for m in stale] == ["data/old.json", "data/unstamped.json"]
+    assert "recorded by 2.1.9, the package is 2.2.1" in stale[0]
+    assert "recorded by an unstamped version" in stale[1]
 
 
 # The rows the memory-budgeted search settles in under a second, among them the five the 1.5.0
