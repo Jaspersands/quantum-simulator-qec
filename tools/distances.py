@@ -9,13 +9,21 @@ best solution it found, a real undetectable logical error, is recorded as an upp
 
 Each memory runs d rounds (bivariate bicycle and CSS memories: their stated rounds) under
 circuit noise; the noise strength does not change which faults exist, only their weights.
+
+Stim's search keeps every set of detectors it visits; ours keeps them within a memory budget
+(`--max-memory-bytes`, 1 GB by default, a fixed number so the column does not depend on the
+machine's memory) and records why it stopped when the budget runs out first. The file is
+stamped with the package's version and the platform it ran on: tools/readme_tables.py --check
+refuses a recording older than the package's major.minor.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import pathlib
+import platform
 import re
 import time
 
@@ -57,7 +65,7 @@ def memories(quick):
     yield "bivariate bicycle [[144, 12, 12]] (gross)", 12, lambda: sq.BivariateBicycleCode("gross").memory_circuit(2, 0.001)
 
 
-def measure(circuit, time_limit):
+def measure(circuit, time_limit, max_memory_bytes):
     out = {}
     dem = circuit.detector_error_model(decompose_errors=True, ignore_decomposition_failures=True)
     try:
@@ -65,9 +73,11 @@ def measure(circuit, time_limit):
     except ValueError:
         out["graphlike"] = None
     try:
-        out["search"] = len(circuit.search_for_undetectable_logical_errors(**SEARCH))
-    except ValueError:
+        out["search"] = len(circuit.search_for_undetectable_logical_errors(**SEARCH, max_memory_bytes=max_memory_bytes))
+    except ValueError as ex:
+        # Nothing found within the limits, or the memory budget ran out first: the message says which.
         out["search"] = None
+        out["search_note"] = str(ex)
     t0 = time.perf_counter()
     try:
         out["exact"] = circuit.detector_error_model().distance(time_limit=time_limit)
@@ -86,15 +96,18 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--time-limit", type=float, default=600.0)
+    ap.add_argument("--max-memory-bytes", type=int, default=1_000_000_000, help="the search's memory budget (default 1 GB)")
     args = ap.parse_args()
     rows = []
     for name, d, make in memories(args.quick):
         c = make()
-        r = dict(memory=name, code_distance=d, faults=c.detector_error_model().num_errors, **measure(c, args.time_limit))
+        r = dict(memory=name, code_distance=d, faults=c.detector_error_model().num_errors, **measure(c, args.time_limit, args.max_memory_bytes))
         print(f"{name:52} d={d:2}  graph-like {r['graphlike']}  search {r['search']}  exact {r['exact']}  ({r['milp_seconds']} s)", flush=True)
         rows.append(r)
     if not args.quick:
-        OUT.write_text(json.dumps(dict(version=sq.__version__, search_limits=SEARCH, time_limit=args.time_limit, memories=rows), indent=1) + "\n")
+        doc = dict(version=sq.__version__, platform=f"{platform.system()} {platform.machine()}", generated=datetime.date.today().isoformat(),
+                   search_limits=dict(SEARCH, max_memory_bytes=args.max_memory_bytes), time_limit=args.time_limit, memories=rows)
+        OUT.write_text(json.dumps(doc, indent=1) + "\n")
         print(f"wrote {OUT.relative_to(ROOT)}")
 
 
