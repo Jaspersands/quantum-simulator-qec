@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import io
 import pickle
+import platform
 import sys
 import warnings
 
@@ -265,23 +266,29 @@ def test_files_with_a_stray_byte_in_a_comment_load(tmp_path):
     assert sq.Circuit.from_file(tagged)[0].tag == "café"
 
 
+# Stim's output (1.15 and 1.16): its round of inf/inf drops the finite soft clauses, and the
+# certain error's own weight, a NaN cast to size_t, is the processor's: 0 on ARM64 (the clause
+# dropped too), 2**63 on x86-64 (Linux, macOS and Windows builds alike).
+_CERTAIN = "9223372036854775808 1 0\n" if platform.machine().lower() in ("x86_64", "amd64") else ""
+
+
 @pytest.mark.parametrize(
     "text,kwargs,want",
     [
-        # Stim 1.16's output (its round of inf/inf drops the soft clauses).
-        ("X_ERROR(1) 0\nM 0\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]", {}, "p wcnf 1 3 301\n301 -1 0\n301 1 0\n"),
-        ("X_ERROR(1) 0\nM 0\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]", {"quantization": 10, "format": "WDIMACS"}, "p wcnf 1 3 31\n31 -1 0\n31 1 0\n"),
-        ("X_ERROR(0.1) 0\nX_ERROR(1) 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]", {}, "p wcnf 2 5 501\n501 -1 0\n501 -2 0\n501 1 0\n"),
-        ("X_ERROR(1) 0\nM 0\nOBSERVABLE_INCLUDE(0) rec[-1]", {}, "p wcnf 1 2 201\n201 1 0\n"),
+        ("X_ERROR(1) 0\nM 0\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]", {}, "p wcnf 1 3 301\n{c}301 -1 0\n301 1 0\n"),
+        ("X_ERROR(1) 0\nM 0\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]", {"quantization": 10, "format": "WDIMACS"}, "p wcnf 1 3 31\n{c}31 -1 0\n31 1 0\n"),
+        ("X_ERROR(0.1) 0\nX_ERROR(1) 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]", {}, "p wcnf 2 5 501\n{c}501 -1 0\n501 -2 0\n501 1 0\n"),
+        ("X_ERROR(1) 0\nM 0\nOBSERVABLE_INCLUDE(0) rec[-1]", {}, "p wcnf 1 2 201\n{c}201 1 0\n"),
     ],
 )
 def test_likeliest_error_sat_problem_takes_a_certain_error(text, kwargs, want):
-    assert sq.Circuit(text).likeliest_error_sat_problem(**kwargs) == want
+    assert sq.Circuit(text).likeliest_error_sat_problem(**kwargs) == want.format(c=_CERTAIN)
 
 
 def test_likeliest_error_sat_problem_certain_errors_match_stim():
     stim = pytest.importorskip("stim")
-    for text in ["X_ERROR(1) 0\nM 0\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]", "X_ERROR(0.1) 0\nX_ERROR(1) 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]"]:
+    for text in ["X_ERROR(1) 0\nM 0\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1]", "X_ERROR(0.1) 0\nX_ERROR(1) 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-1]",
+                 "X_ERROR(1) 0 1\nM 0 1\nDETECTOR rec[-1]\nOBSERVABLE_INCLUDE(0) rec[-1] rec[-2]"]:
         for kw in ({}, {"quantization": 10}):
             assert sq.Circuit(text).likeliest_error_sat_problem(**kw) == stim.Circuit(text).likeliest_error_sat_problem(**kw)
 

@@ -693,8 +693,10 @@ contraction width (`CoherentSampler.contraction_width`).
   through them `Matching.from_detector_error_model_file` and `from_stim_circuit_file`) read a
   byte that is not UTF-8 (`caf\xe9` in a comment) as U+FFFD, not refusing the file. Stim skips
   such bytes in comments. They also take a file opened in binary mode.
-- **WDIMACS with a certain error.** `likeliest_error_sat_problem` writes Stim 1.16's problem for
-  a model with a probability-1 error, where it raised `math domain error`.
+- **WDIMACS with a certain error.** `likeliest_error_sat_problem` writes Stim's problem for
+  a model with a probability-1 error, where it raised `math domain error`. Stim's weight for
+  that error is a NaN cast to an integer, so it is the processor's: none on ARM64 (the clause
+  is left out), 2^63 on x86-64; this package writes this machine's.
 - **The exact distance.** `DetectorErrorModel.distance()` (the integer program) leaves out
   faults of probability 0, as the graph-like and search distances and Stim do. It reads the
   model's own faults, so a tag holding `)` no longer breaks it. Before, it could prove a

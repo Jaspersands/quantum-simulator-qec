@@ -10,6 +10,7 @@ import numpy as np
 from . import _core, _dem, _stim
 import bisect
 import math
+import platform as _platform
 import warnings
 from typing import Tuple
 from ._util import _REPORT, b8_to_rows, call, count, open_file, pack_rows, probability, real, rows_to_b8, seed_of, stride, text_of
@@ -2738,6 +2739,10 @@ def _detecting_regions(circuit: "Circuit", targets: Any, ticks: Any, ignore: boo
 _SAT_FALSE = (1 << 64) - 2
 _SAT_TRUE = (1 << 64) - 1
 _SAT_HARD = -1.0
+# What Stim's (size_t) cast of a NaN weight gives on this machine (the cast is undefined, so each
+# build gives its processor's answer): x86-64's conversion gives its "integer indefinite",
+# 2**63, on Linux, macOS and Windows alike; ARM64's saturates a NaN to 0.
+_SAT_NAN_WEIGHT = 1 << 63 if _platform.machine().lower() in ("x86_64", "amd64") else 0
 
 
 def _cround(x: float) -> int:
@@ -2820,11 +2825,12 @@ def _wcnf(dem: "DetectorErrorModel", weighted: bool, quantization: int) -> str:
         elif not weighted:
             qw = 1
         else:
-            # With a certain error the largest weight is infinite: Stim's round of inf/inf
-            # (NaN) to an unsigned size is 0 (as the arm64 build gives it), and every finite
-            # weight over it is 0 too, so the soft clauses all drop out.
+            # With a certain error the largest weight is infinite: every finite weight over it
+            # is 0, so those soft clauses drop out, and the certain error's own, inf/inf (NaN),
+            # is what Stim's cast of a NaN to an unsigned size gives on this processor: 0 on
+            # ARM64 (the clause drops out too), 2**63 on x86-64 (Stim writes it so).
             ratio = weight / max_weight
-            qw = 0 if ratio != ratio else _cround(ratio * quantization)
+            qw = _SAT_NAN_WEIGHT if ratio != ratio else _cround(ratio * quantization)
         if qw == 0:
             continue
         lines.append(str(qw) + "".join(f" -{(v + 1) % (1 << 64)}" if n else f" {(v + 1) % (1 << 64)}" for v, n in lits) + " 0\n")
