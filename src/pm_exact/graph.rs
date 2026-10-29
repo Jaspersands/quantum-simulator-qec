@@ -108,9 +108,13 @@ impl Builder {
     fn mask(&self, observables: &[usize]) -> u64 {
         let mut m = 0u64;
         if self.num_observables <= 64 {
-            // As the hardware shifts: an id past 63 (brought by a merge) wraps.
-            for &o in observables {
-                m ^= 1u64.wrapping_shl(o as u32);
+            // A fault id past the count (only a replace or smallest-weight merge brings one:
+            // merges do not extend the count) is dropped, as the search graph drops it above 64
+            // ids. PyMatching shifts `1 << id` there, which C++ leaves undefined: its arm64
+            // wheel drops such ids eight at a time and wraps the rest, so no rule matches it;
+            // this one never reports a real fault id for an uncounted one.
+            for &o in observables.iter().filter(|&&o| o < self.num_observables) {
+                m ^= 1u64 << o;
             }
         }
         m
@@ -217,8 +221,9 @@ impl Builder {
         let negative_weight_observables: Vec<usize> = self.neg_obs.into_iter().collect();
         let mut negative_weight_obs_mask = 0u64;
         if self.num_observables <= 64 {
-            for &o in &negative_weight_observables {
-                negative_weight_obs_mask ^= 1u64.wrapping_shl(o as u32);
+            // Ids past the count dropped, as in `mask`.
+            for &o in negative_weight_observables.iter().filter(|&&o| o < self.num_observables) {
+                negative_weight_obs_mask ^= 1u64 << o;
             }
         }
         Graph {
