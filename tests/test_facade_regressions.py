@@ -19,6 +19,7 @@ import pytest
 import stabilizer_qec as sq
 import stabilizer_qec.deltakit_stim as dk
 from stabilizer_qec import _circuit, _dem
+from tesseract_platform_helpers import stim_number
 
 
 # Subclasses at module level, so pickle finds them by name (as a user's would be).
@@ -89,8 +90,9 @@ def test_subclasses_copy_and_pickle_as_themselves(how, again):
 @pytest.mark.parametrize("how,again", _ROUND_TRIPS, ids=[h for h, _ in _ROUND_TRIPS])
 def test_subclasses_with_their_own_constructors_copy_without_calling_them(how, again):
     # As Stim 1.16's: the copy is the subclass, equal, its constructor not called with the text
-    # (which here would raise), and the instance's own attributes not kept.
-    for obj, text in ((HadamardOn(3), "H 3"), (OneError(0.1), "error(0.1) D0"), (AllX(2), "+XX"), (Identity(1), str(sq.Tableau(1)))):
+    # (which here would raise), and the instance's own attributes not kept. (A model's numbers as
+    # Stim writes them on this machine: 0.1 has 19 digits on x86-64 Linux.)
+    for obj, text in ((HadamardOn(3), "H 3"), (OneError(0.1), f"error({stim_number(0.1)}) D0"), (AllX(2), "+XX"), (Identity(1), str(sq.Tableau(1)))):
         obj.note = "dropped"
         y = again(obj)
         assert type(y) is type(obj) and y == obj and str(y) == text, (how, obj)
@@ -166,12 +168,14 @@ def test_reference_signs_read_clifford_angle_tags_as_the_reference_run(gate, qua
 def test_model_tags_may_hold_a_hash():
     # Stim's tags end only at ']': a '#' in one is not a comment (Stim gives these answers).
     d = sq.DetectorErrorModel("detector[a#b](1, 2) D0\nerror[t#g](0.1) D0 D1\nerror(0.1) D1\n")
-    assert len(d) == 3 and str(d) == "detector[a#b](1, 2) D0\nerror[t#g](0.1) D0 D1\nerror(0.1) D1"
+    # As Stim writes the model on this machine (0.1 has 19 digits on x86-64 Linux).
+    p = stim_number(0.1)
+    assert len(d) == 3 and str(d) == f"detector[a#b](1, 2) D0\nerror[t#g]({p}) D0 D1\nerror({p}) D1"
     assert d.get_detector_coordinates() == {0: [1.0, 2.0], 1: []}
     assert d[1].tag == "t#g" and d[1].targets_copy() == [sq.DemTarget("D0"), sq.DemTarget("D1")]
     assert [it.type for it in d] == ["detector", "error", "error"]
-    assert repr(d).startswith("stabilizer_qec.DetectorErrorModel(") and "error[t#g](0.1) D0 D1" in repr(d)
-    assert str(d.rounded(1)) == "detector[a#b](1, 2) D0\nerror[t#g](0.1) D0 D1\nerror(0.1) D1"
+    assert repr(d).startswith("stabilizer_qec.DetectorErrorModel(") and "error[t#g](0.1) D0 D1" in repr(d)  # (repr writes the shortest, as Stim's)
+    assert str(d.rounded(1)) == f"detector[a#b](1, 2) D0\nerror[t#g]({p}) D0 D1\nerror({p}) D1"
     assert len(d + d) == 6 and d.approx_equals(sq.DetectorErrorModel(str(d)), atol=0)
     assert str(d.flattened()) == str(d)
     assert sq.DetectorErrorModel("error[#](0.1) D0").get_detector_coordinates() == {0: []}

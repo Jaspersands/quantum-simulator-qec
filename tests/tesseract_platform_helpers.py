@@ -1,10 +1,35 @@
 """Checks for the recorded Apple-silicon references and native-platform outputs."""
 
 import math
+import platform
 import re
 import sys
 
 import pytest
+
+
+def _stim_digits():
+    # Stim prints a model's numbers at numeric_limits<long double>::digits10 + 1 significant
+    # digits (src/dem_program.rs's STIM_PRECISION, which this mirrors): 16 where long double is a
+    # double (Windows, Apple silicon), 19 on other x86-64 (x87 extended), 34 on other ARM64 (quad).
+    machine = platform.machine().lower()
+    if sys.platform == "win32":
+        return 16
+    if machine in ("x86_64", "amd64"):
+        return 19
+    if machine in ("aarch64", "arm64") and sys.platform != "darwin":
+        return 34
+    return 16
+
+
+STIM_DIGITS = _stim_digits()
+
+
+def stim_number(x):
+    """``x`` as Stim (and this package, after it) writes it in a model on this machine:
+    ``stim_number(0.1)`` is ``0.1`` on Apple silicon and Windows, ``0.1000000000000000056`` on
+    x86-64 Linux."""
+    return f"{x:.{STIM_DIGITS}g}"
 
 
 def assert_dem_text(actual, expected):

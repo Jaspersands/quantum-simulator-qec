@@ -14,6 +14,7 @@ import pytest
 import stabilizer_qec as sq
 from stabilizer_qec import analysis as ours
 from stabilizer_qec.analysis import _scipy, _uncertain, pij
+from tesseract_platform_helpers import stim_number
 
 
 def lambda_data(seed: int):
@@ -89,7 +90,9 @@ def test_upper_bound_circuit_distance_is_qec_utils_and_returns_its_errors(task, 
 def test_upper_bound_circuit_distance_errors_follow_the_model_not_its_instruction_indices():
     m = sq.DetectorErrorModel("detector(0) D0\ndetector(1) D1\nerror(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1")
     upper, errors = ours.distance.get_upper_bound_circuit_distance(m)
-    assert upper == 3 and str(errors) == "error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1"
+    # The errors as Stim writes them on this machine (0.1 has 19 digits on x86-64 Linux).
+    p = stim_number(0.1)
+    assert upper == 3 and str(errors) == f"error({p}) D0 L0\nerror({p}) D0 D1\nerror({p}) D1"
     c = sq.Circuit.generated("repetition_code:memory", distance=3, rounds=4, after_clifford_depolarization=0.01, before_measure_flip_probability=0.01)
     upper, errors = ours.distance.get_upper_bound_circuit_distance(c.detector_error_model(decompose_errors=True))
     assert upper == len(errors) == 3 and _flips(errors) == (set(), {0})

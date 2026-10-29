@@ -21,6 +21,7 @@ import tempfile
 import pytest
 
 import stabilizer_qec as sq
+from tesseract_platform_helpers import stim_number
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 README_TEXT = (ROOT / "README.md").read_text(encoding="utf-8")
@@ -212,7 +213,8 @@ def test_the_utf8_sentence_names_the_readers_that_replace_and_the_one_that_refus
         tmp = pathlib.Path(tmp)
         dem = tmp / "m.dem"
         dem.write_bytes(b"# caf\xe9\nerror(0.1) D0 D1 L0\nerror(0.1) D0\nerror(0.1) D1\ndetector(0, 0, 0, 0) D0\ndetector(1, 0, 0, 1) D1\n")
-        assert str(sq.DetectorErrorModel.from_file(dem)).startswith("error(0.1) D0 D1 L0")
+        # (The model as Stim writes it on this machine: 0.1 has 19 digits on x86-64 Linux.)
+        assert str(sq.DetectorErrorModel.from_file(dem)).startswith(f"error({stim_number(0.1)}) D0 D1 L0")
         sq.Matching.from_detector_error_model_file(str(dem))
         dets = tmp / "d.b8"
         dets.write_bytes(bytes([0b11]))
@@ -330,7 +332,7 @@ def test_the_noted_facts_hold_in_the_code():
     model = sq.DetectorErrorModel("error(0.1) D1099511627776 L0")
     assert model.num_detectors == 2**40 + 1
     k = 2**60 - 1
-    assert str(sq.DetectorErrorModel(f"shift_detectors {k}\n" * 3 + f"error(0.1) D{k}").flattened()) == f"error(0.1) D{4 * k}"
+    assert str(sq.DetectorErrorModel(f"shift_detectors {k}\n" * 3 + f"error(0.1) D{k}").flattened()) == f"error({stim_number(0.1)}) D{4 * k}"
     with pytest.raises(ValueError, match="4611686018427387903"):
         sq.DetectorErrorModel(f"shift_detectors {k}\n" * 3 + f"shift_detectors 4\nerror(0.1) D{k}").flattened()
     with pytest.raises(ValueError, match="16777215"):

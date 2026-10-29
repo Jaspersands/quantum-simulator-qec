@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 import stabilizer_qec as sq
+from tesseract_platform_helpers import stim_number
 
 stim = pytest.importorskip("stim", minversion="1.16")
 
@@ -174,7 +175,8 @@ def test_qec_util_detectors_to_observables_takes_stim_targets():
     assert "L5" in str(got) and "L8" in str(got)
     assert not any(i.type == "detector" and str(i.targets_copy()[0]) in ("D0", "D3") for i in got)
     small = stim.DetectorErrorModel("detector(0) D0\nerror(0.1) D0 D1\nerror(0.2) D1 L0")
-    assert str(dems.detectors_to_observables(small, {stim.target_relative_detector_id(0): stim.target_logical_observable_id(5)})) == "error(0.1) L5 D1\nerror(0.2) D1 L0"
+    # A model as Stim writes it on this machine (19 digits on x86-64 Linux); an instruction, the shortest.
+    assert str(dems.detectors_to_observables(small, {stim.target_relative_detector_id(0): stim.target_logical_observable_id(5)})) == f"error({stim_number(0.1)}) L5 D1\nerror({stim_number(0.2)}) D1 L0"
     assert str(dem_instrs.detectors_to_observables(small[1], {stim.target_relative_detector_id(0): stim.target_logical_observable_id(5)})) == "error(0.1) L5 D1"
     errors = [i for i in model.flattened() if i.type == "error"]
     changed = [i for i in errors if str(dem_instrs.detectors_to_observables(i, theirs)) != str(i)]
