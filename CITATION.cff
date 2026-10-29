@@ -9,7 +9,10 @@ abstract: >-
   surgery. Release 2.0 adds the APIs of Stim, PyMatching, sinter, ldpc and twenty-one more QEC
   tools under their own names, Clifford+T circuits with a coherent error on every gate
   (stabilizer-rank and joint samplers), fault-tolerant compilation (tqec, Loom), resource
-  estimates (Azure, Qualtran), decoding as a service, and sampling and BP on the GPU.
+  estimates (Azure, Qualtran), decoding as a service, and sampling and BP on the GPU. The code
+  written for it is MIT-licensed; the parts ported from other projects keep their own licences
+  (Apache-2.0 among them; see THIRD_PARTY_NOTICES.md), so the package as a whole is
+  MIT AND Apache-2.0.
 type: software
 authors:
   - given-names: Jasper
@@ -17,9 +20,10 @@ authors:
 version: 2.2.0
 doi: 10.5281/zenodo.23212075
 date-released: 2026-10-24
-license:
-  - MIT
-  - Apache-2.0
+# CFF reads a list of licences as a choice (OR), but the Apache-2.0 parts stay Apache-2.0, so the
+# field names this project's own licence and the abstract says the whole is MIT AND Apache-2.0, as
+# pyproject.toml and Cargo.toml do.
+license: MIT
 repository-code: "https://github.com/Jaspersands/quantum-simulator-qec"
 url: "https://qcompiler.jaspersands.com"
 keywords:

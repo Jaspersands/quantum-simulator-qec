@@ -116,3 +116,33 @@ def test_highs_licence_texts_are_quoted_not_cited():
     assert "THIRD_PARTY_CRATES.md" in section("Rust crates")
 
 
+def test_cudaq_qec_notice_attribution():
+    # Apache-2.0 4(d): the attribution of CUDA-Q QEC's NOTICE file.
+    cudaq = words(section("CUDA-Q QEC"))
+    assert "This product includes software developed by NVIDIA corporation and affiliates" in cudaq
+    assert "NOTICE" in cudaq
+
+
+def test_fasteval_port_has_its_notice():
+    azure = words(section("Azure Quantum Resource Estimator"))
+    assert "restricted `ast` evaluator" not in azure
+    assert "fasteval 0.2.4" in azure and "Christopher Sebastian" in azure
+    qdk = words((ROOT / "python" / "stabilizer_qec" / "estimate" / "LICENSE-qdk").read_text(encoding="utf-8"))
+    assert "fasteval" in qdk and "Copyright (c) 2019 Christopher Sebastian" in qdk
+    assert "The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software." in qdk.split("fasteval", 1)[1]
+    src = (ROOT / "python" / "stabilizer_qec" / "estimate" / "azure.py").read_text(encoding="utf-8")
+    assert not re.search(r"(?m)^\s*(import ast|from ast )", src)
+    assert "fasteval 0.2.4" in src
+
+
+def test_citation_licence_is_not_a_choice():
+    # CFF 1.2.0 reads a list of licences as OR; the package is MIT AND Apache-2.0.
+    cff = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    m = re.search(r"(?m)^license:(.*)$", cff)
+    assert m and m.group(1).strip() == "MIT"
+    after = cff[m.end():]
+    assert not re.match(r"\n\s+-", after)
+    assert "MIT AND Apache-2.0" in " ".join(cff.split())
+    assert re.search(r'(?m)^license = "MIT AND Apache-2.0"$', pyproject())
+
+

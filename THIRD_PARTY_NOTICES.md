@@ -243,6 +243,14 @@ their imports pointed at this package's Stim, sinter, ldpc, PyMatching, relay_bp
 Copyright (c) 2022 - 2026 NVIDIA Corporation & Affiliates. Licensed under the Apache License,
 Version 2.0 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/NVIDIA/cudaqx (`libs/qec`)
 
+CUDA-Q QEC 0.8.1 is distributed with a NOTICE file (at the root of cudaqx and in `libs/qec`),
+whose attribution is reproduced here as Apache-2.0's section 4(d) asks: "CUDA-QX. This product
+includes software developed by NVIDIA corporation and affiliates and includes material from third
+parties." Of the third-party works that NOTICE lists, Stim and PyMatching pertain to the parts
+ported here, and their notices are above; pybind11, nlohmann/json, {fmt}, BLAS, xtl and xtensor
+do not, as nothing of them is in this package (the Python bindings' pybind11 casters, among them
+`sparse_matrix_casters.h`, are rewritten in Python, not copied).
+
 `python/stabilizer_qec/cudaq_qec/` ports CUDA-Q QEC's decoder interface and its decoders (the
 lookup tables, `src/lookup.rs`; the sliding window; the PyMatching plugin; the bundled examples),
 its parity-check-matrix tools and its detector error model, from its C++ and Python sources; its
@@ -440,9 +448,14 @@ title, layout and callback of its Dash app (with dash 4.4.1), that the tests com
 (microsoft/qdk, `source/resource_estimator/src`, the `estimates` and `system` modules:
 physical qubits, fault-tolerance protocols, logical counts, the error budget, distillation
 units, round-based factories, the exhaustive T-factory search and the physical estimation;
-https://github.com/microsoft/qdk), rewritten in Python with a restricted `ast` evaluator for
-its formulas. It is Copyright (c) Microsoft Corporation and licensed under the MIT License;
-the licence is in `python/stabilizer_qec/estimate/LICENSE-qdk`. The binomial quantile and
+https://github.com/microsoft/qdk), rewritten in Python. It is Copyright (c) Microsoft Corporation
+and licensed under the MIT License; the licence is in `python/stabilizer_qec/estimate/LICENSE-qdk`.
+The formulas of its QEC schemes and distillation units (logical cycle time, qubits per logical
+qubit, output error rates) are read and computed by fasteval 0.2.4's parser, constant folding and
+evaluator, ported to Python: fasteval (https://github.com/likebike/fasteval), the crates.io
+expression evaluator the QDK compiles them with, is not Microsoft's but Copyright (c) 2019
+Christopher Sebastian, licensed under the MIT License, whose notice is in `LICENSE-qdk` after the
+QDK's. The binomial quantile and
 mass function in it follow the `probability` crate 0.20 (Ivan Ukhov and contributors,
 https://github.com/stainless-steel/probability) and its incomplete beta function the `special`
 crate (https://github.com/stainless-steel/special), both Apache-2.0 OR MIT.
