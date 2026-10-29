@@ -620,7 +620,8 @@ mid-cycle can spread to several qubits. The circuit distance is the fewest fault
 circuit that flip an observable and set off no detector. The engine finds it three ways:
 Stim's graph-like search (`shortest_graphlike_error`), Stim's breadth-first search through
 hyperedges (`search_for_undetectable_logical_errors`, with sets of up to 6 detectors), and an
-integer program over every fault that proves it exactly when it finishes
+integer program over every fault that can happen (probability above 0) that proves it exactly
+when it finishes
 (`DetectorErrorModel.distance()`, scipy's HiGHS, {{dist.time_limit}} each). The graph-like
 search returns Stim's own faults, character for character, and the breadth-first one the same
 number as Stim's wherever they were compared; each fault they return is explained down to its
@@ -795,7 +796,8 @@ and API modes; it is not universal compatibility or an exhaustive novelty claim:
 - **Fault-tolerant compilation**: tqec's block graphs and correlation surfaces checked on the
   recorded gallery. Current 2.2 `generate_stim_circuit` uses tqec 0.2.0's pipeline with tqecd
   0.2.1 detector search (51 recorded circuits/6 refusals), while distance compilation's
-  `.circuit` retains the engine layout. Spatial Hadamards along x require fixed_boundary;
+  `.circuit` retains the engine layout. A spatial Hadamard pipe between two non-spatial cubes,
+  along x or y, requires fixed_boundary (one at a spatial junction compiles in both conventions);
   Y cubes/open ports are unsupported. Separate compilations isolate caches, while repeated
   generation retains mutable rescheduling and inherited non-deterministic circuit examples.
   Loom's Eka model
