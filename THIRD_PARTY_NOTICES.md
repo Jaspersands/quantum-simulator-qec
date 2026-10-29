@@ -309,11 +309,13 @@ Copyright (c) Microsoft Corporation. Licensed under the MIT License:
 > OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 `python/stabilizer_qec/cudaq_qec/_onnx.py` uses selected arithmetic from onnxruntime
-(https://github.com/microsoft/onnxruntime): a fixed MLAS float32 product order, MLAS's logistic
-coefficients and the float8e4m3fn conversion of `core/framework/float8.h`. The 157 recordings
-on 17 models in `tests/cudaq_qec_port/models/ort_outputs.npz` come from ORT 1.31.0 CPU on
-macOS arm64. They do not establish equality to arbitrary optimizer, prepacking, weight-DQ
-fusion or reduced-precision paths; threshold differences can change a binary correction.
+(https://github.com/microsoft/onnxruntime): a fixed MLAS float32 product order with
+once-rounded fused multiply-adds, the MatMul + Add fusion of its default optimizer
+(MatMulAddFusion, as its 1.31.0 optimized graphs show it), MLAS's logistic coefficients and the
+float8e4m3fn conversion of `core/framework/float8.h`. The 180 recordings on 23 models in
+`tests/cudaq_qec_port/models/ort_outputs.npz` come from ORT 1.31.0 CPU on macOS arm64. They do
+not establish equality to other optimizer, prepacking, weight-DQ fusion or reduced-precision
+paths; threshold differences can change a binary correction.
 See [the selected numerical and input contract](python/stabilizer_qec/cudaq_qec/ONNX_CONTRACT.md).
 
 ## Tsim
@@ -346,11 +348,14 @@ Copyright (c) 2016, qecsim developers. Licensed under the BSD 3-Clause License (
 `python/stabilizer_qec/qecsim/` is qecsim 1.0b9's package, and `tests/qecsim_port/` its tests,
 with qecsim at stabilizer_qec.qecsim; its command line's models come from a table (its entry
 points) rather than `pkg_resources`, and without Blossom V's library this package's exact matcher
-serves its Blossom V interface. Its logging configuration (`logging_qecsim.ini`, whose handler
-arguments `logging.config.fileConfig` evaluates) and Blossom V's library (`clib/libpypm.so`, which
-ctypes loads) are read from `$QECSIM_CFG` when it is set and from `~/.qecsim` otherwise, as qecsim
-reads them, but not the working directory, which qecsim searches first: both files are code, so
-they come only from where the user put them, not from whatever directory the command runs in.
+serves its Blossom V interface, which numbers the nodes in order of first appearance (qecsim's in
+a set's order, which follows memory addresses for nodes that hash by identity), so a seeded run
+repeats. Its logging configuration (`logging_qecsim.ini`, whose handler arguments
+`logging.config.fileConfig` evaluates) and Blossom V's library (`clib/libpypm.so`, which ctypes
+loads) are read from `$QECSIM_CFG` when it is set (an empty value counting as unset, where qecsim
+takes it as the working directory) and from `~/.qecsim` otherwise, as qecsim reads them, but not
+the working directory, which qecsim searches first: both files are code, so they come only from
+where the user put them, not from whatever directory the command runs in.
 
 ## bposd
 
@@ -522,8 +527,10 @@ Copyright (c) 2022 Yue Wu. Licensed under the MIT License (`src/mwpf/LICENSE`, a
 visualizer, HTML export, BP crate and command line), with the parts of `num-traits`,
 `itertools`, `hashbrown`, `lnexp`, `prettytable-rs`, `rand`'s `SmallRng` (Xoshiro256++ seeded by
 PCG32, following rand and rand_xoshiro: Copyright the Rust Project Developers and the Rand Project
-Developers; MIT or Apache-2.0), `clap`'s parsing and error messages and `serde_json`'s parser
-errors (Copyright David Tolnay; MIT or Apache-2.0) it uses written out in `src/mwpf/shim.rs`,
+Developers; MIT or Apache-2.0), `clap`'s parsing and error messages, `serde_json`'s parser
+errors (Copyright David Tolnay; MIT or Apache-2.0) and `miniz_oxide` 0.8.0's deflate compressor
+(the level-6 path `flate2`'s `GzEncoder` runs, with which the HTML export gzips its data;
+Copyright (c) 2017 Frommi; MIT, Zlib or Apache-2.0) it uses written out in `src/mwpf/shim.rs`,
 `src/mwpf/cli.rs` and `src/fusion/shim.rs`, and the `highs` crate's calls into HiGHS (Copyright
 Ophir Lojkine and rust-or; MIT) in `src/mwpf/lp.rs`. `src/mwpf/cli_help.rs` holds the help texts MWPF's command line prints.
 `python/stabilizer_qec/mwpf/` is its Python package and `tests/mwpf_port/` its tests.

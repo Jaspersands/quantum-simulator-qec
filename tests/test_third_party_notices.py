@@ -189,6 +189,37 @@ def test_qecsim_notice_says_where_config_is_read():
     assert "$QECSIM_CFG" in qecsim and "~/.qecsim" in qecsim
     assert "logging_qecsim.ini" in qecsim and "libpypm" in qecsim
     assert "not the working directory" in qecsim
+    # An empty QECSIM_CFG counts as unset (qecsim took it as the working directory), and the
+    # Blossom V interface numbers its nodes in order of first appearance, not a set's order.
+    port = ROOT / "python" / "stabilizer_qec" / "qecsim"
+    assert re.search(r"(?m)^\s*if qecsim_cfg_path:", (port / "util.py").read_text(encoding="utf-8"))
+    assert "an empty value counting as unset" in qecsim
+    assert "order of first appearance" in words((port / "graphtools" / "blossom5.py").read_text(encoding="utf-8"))
+    assert "numbers the nodes in order of first appearance" in qecsim
+
+
+def test_mwpf_notice_names_the_deflate_it_adapts():
+    # The HTML export's gzip is miniz_oxide 0.8.0's deflate written out in src/mwpf/shim.rs.
+    shim = words((ROOT / "src" / "mwpf" / "shim.rs").read_text(encoding="utf-8"))
+    assert "miniz_oxide` 0.8.0's deflate compressor" in shim and "2017 Frommi" in shim
+    mwpf = words(section("MWPF"))
+    assert "`miniz_oxide` 0.8.0's deflate compressor" in mwpf
+    assert "Copyright (c) 2017 Frommi; MIT, Zlib or Apache-2.0" in mwpf
+
+
+def test_onnxruntime_notice_counts_the_recordings():
+    # The cases and models recorded from onnxruntime, as the recordings file holds them (its
+    # meta__ entries are the versions, no case), and the fusion the evaluator emulates.
+    import numpy as np
+
+    with np.load(ROOT / "tests" / "cudaq_qec_port" / "models" / "ort_outputs.npz", allow_pickle=False) as z:
+        keys = [k for k in z.files if not k.startswith("meta__")]
+    cases = {k.rsplit("__", 1)[0] for k in keys}
+    models = {k.split("__", 1)[0] for k in keys}
+    ort = words(section("onnxruntime"))
+    assert f"The {len(cases)} recordings on {len(models)} models in `tests/cudaq_qec_port/models/ort_outputs.npz`" in ort
+    assert "MatMulAddFusion" in words((ROOT / "python" / "stabilizer_qec" / "cudaq_qec" / "_onnx.py").read_text(encoding="utf-8"))
+    assert "the MatMul + Add fusion of its default optimizer" in ort and "once-rounded fused multiply-adds" in ort
 
 
 def test_qsample_notice_says_save_needs_dill_for_lambdas():
