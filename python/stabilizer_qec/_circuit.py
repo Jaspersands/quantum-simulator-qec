@@ -26,6 +26,19 @@ def _repetitions(obj: Any, repetitions: Any, op: str) -> int:
     return count(n, "repetitions")
 
 
+def _read_stim_text(file: Union[str, PathLike, Any]) -> str:
+    """A circuit's or model's file as text: a path, or an open text or binary file. Stim reads
+    bytes, and passes over any in a comment, so a byte that is not UTF-8 (``caf\\xe9`` written
+    as Latin-1) is read as U+FFFD rather than refusing the file; valid UTF-8 is read as it is."""
+    if not hasattr(file, "read"):
+        with open_file(file, encoding="utf-8", errors="replace") as f:
+            return f.read()
+    data = file.read()
+    if isinstance(data, (bytes, bytearray)):
+        return bytes(data).decode("utf-8", "replace")
+    return data
+
+
 class Circuit:
     """A stabilizer circuit in Stim's circuit language.
 
@@ -61,7 +74,7 @@ class Circuit:
     (11, 10)
     """
 
-    __slots__ = ("_c",)
+    __slots__ = ("_c", "_cache")
 
     # Deltakit's Stim's error model (``stabilizer_qec.deltakit_stim``), not Stim's.
     _deltakit = False
@@ -73,11 +86,10 @@ class Circuit:
 
     @classmethod
     def from_file(cls, file: Union[str, PathLike, Any]) -> "Circuit":
-        """Read a ``.stim`` file, from a path or an open file."""
-        if hasattr(file, "read"):
-            return cls(file.read())
-        with open_file(file, encoding="utf-8") as f:
-            return cls(f.read())
+        """Read a ``.stim`` file, from a path or an open file (text or binary). The bytes are
+        read as UTF-8, a byte that is not (a stray Latin-1 byte in a comment, which Stim passes
+        over) read as U+FFFD."""
+        return cls(_read_stim_text(file))
 
     def __str__(self) -> str:
         """Stim's text: canonical names, neighbouring instructions fused, arguments to 6
@@ -114,15 +126,32 @@ class Circuit:
         return bool(_core.circuit_approx_equals(self._stim_exact_text(), other._stim_exact_text(), float(atol)))
 
     def __reduce__(self) -> tuple:
-        # Pickled, copied and sent to other processes as its exact text.
-        return (Circuit, (self._stim_exact_text(),))
+        # Pickled, copied and sent to other processes as its exact text, rebuilt as its own
+        # class, as Stim's are: a subclass stays one, and Deltakit's circuit
+        # (``stabilizer_qec.deltakit_stim``), whose exact text holds its leakage as tagged
+        # lines, comes back leaking. A subclass is rebuilt without calling its constructor,
+        # which may take other arguments than the text (Stim's copy calls none either, and
+        # keeps none of the instance's own attributes); a plain circuit names the class, as
+        # 2.1's pickles do, so they still load there.
+        if type(self) is Circuit:
+            return (Circuit, (self._stim_exact_text(),))
+        return (_circuit_of_class, (type(self), self._stim_exact_text()))
 
     # Stim's list-of-instructions interface. The core circuit's lines are its items: Stim's
     # parser and ``append`` fuse neighbouring instructions that can be one (``H 0`` then
     # ``H 1`` is ``H 0 1``), and the core does too, while ``pop`` and slicing leave neighbours
-    # apart, so the items are read, and edits written back, without fusing.
+    # apart, so the items are read, and edits written back, without fusing. The items are
+    # parsed once and kept until the circuit changes (a new core circuit, or an append to this
+    # one, which the core counts), so a loop indexing ``circuit[i]`` is linear, as Stim's; the
+    # list is shared, and callers only read it.
     def _items(self) -> list:
-        return _core.circuit_items(self._c.__str__(), False)
+        core = self._c
+        cache = getattr(self, "_cache", None)
+        if cache is not None and cache[0] is core and cache[1] == core.edits:
+            return cache[2]
+        items = _core.circuit_items(core.__str__(), False)
+        self._cache = (core, core.edits, items)
+        return items
 
     @classmethod
     def _of_items(cls, items: list) -> "Circuit":
@@ -1342,7 +1371,7 @@ class DetectorErrorModel:
     made from it unrolls it once.
     """
 
-    __slots__ = ("_d",)
+    __slots__ = ("_d", "_cache")
 
     def __init__(self, detector_error_model_text: Union[str, "DetectorErrorModel", Any] = "", *, text: Union[str, None] = None) -> None:
         if text is not None:  # 1.x's keyword
@@ -1357,11 +1386,9 @@ class DetectorErrorModel:
 
     @classmethod
     def from_file(cls, file: Union[str, PathLike, Any]) -> "DetectorErrorModel":
-        """Read a ``.dem`` file, from a path or an open file."""
-        if hasattr(file, "read"):
-            return cls(file.read())
-        with open_file(file, encoding="utf-8") as f:
-            return cls(f.read())
+        """Read a ``.dem`` file, from a path or an open file (text or binary), its bytes read as
+        ``Circuit.from_file`` reads them."""
+        return cls(_read_stim_text(file))
 
     def to_file(self, file: Any) -> None:
         """Write the model's text to a path or an open text file."""
@@ -1382,8 +1409,16 @@ class DetectorErrorModel:
     # Stim's list-of-instructions interface.
     def _items(self) -> list:
         # (The exact text: Stim's rounds numbers to 16 digits here, which would drop bits on
-        # every edit.)
-        return _dem.parse_items(self._d.exact_text())
+        # every edit.) Parsed once and kept until the model changes (a new core model, or an
+        # append to this one, which the core counts), so indexing every item is linear, as
+        # Stim's; the list is shared, and callers only read it (its instructions are immutable).
+        core = self._d
+        cache = getattr(self, "_cache", None)
+        if cache is not None and cache[0] is core and cache[1] == core.edits:
+            return cache[2]
+        items = _dem.parse_items(core.exact_text())
+        self._cache = (core, core.edits, items)
+        return items
 
     def _set_items(self, items: list) -> None:
         self._d = call(_core.Dem, _dem.items_exact_text(items))
@@ -1627,7 +1662,11 @@ class DetectorErrorModel:
         return self._d.exact_text() == other._d.exact_text()
 
     def __reduce__(self) -> tuple:
-        return (DetectorErrorModel, (self._d.exact_text(),))
+        # Rebuilt as its own class, as Stim's: a subclass stays one, rebuilt without calling its
+        # constructor (see ``Circuit.__reduce__``).
+        if type(self) is DetectorErrorModel:
+            return (DetectorErrorModel, (self._d.exact_text(),))
+        return (_dem_of_class, (type(self), self._d.exact_text()))
 
     __hash__ = None  # type: ignore[assignment]
 
@@ -1665,8 +1704,8 @@ class DetectorErrorModel:
         """The fewest of the model's faults that together flip an observable and set off no
         detector: its distance.
 
-        - ``"milp"`` (default): exact, by integer programming over every fault, hyperedges
-          included (each fault taken whole; needs scipy, whose HiGHS solver must prove the
+        - ``"milp"`` (default): exact, by integer programming over every fault of nonzero
+          probability, hyperedges included (each fault taken whole; needs scipy, whose HiGHS solver must prove the
           optimum within ``time_limit`` seconds, or this raises). Exponential at worst; meant
           for models of up to a few thousand faults.
         - ``"graphlike"``: ``shortest_graphlike_error``'s length (graph-like faults only).
@@ -1684,7 +1723,7 @@ class DetectorErrorModel:
             ).num_errors
         if method != "milp":
             raise ValueError(f"method must be 'milp', 'graphlike' or 'search', not {method!r}")
-        return _milp_distance(str(self.flattened()), real(time_limit, "time_limit"))
+        return _milp_distance(call(self._d.flat_errors), real(time_limit, "time_limit"))
 
     def search_for_undetectable_logical_errors(
         self,
@@ -1722,10 +1761,27 @@ class DetectorErrorModel:
         return DetectorErrorModel._wrap(call(self._d.flattened))
 
 
-def _milp_distance(text: str, time_limit: float) -> int:
-    """The fewest faults of a flattened model flipping an observable and no detector, by an
-    integer program: a 0/1 variable per distinct fault; each detector's faults sum to twice an
-    integer; each observable's to twice an integer plus a 0/1 that must be 1 for at least one."""
+def _circuit_of_class(cls: type, text: str) -> Circuit:
+    """A circuit of class ``cls`` (a subclass of ``Circuit``) from its exact text, for pickling
+    and copying: its constructor is not called, as it may take other arguments."""
+    out = cls.__new__(cls)
+    out._c = call(_core.Circuit, text)
+    return out
+
+
+def _dem_of_class(cls: type, text: str) -> "DetectorErrorModel":
+    """A model of class ``cls`` (a subclass of ``DetectorErrorModel``) from its exact text, for
+    pickling and copying: its constructor is not called, as it may take other arguments."""
+    return cls._wrap(call(_core.Dem, text))
+
+
+def _milp_distance(errors: list, time_limit: float) -> int:
+    """The fewest faults of a model (its unrolled errors, as ``flat_errors`` gives them: a
+    probability and (is_observable, index) targets) flipping an observable and no detector, by
+    an integer program: a 0/1 variable per distinct fault; each detector's faults sum to twice
+    an integer; each observable's to twice an integer plus a 0/1 that must be 1 for at least
+    one. A fault of probability 0 never happens and is left out, as the graph-like and search
+    distances (and Stim's) leave it out."""
     try:
         import numpy as np
         from scipy.optimize import LinearConstraint, milp
@@ -1733,13 +1789,12 @@ def _milp_distance(text: str, time_limit: float) -> int:
     except ImportError as ex:
         raise ImportError("an exact distance needs scipy: pip install scipy") from ex
     faults = set()
-    for line in text.splitlines():
-        line = line.strip()
-        if not line.startswith("error"):
+    for p, targets in errors:
+        if not p > 0:
             continue
         dets, obs = set(), set()
-        for t in line.split(")", 1)[1].replace("^", " ").split():
-            (dets if t[0] == "D" else obs).symmetric_difference_update({int(t[1:])})
+        for is_obs, k in targets:
+            (obs if is_obs else dets).symmetric_difference_update({int(k)})
         if dets or obs:
             faults.add((frozenset(dets), frozenset(obs)))
     for dets, obs in faults:
@@ -2731,7 +2786,8 @@ def _wcnf(dem: "DetectorErrorModel", weighted: bool, quantization: int) -> str:
             if p < 0.5:
                 add([neg(x)], -math.log(p / (1 - p)))
             elif p > 0.5:
-                add([x], -math.log((1 - p) / p))
+                # A certain error (p = 1) weighs infinitely, as Stim's -log(0) does.
+                add([x], -math.log((1 - p) / p) if p < 1 else math.inf)
         else:
             add([neg(x)], 1.0)
     for d in dets:
@@ -2746,7 +2802,11 @@ def _wcnf(dem: "DetectorErrorModel", weighted: bool, quantization: int) -> str:
         elif not weighted:
             qw = 1
         else:
-            qw = _cround(weight / max_weight * quantization)
+            # With a certain error the largest weight is infinite: Stim's round of inf/inf
+            # (NaN) to an unsigned size is 0 (as the arm64 build gives it), and every finite
+            # weight over it is 0 too, so the soft clauses all drop out.
+            ratio = weight / max_weight
+            qw = 0 if ratio != ratio else _cround(ratio * quantization)
         if qw == 0:
             continue
         lines.append(str(qw) + "".join(f" -{(v + 1) % (1 << 64)}" if n else f" {(v + 1) % (1 << 64)}" for v, n in lits) + " 0\n")

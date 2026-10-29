@@ -674,12 +674,14 @@ LambdaFitMethod.LIN, the later two should be preferred in general.</p>
 <blockquote>
   <blockquote>
     <blockquote>
-      <p>res = calculate_lambda_and_lambda_std(
+      <p>from stabilizer_qec import analysis
+      res = analysis.calculate_lambda_and_lambda_stddev(
           ...     distances=[5, 7, 9],
           ...     leppr=[1.992e-04, 4.314e-05, 7.556e-06],
           ...     leppr_std=[1.2e-05, 9.3e-06, 3.9e-06],
           ... )
-      res.lambda_, res.lambda_std</p>
+      round(res.lambda_, 2), round(res.lambda_std, 2)
+          (4.83, 0.83)</p>
     </blockquote>
   </blockquote>
 </blockquote>
@@ -756,10 +758,13 @@ same linear model as the <code>LIN</code> method. <code>Λ = exp(-slope)</code> 
     Calculating logical error probability and standard deviation
     given number of fails, and number of shots:</p>
 
-<pre><code>&gt;&gt;&gt; lep, lep_stddev = analysis.calculate_lep_and_lep_stddev(
+<pre><code>&gt;&gt;&gt; from stabilizer_qec import analysis
+&gt;&gt;&gt; lep, lep_stddev = analysis.calculate_lep_and_lep_stddev(
 ...     fails=[498, 151, 34],
 ...     shots=[500000] * 3,
 ... )
+&gt;&gt;&gt; lep.tolist()
+[0.000996, 0.000302, 6.8e-05]
 
 Scalar inputs, including the NumPy integers found in simulation
 results, return floats:
@@ -768,6 +773,8 @@ results, return floats:
 ...     fails=3778,
 ...     shots=100000,
 ... )
+&gt;&gt;&gt; lep, round(lep_stddev, 6)
+(0.03778, 0.000603)
 </code></pre>
 </div>
 
@@ -808,10 +815,15 @@ zero and the upper tail is not understated when the error rate is small.</p>
 <blockquote>
   <blockquote>
     <blockquote>
-      <p>low, lep, high = analysis.calculate_lep_asymmetric(
+      <p>from stabilizer_qec import analysis
+      low, lep, high = analysis.calculate_lep_asymmetric(
           ...     fails=[2, 151, 34],
           ...     shots=[500000] * 3,
-          ... )</p>
+          ... )
+      lep.tolist()
+          [4e-06, 0.000302, 6.8e-05]
+      bool((low &lt; lep).all() and (lep &lt; high).all())
+          True</p>
     </blockquote>
   </blockquote>
 </blockquote>

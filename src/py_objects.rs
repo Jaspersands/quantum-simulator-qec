@@ -55,6 +55,9 @@ fn le_f64(xs: impl IntoIterator<Item = f64>) -> Vec<u8> {
 #[pyclass(name = "Circuit", module = "stabilizer_qec._core")]
 pub struct PyCircuit {
     circuit: crate::api::Circuit,
+    /// How many times the circuit has been changed in place (every `append_*` counts one), so
+    /// that the Python object can keep its parsed instructions until the next change.
+    edits: u64,
 }
 
 /// A target as (target, coordinates, Stim's text).
@@ -97,7 +100,7 @@ impl PyCircuit {
     #[pyo3(signature = (text, fuse=true))]
     fn new(text: &str, fuse: bool) -> PyResult<Self> {
         let circuit = if fuse { crate::api::Circuit::parse(text) } else { crate::api::Circuit::parse_unfused(text) };
-        Ok(PyCircuit { circuit: circuit.map_err(api_err)? })
+        Ok(PyCircuit { circuit: circuit.map_err(api_err)?, edits: 0 })
     }
 
     #[getter]
@@ -138,26 +141,35 @@ impl PyCircuit {
     fn append_instruction(&mut self, name: &str, tag: &str, args: Vec<f64>, targets: Vec<String>) -> PyResult<()> {
         let piece = Circuit::instruction(name, tag, &args, &targets).map_err(err)?;
         let piece = crate::api::Circuit::from_engine(piece).map_err(api_err)?;
+        self.edits += 1;
         self.circuit.append_circuit(&piece).map_err(api_err)
     }
 
     fn append_text(&mut self, text: &str) -> PyResult<()> {
+        self.edits += 1;
         self.circuit.append_text(text).map_err(api_err)
     }
 
     fn append_circuit(&mut self, other: &PyCircuit) -> PyResult<()> {
+        self.edits += 1;
         self.circuit.append_circuit(&other.circuit).map_err(api_err)
+    }
+
+    /// How many times the circuit has been changed in place (see the field).
+    #[getter]
+    fn edits(&self) -> u64 {
+        self.edits
     }
 
     /// Coherent rotations replaced by their Pauli twirls (with `merge`, equivalent rotations
     /// added up first).
     fn twirled(&self, merge: bool) -> PyResult<PyCircuit> {
         let inner = crate::coherent::twirled(&self.circuit.inner, merge).map_err(err)?;
-        Ok(PyCircuit { circuit: crate::api::Circuit::from_engine(inner).map_err(api_err)? })
+        Ok(PyCircuit { circuit: crate::api::Circuit::from_engine(inner).map_err(api_err)?, edits: 0 })
     }
 
     fn repeated(&self, count: u64) -> PyResult<PyCircuit> {
-        Ok(PyCircuit { circuit: self.circuit.repeated(count).map_err(api_err)? })
+        Ok(PyCircuit { circuit: self.circuit.repeated(count).map_err(api_err)?, edits: 0 })
     }
 
     /// The circuit's faults explained (see `Circuit::explain_errors`): per explained error,
@@ -220,7 +232,7 @@ impl PyCircuit {
     }
 
     fn copy(&self) -> PyCircuit {
-        PyCircuit { circuit: self.circuit.clone() }
+        PyCircuit { circuit: self.circuit.clone(), edits: 0 }
     }
 
     /// The detector error model; `decompose` splits faults into graph-like pieces as Stim does,
@@ -238,7 +250,7 @@ impl PyCircuit {
             .ignore_decomposition_failures(ignore_failures)
             .allow_gauge_detectors(allow_gauge)
             .block_decomposition_from_introducing_remnant_edges(block_remnants);
-        Ok(PyDem { dem: self.circuit.detector_error_model(&options).map_err(api_err)? })
+        Ok(PyDem { dem: self.circuit.detector_error_model(&options).map_err(api_err)?, edits: 0 })
     }
 
     /// The noiseless reference run's measurement record (the one the converter compares with),
@@ -764,6 +776,8 @@ impl PyStabilizerRankSampler {
 #[pyclass(name = "Dem", module = "stabilizer_qec._core")]
 pub struct PyDem {
     dem: crate::api::DetectorErrorModel,
+    /// How many times the model has been changed in place (`append_text`), as `PyCircuit`'s.
+    edits: u64,
 }
 
 impl PyDem {
@@ -787,7 +801,7 @@ impl PyDem {
 impl PyDem {
     #[new]
     fn new(text: &str) -> PyResult<Self> {
-        Ok(PyDem { dem: crate::api::DetectorErrorModel::parse(text).map_err(api_err)? })
+        Ok(PyDem { dem: crate::api::DetectorErrorModel::parse(text).map_err(api_err)?, edits: 0 })
     }
 
     #[getter]
@@ -816,14 +830,21 @@ impl PyDem {
 
     /// Appends the instructions of a piece of model text.
     fn append_text(&mut self, text: &str) -> PyResult<()> {
+        self.edits += 1;
         self.dem.append_text(text).map_err(api_err)
+    }
+
+    /// How many times the model has been changed in place (see the field).
+    #[getter]
+    fn edits(&self) -> u64 {
+        self.edits
     }
 
     /// The graph-like distance's faults as a model (see
     /// `DetectorErrorModel::shortest_graphlike_error`).
     fn shortest_graphlike(&self, py: Python<'_>, ignore: bool) -> PyResult<PyDem> {
         let dem = &self.dem;
-        Ok(PyDem { dem: py.detach(move || dem.shortest_graphlike_error(ignore)).map_err(api_err)? })
+        Ok(PyDem { dem: py.detach(move || dem.shortest_graphlike_error(ignore)).map_err(api_err)?, edits: 0 })
     }
 
     /// Stim's search for undetectable logical errors on the model, its sets within
@@ -832,7 +853,7 @@ impl PyDem {
     fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, max_memory_bytes: Option<usize>) -> PyResult<PyDem> {
         let dem = &self.dem;
         let budget = max_memory_bytes.unwrap_or_else(crate::distance::default_memory_budget);
-        Ok(PyDem { dem: py.detach(move || dem.search_for_undetectable_logical_errors_with_budget(max_symptoms, max_degree, no_increase, budget)).map_err(api_err)? })
+        Ok(PyDem { dem: py.detach(move || dem.search_for_undetectable_logical_errors_with_budget(max_symptoms, max_degree, no_increase, budget)).map_err(api_err)?, edits: 0 })
     }
 
     /// A sampler of the model's faults (see `DemSampler`).
@@ -845,7 +866,7 @@ impl PyDem {
     }
 
     fn flattened(&self) -> PyResult<PyDem> {
-        Ok(PyDem { dem: self.dem.flattened().map_err(api_err)? })
+        Ok(PyDem { dem: self.dem.flattened().map_err(api_err)?, edits: 0 })
     }
 
     /// Stim's `matchgraph-3d` diagram (glTF).

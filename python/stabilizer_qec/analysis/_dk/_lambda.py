@@ -443,12 +443,14 @@ def calculate_lambda_and_lambda_stddev(
         unlikely with real experimental data but may occur with synthetic inputs.
 
     Examples:
-        >>> res = calculate_lambda_and_lambda_std(
+        >>> from stabilizer_qec import analysis
+        >>> res = analysis.calculate_lambda_and_lambda_stddev(
         ...     distances=[5, 7, 9],
         ...     leppr=[1.992e-04, 4.314e-05, 7.556e-06],
         ...     leppr_std=[1.2e-05, 9.3e-06, 3.9e-06],
         ... )
-        >>> res.lambda_, res.lambda_std
+        >>> round(res.lambda_, 2), round(res.lambda_std, 2)
+        (4.83, 0.83)
 
     """
     method = LambdaFitMethod(method)

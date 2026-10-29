@@ -6251,7 +6251,9 @@ before its first measurement is the error.</p>
     </div>
     <a class="headerlink" href="#Circuit.from_file"></a>
     
-            <div class="docstring"><p>Read a <code>.stim</code> file, from a path or an open file.</p>
+            <div class="docstring"><p>Read a <code>.stim</code> file, from a path or an open file (text or binary). The bytes are
+read as UTF-8, a byte that is not (a stray Latin-1 byte in a comment, which Stim passes
+over) read as U+FFFD.</p>
 </div>
 
 
@@ -7720,7 +7722,8 @@ made from it unrolls it once.</p>
     </div>
     <a class="headerlink" href="#DetectorErrorModel.from_file"></a>
     
-            <div class="docstring"><p>Read a <code>.dem</code> file, from a path or an open file.</p>
+            <div class="docstring"><p>Read a <code>.dem</code> file, from a path or an open file (text or binary), its bytes read as
+<code><a href="#Circuit.from_file">Circuit.from_file</a></code> reads them.</p>
 </div>
 
 
@@ -7924,8 +7927,8 @@ supported thread counts;
 detector: its distance.</p>
 
 <ul>
-<li><code>"milp"</code> (default): exact, by integer programming over every fault, hyperedges
-included (each fault taken whole; needs scipy, whose HiGHS solver must prove the
+<li><code>"milp"</code> (default): exact, by integer programming over every fault of nonzero
+probability, hyperedges included (each fault taken whole; needs scipy, whose HiGHS solver must prove the
 optimum within <code>time_limit</code> seconds, or this raises). Exponential at worst; meant
 for models of up to a few thousand faults.</li>
 <li><code>"graphlike"</code>: <code><a href="#DetectorErrorModel.shortest_graphlike_error">shortest_graphlike_error</a></code>'s length (graph-like faults only).</li>
@@ -9868,8 +9871,8 @@ other counted in the weight scale), so decoding it plainly gives PyMatching's an
 <span class="gp">&gt;&gt;&gt; </span><span class="n">m</span><span class="o">.</span><span class="n">add_edge</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">fault_ids</span><span class="o">=</span><span class="p">{</span><span class="mi">1</span><span class="p">},</span> <span class="n">weight</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">m</span><span class="o">.</span><span class="n">add_boundary_edge</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">weight</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">m</span><span class="o">.</span><span class="n">add_boundary_edge</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">fault_ids</span><span class="o">=</span><span class="p">{</span><span class="mi">2</span><span class="p">},</span> <span class="n">weight</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>
-<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span><span class="o">.</span><span class="n">decode</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
-<span class="go">array([0, 1, 1], dtype=uint8)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">m</span><span class="o">.</span><span class="n">decode</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>  <span class="c1"># detectors 1 and 2 pair through fault 1's edge (weight 1, not 3)</span>
+<span class="go">array([0, 1, 0], dtype=uint8)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">m</span>
 <span class="go">&lt;<a href="#Matching">stabilizer_qec.Matching</a> object with 3 detectors, 0 boundary nodes, and 4 edges&gt;</span>
 </code></pre>
@@ -12115,7 +12118,7 @@ Pauli target, a measurement record, a sweep bit, or a combiner.</p>
 
 <div class="pdoc-code codehilite">
 <pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">PauliString</span><span class="p">(</span><span class="s2">"-XYZ"</span><span class="p">)</span> <span class="o">*</span> <span class="n">PauliString</span><span class="p">(</span><span class="s2">"XX_"</span><span class="p">)</span>
-<span class="go"><a href="#PauliString">stabilizer_qec.PauliString</a>("-_ZZ")</span>
+<span class="go"><a href="#PauliString">stabilizer_qec.PauliString</a>("+i_ZZ")</span>
 </code></pre>
 </div>
 </div>
