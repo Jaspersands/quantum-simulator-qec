@@ -81,3 +81,16 @@ def test_parity_inventory_f1_states_tqecs_hadamard_rule_and_no_unmeasured_speedu
     assert "6 to 16 times" not in f1
     assert "X-directed spatial Hadamards require fixed_boundary" not in f1
     assert "Spatial Hadamard pipes between two non-spatial cubes, along x or y, require fixed_boundary" in f1
+
+
+def test_parity_inventory_f1_gives_the_measured_tqec_speed_spread_and_no_load_trend():
+    # B21.2 timed `compile_block_graph(...).generate_stim_circuit(1)` three times a side at a load
+    # average of 5 to 11 (Steane 1.5-1.6x, CNOT 2.8-3.1x, memory 5.9-6.6x). Re-timed at load
+    # averages of 38 to 184 the ratios moved both ways (CNOT 1.9x and 3.1-5.0x, memory 5.0-8.8x),
+    # so F1 gives the spread and claims no trend with load.
+    inventory = (ROOT / "docs/superpowers/notes/2026-10-09-parity-inventory.md").read_text(encoding="utf-8")
+    f1 = next(line for line in inventory.splitlines() if line.startswith("| F1 |"))
+    assert "grows with load" not in f1
+    assert "generate_stim_circuit(1)" in f1
+    for spread in ("1.5 to 1.6 times on the Steane encoding", "2.8 to 3.1 on the CNOT", "5.9 to 6.6 on the memory", "1.9 to 5.0 on the CNOT", "5.0 to 8.8 on the memory"):
+        assert spread in f1, spread
