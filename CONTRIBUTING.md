@@ -32,6 +32,9 @@ The site's WebAssembly engine is `cargo build --release --target wasm32-unknown-
 - Names follow the tools a user knows: Stim's for circuits and models, PyMatching's for
   matching, `ldpc`'s for BP and BP+OSD.
 - Each change goes in `CHANGELOG.md`.
+- A change to `Cargo.lock` (or to the wheels' features or targets) regenerates
+  `THIRD_PARTY_CRATES.md` with `python tools/third_party_crates.py`;
+  `tests/test_third_party_notices.py` fails on a Cargo.lock the file was not written for.
 
 ## Compatibility policy
 
