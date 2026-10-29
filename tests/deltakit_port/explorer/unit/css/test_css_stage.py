@@ -350,7 +350,7 @@ class TestCSSStageWithAllParameters:
                 stabilisers=example_simultaneous_stabilisers,
             )
 
-    @pytest.mark.parametrize("stabilisers", [[[]], None, [[], []]], ())
+    @pytest.mark.parametrize("stabilisers", [[[]], None, [[], []]], indirect=())
     def test_raises_error_when_stabilisers_is_empty_but_num_rounds_is_positive(
         self, stabilisers
     ):
