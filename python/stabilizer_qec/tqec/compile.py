@@ -108,48 +108,15 @@ class CompiledBlockGraph:
     def _in_tqecs_layout(self, k: int) -> "TopologicalComputationGraph":
         """The computation that writes this program in tqec's layout at scale ``k``, or a
         ``ValueError`` when tqec's layout cannot honour the program's rounds there."""
-        computation = self.computation
-        height = computation._height
-        if _is_linear_function(height) or (height is None and computation._rounds is None and computation._merged is None):
-            # tqec's own height, or the defaults: both layouts run block_temporal_height(k) + 2
-            # rounds (2k + 1 by default) in every time slice, merges included.
-            return computation
-        tqec_rounds = 2 * k + 1
-        rounds = computation._rounds_at(k)
-        rounds = tqec_rounds if rounds is None else rounds
-        merged = rounds if computation._merged is None else computation._merged
-        # The program's time slices: each runs `rounds` rounds, or `merged` when it merges.
-        slices: set[bool] = set()
-        merging = False
-        for step in self.steps:
-            if step[0] == "merge":
-                merging = True
-            elif step[0] == "rounds":
-                slices.add(merging)
-                merging = False
-        if (False in slices and rounds != tqec_rounds) or (True in slices and merged != tqec_rounds):
-            given = ", ".join(f"{name}={value!r}" for name, value in (("rounds", computation._rounds), ("merged", computation._merged), ("block_temporal_height", height)) if value is not None)
-            if slices == {False}:
-                runs = f"each time slice runs {rounds} rounds"
-            elif slices == {True}:
-                runs = f"each merge runs {merged} rounds"
-            else:
-                runs = f"each time slice runs {rounds} rounds and each merge {merged}"
-            raise ValueError(f"this program was compiled with {given}, so at k = {k} {runs}; generate_stim_circuit writes tqec's layout, which runs 2k + 1 = {tqec_rounds} rounds in every time slice, merges included, and cannot honour that. The program's circuit, in the engine's layout, is .circuit (at its distance; compile_block_graph(graph, distance, ...) for another)")
-        if height is None:
-            return computation
-        # A number or callable height whose rounds at k are tqec's default: tqec's layout with its
-        # default height (tqec takes a LinearFunction only).
-        return TopologicalComputationGraph(computation.block_graph, convention=computation.convention, observables=computation._observables)
+        return self.computation._in_tqecs_layout(k)
 
 
 def _basis_name(basis: Basis) -> str:
     return basis.value.lower()
 
 
-def _compile(graph: "BlockGraph", distance: int, *, p: float = 0.0, rounds: Optional[int] = None, merged: Optional[int] = None, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto", write: bool = True) -> CompiledBlockGraph:
-    """``compile_block_graph`` at a distance (see there); with ``write`` false, the program
-    without its circuit (every check made, nothing written)."""
+def _compile(graph: "BlockGraph", distance: int, *, p: float = 0.0, rounds: Optional[int] = None, merged: Optional[int] = None, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto") -> CompiledBlockGraph:
+    """``compile_block_graph`` at a distance (see there)."""
     from .correlation import ZXGraph
 
     if graph.is_open:
@@ -394,8 +361,6 @@ def _compile(graph: "BlockGraph", distance: int, *, p: float = 0.0, rounds: Opti
     from .._util import call
 
     stabilizers = [s.external_stabilizer_on_graph(graph) for s in surfaces]
-    if not write:
-        return CompiledBlockGraph(None, distance, tiles, steps, terms_per_surface, stabilizers, surfaces, patch_of)
     if len(set(tiles)) == len(tiles):
         text = call(_core.surgery_program, distance, float(p), tiles, steps, terms_per_surface)
     else:
@@ -548,8 +513,11 @@ class TopologicalComputationGraph:
     when ``compile`` is called. ``surfaces`` are the correlation surfaces compiled into
     observables and ``stabilizers`` the Pauli string each measures on the graph's ports (or leaf
     cubes). ``rounds`` and ``merged`` control the engine. Direct generation checks them
-    against tqec's ``2k + 1`` layout and refuses any time slices it cannot honour,
-    just as ``CompiledBlockGraph.generate_stim_circuit`` does."""
+    against tqec's ``2k + 1`` layout and refuses with a ``ValueError`` any time slices it cannot
+    honour, just as ``CompiledBlockGraph.generate_stim_circuit`` does. The check is arithmetic on
+    the graph's time slices (one per cube height, a merge when a spatial pipe runs in it), so it
+    holds on graphs the engine cannot express (spatial cubes, Hadamard pipes), whose matching
+    controls pass through to tqec's circuit."""
 
     def __init__(self, block_graph: "BlockGraph", *, convention: object = FIXED_BULK_CONVENTION, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto", block_temporal_height: object = None, rounds: Optional[int] = None, merged: Optional[int] = None, _engine_only: bool = False) -> None:
         self.convention = _convention(convention)
@@ -629,6 +597,42 @@ class TopologicalComputationGraph:
             raise TQECError(f"block_temporal_height at k = {k} is {height!r}; it must be a whole number of rounds, at least 0")
         return rounds + 2
 
+    def _in_tqecs_layout(self, k: int) -> "TopologicalComputationGraph":
+        """The computation that writes this graph in tqec's layout at scale ``k`` (this one, or
+        one with tqec's default height), or a ``ValueError`` when tqec's layout cannot honour the
+        engine's rounds there. The check is arithmetic on the graph's time slices (each cube
+        height is one; it merges when a spatial pipe runs in it), so it needs no engine program
+        and holds on every graph tqec compiles, spatial cubes and Hadamard pipes included."""
+        computation = self
+        height = computation._height
+        if _is_linear_function(height) or (height is None and computation._rounds is None and computation._merged is None):
+            # tqec's own height, or the defaults: both layouts run block_temporal_height(k) + 2
+            # rounds (2k + 1 by default) in every time slice, merges included.
+            return computation
+        tqec_rounds = 2 * k + 1
+        rounds = computation._rounds_at(k)
+        rounds = tqec_rounds if rounds is None else rounds
+        merged = rounds if computation._merged is None else computation._merged
+        # The graph's time slices, as the engine lays them out (the steps of _compile): one per
+        # height of a cube, running `rounds` rounds, or `merged` when a spatial pipe runs in it.
+        graph = computation._graph
+        merging_heights = {pipe.u.position.z for pipe in graph.pipes if pipe.direction != Direction3D.Z}
+        slices: set[bool] = {cube.position.z in merging_heights for cube in graph.cubes}
+        if (False in slices and rounds != tqec_rounds) or (True in slices and merged != tqec_rounds):
+            given = ", ".join(f"{name}={value!r}" for name, value in (("rounds", computation._rounds), ("merged", computation._merged), ("block_temporal_height", height)) if value is not None)
+            if slices == {False}:
+                runs = f"each time slice runs {rounds} rounds"
+            elif slices == {True}:
+                runs = f"each merge runs {merged} rounds"
+            else:
+                runs = f"each time slice runs {rounds} rounds and each merge {merged}"
+            raise ValueError(f"this program was compiled with {given}, so at k = {k} {runs}; generate_stim_circuit writes tqec's layout, which runs 2k + 1 = {tqec_rounds} rounds in every time slice, merges included, and cannot honour that. The program's circuit, in the engine's layout, is .circuit (at its distance; compile_block_graph(graph, distance, ...) for another)")
+        if height is None:
+            return computation
+        # A number or callable height whose rounds at k are tqec's default: tqec's layout with its
+        # default height (tqec takes a LinearFunction only).
+        return TopologicalComputationGraph(computation.block_graph, convention=computation.convention, observables=computation._observables)
+
     def compile(self, distance: int, *, p: float = 0.0) -> CompiledBlockGraph:
         """The surgery engine's program and circuit at ``distance`` under its SD6 noise ``p``:
         each time slice ``block_temporal_height(k) + 2`` rounds (tqec's layers: an
@@ -662,11 +666,10 @@ class TopologicalComputationGraph:
 
         k = _scale(k)
         if self._rounds is not None or self._merged is not None:
-            # Use the same time-slice/merge checks as the distance-based wrapper;
-            # an unused merged override on a memory graph is harmless.
-            program = _compile(self._graph, 2 * k + 1, rounds=self._rounds, merged=self._merged, observables=self._observables, write=False)
-            program.computation = self
-            program._in_tqecs_layout(k)
+            # The check CompiledBlockGraph.generate_stim_circuit makes, arithmetic on the graph's
+            # time slices: no engine program, so a graph only tqec compiles is not refused for
+            # the engine's reasons (an unused merged on a graph with no merges is harmless).
+            self._in_tqecs_layout(k)
         if detector_database is not None and not isinstance(detector_database, DetectorDatabase):
             raise TQECError(f"detector_database must be None or this package's DetectorDatabase (stabilizer_qec.tqec._compile.detectors.database), not {type(detector_database).__name__}: tqec's is kept in files, which this package does not read")
         circuit = self._tqec_graph().generate_stim_circuit(_scale(k), None, manhattan_radius, detector_database, database_path, do_not_use_database, only_use_database, reschedule_measurements)

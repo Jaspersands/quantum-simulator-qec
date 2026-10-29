@@ -83,3 +83,30 @@ def test_distance_that_is_not_an_odd_integer_is_refused(distance, height):
         tqec.compile_block_graph(graph, distance, block_temporal_height=height)
     with pytest.raises(tqec.TQECError, match="odd distance of at least 3"):
         graph.compile(distance, block_temporal_height=height)
+
+
+# Graphs only tqec's route compiles: spatial cubes, junctions, a Hadamard pipe; whether a time
+# slice merges (a spatial pipe runs in it). The stability experiment is one spatial cube.
+TQEC_ONLY = [
+    ("move_rotation", lambda: tqec.gallery.move_rotation(tqec.Basis.Z), "move_rotation_Z_fixed_bulk_k1", True),
+    ("stability", lambda: tqec.gallery.stability(tqec.Basis.Z), "stability_Z_fixed_bulk_k1", False),
+    ("cz", lambda: tqec.gallery.cz("ZZ -> ZZ"), "cz_ZZZZ_fixed_bulk_k1", True),
+]
+
+
+@pytest.mark.parametrize("name,build,reference,merges", TQEC_ONLY, ids=[c[0] for c in TQEC_ONLY])
+def test_direct_round_controls_on_graphs_only_tqec_compiles(name, build, reference, merges):
+    graph = build()
+    with pytest.raises(tqec.TQECError):
+        graph.compile(3)  # the engine cannot express it
+    unused = [] if merges else [{"merged": 5}, {"rounds": 3, "merged": 5}]
+    # Controls matching tqec's 2k + 1 layout (or a merged no slice uses) pass through to tqec's
+    # circuit.
+    for controls in [{"rounds": 3}, {"merged": 3}, {"rounds": 3, "merged": 3}] + unused:
+        assert str(tqec.TopologicalComputationGraph(graph, **controls).generate_stim_circuit(1)) == fixture(reference), controls
+    # Others get the layout refusal, never the engine's refusal of the graph.
+    for controls in [{"rounds": 5}, {"rounds": 5, "merged": 3}] + ([] if unused else [{"merged": 5}, {"rounds": 3, "merged": 5}]):
+        with pytest.raises(ValueError, match=r"cannot honour that") as refused:
+            tqec.TopologicalComputationGraph(graph, **controls).generate_stim_circuit(1)
+        assert not isinstance(refused.value, tqec.TQECError), controls
+        assert "2k + 1 = 3 rounds" in str(refused.value)
