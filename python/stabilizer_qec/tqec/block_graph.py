@@ -303,10 +303,13 @@ class BlockGraph:
         pipes, the correlation surfaces as observables (``"auto"`` all of them, ``None`` none, or
         a list, as tqec takes them). The size is ``distance`` or tqec's ``k`` (distance 2k + 1);
         the noise the engine's SD6 noise ``p``, or a ``NoiseModel`` laid over the noiseless
-        circuit as tqec lays it. For Hadamard pipes and spatial cubes, use
-        ``compile_block_graph(graph).generate_stim_circuit(k)``; spatial Hadamard pipes along x
-        require ``convention="fixed_boundary"``. Both routes refuse Y cubes. Fill open ports
-        before compiling."""
+        circuit as tqec lays it. ``distance`` is an odd integer at least 3 (a NumPy integer
+        too), and ``block_temporal_height`` is honoured at it however it is given. For Hadamard
+        pipes and spatial cubes, use ``compile_block_graph(graph).generate_stim_circuit(k)``; a
+        spatial Hadamard pipe between two non-spatial cubes, along x or y, requires
+        ``convention="fixed_boundary"`` (tqec 0.2.0's fixed_bulk has no template for it), while
+        one that touches a spatial cube compiles in both. Both routes refuse Y cubes. Fill open
+        ports before compiling."""
         from .compile import TopologicalComputationGraph, _noisy, _scale
 
         if (distance is None) == (k is None):

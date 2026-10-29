@@ -1,7 +1,18 @@
 """Direct topological wrappers must honor or explicitly refuse engine rounds."""
 from __future__ import annotations
+import gzip
+import pathlib
+import re
+import numpy as np
 import pytest
 from stabilizer_qec import tqec
+from stabilizer_qec.tqec import LinearFunction
+
+FIXTURES = pathlib.Path(__file__).parent / "fixtures"
+
+
+def fixture(name):
+    return gzip.decompress((FIXTURES / f"{name}.stim.gz").read_bytes()).decode()
 
 
 @pytest.mark.parametrize("graph,controls", [
@@ -44,3 +55,95 @@ def test_spatial_hadamard_hint_names_supported_convention():
     graph.add_pipe(tqec.Position3D(0, 0, 0), tqec.Position3D(1, 0, 0))
     with pytest.raises(tqec.TQECError, match="fixed_boundary"):
         graph.compile(3)
+
+
+@pytest.mark.parametrize("height,rounds", [(5, 7), (lambda k: 5, 7), (LinearFunction(2, 1), 5)], ids=["number", "callable", "linear"])
+def test_numpy_distance_honours_block_temporal_height(height, rounds):
+    # np.arange(3, 10, 2) gives NumPy integers: the height is honoured at them as at an int.
+    graph = tqec.gallery.memory(tqec.Basis.Z)
+    expected = str(tqec.compile_block_graph(graph, 3, rounds=rounds).circuit)
+    assert str(tqec.compile_block_graph(graph, 3, block_temporal_height=height).circuit) == expected
+    compiled = tqec.compile_block_graph(graph, np.int64(3), block_temporal_height=height)
+    assert str(compiled.circuit) == expected and type(compiled.distance) is int
+    assert str(graph.compile(np.int64(3), block_temporal_height=height)) == expected
+    assert str(graph.compile(distance=np.int32(3), block_temporal_height=height)) == expected
+
+
+def test_numpy_distance_honours_linear_height_on_the_topological_graph():
+    graph = tqec.gallery.memory(tqec.Basis.Z)
+    direct = tqec.TopologicalComputationGraph(graph, block_temporal_height=LinearFunction(2, 1))
+    assert str(direct.compile(np.int64(3)).circuit) == str(tqec.compile_block_graph(graph, 3, rounds=5).circuit)
+
+
+@pytest.mark.parametrize("distance", [3.0, np.float64(3.0), True, 1, 4, np.int64(4)], ids=repr)
+@pytest.mark.parametrize("height", [None, 5])
+def test_distance_that_is_not_an_odd_integer_is_refused(distance, height):
+    graph = tqec.gallery.memory(tqec.Basis.Z)
+    with pytest.raises(tqec.TQECError, match="odd distance of at least 3, not " + re.escape(repr(distance))):
+        tqec.compile_block_graph(graph, distance, block_temporal_height=height)
+    with pytest.raises(tqec.TQECError, match="odd distance of at least 3"):
+        graph.compile(distance, block_temporal_height=height)
+
+
+# Graphs only tqec's route compiles: spatial cubes, junctions, a Hadamard pipe; whether a time
+# slice merges (a spatial pipe runs in it). The stability experiment is one spatial cube.
+TQEC_ONLY = [
+    ("move_rotation", lambda: tqec.gallery.move_rotation(tqec.Basis.Z), "move_rotation_Z_fixed_bulk_k1", True),
+    ("stability", lambda: tqec.gallery.stability(tqec.Basis.Z), "stability_Z_fixed_bulk_k1", False),
+    ("cz", lambda: tqec.gallery.cz("ZZ -> ZZ"), "cz_ZZZZ_fixed_bulk_k1", True),
+]
+
+
+@pytest.mark.parametrize("name,build,reference,merges", TQEC_ONLY, ids=[c[0] for c in TQEC_ONLY])
+def test_direct_round_controls_on_graphs_only_tqec_compiles(name, build, reference, merges):
+    graph = build()
+    with pytest.raises(tqec.TQECError):
+        graph.compile(3)  # the engine cannot express it
+    unused = [] if merges else [{"merged": 5}, {"rounds": 3, "merged": 5}]
+    # Controls matching tqec's 2k + 1 layout (or a merged no slice uses) pass through to tqec's
+    # circuit.
+    for controls in [{"rounds": 3}, {"merged": 3}, {"rounds": 3, "merged": 3}] + unused:
+        assert str(tqec.TopologicalComputationGraph(graph, **controls).generate_stim_circuit(1)) == fixture(reference), controls
+    # Others get the layout refusal, never the engine's refusal of the graph.
+    for controls in [{"rounds": 5}, {"rounds": 5, "merged": 3}] + ([] if unused else [{"merged": 5}, {"rounds": 3, "merged": 5}]):
+        with pytest.raises(ValueError, match=r"cannot honour that") as refused:
+            tqec.TopologicalComputationGraph(graph, **controls).generate_stim_circuit(1)
+        assert not isinstance(refused.value, tqec.TQECError), controls
+        assert "2k + 1 = 3 rounds" in str(refused.value)
+
+
+def _hadamard_graph(u_kind, v_kind, v_position):
+    graph = tqec.BlockGraph()
+    graph.add_cube(tqec.Position3D(0, 0, 0), u_kind)
+    graph.add_cube(v_position, v_kind)
+    graph.add_pipe(tqec.Position3D(0, 0, 0), v_position)
+    return graph
+
+
+HADAMARDS = [
+    # Between two non-spatial cubes, along x and along y: fixed_bulk has no template.
+    ("x_regular", lambda: _hadamard_graph("ZXZ", "XZX", tqec.Position3D(1, 0, 0)), True),
+    ("y_regular", lambda: _hadamard_graph("XZZ", "ZXX", tqec.Position3D(0, 1, 0)), True),
+    ("y_regular_zoxh", lambda: _hadamard_graph("ZXX", "XZZ", tqec.Position3D(0, 1, 0)), True),
+    # Touching a spatial cube (the CZ's XXZ): the spatial cube's template, in both conventions.
+    ("cz_junction", lambda: tqec.gallery.cz("XI -> XZ"), False),
+]
+
+
+@pytest.mark.parametrize("name,build,needs_fixed_boundary", HADAMARDS, ids=[c[0] for c in HADAMARDS])
+def test_spatial_hadamard_hint_names_a_route_that_compiles(name, build, needs_fixed_boundary):
+    graph = build()
+    with pytest.raises(tqec.TQECError, match="has no Hadamard pipes") as refused:
+        graph.compile(3)
+    message = str(refused.value)
+    assert ("convention='fixed_boundary'" in message) == needs_fixed_boundary
+    assert ("fixed_bulk has no template" in message) == needs_fixed_boundary
+    hinted = "fixed_boundary" if needs_fixed_boundary else "fixed_bulk"
+    circuit = tqec.compile_block_graph(graph, convention=hinted).generate_stim_circuit(1)
+    assert circuit.num_qubits > 0
+    if needs_fixed_boundary:
+        # The claim the hint makes: tqec 0.2.0's fixed_bulk has no template for it.
+        with pytest.raises(NotImplementedError, match="hadamard"):
+            tqec.compile_block_graph(graph).generate_stim_circuit(1)
+    else:
+        assert str(circuit) == fixture("cz_XIXZ_fixed_bulk_k1")
