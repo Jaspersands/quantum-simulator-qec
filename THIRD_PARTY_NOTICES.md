@@ -3,7 +3,8 @@
 The code written for stabilizer-qec is MIT-licensed (see `LICENSE`). Parts of the package are
 ported from, or reproduce material of, other projects under their own licences (Apache-2.0, MIT,
 BSD, zlib, and Apache-2.0 with LLVM exceptions), which apply to those parts and travel with them; each is listed below with its
-copyright notice.
+copyright notice. The Rust crates the compiled module links are listed, with their licence texts,
+in `THIRD_PARTY_CRATES.md` (see "Rust crates" below).
 
 ## Stim
 
@@ -128,8 +129,12 @@ Source: https://github.com/dpwinter/qsample
 tableau simulator (`qsample/sim.py`) in place of chp-sim and projectq, and needs none of
 networkx, anytree, simpleeval, scipy, dill, latextools or pydot (`qsample/_graph.py` and
 `qsample/_anytree.py` stand in for what it uses of them; matplotlib, tqdm, networkx and pydot are
-used to plot, show progress and draw when installed). It also fixes `utils.load`, which opened its
-file for writing. Each file says so at its top.
+used to plot, show progress and draw when installed, and dill to save, as qsample does, when it
+is installed: without it, saving uses pickle, which cannot save lambda or nested check
+functions). It also fixes `utils.load`, which opened its file for writing, makes `utils.save`
+replace its file only once the new one is written whole, gives each `Protocol` its own
+check-function dict, and computes subset probabilities that stay finite past 170 fault
+locations. Each file says so at its top.
 
 ## ldpc
 
@@ -242,6 +247,14 @@ their imports pointed at this package's Stim, sinter, ldpc, PyMatching, relay_bp
 Copyright (c) 2022 - 2026 NVIDIA Corporation & Affiliates. Licensed under the Apache License,
 Version 2.0 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/NVIDIA/cudaqx (`libs/qec`)
 
+CUDA-Q QEC 0.8.1 is distributed with a NOTICE file (at the root of cudaqx and in `libs/qec`),
+whose attribution is reproduced here as Apache-2.0's section 4(d) asks: "CUDA-QX. This product
+includes software developed by NVIDIA corporation and affiliates and includes material from third
+parties." Of the third-party works that NOTICE lists, Stim and PyMatching pertain to the parts
+ported here, and their notices are above; pybind11, nlohmann/json, {fmt}, BLAS, xtl and xtensor
+do not, as nothing of them is in this package (the Python bindings' pybind11 casters, among them
+`sparse_matrix_casters.h`, are rewritten in Python, not copied).
+
 `python/stabilizer_qec/cudaq_qec/` ports CUDA-Q QEC's decoder interface and its decoders (the
 lookup tables, `src/lookup.rs`; the sliding window; the PyMatching plugin; the bundled examples),
 its parity-check-matrix tools and its detector error model, from its C++ and Python sources; its
@@ -333,7 +346,11 @@ Copyright (c) 2016, qecsim developers. Licensed under the BSD 3-Clause License (
 `python/stabilizer_qec/qecsim/` is qecsim 1.0b9's package, and `tests/qecsim_port/` its tests,
 with qecsim at stabilizer_qec.qecsim; its command line's models come from a table (its entry
 points) rather than `pkg_resources`, and without Blossom V's library this package's exact matcher
-serves its Blossom V interface.
+serves its Blossom V interface. Its logging configuration (`logging_qecsim.ini`, whose handler
+arguments `logging.config.fileConfig` evaluates) and Blossom V's library (`clib/libpypm.so`, which
+ctypes loads) are read from `$QECSIM_CFG` when it is set and from `~/.qecsim` otherwise, as qecsim
+reads them, but not the working directory, which qecsim searches first: both files are code, so
+they come only from where the user put them, not from whatever directory the command runs in.
 
 ## bposd
 
@@ -439,9 +456,14 @@ title, layout and callback of its Dash app (with dash 4.4.1), that the tests com
 (microsoft/qdk, `source/resource_estimator/src`, the `estimates` and `system` modules:
 physical qubits, fault-tolerance protocols, logical counts, the error budget, distillation
 units, round-based factories, the exhaustive T-factory search and the physical estimation;
-https://github.com/microsoft/qdk), rewritten in Python with a restricted `ast` evaluator for
-its formulas. It is Copyright (c) Microsoft Corporation and licensed under the MIT License;
-the licence is in `python/stabilizer_qec/estimate/LICENSE-qdk`. The binomial quantile and
+https://github.com/microsoft/qdk), rewritten in Python. It is Copyright (c) Microsoft Corporation
+and licensed under the MIT License; the licence is in `python/stabilizer_qec/estimate/LICENSE-qdk`.
+The formulas of its QEC schemes and distillation units (logical cycle time, qubits per logical
+qubit, output error rates) are read and computed by fasteval 0.2.4's parser, constant folding and
+evaluator, ported to Python: fasteval (https://github.com/likebike/fasteval), the crates.io
+expression evaluator the QDK compiles them with, is not Microsoft's but Copyright (c) 2019
+Christopher Sebastian, licensed under the MIT License, whose notice is in `LICENSE-qdk` after the
+QDK's. The binomial quantile and
 mass function in it follow the `probability` crate 0.20 (Ivan Ukhov and contributors,
 https://github.com/stainless-steel/probability) and its incomplete beta function the `special`
 crate (https://github.com/stainless-steel/special), both Apache-2.0 OR MIT.
@@ -456,13 +478,19 @@ against, and `qdk_reports.json.gz` and `qdk_params.json` there (recorded by
 `tools/qdk_report_fixtures.py`) its report's HTML and text, the widgets' charts and its
 parameter classes' dictionaries and messages.
 
-## wgpu
+## Rust crates
 
-The `gpu` feature of the crate (and the Python wheels built with it) compiles `wgpu`
-(https://github.com/gfx-rs/wgpu, the gfx-rs developers; dual-licensed under the MIT License and
-the Apache License, Version 2.0) and `pollster` (Joshua Barretto; MIT or Apache-2.0) to run the
-lane sampler's and the min-sum decoder's WGSL kernels (`src/gpu/`) on Metal, Vulkan and DX12.
-The kernels are this package's own.
+Each wheel's compiled module (`stabilizer_qec/_core`) links Rust crates: PyO3 (the Python
+bindings) and rand, and, for the `gpu` feature the wheels turn on, `wgpu`
+(https://github.com/gfx-rs/wgpu, the gfx-rs developers), its shader translator naga and `pollster`
+(Joshua Barretto), with what those depend on for each platform: objc2 and block2 on macOS, ash and
+ordered-float on Linux and Windows, the windows crates on Windows, and libloading, libm, foldhash
+and others on all. `THIRD_PARTY_CRATES.md`, which every wheel carries, lists them for each wheel's
+target with their licences (MIT, Apache-2.0, ISC, Zlib, BSD-2-Clause and Unicode-3.0, alone or as
+alternatives) and reproduces the licence texts and notices their packages carry;
+`tools/third_party_crates.py` writes it from Cargo.lock and `cargo tree`. wgpu runs the lane
+sampler's and the min-sum decoder's WGSL kernels (`src/gpu/`) on Metal, Vulkan and DX12; the
+kernels are this package's own.
 
 ## Fusion Blossom
 
@@ -504,16 +532,83 @@ built by Vite), which bundles Vue, three.js, TroisJS and Tweakpane (each under t
 
 ## HiGHS
 
-Copyright (c) 2024 HiGHS. Licensed under the MIT License (`src/highs/LICENSE.txt`). Source:
-https://github.com/ERGO-Code/HiGHS
+Copyright (c) 2024 HiGHS. Licensed under the MIT License, quoted below (`src/highs/LICENSE.txt`
+in the source). Source: https://github.com/ERGO-Code/HiGHS
 
 `src/highs/` is HiGHS 1.8.0's library (its `src/` and `extern/`, as the `highs-sys` 1.6.4 crate
-bundles it), which `build.rs` compiles for the `highs` feature that the Python wheels turn on; MWPF's
-relaxer optimizer solves its linear programs with it. It includes IPX and BASICLU (Copyright
-ERGO-Code; MIT), files from cuPDLP-C 0.3.0 (MIT), zstr 1.0.5 (Copyright Ontario Institute for
-Cancer Research; MIT), the LP file reader `filereaderlp` (Copyright (c) 2020 Michael Feldmeier;
-MIT, `src/highs/extern/filereaderlp/LICENSE`) and pdqsort (Copyright (c) 2021 Orson Peters; zlib
-License, `src/highs/extern/pdqsort/license.txt`).
+bundles it), which `build.rs` compiles for the `highs` feature that the Python wheels turn on, so
+every wheel's compiled module holds it; MWPF's relaxer optimizer solves its linear programs with
+it. It includes IPX and BASICLU (Copyright ERGO-Code; MIT, under HiGHS's licence below), files
+from cuPDLP-C 0.3.0 (MIT, under HiGHS's licence below), zstr 1.0.5 (Copyright 2015 Ontario
+Institute for Cancer Research; MIT, which its README in HiGHS gives as HiGHS's licence below), the
+LP file reader `filereaderlp` (Copyright (c) 2020 Michael Feldmeier; MIT) and pdqsort (Copyright
+(c) 2021 Orson Peters; zlib License). The wheels carry none of `src/highs/`, so the three licence
+files there are quoted here.
+
+HiGHS's licence (`src/highs/LICENSE.txt`):
+
+> MIT License
+>
+> Copyright (c) 2024 HiGHS
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
+
+filereaderlp's licence (`src/highs/extern/filereaderlp/LICENSE`):
+
+> Copyright (c) 2020 Michael Feldmeier
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy
+> of this software and associated documentation files (the "Software"), to deal
+> in the Software without restriction, including without limitation the rights
+> to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+> copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all
+> copies or substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+> IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+> FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+> LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+> OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+> SOFTWARE.
+
+pdqsort's licence (`src/highs/extern/pdqsort/license.txt`):
+
+> Copyright (c) 2021 Orson Peters <orsonpeters@gmail.com>
+>
+> This software is provided 'as-is', without any express or implied warranty. In no event will the
+> authors be held liable for any damages arising from the use of this software.
+>
+> Permission is granted to anyone to use this software for any purpose, including commercial
+> applications, and to alter it and redistribute it freely, subject to the following restrictions:
+>
+> 1. The origin of this software must not be misrepresented; you must not claim that you wrote the
+>    original software. If you use this software in a product, an acknowledgment in the product
+>    documentation would be appreciated but is not required.
+>
+> 2. Altered source versions must be plainly marked as such, and must not be misrepresented as
+>    being the original software.
+>
+> 3. This notice may not be removed or altered from any source distribution.
 
 ## QuantumClifford.jl
 
