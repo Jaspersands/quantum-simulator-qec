@@ -517,3 +517,22 @@ def test_ensure_num_fault_ids_cases_are_not_vacuous():
         kept.ensure_num_fault_ids(70)
         fresh.ensure_num_fault_ids(70)
         assert kept.decode(s)[:2].tolist() == [1, 0] and fresh.decode(s)[:2].tolist() == [0, 1], mod
+
+
+@pytest.mark.parametrize("negative", [False, True])
+@pytest.mark.parametrize("ids", [{79}, set(range(64, 71)), set(range(64, 72)), set(range(64, 81)), {1, 2, 3, 4, 5, 79, 87, 95}])
+def test_fault_ids_past_the_count_are_dropped(ids, negative):
+    # A replace merge can put fault ids past the count on an edge (merges do not extend it).
+    # PyMatching shifts `1 << id` for them, which C++ leaves undefined (its arm64 wheel drops them
+    # eight at a time and wraps the rest), so no rule matches it; ours drops them, as the search
+    # graph does above 64 fault ids, and never reports id - 64 (a real fault id) in their place.
+    m = sq.Matching()
+    m.add_edge(0, 1, fault_ids={0}, weight=1.0)
+    m.add_boundary_edge(0, weight=0.1 if negative else 1.0)
+    m.add_boundary_edge(1, weight=0.1 if negative else 1.0)
+    m.add_edge(0, 1, fault_ids=ids, weight=-1.0 if negative else 1.0, merge_strategy="replace")
+    m.ensure_num_fault_ids(64)
+    syndrome = [0, 0] if negative else [1, 1]
+    want = sorted(i for i in ids if i < 64)
+    assert np.flatnonzero(m.decode(syndrome)).tolist() == want
+    assert np.flatnonzero(m.decode_batch(np.array([syndrome] * 3, dtype=np.uint8))[2]).tolist() == want

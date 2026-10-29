@@ -883,6 +883,11 @@ fn flattened_3d(c: &[f64]) -> C3 {
 
 /// Stim's `matchgraph-3d` diagram of a detector error model, as glTF.
 pub fn matchgraph_3d(dem: &DemProgram) -> Result<String, String> {
+    // A point per detector: as many as the flat model the decoders take holds.
+    let max = crate::dem_program::MAX_DETECTOR;
+    if dem.stats().num_detectors > max + 1 {
+        return Err(format!("the model names a detector past the largest index, {max}"));
+    }
     let flat = dem.flattened()?;
     let n = dem.stats().num_detectors as usize;
     let mut det_coords: BTreeMap<usize, Vec<f64>> = BTreeMap::new();

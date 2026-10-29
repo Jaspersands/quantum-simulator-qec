@@ -28,7 +28,7 @@ use crate::batch_sampler::Counts;
 use crate::circuit::{Basis, Circuit, Control, Instr};
 use crate::dem::{depolarize1_component, depolarize2_component, fused, pauli_channel_1_independent};
 use crate::dem_program::{DemInstr, DemProgram, OBS};
-use crate::explain::{rank, Detail, Location, Recorder};
+use crate::explain::{rank, Detail, Location, Mark, Recorder};
 use crate::nonpauli::NonPauli;
 
 /// Sorted, distinct targets: detectors by index, observables with the `OBS` bit.
@@ -458,12 +458,12 @@ impl Analyzer {
         self.accumulate || self.prov.is_some()
     }
 
-    /// A fault, and (when recording) where it arises.
+    /// A fault, and (when recording) where it arises: a record for each `detail` given, which
+    /// the caller gives where Stim's matcher has a site (a case its instruction gives a
+    /// nonzero probability; any `E`; see `Mark`), whatever `p` the model takes.
     fn add_at(&mut self, p: f64, pieces: &[&[u64]], origin: Origin, tag: &Option<Arc<str>>, detail: Option<Detail>) {
         if let (Some(r), Some(d)) = (self.prov.as_mut(), detail) {
-            if p > 0.0 {
-                r.record(pieces.iter().fold(Sym::new(), |acc, x| xor(&acc, x)), d);
-            }
+            r.record(pieces.iter().fold(Sym::new(), |acc, x| xor(&acc, x)), d);
         }
         if self.accumulate {
             self.window.add(p, pieces, origin, tag, self.decompose);
@@ -487,7 +487,7 @@ impl Analyzer {
         }
     }
 
-    fn check_reset(&mut self, q: usize, basis: Basis, what: &str, tag: &Option<Arc<str>>) -> Result<(), String> {
+    fn check_reset(&mut self, q: usize, basis: Basis, what: &str, tag: &Option<Arc<str>>) -> Result<Sym, String> {
         let sensitive = match basis {
             Basis::Z => self.t.sz[q].clone(),
             Basis::X => self.t.sx[q].clone(),
@@ -497,10 +497,11 @@ impl Analyzer {
 
     /// Stim's `check_for_gauge`: the detectors and observables a collapse on `q` makes random.
     /// Refused; or, with `allow_gauge` and no observable among them, a 50% error on them, and
-    /// the gauge taken out of every sensitivity holding its largest member (as Stim).
-    fn gauge(&mut self, set: Sym, q: usize, what: &str, tag: &Option<Arc<str>>) -> Result<(), String> {
+    /// the gauge taken out of every sensitivity holding its largest member (as Stim). Returns
+    /// the gauge taken (empty for none), which `explain` records where the collapse is.
+    fn gauge(&mut self, set: Sym, q: usize, what: &str, tag: &Option<Arc<str>>) -> Result<Sym, String> {
         if set.is_empty() {
-            return Ok(());
+            return Ok(set);
         }
         if self.allow_gauge && (self.any_gauge || set.iter().all(|&t| t & OBS == 0)) {
             let origin = Origin { name: "gauge", a: q as u32, b: None, pauli: (0, 0) };
@@ -511,7 +512,7 @@ impl Analyzer {
                     xor_into(s, &set);
                 }
             }
-            return Ok(());
+            return Ok(set);
         }
         // Stim's opening lines (what tools match on), then which one and why, then all of them.
         let mut head = String::new();
@@ -568,7 +569,9 @@ impl Analyzer {
                 let (b, pb) = paulis.get(1).copied().map_or((None, 0), |(q, p)| (Some(q), p));
                 let name = if *chained { "ELSE_CORRELATED_ERROR" } else { "correlated error" };
                 let origin = Origin { name, a, b, pauli: (pa, pb) };
-                let detail = self.prov.as_ref().map(|r| Detail { range: r.whole(), pauli: paulis.iter().map(|&(q, p)| (q, p)).collect(), meas: None, rank: 0, item: r.current() });
+                // Stim's matcher makes a site of every E and ELSE_CORRELATED_ERROR, whatever its
+                // probability.
+                let detail = self.prov.as_ref().map(|r| Detail { range: r.whole(), pauli: paulis.iter().map(|&(q, p)| (q, p)).collect(), meas: None, rank: 0, item: r.current(), mark: Mark::Site });
                 if *chained {
                     chain.push((*p, sym, origin, detail));
                     continue;
@@ -630,9 +633,13 @@ impl Analyzer {
                 done?;
             }
             Instr::Reset { basis, qubits } => {
-                for &q in qubits.iter().rev() {
+                for (j, &q) in qubits.iter().enumerate().rev() {
                     let q = q as usize;
-                    self.check_reset(q, *basis, reset_name(*basis), tag)?;
+                    let gauge = self.check_reset(q, *basis, reset_name(*basis), tag)?;
+                    // A reset is no fault site of Stim's matcher: its collapse waits for one.
+                    if let (Some(r), false) = (self.prov.as_mut(), gauge.is_empty()) {
+                        r.record(gauge, Detail { range: (j as u32, j as u32 + 1), pauli: Vec::new(), meas: None, rank: 0, item: None, mark: Mark::Pending });
+                    }
                     self.t.sx[q].clear();
                     self.t.sz[q].clear();
                 }
@@ -648,10 +655,19 @@ impl Analyzer {
                         } else {
                             ((j as u32, j as u32 + 1), vec![(q, if *basis == Basis::X { 1 } else { 2 })])
                         };
-                        Detail { range, pauli: Vec::new(), meas: Some((index, observable)), rank: 0, item: None }
+                        Detail { range, pauli: Vec::new(), meas: Some((index, observable)), rank: 0, item: None, mark: Mark::Open }
                     });
+                    // A measurement is a site of Stim's matcher, flip or not; its collapses
+                    // (the reset's, then its own) and its flip are the site's faults.
+                    let also = |d: &Detail| Detail { mark: Mark::Also, ..d.clone() };
+                    if let (Some(rec), Some(d)) = (self.prov.as_mut(), detail.as_ref()) {
+                        rec.record(Sym::new(), d.clone());
+                    }
                     if *reset {
-                        self.check_reset(qi, *basis, reset_name(*basis), tag)?;
+                        let gauge = self.check_reset(qi, *basis, reset_name(*basis), tag)?;
+                        if let (Some(rec), Some(d), false) = (self.prov.as_mut(), detail.as_ref(), gauge.is_empty()) {
+                            rec.record(gauge, also(d));
+                        }
                         self.t.sx[qi].clear();
                         self.t.sz[qi].clear();
                     }
@@ -664,10 +680,13 @@ impl Analyzer {
                         Basis::Z => self.t.sz[qi].clone(),
                         Basis::X => self.t.sx[qi].clone(),
                     };
-                    self.gauge(random, qi, measure_name(*basis), tag)?;
+                    let gauge = self.gauge(random, qi, measure_name(*basis), tag)?;
+                    if let (Some(rec), Some(d), false) = (self.prov.as_mut(), detail.as_ref(), gauge.is_empty()) {
+                        rec.record(gauge, also(d));
+                    }
                     if *flip > 0.0 {
                         let origin = Origin { name: "measurement flip", a: q, b: None, pauli: (1, 0) };
-                        self.add_at(*flip, &[&r], origin, tag, detail);
+                        self.add_at(*flip, &[&r], origin, tag, detail.as_ref().map(also));
                     }
                 }
             }
@@ -708,7 +727,8 @@ impl Analyzer {
                     let index = self.t.m;
                     if *flip > 0.0 {
                         let origin = Origin { name: "MPAD flip", a: 0, b: None, pauli: (1, 0) };
-                        let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: Vec::new(), meas: Some((index, Vec::new())), rank: 0, item: None });
+                        // Stim's matcher undoes MPAD outside any site: its flip waits for one.
+                        let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: Vec::new(), meas: Some((index, Vec::new())), rank: 0, item: None, mark: Mark::Pending });
                         self.add_at(*flip, &[&r], origin, tag, detail);
                     }
                 }
@@ -786,7 +806,7 @@ impl Analyzer {
                     let origin = Origin { name: "PAULI_CHANNEL_2", a: qa, b: Some(qb), pauli: (0, 0) };
                     let detail = |k: usize| {
                         let (pa, pb) = ((k >> 2 & 1) as u8 | ((k >> 3 & 1) as u8) << 1, (k & 1) as u8 | ((k >> 1 & 1) as u8) << 1);
-                        Detail { range: (2 * j as u32, 2 * j as u32 + 2), pauli: product(&[(qa, pa), (qb, pb)]), meas: None, rank: rank(&[pa, pb]), item: None }
+                        Detail { range: (2 * j as u32, 2 * j as u32 + 2), pauli: product(&[(qa, pa), (qb, pb)]), meas: None, rank: rank(&[pa, pb]), item: None, mark: Mark::Site }
                     };
                     self.add_disjoint(by_combo, &combos, origin, tag, &detail);
                     self.combos = combos;
@@ -810,8 +830,12 @@ impl Analyzer {
                     let origin = Origin { name: "heralded error", a: q, b: None, pauli: (0, 0) };
                     let detail = |k: usize| {
                         let p = (k >> 1 & 1) as u8 | ((k & 1) as u8) << 1;
-                        Detail { range: (j as u32, j as u32 + 1), pauli: product(&[(q, p)]), meas: (k & 4 != 0).then(|| (index, Vec::new())), rank: rank(&[p]), item: None }
+                        Detail { range: (j as u32, j as u32 + 1), pauli: product(&[(q, p)]), meas: (k & 4 != 0).then(|| (index, Vec::new())), rank: rank(&[p]), item: None, mark: Mark::Direct }
                     };
+                    // Stim's matcher reads a heralded target's cases directly, then empties its map.
+                    if let Some(r) = self.prov.as_mut() {
+                        r.record(Sym::new(), Detail { mark: Mark::Clear, ..detail(0) });
+                    }
                     self.add_disjoint(by_combo, &combos, origin, tag, &detail);
                     self.combos = combos;
                 }
@@ -825,7 +849,7 @@ impl Analyzer {
                 for (j, &q) in qubits.iter().enumerate() {
                     let sym = self.sym_of(q as usize, *pauli);
                     let origin = Origin { name: "Pauli error", a: q, b: None, pauli: (*pauli, 0) };
-                    let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, *pauli)], meas: None, rank: 0, item: None });
+                    let detail = self.prov.as_ref().filter(|_| *p > 0.0).map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, *pauli)], meas: None, rank: 0, item: None, mark: Mark::Site });
                     self.add_at(*p, &[&sym], origin, tag, detail);
                 }
             }
@@ -848,7 +872,7 @@ impl Analyzer {
                     for k in 0..3 {
                         let m = combos.pieces(k + 1, &mut pieces);
                         let origin = Origin { name: "DEPOLARIZE1", a: q, b: None, pauli: ([2u8, 1, 3][k], 0) };
-                        let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, [2u8, 1, 3][k])], meas: None, rank: rank(&[[2u8, 1, 3][k]]), item: None });
+                        let detail = self.prov.as_ref().filter(|_| *p > 0.0).map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, [2u8, 1, 3][k])], meas: None, rank: rank(&[[2u8, 1, 3][k]]), item: None, mark: Mark::Site });
                         self.add_at(q1, &pieces[..m], origin, tag, detail);
                     }
                     self.combos = combos;
@@ -863,7 +887,7 @@ impl Analyzer {
                         let mut combos = std::mem::take(&mut self.combos);
                         combos.build(&[&self.t.sx[qi], &self.t.sz[qi]]);
                         let origin = Origin { name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (0, 0) };
-                        let detail = |k: usize| Detail { range: (j as u32, j as u32 + 1), pauli: product(&[(q, k as u8)]), meas: None, rank: rank(&[k as u8]), item: None };
+                        let detail = |k: usize| Detail { range: (j as u32, j as u32 + 1), pauli: product(&[(q, k as u8)]), meas: None, rank: rank(&[k as u8]), item: None, mark: Mark::Site };
                         self.add_disjoint(vec![0.0, *px, *pz, *py], &combos, origin, tag, &detail);
                         self.combos = combos;
                     }
@@ -879,9 +903,9 @@ impl Analyzer {
                         let mut pieces = [&[][..]; 1 << MAX_BASIS];
                         for k in 0..3 {
                             let m = combos.pieces(k + 1, &mut pieces);
-                            let (pauli, prob) = [(1u8, qx), (2, qz), (3, qy)][k];
+                            let (pauli, prob, arg) = [(1u8, qx, *px), (2, qz, *pz), (3, qy, *py)][k];
                             let origin = Origin { name: "PAULI_CHANNEL_1", a: q, b: None, pauli: (pauli, 0) };
-                            let detail = self.prov.as_ref().map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, pauli)], meas: None, rank: rank(&[pauli]), item: None });
+                            let detail = self.prov.as_ref().filter(|_| arg > 0.0).map(|_| Detail { range: (j as u32, j as u32 + 1), pauli: vec![(q, pauli)], meas: None, rank: rank(&[pauli]), item: None, mark: Mark::Site });
                             self.add_at(prob, &pieces[..m], origin, tag, detail);
                         }
                         self.combos = combos;
@@ -907,7 +931,7 @@ impl Analyzer {
                         let pa = ((k >> 1) & 1) as u8 | (((k & 1) as u8) << 1);
                         let pb = ((k >> 3) & 1) as u8 | ((((k >> 2) & 1) as u8) << 1);
                         let origin = Origin { name: "DEPOLARIZE2", a: qa, b: Some(qb), pauli: (pa, pb) };
-                        let detail = self.prov.as_ref().map(|_| Detail { range: (2 * j as u32, 2 * j as u32 + 2), pauli: product(&[(qa, pa), (qb, pb)]), meas: None, rank: rank(&[pa, pb]), item: None });
+                        let detail = self.prov.as_ref().filter(|_| *p > 0.0).map(|_| Detail { range: (2 * j as u32, 2 * j as u32 + 2), pauli: product(&[(qa, pa), (qb, pb)]), meas: None, rank: rank(&[pa, pb]), item: None, mark: Mark::Site });
                         self.add_at(q2, &pieces[..m], origin, tag, detail);
                     }
                     self.combos = combos;
@@ -1273,8 +1297,9 @@ fn count_ticks(instrs: &[Instr]) -> u64 {
 }
 
 /// Every fault of the circuit (its loops walked in full) with what it sets off and where it
-/// arises, in the order the backward walk meets them (`explain`).
-pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>, String> {
+/// arises, in the order the backward walk meets them, marked as Stim's matcher reads them
+/// (`explain`). Gauge detectors are allowed, as there.
+pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32, Mark)>, String> {
     let counts = Counts::of(&circuit.instrs)?;
     let nq = counts.qubits;
     let mut a = Analyzer {
@@ -1289,7 +1314,8 @@ pub(crate) fn provenance(circuit: &Circuit) -> Result<Vec<(Sym, Location, u32)>,
         sweeps: None,
         prov: Some(Box::new(Recorder::new(count_ticks(&circuit.instrs)))),
         ignore_failures: false,
-        allow_gauge: false,
+        // As Stim's matcher: detectors may depend on random outcomes, observables not.
+        allow_gauge: true,
         any_gauge: false,
         block_remnants: false,
         combos: Combos::default(),

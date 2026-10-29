@@ -16,14 +16,16 @@
 //! it cannot exhaust memory, because there is nothing left to allocate.
 //!
 //! `None` is not a failure the caller has to handle specially: the decoder keeps
-//! its existing matching, which is never worse than Union-Find.
+//! its existing matching, which is never worse than Union-Find. (Above `MAX_VERTICES`
+//! the decoder does not come here: it matches with `pm_exact`'s sparse blossom.)
 
 use std::collections::VecDeque;
 
 const INF: i64 = i64::MAX / 4;
 
 /// Ceiling on vertices. 2·defects at d = 11 stays far below this; beyond it the
-/// O(n³) search would be too slow to want anyway.
+/// O(n³) search would be too slow to want anyway, and `decoder::decode_mwpm` matches
+/// exactly with the sparse matcher instead.
 pub const MAX_VERTICES: usize = 512;
 
 struct Blossom {
@@ -620,10 +622,19 @@ pub(crate) fn mwpm_on_edges(n: usize, edges: &[(usize, usize, i64)]) -> Result<V
 }
 
 pub fn min_weight_perfect_matching(n: usize, cost: &[Vec<i64>]) -> Option<Vec<usize>> {
+    if n > MAX_VERTICES {
+        return None;
+    }
+    min_weight_perfect_matching_any_size(n, cost)
+}
+
+/// `min_weight_perfect_matching` past `MAX_VERTICES` (memory O(n²), time O(n³)): the oracle
+/// the decoder's sparse matcher is checked against above the ceiling.
+pub(crate) fn min_weight_perfect_matching_any_size(n: usize, cost: &[Vec<i64>]) -> Option<Vec<usize>> {
     if n == 0 {
         return Some(Vec::new());
     }
-    if !n.is_multiple_of(2) || n > MAX_VERTICES {
+    if !n.is_multiple_of(2) {
         return None;
     }
     // Maximise (C - w) instead of minimising w: every perfect matching uses the

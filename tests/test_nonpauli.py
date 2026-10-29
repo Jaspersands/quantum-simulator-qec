@@ -109,3 +109,39 @@ def test_stim_reads_the_tags(pair):
 def test_malformed_known_tags_are_errors(line, message):
     with pytest.raises(ValueError, match=message):
         sq.Circuit("H 0\n" + line)
+
+
+@pytest.mark.parametrize(
+    "line, inverse",
+    [
+        ("II[R_PAULI(theta=0.3, pauli=XZ)] 0 1 2 3", "II[R_PAULI(theta=-0.3, pauli=XZ)] 2 3 0 1"),
+        ("II_ERROR[R_PAULI(theta=0.3, pauli=XZ)] 0 1 2 3 4 5", None),
+        ("I_ERROR[R_PAULI(theta=0.1, pauli=Y)] 0 1 2", None),
+    ],
+)
+def test_r_pauli_reads_each_group_of_targets_as_stim_does(line, inverse):
+    # Stim runs a gate target group by target group, so a tag whose Pauli string has one letter
+    # per qubit of the gate is read on every group, as Stim reads the line.
+    stim = pytest.importorskip("stim")
+    c = sq.Circuit(line)
+    assert str(c) == str(stim.Circuit(line))
+    if inverse is not None:
+        # Reversed group by group as Stim reverses it, the angle negated as this package's
+        # inverse of a rotation is (Stim keeps an unknown tag's text as it is).
+        assert str(c.inverse()) == inverse
+        assert str(stim.Circuit(line).inverse()) == inverse.replace("-0.3", "0.3")
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "II[R_PAULI(theta=0.3, pauli=XZ)] 0 1 2",
+        "II[R_PAULI(theta=0.3, pauli=XZY)] 0 1 2 3",
+        "I_ERROR[R_PAULI(theta=0.1, pauli=XX)] 0",
+        "I_ERROR[R_PAULI(theta=0.1, pauli=XXX)] 0 1",
+        "I[R_PAULI(theta=0.1, pauli=XY)] 0 1 2 3",
+    ],
+)
+def test_r_pauli_still_refuses_strings_that_fit_no_group(line):
+    with pytest.raises(ValueError):
+        sq.Circuit(line)

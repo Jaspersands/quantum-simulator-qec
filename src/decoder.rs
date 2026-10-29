@@ -470,6 +470,35 @@ fn approx_matching(
     (out, total)
 }
 
+/// Exact minimum-weight matching through `pm_exact` (PyMatching's sparse blossom), for more
+/// defects than the dense matcher takes (`blossom::MAX_VERTICES` is two vertices per defect):
+/// each edge its own fault id (weight 1, an erased edge 0), so the fault ids the decode flips
+/// are the edges of the correction, repeated edges cancelled. None where the graph cannot be
+/// matched (a defect that reaches neither a partner nor the boundary).
+fn decode_mwpm_sparse(graph: &SyndromeGraph, defects: &[bool], erased_edges: &[bool]) -> Option<Vec<usize>> {
+    use crate::user_graph::{Merge, UserGraph};
+    let b = graph.num_nodes;
+    let mut g = UserGraph::new(b, graph.edges.len());
+    for (i, e) in graph.edges.iter().enumerate() {
+        let w = if i < erased_edges.len() && erased_edges[i] { 0.0 } else { 1.0 };
+        // Parallel edges keep the lighter (the first of equals); the probability is unknown.
+        match (e.u == b, e.v == b) {
+            (false, false) if e.u != e.v => g.add_edge(e.u, e.v, &[i], w, -1.0, Merge::SmallestWeight).ok()?,
+            (true, false) => g.add_boundary_edge(e.v, &[i], w, -1.0, Merge::SmallestWeight).ok()?,
+            (false, true) => g.add_boundary_edge(e.u, &[i], w, -1.0, Merge::SmallestWeight).ok()?,
+            _ => {}
+        }
+    }
+    let events: Vec<u64> = (0..b).filter(|&u| defects[u]).map(|u| u as u64).collect();
+    let (flipped, _) = g.decoder().ok()?.mwpm().try_decode(&events).ok()?;
+    Some(flipped.iter().enumerate().filter(|&(_, &f)| f != 0).map(|(i, _)| i).collect())
+}
+
+/// The minimum-weight correction (each edge weight 1, an erased edge 0): exact at any number of
+/// defects. Up to `blossom::MAX_VERTICES / 2` defects by the dense blossom matcher on their
+/// shortest-path distances, each matched pair's path listed; above, by `pm_exact`'s sparse
+/// blossom (`decode_mwpm_sparse`), its edges listed once each. Either way the edges, applied as
+/// flips, are a correction of least weight.
 pub fn decode_mwpm(
     graph: &SyndromeGraph,
     defects: &[bool],
@@ -485,6 +514,13 @@ pub fn decode_mwpm(
 
     if unmatched.is_empty() {
         return Vec::new();
+    }
+    // Too many defects for the dense matcher: the sparse one, which needs no table of
+    // distances. (Where it cannot match, the approximation below is what is left.)
+    if 2 * unmatched.len() > crate::blossom::MAX_VERTICES {
+        if let Some(edges) = decode_mwpm_sparse(graph, defects, erased_edges) {
+            return edges;
+        }
     }
 
     // Compute shortest path distance and parents using Dijkstra's algorithm
@@ -533,7 +569,8 @@ pub fn decode_mwpm(
     // Union-Find and made its threshold look four times too low.
     let (approx, approx_weight) = approx_matching(&unmatched, &dists, graph.num_nodes);
 
-    // Exact matching, at any number of defects.
+    // Exact matching, up to `blossom::MAX_VERTICES / 2` defects here and by the sparse
+    // matcher above that.
     //
     // This was a branch-and-bound search capped at twenty defects, which meant
     // "exact MWPM" quietly became an approximation exactly where the problem got
@@ -608,12 +645,12 @@ pub fn decode_mwpm(
         }
     }
 
-    // Where the defects are dense the exact search cannot finish and what is
-    // left is an approximation — and Union-Find, which is a genuinely good
-    // decoder rather than a placeholder, can beat it there. Asking for the
-    // minimum-weight correction and being handed a heavier one because the
-    // search ran out of room is the same failure this replaced, just less
-    // extreme. So take whichever is actually lighter.
+    // Where the dense matcher declines (a ceiling inside it) and the sparse one
+    // cannot match either, what is left is an approximation — and Union-Find,
+    // which is a genuinely good decoder rather than a placeholder, can beat it
+    // there. Asking for the minimum-weight correction and being handed a heavier
+    // one is the same failure this replaced, just less extreme. So take
+    // whichever is actually lighter.
     let weigh = |edges: &[usize]| -> usize {
         edges
             .iter()
@@ -628,3 +665,133 @@ pub fn decode_mwpm(
     correction_edges
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An L x L grid of unit edges, its left and right columns also joined to the boundary.
+    fn grid(l: usize) -> SyndromeGraph {
+        let n = l * l;
+        let mut edges = Vec::new();
+        for r in 0..l {
+            for c in 0..l {
+                let u = r * l + c;
+                if c + 1 < l {
+                    edges.push(Edge { u, v: u + 1, id: edges.len() });
+                }
+                if r + 1 < l {
+                    edges.push(Edge { u, v: u + l, id: edges.len() });
+                }
+                if c == 0 || c == l - 1 {
+                    edges.push(Edge { u, v: n, id: edges.len() });
+                }
+            }
+        }
+        SyndromeGraph { num_nodes: n, edge_to_qubit: (0..edges.len()).map(Some).collect(), edges }
+    }
+
+    /// The least weight of a correction, by the dense blossom matcher past its ceiling: the
+    /// defects' breadth-first distances, each defect's boundary copy as `decode_mwpm` builds it.
+    fn least_weight(g: &SyndromeGraph, defects: &[bool]) -> i64 {
+        let b = g.num_nodes;
+        let mut adj = vec![Vec::new(); b + 1];
+        for e in &g.edges {
+            adj[e.u].push(e.v);
+            adj[e.v].push(e.u);
+        }
+        let ds: Vec<usize> = (0..b).filter(|&u| defects[u]).collect();
+        let dist: Vec<Vec<i64>> = ds
+            .iter()
+            .map(|&s| {
+                let mut d = vec![i64::MAX; b + 1];
+                d[s] = 0;
+                let mut q = std::collections::VecDeque::from([s]);
+                while let Some(u) = q.pop_front() {
+                    for &v in &adj[u] {
+                        if d[v] == i64::MAX {
+                            d[v] = d[u] + 1;
+                            if v != b {
+                                q.push_back(v);
+                            }
+                        }
+                    }
+                }
+                d
+            })
+            .collect();
+        let m = ds.len();
+        let mut cost = vec![vec![0i64; 2 * m]; 2 * m];
+        for i in 0..m {
+            for j in 0..m {
+                if i != j {
+                    cost[i][j] = dist[i][ds[j]];
+                }
+            }
+            for j in m..2 * m {
+                cost[i][j] = dist[i][b];
+                cost[j][i] = dist[i][b];
+            }
+        }
+        let mate = crate::blossom::min_weight_perfect_matching_any_size(2 * m, &cost).expect("the oracle matches");
+        (0..2 * m).filter(|&i| i < mate[i]).map(|i| cost[i][mate[i]]).sum()
+    }
+
+    #[test]
+    fn matching_is_exact_past_the_dense_matchers_ceiling() {
+        // 260 and 300 defects: 520 and 600 vertices, past the dense matcher's 512, where the
+        // decoder used to keep its greedy approximation (heavier than the least).
+        let g = grid(36);
+        let mut state = 0x9E37_79B9_7F4A_7C15u64;
+        let mut rnd = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        for m in [260usize, 300] {
+            for _ in 0..1 {
+                let mut defects = vec![false; g.num_nodes];
+                let mut placed = 0;
+                while placed < m {
+                    let k = (rnd() % g.num_nodes as u64) as usize;
+                    if !defects[k] {
+                        defects[k] = true;
+                        placed += 1;
+                    }
+                }
+                let correction = decode_mwpm(&g, &defects, &[]);
+                // The correction's edges, repeated ones cancelled: they must explain every
+                // defect, and weigh the least.
+                let mut flipped = vec![false; g.edges.len()];
+                for &e in &correction {
+                    flipped[e] ^= true;
+                }
+                let mut parity = vec![false; g.num_nodes + 1];
+                for (e, _) in flipped.iter().enumerate().filter(|(_, &f)| f) {
+                    parity[g.edges[e].u] ^= true;
+                    parity[g.edges[e].v] ^= true;
+                }
+                assert_eq!(&parity[..g.num_nodes], &defects[..], "{m} defects: the correction does not explain them");
+                let weight = flipped.iter().filter(|&&f| f).count() as i64;
+                assert_eq!(weight, least_weight(&g, &defects), "{m} defects");
+            }
+        }
+    }
+
+    #[test]
+    fn erased_edges_weigh_nothing_past_the_ceiling() {
+        // Every edge erased: any pairing is free, so the least correction weighs 0.
+        let g = grid(30);
+        let defects: Vec<bool> = (0..g.num_nodes).map(|u| u % 3 == 0).collect();
+        assert!(2 * defects.iter().filter(|&&d| d).count() > crate::blossom::MAX_VERTICES);
+        let erased = vec![true; g.edges.len()];
+        let correction = decode_mwpm(&g, &defects, &erased);
+        let mut parity = vec![false; g.num_nodes + 1];
+        for &e in &correction {
+            parity[g.edges[e].u] ^= true;
+            parity[g.edges[e].v] ^= true;
+        }
+        assert_eq!(&parity[..g.num_nodes], &defects[..]);
+    }
+}

@@ -1,19 +1,23 @@
 //! From raw measurements to detection events, as `stim m2d` computes them.
 //!
 //! A detector compares a parity of measurements with what a noiseless run of the circuit gives.
-//! One noiseless run, with every sweep bit clear, is the reference. A sweep bit (`CX sweep[k]
-//! q`) is a classically controlled X, set per shot to prepare the data qubits in a pattern of 0s
-//! and 1s; the circuit is Clifford and its detectors deterministic, so each bit's effect on
-//! every detector is fixed. A shot's detector then fires when its records' parity differs from
-//! the reference's, after the fixed flips of the shot's set sweep bits.
+//! One noiseless run, with every sweep bit clear and every random outcome 0, is the reference
+//! (Stim's reference sample). A sweep bit (`CX sweep[k] q`) is a classically controlled X, set
+//! per shot to prepare the data qubits in a pattern of 0s and 1s; the circuit is Clifford, so
+//! each bit's effect on every detector is fixed. A shot's detector then fires when its records'
+//! parity differs from the reference's, after the fixed flips of the shot's set sweep bits.
+//! Detectors and observables need not be deterministic: each is compared with the reference, as
+//! Stim's converter compares it.
 //!
 //! Nothing is unrolled. The reference is one run of the stabilizer tableau through the circuit
-//! as written, its loops run pass by pass; that every detector is deterministic, and what each
-//! sweep bit flips, come from the error model's backward walk (`dem_build::sweep_effects`), with
-//! loops folded; and each shot is read by a program of the circuit's measurements, detectors and
-//! observables alone, its loops kept. The tableau is not the frame machinery the error model is
-//! built on, so this is a second, independent reading of the circuit; Google's own detection
-//! events are its oracle.
+//! as written, its loops run pass by pass; each shot is read by a program of the circuit's
+//! measurements, detectors and observables alone, its loops kept. What each sweep bit flips
+//! comes from the error model's backward walk (`dem_build::sweep_effects`), loops folded, when
+//! every detector and observable is deterministic; otherwise the walk's sensitivities lose the
+//! random outcomes' share, and the effects are Stim's own: the sweep-controlled Paulis carried
+//! forward as Pauli frames, no measurement randomizing them (`sweep_frames`). The tableau is
+//! not the frame machinery the error model is built on, so this is a second, independent
+//! reading of the circuit; Google's own detection events are its oracle.
 
 use crate::obsbits::ObsBits;
 use crate::batch_sampler::Counts;
@@ -165,6 +169,243 @@ pub struct M2d {
     /// Per sweep bit, the detectors it flips, and the observables.
     sweep_det: Vec<Vec<u32>>,
     sweep_obs: Vec<ObsBits>,
+}
+
+/// What each sweep bit flips, as Stim's converter finds it: a frame simulation of the noiseless
+/// circuit whose only Paulis are the sweep-controlled ones (each bit its own lane), no
+/// measurement or reset randomizing a frame. A measurement records the frame's anticommuting
+/// part, a reset clears that part (the part that commutes stays), a record-controlled Pauli
+/// applies where its record flipped, and a detector or observable takes its records' flips (an
+/// observable's Pauli targets their anticommuting parts). Loops run pass by pass, as the
+/// reference runs them; records are kept as far back as the circuit looks.
+fn sweep_frames(circuit: &Circuit, num_qubits: usize, num_sweeps: usize, num_detectors: usize, num_observables: usize) -> Vec<(Vec<u32>, ObsBits)> {
+    struct Frames {
+        w: usize,
+        x: Vec<u64>,
+        z: Vec<u64>,
+        /// The last `lookback` records, by measurement index modulo it.
+        records: Vec<u64>,
+        lookback: usize,
+        m: u64,
+        detectors: Vec<(u32, Vec<u64>)>,
+        next_detector: u32,
+        observables: Vec<u64>,
+    }
+    impl Frames {
+        fn lane(&self, q: u32) -> std::ops::Range<usize> {
+            q as usize * self.w..(q as usize + 1) * self.w
+        }
+        fn record(&mut self, from: Option<(Basis, u32)>) {
+            let at = (self.m % self.lookback as u64) as usize * self.w;
+            for k in 0..self.w {
+                self.records[at + k] = match from {
+                    Some((Basis::Z, q)) => self.x[q as usize * self.w + k],
+                    Some((Basis::X, q)) => self.z[q as usize * self.w + k],
+                    None => 0,
+                };
+            }
+            self.m += 1;
+        }
+        /// The flips of record `rec[-k]`, XORed into `out`.
+        fn xor_record(&self, k: u32, out: &mut [u64]) {
+            let at = ((self.m - u64::from(k)) % self.lookback as u64) as usize * self.w;
+            for (o, r) in out.iter_mut().zip(&self.records[at..at + self.w]) {
+                *o ^= r;
+            }
+        }
+        /// A reset in `basis` clears the part of the frame that anticommutes with its
+        /// stabilizer, as Stim's frame simulator does; the part that commutes stays.
+        fn clear(&mut self, basis: Basis, q: u32) {
+            let r = self.lane(q);
+            match basis {
+                Basis::Z => self.x[r].fill(0),
+                Basis::X => self.z[r].fill(0),
+            }
+        }
+        fn run(&mut self, instrs: &[Instr]) {
+            let w = self.w;
+            for ins in instrs {
+                match ins {
+                    Instr::Reset { basis, qubits } => qubits.iter().for_each(|&q| self.clear(*basis, q)),
+                    Instr::Measure { basis, reset, qubits, .. } => {
+                        for &q in qubits {
+                            self.record(Some((*basis, q)));
+                            if *reset {
+                                self.clear(*basis, q);
+                            }
+                        }
+                    }
+                    Instr::Heralded { qubits, .. } => qubits.iter().for_each(|_| self.record(None)),
+                    Instr::Pad { values, .. } => values.iter().for_each(|_| self.record(None)),
+                    Instr::H(qubits) => {
+                        for &q in qubits {
+                            let r = self.lane(q);
+                            for i in r {
+                                std::mem::swap(&mut self.x[i], &mut self.z[i]);
+                            }
+                        }
+                    }
+                    // S takes X to Y: an X in the frame gains a Z.
+                    Instr::S(qubits) => {
+                        for &q in qubits {
+                            for i in self.lane(q) {
+                                self.z[i] ^= self.x[i];
+                            }
+                        }
+                    }
+                    Instr::Cx(pairs) => {
+                        for &(c, t) in pairs {
+                            for k in 0..w {
+                                let (c, t) = (c as usize * w + k, t as usize * w + k);
+                                self.x[t] ^= self.x[c];
+                                self.z[c] ^= self.z[t];
+                            }
+                        }
+                    }
+                    Instr::Cz(pairs) => {
+                        for &(a, b) in pairs {
+                            for k in 0..w {
+                                let (a, b) = (a as usize * w + k, b as usize * w + k);
+                                self.z[a] ^= self.x[b];
+                                self.z[b] ^= self.x[a];
+                            }
+                        }
+                    }
+                    Instr::SweepX(pairs) => {
+                        for &(k, q) in pairs {
+                            self.x[q as usize * w + k as usize / 64] ^= 1 << (k % 64);
+                        }
+                    }
+                    Instr::Feedback { pauli, control, qubit } => {
+                        let mut flips = vec![0u64; w];
+                        match control {
+                            Control::Rec(k) => self.xor_record(*k, &mut flips),
+                            Control::Sweep(k) => flips[*k as usize / 64] ^= 1 << (k % 64),
+                        }
+                        let r = self.lane(*qubit);
+                        for (i, f) in r.zip(flips) {
+                            if pauli & 1 != 0 {
+                                self.x[i] ^= f;
+                            }
+                            if pauli & 2 != 0 {
+                                self.z[i] ^= f;
+                            }
+                        }
+                    }
+                    Instr::Detector { recs, .. } => {
+                        let mut flips = vec![0u64; w];
+                        for &k in recs {
+                            self.xor_record(k, &mut flips);
+                        }
+                        if flips.iter().any(|&f| f != 0) {
+                            self.detectors.push((self.next_detector, flips));
+                        }
+                        self.next_detector += 1;
+                    }
+                    Instr::Observable { index, recs, paulis, .. } => {
+                        let mut flips = vec![0u64; w];
+                        for &k in recs {
+                            self.xor_record(k, &mut flips);
+                        }
+                        // An X target anticommutes with the frame's Z, a Z target with its X.
+                        for &(q, pauli, _) in paulis {
+                            for (k, f) in flips.iter_mut().enumerate() {
+                                if pauli & 1 != 0 {
+                                    *f ^= self.z[q as usize * w + k];
+                                }
+                                if pauli & 2 != 0 {
+                                    *f ^= self.x[q as usize * w + k];
+                                }
+                            }
+                        }
+                        let at = *index as usize * w;
+                        for (o, f) in self.observables[at..at + w].iter_mut().zip(flips) {
+                            *o ^= f;
+                        }
+                    }
+                    Instr::Repeat { count, body, .. } => {
+                        for _ in 0..*count {
+                            self.run(body);
+                        }
+                    }
+                    // MRY as Stim's frame takes it: the record is the part anticommuting with
+                    // Y, and the frame keeps its Z part as a Y (x = z), where this circuit's
+                    // own steps for it (to Z, a Z reset, back to Y) would keep its X part.
+                    Instr::Gate { line, body, .. } if line.split([' ', '(', '[']).next() == Some("MRY") => {
+                        for ins in body {
+                            if let Instr::Measure { qubits, .. } = ins {
+                                for &q in qubits {
+                                    for i in self.lane(q) {
+                                        self.x[i] ^= self.z[i];
+                                    }
+                                    self.record(Some((Basis::Z, q)));
+                                    for i in self.lane(q) {
+                                        self.x[i] = self.z[i];
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Instr::Gate { body, .. } => self.run(body),
+                    // Pauli gates move the reference, not the frame; the circuit is read noiseless.
+                    Instr::Pauli { .. }
+                    | Instr::PauliError { .. }
+                    | Instr::Depolarize1 { .. }
+                    | Instr::Depolarize2 { .. }
+                    | Instr::PauliChannel1 { .. }
+                    | Instr::PauliChannel2 { .. }
+                    | Instr::Correlated { .. }
+                    | Instr::NonPauli(_)
+                    | Instr::Fail(_)
+                    | Instr::QubitCoords { .. }
+                    | Instr::ShiftCoords(_)
+                    | Instr::Tick => {}
+                }
+            }
+        }
+    }
+    fn lookback(instrs: &[Instr]) -> u32 {
+        instrs
+            .iter()
+            .map(|i| match i {
+                Instr::Detector { recs, .. } | Instr::Observable { recs, .. } => recs.iter().copied().max().unwrap_or(0),
+                Instr::Feedback { control: Control::Rec(k), .. } => *k,
+                Instr::Repeat { body, .. } | Instr::Gate { body, .. } => lookback(body),
+                _ => 0,
+            })
+            .max()
+            .unwrap_or(0)
+    }
+    let w = num_sweeps.div_ceil(64);
+    let look = lookback(&circuit.instrs).max(1) as usize;
+    let mut f = Frames {
+        w,
+        x: vec![0; num_qubits * w],
+        z: vec![0; num_qubits * w],
+        records: vec![0; look * w],
+        lookback: look,
+        m: 0,
+        detectors: Vec::new(),
+        next_detector: 0,
+        observables: vec![0; num_observables * w],
+    };
+    f.run(&circuit.instrs);
+    debug_assert_eq!(f.next_detector as usize, num_detectors);
+    let mut out = vec![(Vec::new(), ObsBits::new()); num_sweeps];
+    let lanes = |flips: &[u64]| {
+        flips.iter().enumerate().flat_map(|(j, &word)| (0..64).filter(move |b| word >> b & 1 == 1).map(move |b| 64 * j + b)).collect::<Vec<usize>>()
+    };
+    for (d, flips) in &f.detectors {
+        for k in lanes(flips) {
+            out[k].0.push(*d);
+        }
+    }
+    for i in 0..num_observables {
+        for k in lanes(&f.observables[i * w..(i + 1) * w]) {
+            out[k].1.flip(i);
+        }
+    }
+    out
 }
 
 fn reset(sim: &mut StabilizerSimulator, basis: Basis, q: usize) {
@@ -331,8 +572,20 @@ impl M2d {
         let num_detectors = usize::try_from(counts.detectors).map_err(|_| "too many detectors for this machine")?;
         // The sweep bits' effects, by the backward walk; it also refuses records read before
         // the first measurement. Detectors and observables need not be deterministic: each is
-        // compared with the reference sample, as Stim's converter compares them.
-        let effects = crate::dem_build::sweep_effects(circuit, false)?;
+        // compared with the reference sample, as Stim's converter compares them. Where one is
+        // not and a sweep bit is set, the walk cannot say what the bit does to it (a random
+        // outcome takes its share out of the walk's sensitivities), so the bits are carried
+        // forward as Stim's converter carries them.
+        let effects = match counts.sweep_bits {
+            0 => crate::dem_build::sweep_effects(circuit, false)?,
+            _ => match crate::dem_build::sweep_effects(circuit, true) {
+                Ok(effects) => effects,
+                Err(_) => {
+                    crate::dem_build::sweep_effects(circuit, false)?;
+                    sweep_frames(circuit, counts.qubits, counts.sweep_bits, num_detectors, counts.observables)
+                }
+            },
+        };
         let mut ops = Vec::new();
         compile(&circuit.instrs, &mut ops);
         let reference = reference(circuit, counts.qubits);
@@ -506,6 +759,54 @@ mod tests {
                 assert_eq!((b[c] >> r) & 1, (a[r] >> c) & 1);
             }
         }
+    }
+
+    #[test]
+    fn forward_frames_agree_with_the_backward_walk_where_it_is_exact() {
+        // On a circuit whose detectors and observables are all deterministic, the backward walk
+        // gives each sweep bit's effect exactly; the forward frames must give the same. Random
+        // Clifford circuits with sweep-controlled gates, feedback, loops, repeated measurements
+        // (whose parities are deterministic) and observables on records and Pauli targets.
+        let mut rng = crate::surface_code::Xorshift::new(11);
+        let mut below = |n: usize| (rng.next_u64() % n as u64) as usize;
+        let (mut checked, mut moved) = (0, 0);
+        for _ in 0..40000 {
+            let n = 2 + below(3);
+            let sweeps = 1 + below(70);
+            let mut lines = vec!["R ".to_string() + &(0..n).map(|q| q.to_string()).collect::<Vec<_>>().join(" ")];
+            let mut measured = 0usize;
+            for _ in 0..4 + below(14) {
+                let (q, a) = (below(n), below(n));
+                let b = (a + 1 + below(n - 1)) % n;
+                let s = below(sweeps);
+                let basis = ["", "X", "Y"][below(3)];
+                let line = match below(9) {
+                    0 | 1 => ["CX", "CY", "CZ"][below(3)].to_string() + &format!(" sweep[{s}] {q}"),
+                    2 => format!("{} {q} sweep[{s}]", ["XCZ", "YCZ"][below(2)]),
+                    3 => format!("M{basis} {q}\nM{basis} {q}\nDETECTOR rec[-1] rec[-2]"),
+                    4 => format!("M{basis} {q}"),
+                    5 if measured > 0 => format!("{} rec[-{}] {q}", ["CX", "CY", "CZ"][below(3)], 1 + below(measured.min(3))),
+                    6 if measured > 0 => format!("DETECTOR rec[-{}]", 1 + below(measured)),
+                    7 => format!("REPEAT {} {{\n CX sweep[{s}] {q}\n H {q}\n M {q}\n M {q}\n DETECTOR rec[-1] rec[-2]\n}}", 1 + below(3)),
+                    _ => [format!("H {q}"), format!("S {q}"), format!("CX {a} {b}"), format!("CZ {a} {b}"), format!("SQRT_X {q}"), format!("ISWAP {a} {b}")][below(6)].clone(),
+                };
+                measured += line.matches("\nM").count() + line.starts_with('M') as usize;
+                lines.push(line);
+            }
+            lines.push(format!("M {}", (0..n).map(|q| q.to_string()).collect::<Vec<_>>().join(" ")));
+            lines.push(format!("DETECTOR rec[-{}]", 1 + below(n)));
+            lines.push(format!("OBSERVABLE_INCLUDE(0) rec[-{}]", 1 + below(n)));
+            lines.push(format!("OBSERVABLE_INCLUDE(1) {}{}", ["X", "Y", "Z"][below(3)], below(n)));
+            let text = lines.join("\n");
+            let c = Circuit::parse(&text).unwrap();
+            let counts = Counts::of(&c.instrs).unwrap();
+            let Ok(walked) = crate::dem_build::sweep_effects(&c, true) else { continue };
+            let framed = sweep_frames(&c, counts.qubits, counts.sweep_bits, counts.detectors as usize, counts.observables);
+            assert_eq!(framed, walked, "{text}");
+            checked += 1;
+            moved += walked.iter().any(|(d, o)| !d.is_empty() || *o != ObsBits::new()) as usize;
+        }
+        assert!(checked >= 500 && moved >= 300, "{checked} {moved}");
     }
 
     #[test]
