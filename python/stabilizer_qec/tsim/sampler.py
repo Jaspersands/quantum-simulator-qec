@@ -28,6 +28,43 @@ def _as_circuit(circuit: Any) -> _circuit.Circuit:
     return circuit if isinstance(circuit, _circuit.Circuit) else Circuit(circuit)
 
 
+def _check_like_tsim(circuit: _circuit.Circuit) -> None:
+    """Tsim builds a circuit's ZX graph before it builds a sampler, and its builders refuse what this
+    package's engines would run: an anti-Hermitian product (``TPP Y0*X0``), an ``R_PAULI`` naming a
+    qubit twice or more than 64 (33 ``R_ZZ`` lines in a row), a sweep bit. As ``to_matrix`` does, a
+    circuit with what they can refuse (a Pauli product or a sweep bit) has that graph built first, so
+    it raises Tsim's error; an instruction the builders cannot read that the core leaves inert (a tag
+    of someone else's, ``I[foo(x)]``) is left to the engine, unless a product rotation names a qubit
+    twice."""
+    from stabilizer_qec.tsim.circuit import _UNREAD_BY_TSIMS_BUILDERS, _lane_scan
+    from stabilizer_qec.tsim.zx import parse_stim_circuit
+
+    _, _, _, products, repeated = _lane_scan(circuit)
+    if not products:
+        return
+    try:
+        parse_stim_circuit(circuit, backend="own")
+    except ValueError as exc:
+        if not str(exc).startswith(_UNREAD_BY_TSIMS_BUILDERS) or repeated:
+            raise
+
+
+def _engine(make: Any, circuit: _circuit.Circuit) -> Any:
+    """``make()``, an engine of ``circuit``: a record entry from before the first measurement (the
+    engine's ``ValueError``) is Tsim's ``IndexError``, ``zx.parse.MeasurementRecordError``, raised as
+    Tsim's graph builder raises it (the instruction named), as ``get_graph`` and ``to_matrix`` raise it."""
+    try:
+        return make()
+    except ValueError as exc:
+        if "reaches before the first measurement" not in str(exc):
+            raise
+        from stabilizer_qec.tsim.zx import parse_stim_circuit
+        from stabilizer_qec.tsim.zx.parse import MeasurementRecordError
+
+        parse_stim_circuit(circuit, backend="own")
+        raise MeasurementRecordError(str(exc)) from None
+
+
 def _check_shots(shots: Any) -> int:
     if isinstance(shots, bool) or not isinstance(shots, (int, np.integer)):
         raise TypeError(f"shots must be an integer, not {type(shots).__name__}")
@@ -125,7 +162,8 @@ class CompiledMeasurementSampler:
 
         """
         self.circuit = _as_circuit(circuit)
-        self._inner = _circuit.MeasurementSampler(self.circuit, seed_of(seed))
+        _check_like_tsim(self.circuit)
+        self._inner = _engine(lambda: _circuit.MeasurementSampler(self.circuit, seed_of(seed)), self.circuit)
 
     def __repr__(self) -> str:
         return f"CompiledMeasurementSampler({self.circuit.num_measurements} measurements of {self.circuit.num_qubits} qubits, {self.circuit.num_non_clifford_gates()} non-Clifford gates)"
@@ -174,7 +212,8 @@ class CompiledDetectorSampler:
         """
         self.circuit = _as_circuit(circuit)
         self._seed = seed_of(seed)
-        self._inner = _circuit.Circuit.compile_detector_sampler(self.circuit, seed=self._seed)
+        _check_like_tsim(self.circuit)
+        self._inner = _engine(lambda: _circuit.Circuit.compile_detector_sampler(self.circuit, seed=self._seed), self.circuit)
         self._num_detectors = self.circuit.num_detectors
         self._num_observables = self.circuit.num_observables
         self._non_clifford = self.circuit.num_non_clifford_gates() > 0
@@ -343,7 +382,8 @@ class CompiledStateProbs:
         self.circuit = _as_circuit(circuit)
         self._sample_detectors = bool(sample_detectors)
         self._rng = np.random.default_rng(seed_of(seed))
-        self._sampler = _circuit.StabilizerRankSampler(self.circuit, 0)
+        _check_like_tsim(self.circuit)
+        self._sampler = _engine(lambda: _circuit.StabilizerRankSampler(self.circuit, 0), self.circuit)
         # A draw depends on its seed when the engine draws anything: noise, or the outcome of a
         # reset past those it sums over (``is_noisy``). Otherwise one draw is every draw.
         self._noisy = bool(self._sampler._s.is_noisy) or _circuit.Circuit.without_noise(self.circuit)._stim_exact_text() != self.circuit._stim_exact_text()

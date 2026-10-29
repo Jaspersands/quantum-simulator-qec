@@ -503,3 +503,67 @@ def test_diagram_html_is_tsims_wrapper(real):
                 else:
                     want = theirs.wrap_svg(svg, width=width, height=height)
                 assert unzoom(d._repr_html_()) == unzoom(want), (text, kind, kw)
+
+
+# What Tsim's graph builder refuses, before any sampler is built: every sampler refuses it too.
+BUILDER_REFUSALS = {
+    "H 0\nTPP Y0*X0\nH 0\nM 0": "SPP[T] Y0*X0 acted on an anti-Hermitian operator",
+    "H 0\nTPP_DAG X0*Y0\nH 0\nM 0\nDETECTOR rec[-1]": "SPP_DAG[T] X0*Y0 acted on an anti-Hermitian operator",
+    "H 0\nR_PAULI(0.3) X0*Y0\nH 0\nM 0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.3*pi)] X0*Y0'.",
+    "R_PAULI(0.3) " + "*".join(f"X{q}" for q in range(65)) + "\nM 0": "R_PAULI supports at most 64 qubits per instruction, got 65.",
+    "".join(f"R_ZZ(0.3) {2 * k} {2 * k + 1}\n" for k in range(33)) + "M 0": "R_PAULI supports at most 64 qubits per instruction, got 66.",
+}
+
+SAMPLERS = {
+    "compile_sampler": lambda c: c.compile_sampler(seed=1),
+    "compile_detector_sampler": lambda c: c.compile_detector_sampler(seed=1),
+    "CompiledStateProbs": lambda c: CompiledStateProbs(c, seed=1),
+}
+
+
+@pytest.mark.parametrize("text", sorted(BUILDER_REFUSALS))
+@pytest.mark.parametrize("sampler", sorted(SAMPLERS))
+def test_samplers_refuse_what_tsims_graph_builder_refuses(text, sampler):
+    c = tsim.Circuit(text)
+    with pytest.raises(ValueError, match=f"^{re.escape(BUILDER_REFUSALS[text])}$"):
+        SAMPLERS[sampler](c)
+    with pytest.raises(ValueError, match=f"^{re.escape(BUILDER_REFUSALS[text])}$"):
+        c.tcount()
+
+
+@pytest.mark.parametrize("sampler", sorted(SAMPLERS))
+def test_samplers_refuse_sweep_bits_as_tsim_does(sampler):
+    with pytest.raises(NotImplementedError, match=re.escape("Sweep bit targets (e.g. sweep[N]) are not supported in instruction 'CX sweep[0] 0'")):
+        SAMPLERS[sampler](tsim.Circuit("H 0\nT 0\nCX sweep[0] 0\nM 0"))
+
+
+LOOKBACKS = {
+    "M 0\nCX rec[-2] 1": "CX rec[-2] 1 reads rec[-2], but only 1 measurement results precede it.",
+    "M 0\nDETECTOR rec[-2]": "DETECTOR rec[-2] reads rec[-2], but only 1 measurement results precede it.",
+    "H 0\nT 0\nM 0\nOBSERVABLE_INCLUDE(0) rec[-2]": "OBSERVABLE_INCLUDE(0) rec[-2] reads rec[-2], but only 1 measurement results precede it.",
+    "DETECTOR rec[-1]": "DETECTOR rec[-1] reads rec[-1], but only 0 measurement results precede it.",
+}
+
+
+@pytest.mark.parametrize("text", sorted(LOOKBACKS))
+@pytest.mark.parametrize("sampler", sorted(SAMPLERS))
+def test_samplers_raise_tsims_index_error_for_record_lookbacks(text, sampler):
+    from stabilizer_qec.tsim.zx.parse import MeasurementRecordError
+
+    with pytest.raises(MeasurementRecordError, match=f"^{re.escape(LOOKBACKS[text])}$") as info:
+        SAMPLERS[sampler](tsim.Circuit(text))
+    assert isinstance(info.value, IndexError)
+
+
+def test_samplers_refuse_as_tsim_does(real):
+    from tsim.sampler import CompiledStateProbs as TheirStateProbs
+
+    theirs = {"compile_sampler": lambda c: c.compile_sampler(seed=1), "compile_detector_sampler": lambda c: c.compile_detector_sampler(seed=1), "CompiledStateProbs": lambda c: TheirStateProbs(c, seed=1)}
+    for text, message in BUILDER_REFUSALS.items():
+        for name, make in theirs.items():
+            with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+                make(real.Circuit(text))
+    for text in LOOKBACKS:
+        for name, make in theirs.items():
+            with pytest.raises(IndexError):
+                make(real.Circuit(text))
