@@ -28,14 +28,33 @@ The site's WebAssembly engine is `cargo build --release --target wasm32-unknown-
 
 - Bad input must produce a controlled error (core `ValueError` / `TypeError` / Rust `Error`,
   or a port's documented exception). Panics, crashes and hangs are bugs.
-- The public APIs follow semantic versioning: the Python package's names without a leading
-  underscore, and the crate's documented items (`cargo semver-checks` runs in CI). Anything
-  to be removed is deprecated for at least one minor release first.
+- A change keeps to the [compatibility policy](#compatibility-policy) below.
 - Names follow the tools a user knows: Stim's for circuits and models, PyMatching's for
   matching, `ldpc`'s for BP and BP+OSD.
-- Preserve seeded shots within each documented sampler/version contract; corrections that
-  alter outcomes must say so in the changelog, with migration scope.
 - Each change goes in `CHANGELOG.md`.
+- A change to `Cargo.lock` (or to the wheels' features or targets) regenerates
+  `THIRD_PARTY_CRATES.md` with `python tools/third_party_crates.py`;
+  `tests/test_third_party_notices.py` fails on a Cargo.lock the file was not written for.
+
+## Compatibility policy
+
+The Python package and the Rust crate follow semantic versioning from 1.0, on these terms. The
+public API is every name importable from `stabilizer_qec` and its subpackages without a leading
+underscore, and every item in the crate's documentation. `stabilizer_qec._core`, the crate's
+hidden modules, and names a module merely imports (a standard-library module, another
+package's class) are not part of it.
+
+- **Names.** A public name keeps working, with the same signature, through every 2.x release
+  (`cargo semver-checks` checks the crate's in CI). One to be removed is deprecated first, with
+  a `DeprecationWarning` (in Rust, `#[deprecated]`) naming its replacement, for at least one
+  minor release before a major release removes it.
+- **Behaviour.** What a public call returns or raises changes in a minor release only to correct
+  it: to make a port do what its upstream (the tool and version it ports) does, its errors and
+  refusals included, or to fix a defect. Each such change is a bullet under Changed or Fixed in
+  `CHANGELOG.md` that says what changed, why, and what to call instead.
+- **Seeds.** Within a version, a seed and shot position give the same shots on any number of
+  threads. A correction to a sampler's algorithm can change its seeded shots; the changelog
+  names the sampler and the version.
 
 ## Reporting a security problem
 

@@ -82,13 +82,18 @@ standard matching decoder; `ldpc` provides BP and BP+OSD; `beliefmatching`
 [@higgott2023improved] combines them; Chromobius [@gidney2023new] and Tesseract
 [@beni2025tesseract] decode colour codes and general error models. These are excellent tools,
 and `stabilizer-qec` does not claim to replace them. Its contribution is different: one engine
-that implements each stage independently, so that each stage can be checked against the
-reference tool for that stage. The same engine also runs where they do not. A browser explainer
-and a real-time decoding study both needed a sampler, an error-model builder and a decoder in
-the same process, compiled to WebAssembly, with no Python available. Building that engine was
-therefore needed; it was not a choice made instead of contributing to Stim or PyMatching. Its
-agreement with those tools is itself a result: two independent implementations that agree
-fault for fault and shot for shot are evidence that both are right.
+that holds every stage, each checked against the reference tool for that stage. The same engine
+also runs where they do not. A browser explainer and a real-time decoding study both needed a
+sampler, an error-model builder and a decoder in the same process, compiled to WebAssembly, with
+no Python available. Building that engine was therefore needed; it was not a choice made instead
+of contributing to Stim or PyMatching. Some stages were written independently of their
+reference: the error-model builder, the samplers and the engine's own sparse-blossom matcher.
+Their agreement with Stim and PyMatching, fault for fault and shot for shot, is evidence that
+both are right. Others are ports, translated from the reference's source: PyMatching's sparse
+blossom behind the package's PyMatching interface (from version 2.2), Stim's tableau, flow and
+circuit-transformation algorithms, `ldpc`'s BP, OSD and LSD, IBM's Relay-BP, Tesseract and
+Chromobius. A port's agreement with its source shows that the port is faithful, not that the
+source is right.
 
 # Software design
 
@@ -96,23 +101,27 @@ The engine is one Rust crate with no required dependencies. Thin bindings expose
 (PyO3) and to the browser (a plain WebAssembly ABI, no build step for the site). Three choices
 shape it.
 
-*Reference tools as oracles.* Every stage has a test that compares it with an independent
-implementation, not just a test of its own outputs. Error models must equal Stim's fault for
-fault, decomposed and not. On 15 circuits the largest relative probability difference is
-$1.1\times10^{-15}$. They are also checked on random circuits that use all 49 of Stim's one-
-and two-qubit gates. Matchings must tie PyMatching's: there were 13 disagreements in 600,000
-shots, and every one was a tie between equal-weight corrections. BP posteriors equal `ldpc`'s bit
-for bit, and BP+OSD and BP+LSD corrections equal `ldpc`'s except where tied corrections are
-chosen differently. Relay-BP is identical to IBM's implementation, the search decoder finds
-Tesseract's faults, and colour-code matching weighs every Möbius matching as Chromobius does. Explained errors and the text timeline diagram match Stim's output character for
-character. The command line is byte-identical to Stim's wherever Stim's output is
+*Reference tools as oracles.* Every stage has a test that compares it with its reference tool,
+not just a test of its own outputs. Error models must equal Stim's fault for fault, decomposed
+and not. On 15 circuits the largest relative probability difference is $1.1\times10^{-15}$.
+They are also checked on random circuits that use all 49 of Stim's one- and two-qubit gates.
+The engine's own matcher must tie PyMatching's: there were 13 disagreements in 600,000 shots,
+and every one was a tie between equal-weight corrections. The ports must give their sources'
+answers: the PyMatching port's edges, predictions and weights equal PyMatching 2.4.0's on
+950,000 shots of 19 models, BP posteriors equal `ldpc`'s bit for bit, and BP+OSD and BP+LSD
+corrections equal `ldpc`'s except where tied corrections are chosen differently. Relay-BP is
+identical to IBM's implementation, the search decoder finds Tesseract's faults, and colour-code
+matching weighs every Möbius matching as Chromobius does. Explained errors and the text timeline
+diagram match Stim's output character for character. The command line is byte-identical to Stim's wherever Stim's output is
 deterministic.
 
 *One engine, three targets.* Sampling, model building and decoding run in the same process, so
-the browser, Python and Rust users all get the same results from a seed, on any machine and
-any number of threads. The sampler packs 64 shots into a machine word and runs `REPEAT` blocks
+the browser, Python and Rust users get the same shots and the same error model from a seed, on
+any number of threads. Their decoders can differ only among equal-weight matchings: from 2.2,
+Python's `Matching` makes PyMatching's choice, while the crate's `Matching` and the browser
+decode on the engine's own matcher, which can choose another. The sampler packs 64 shots into a machine word and runs `REPEAT` blocks
 without flattening them, taking 0.89 µs a shot at d = 7 against Stim's 1.44 µs on the recording
-machine (Apple silicon). There, sparse blossom runs at 0.89 to 0.99 times PyMatching's
+machine (Apple silicon). There, the engine's own sparse blossom runs at 0.89 to 0.99 times PyMatching's
 single-threaded time, and correlated matching at 0.75 to 0.94 times PyMatching's; on Linux x86_64
 both take about 1.2 times. Error models are built in about half of Stim's time.
 
@@ -161,9 +170,10 @@ Generative AI was used extensively. Most of the source code, tests, documentatio
 draft of this paper were written with Anthropic's Claude models, through Claude Code. The author
 directed the work, chose its scope, reviewed the results, and is responsible for the content.
 Because generated code can be plausible and wrong, the project's verification does not rely on
-the code reviewing itself. Each stage is compared with an independent reference implementation
-(Stim, PyMatching, `ldpc`, `beliefmatching`) or with Google's published hardware data, as
-described above. The figures in this paper all come from those comparisons.
+the code reviewing itself. Each stage is compared with its reference implementation (Stim,
+PyMatching, `ldpc`, `beliefmatching` and the other tools the project ports) or with Google's
+published hardware data, as described above; for a port, that shows it is faithful to its
+source. The figures in this paper all come from those comparisons.
 
 # Acknowledgements
 
