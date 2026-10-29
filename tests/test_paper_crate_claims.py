@@ -74,3 +74,10 @@ def test_the_compatibility_policy_the_docs_name_is_defined():
     assert "keep compiling, with the same meaning, through every 2.x release" not in crate
     assert "CONTRIBUTING.md#compatibility-policy" in crate
 
+
+def test_parity_inventory_f1_states_tqecs_hadamard_rule_and_no_unmeasured_speedup():
+    inventory = (ROOT / "docs/superpowers/notes/2026-10-09-parity-inventory.md").read_text(encoding="utf-8")
+    f1 = next(line for line in inventory.splitlines() if line.startswith("| F1 |"))
+    assert "6 to 16 times" not in f1
+    assert "X-directed spatial Hadamards require fixed_boundary" not in f1
+    assert "Spatial Hadamard pipes between two non-spatial cubes, along x or y, require fixed_boundary" in f1
