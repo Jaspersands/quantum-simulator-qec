@@ -45,3 +45,43 @@ def test_same_data(name):
     for unsigned in (False, True):
         a, b = s.hadamard_conjugated(unsigned=unsigned), o.hadamard_conjugated(unsigned=unsigned)
         assert (a.name if a is not None else None) == (b.name if b is not None else None)
+
+
+def _line(name, g):
+    """One instruction of gate ``g`` written with ``name`` (its own or an alias), with
+    arguments and targets it takes."""
+    args = ""
+    if g.num_parens_arguments_range and 0 not in g.num_parens_arguments_range:
+        args = "(" + ",".join(["0.01"] * g.num_parens_arguments_range[0]) + ")"
+    if g.is_two_qubit_gate:
+        targets = "0 1"
+    elif name in ("MPP", "SPP", "SPP_DAG"):
+        targets = "X0*Z1"
+    elif name in ("DETECTOR", "OBSERVABLE_INCLUDE"):
+        targets = "rec[-1]"
+        args = "(0)" if name == "OBSERVABLE_INCLUDE" else args
+    elif name == "TICK":
+        targets = ""
+    elif name == "SHIFT_COORDS":
+        targets, args = "", "(1)"
+    elif name in ("CORRELATED_ERROR", "ELSE_CORRELATED_ERROR", "E"):
+        targets = "X0"
+    else:
+        targets = "0"
+    return f"{name}{args} {targets}".rstrip()
+
+
+@pytest.mark.parametrize("name", sorted({a for g in stim.gate_data().values() for a in [g.name, *g.aliases]} - {"REPEAT"}))
+def test_every_name_and_alias_reads_as_stim_reads_it(name):
+    # Every gate's name and every alias Stim gives it (`H_XZ` for H, `CNOT` for CX, ...) parses,
+    # appends and prints as Stim's circuit does.
+    text = "M 0\n" + _line(name, stim.gate_data(name))
+    assert str(sq.Circuit(text)) == str(stim.Circuit(text))
+    if name not in ("DETECTOR", "OBSERVABLE_INCLUDE", "TICK", "SHIFT_COORDS", "MPP", "SPP", "SPP_DAG", "CORRELATED_ERROR", "ELSE_CORRELATED_ERROR", "E", "MPAD"):
+        g = stim.gate_data(name)
+        targets = [0, 1] if g.is_two_qubit_gate else [0]
+        args = [0.01] * g.num_parens_arguments_range[0] if g.num_parens_arguments_range and 0 not in g.num_parens_arguments_range else []
+        theirs, ours = stim.Circuit(), sq.Circuit()
+        theirs.append(name, targets, args)
+        ours.append(name, targets, args)
+        assert str(ours) == str(theirs)

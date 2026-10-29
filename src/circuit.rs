@@ -684,7 +684,8 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
             none()?;
             Instr::Reset { basis: Basis::X, qubits: qubit_targets(&t, &name)? }
         }
-        "H" => {
+        // `H_XZ` is Stim's other name for H, and prints as H.
+        "H" | "H_XZ" => {
             none()?;
             Instr::H(qubit_targets(&t, &name)?)
         }
