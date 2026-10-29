@@ -30,6 +30,9 @@ The qecsim port (`stabilizer_qec.qecsim`, `stabilizer-qec qecsim`) reads two fil
 a logging configuration, `logging_qecsim.ini`, whose handler arguments Python's
 `logging.config.fileConfig` evaluates, and a Blossom V library, `clib/libpypm.so`, which it loads
 with `ctypes` and uses in place of this package's matcher. It looks for them only in
-`$QECSIM_CFG`, or in `~/.qecsim` when that is unset, so point `QECSIM_CFG` only at a directory you
-trust. Unlike qecsim, it never reads them from the working directory, so running it inside a
-directory someone else supplied does not run that directory's files.
+`$QECSIM_CFG`, or in `~/.qecsim` when that is unset or empty, so point `QECSIM_CFG` only at a
+directory you trust. Unlike qecsim, it does not search the working directory, and it treats an
+empty `QECSIM_CFG` (which qecsim took as the working directory, and which a CI `env` entry for an
+undefined variable gives) as unset, so running it inside a directory someone else supplied does not
+run that directory's files. A relative `QECSIM_CFG`, such as `.` or `cfg`, is still read relative to
+the working directory, as in qecsim, so give it as an absolute path.

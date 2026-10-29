@@ -1,6 +1,6 @@
 # Ported from qecsim 1.0b9 (qecsim/qecsim; David K. Tuckett, BSD 3-Clause; see THIRD_PARTY_NOTICES.md), modified for
-# stabilizer_qec: qecsim is stabilizer_qec.qecsim; configuration is read from $QECSIM_CFG or ~/.qecsim only, not
-# the working directory (see _resolve_path).
+# stabilizer_qec: qecsim is stabilizer_qec.qecsim; configuration is read from $QECSIM_CFG (when set and not empty)
+# or ~/.qecsim only, not the working directory unless $QECSIM_CFG names it (see _resolve_path).
 """
 This module contains utility functions.
 """
@@ -25,11 +25,14 @@ def _resolve_path(relative_path):
 
     Notes:
 
-    * Path resolves to ``$QECSIM_CFG/<relative_path>`` (if ``QECSIM_CFG`` env variable is set).
+    * Path resolves to ``$QECSIM_CFG/<relative_path>`` (if ``QECSIM_CFG`` env variable is set and not empty).
     * Path resolves to ``~/.qecsim/<relative_path>`` (otherwise).
     * (stabilizer_qec: qecsim also tried ``./<relative_path>`` first, so a ``logging_qecsim.ini`` or
       ``clib/libpypm.so`` in whatever directory it ran in was executed: the logging configuration's handler
-      arguments are evaluated, and the library is loaded. The working directory is not searched here.)
+      arguments are evaluated, and the library is loaded. The working directory is not searched here unless
+      ``QECSIM_CFG`` names it: an empty ``QECSIM_CFG``, which qecsim took as the working directory and which is
+      what a CI ``env`` entry for an undefined variable gives, counts as unset, while a relative one such as
+      ``.`` or ``cfg`` is read relative to the working directory, as qecsim reads it, so give an absolute path.)
 
     :param relative_path: Relative path, e.g. Path('clib/libpypm.so')
     :type relative_path: Path or str
@@ -41,8 +44,9 @@ def _resolve_path(relative_path):
     qecsim_cfg_path = os.getenv(QECSIM_CFG_ENV_KEY)
     # list of paths tried for exception reporting
     paths = []
-    # if env variable set the only try relative to that
-    if qecsim_cfg_path is not None:  # i.e. is set but could be empty string
+    # if env variable set the only try relative to that (stabilizer_qec: an empty value counts as unset; qecsim's
+    # `is not None` test took it as the working directory, since Path('') / relative_path is relative to it)
+    if qecsim_cfg_path:
         # $QECSIM_CFG/<relative_path>
         path = Path(qecsim_cfg_path) / relative_path
         paths.append(path)
@@ -62,7 +66,8 @@ def init_logging():
 
     Notes:
 
-    * Configuration loaded from ``$QECSIM_CFG/logging_qecsim.ini`` (if ``QECSIM_CFG`` env variable is set).
+    * Configuration loaded from ``$QECSIM_CFG/logging_qecsim.ini`` (if ``QECSIM_CFG`` env variable is set and not
+      empty).
     * Configuration loaded from ``~/.qecsim/logging_qecsim.ini`` (otherwise; stabilizer_qec: not ``./``).
     * If configuration not found then a basic configuration is used.
 
@@ -85,7 +90,7 @@ def load_clib(filename):
 
     Notes:
 
-    * Library loaded from ``$QECSIM_CFG/clib/<filename>`` (if ``QECSIM_CFG`` env variable is set).
+    * Library loaded from ``$QECSIM_CFG/clib/<filename>`` (if ``QECSIM_CFG`` env variable is set and not empty).
     * Library loaded from ``~/.qecsim/clib/<filename>`` (otherwise; stabilizer_qec: not ``./clib``).
 
     :param filename: Library file name, e.g. 'libpypm.so'.
