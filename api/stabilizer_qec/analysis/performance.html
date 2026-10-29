@@ -159,7 +159,7 @@ https://arxiv.org/abs/1703.04136
                     <div class="attr class">
             
     <span class="def">class</span>
-    <span class="name">LogicalErrorProbDecayModel</span><wbr>(<span class="base">stabilizer_qec.analysis.performance._fitting._Model</span>):
+    <span class="name">LogicalErrorProbDecayModel</span><wbr>(<span class="base">lmfit.model.Model</span>):
 
         
     </div>
@@ -182,7 +182,83 @@ least-squares fit, with the same methods and a result with the same <code>params
     </div>
     <a class="headerlink" href="#LogicalErrorProbDecayModel.__init__"></a>
     
-    
+            <div class="docstring"><p>The model function will normally take an independent variable
+(generally, the first argument) and a series of arguments that are
+meant to be parameters for the model. It will return an array of
+data to model some data as for a curve-fitting problem.</p>
+
+<h2 id="parameters">Parameters</h2>
+
+<p>func : callable
+    Function to be wrapped.
+independent_vars : :obj:<code>list</code> of :obj:<code>str</code>, optional
+    Arguments to <code><a href="#LogicalErrorProbDecayModel.func">func</a></code> that are independent variables (default is
+    None).
+param_names : :obj:<code>list</code> of :obj:<code>str</code>, optional
+    Names of arguments to <code><a href="#LogicalErrorProbDecayModel.func">func</a></code> that are to be made into
+    parameters (default is None).
+nan_policy : {'raise', 'propagate', 'omit'}, optional
+    How to handle NaN and missing values in data. See Notes below.
+prefix : str, optional
+    Prefix used for the model.
+name : str, optional
+    Name for the model. When None (default) the name is the same
+    as the model function (<code><a href="#LogicalErrorProbDecayModel.func">func</a></code>).
+**kws : dict, optional
+    Additional keyword arguments to pass to model function.</p>
+
+<h2 id="notes">Notes</h2>
+
+<ol>
+<li><p>The model function must return an array that will be the same
+size as the data being modeled.</p></li>
+<li><p>Parameter names are inferred from the function arguments by default,
+and a residual function is automatically constructed.</p></li>
+<li><p>Specifying <code><a href="#LogicalErrorProbDecayModel.independent_vars">independent_vars</a></code> here will explicitly name the
+independent variables for the Model.  in contrast, <code><a href="#LogicalErrorProbDecayModel.param_names">param_names</a></code> is
+meant to help infer Parameter names for keyword arguments defined with
+<code>**kws</code> in the Model function.</p></li>
+<li><p><code><a href="#LogicalErrorProbDecayModel.nan_policy">nan_policy</a></code> sets what to do when a NaN or missing value is
+seen in the data. Should be one of:</p>
+
+<ul>
+<li><code>'raise'</code> : raise a <code>ValueError</code> (default)</li>
+<li><code>'propagate'</code> : do nothing</li>
+<li><code>'omit'</code> : drop missing data</li>
+</ul></li>
+</ol>
+
+<h2 id="examples">Examples</h2>
+
+<p>The model function will normally take an independent variable
+(generally, the first argument) and a series of arguments that are
+meant to be parameters for the model. Thus, a simple peak using a
+Gaussian defined as:</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">def</span><span class="w"> </span><span class="nf">gaussian</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">amp</span><span class="p">,</span> <span class="n">cen</span><span class="p">,</span> <span class="n">wid</span><span class="p">):</span>
+<span class="gp">... </span>    <span class="k">return</span> <span class="n">amp</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">cen</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">wid</span><span class="p">)</span>
+</code></pre>
+</div>
+
+<p>can be turned into a Model with:</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="n">gmodel</span> <span class="o">=</span> <span class="n">Model</span><span class="p">(</span><span class="n">gaussian</span><span class="p">)</span>
+</code></pre>
+</div>
+
+<p>this will automatically discover the names of the independent
+variables and parameters:</p>
+
+<div class="pdoc-code codehilite">
+<pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="nb">print</span><span class="p">(</span><span class="n">gmodel</span><span class="o">.</span><span class="n">param_names</span><span class="p">,</span> <span class="n">gmodel</span><span class="o">.</span><span class="n">independent_vars</span><span class="p">)</span>
+<span class="go">['amp', 'cen', 'wid'], ['x']</span>
+</code></pre>
+</div>
+</div>
+
 
                             </div>
                             <div id="LogicalErrorProbDecayModel.guess" class="classattr">
@@ -195,7 +271,40 @@ least-squares fit, with the same methods and a result with the same <code>params
     </div>
     <a class="headerlink" href="#LogicalErrorProbDecayModel.guess"></a>
     
-    
+            <div class="docstring"><p>Guess starting values for the parameters of a Model.</p>
+
+<p>This is not implemented for all models, but is available for many
+of the built-in models.</p>
+
+<h2 id="parameters">Parameters</h2>
+
+<p>data : array_like
+    Array of data (i.e., y-values) to use to guess parameter values.
+x : array_like
+    Array of values for the independent variable (i.e., x-values).
+**kws : optional
+    Additional keyword arguments, passed to model function.</p>
+
+<h2 id="returns">Returns</h2>
+
+<p>Parameters
+    Initial, guessed values for the parameters of a Model.</p>
+
+<h2 id="raises">Raises</h2>
+
+<p>NotImplementedError
+    If the <code><a href="#LogicalErrorProbDecayModel.guess">guess</a></code> method is not implemented for a Model.</p>
+
+<h2 id="notes">Notes</h2>
+
+<p>Should be implemented for each model subclass to run
+<code>self.make_params()</code>, update starting values and return a
+Parameters object.</p>
+
+<p>.. versionchanged:: 1.0.3
+   Argument <code>x</code> is now explicitly required to estimate starting values.</p>
+</div>
+
 
                             </div>
                             <div id="LogicalErrorProbDecayModel.fit" class="classattr">

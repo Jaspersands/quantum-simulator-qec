@@ -4215,8 +4215,12 @@ detectors of its round (or, by a coin, of its round and the next), drawn from
     
             <div class="docstring"><p>A decoder by name, for the check matrix <code>H</code> (a dense array or a scipy sparse matrix)
 or a Stim detector error model given as text. <code>O</code> (the observable matrix) and
-<code>error_rate_vec</code> describe the model; <code>output</code> ("errors" or "observables") chooses what
-a decode returns; the other keywords configure the decoder. For <code>trt_decoder</code>, two-dimensional
+<code>error_rate_vec</code> describe the model; with model text they replace the ones the text gives,
+as CUDA-Q's <code>make_pcm_decoder</code> lets a caller's keys win. The other keywords configure the
+decoder. What a decode returns is CUDA-Q's: <code>pymatching</code> and <code>nv-qldpc-decoder</code> return
+the observable flips when the model has an observable matrix, the other decoders an error
+frame. <code>output</code> ("errors" or "observables", this package's keyword, not CUDA-Q's)
+overrides that where a decoder can do both. For <code>trt_decoder</code>, two-dimensional
 numeric/bool O arrays of any memory order, nested lists and scipy sparse matrices use nonzero
 entries as observable support. These useful coercions exceed CUDA-Q's uint8 tensor binding;
 see <code>ONNX_CONTRACT.md</code>.</p>

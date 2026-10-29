@@ -328,7 +328,7 @@ the decode itself took, both once it is done.</p>
                             <div id="AsyncResult.__init__" class="classattr">
                                 <div class="attr function">
             
-        <span class="name">AsyncResult</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">future</span><span class="p">:</span> <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">_base</span><span class="o">.</span><span class="n">Future</span>,</span><span class="param">	<span class="n">ticket</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">submitted</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="nb">int</span></span>)</span>
+        <span class="name">AsyncResult</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">future</span><span class="p">:</span> <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">_base</span><span class="o">.</span><span class="n">Future</span>,</span><span class="param">	<span class="n">ticket</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">submitted</span><span class="p">:</span> <span class="nb">float</span>,</span><span class="param">	<span class="n">shots</span><span class="p">:</span> <span class="nb">int</span>,</span><span class="param">	<span class="n">times</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></span>)</span>
 
         
     </div>
@@ -807,6 +807,11 @@ the deepest the queue got, and how many batches are still pending.</p>
 <code><a href="#DecoderClient.spawn">DecoderClient.spawn</a>(...)</code> starts <code>stabilizer-qec serve --stdio</code> as a subprocess on a
 model or circuit file and talks over its pipes. <code><a href="#DecoderClient.decode_batch">decode_batch</a></code> and <code><a href="#DecoderClient.decode">decode</a></code> are the
 decoders'; <code><a href="#DecoderClient.stats">stats</a></code> and <code><a href="#DecoderClient.reset">reset</a></code> are the server's queue's; <code><a href="#DecoderClient.close">close</a></code> says BYE.</p>
+
+<p>A request that does not finish (Ctrl-C between sending it and reading its reply, say) leaves
+the connection's replies out of step with its requests, so the client drops the connection
+(a spawned server is stopped) and every later call raises <code>ConnectionError</code>: connect again.
+It never hands one batch another's predictions.</p>
 </div>
 
 
@@ -1009,8 +1014,12 @@ shots, or whose length is not its shots' b8 rows, is refused before it is read.<
     </div>
     <a class="headerlink" href="#make_decoder"></a>
     
-            <div class="docstring"><p>A decoder by its CLI name on a detector error model, or on a circuit's model (decomposed
-for the graph decoders, as they need it).</p>
+            <div class="docstring"><p>A decoder by its CLI name on a detector error model, or on a circuit's model built as
+<code>stabilizer_qec.sinter.Sampler(name)</code> builds it: decomposed into graph-like pieces only for
+the decoders that match on a graph (matching, correlated and belief matching, union-find,
+collision and local clustering), whole for the others (Chromobius's colour matching decodes a
+colour code, whose faults do not split into graph-like pieces), with
+<code>approximate_disjoint_errors=True</code>.</p>
 </div>
 
 

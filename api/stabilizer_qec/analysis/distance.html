@@ -160,12 +160,19 @@ decoder
 <p>int
     Upper bound for the circuit distance.
 error
-    Error corresponding to the upper bound.</p>
+    Error corresponding to the upper bound: the error instructions the decoder chose, which
+    together flip some observables and no detector.</p>
 
 <h2 id="notes">Notes</h2>
 
-<p>The default decoder is this package's BP+OSD (qec-util's is <code>dem_decoders</code>'), with the
-same options.</p>
+<p>The default decoder is this package's BP+OSD (qec-util's is <code>dem_decoders</code>' <code>BP_OSD</code>),
+with the same options and the same check matrix: errors flipping the same detectors are one
+column, their probabilities combined, so the bound is qec-util's. A decoder's faults are read
+as those merged columns when there are as many of them, otherwise as one per error
+instruction of the flattened model; each fault adds one error instruction (a merged column's
+first) to <code>error</code>. qec-util takes the fault indices as indices of every instruction of the
+flattened model, detector lines included, so the error it returns can be detector lines or
+errors that flip detectors.</p>
 </div>
 
 

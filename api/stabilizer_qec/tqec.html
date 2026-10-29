@@ -1496,10 +1496,13 @@ has the program too): patches for the cubes' lifetimes, merges and splits for th
 pipes, the correlation surfaces as observables (<code>"auto"</code> all of them, <code>None</code> none, or
 a list, as tqec takes them). The size is <code>distance</code> or tqec's <code>k</code> (distance 2k + 1);
 the noise the engine's SD6 noise <code>p</code>, or a <code><a href="#NoiseModel">NoiseModel</a></code> laid over the noiseless
-circuit as tqec lays it. For Hadamard pipes and spatial cubes, use
-<code>compile_block_graph(graph).generate_stim_circuit(k)</code>; spatial Hadamard pipes along x
-require <code>convention="fixed_boundary"</code>. Both routes refuse Y cubes. Fill open ports
-before compiling.</p>
+circuit as tqec lays it. <code>distance</code> is an odd integer at least 3 (a NumPy integer
+too), and <code>block_temporal_height</code> is honoured at it however it is given. For Hadamard
+pipes and spatial cubes, use <code>compile_block_graph(graph).generate_stim_circuit(k)</code>; a
+spatial Hadamard pipe between two non-spatial cubes, along x or y, requires
+<code>convention="fixed_boundary"</code> (tqec 0.2.0's fixed_bulk has no template for it), while
+one that touches a spatial cube compiles in both. Both routes refuse Y cubes. Fill open
+ports before compiling.</p>
 </div>
 
 
@@ -3720,8 +3723,11 @@ a Y half cube's <code>NotImplementedError</code>, a constant <code>block_tempora
 when <code><a href="#TopologicalComputationGraph.compile">compile</a></code> is called. <code><a href="#TopologicalComputationGraph.surfaces">surfaces</a></code> are the correlation surfaces compiled into
 observables and <code><a href="#TopologicalComputationGraph.stabilizers">stabilizers</a></code> the Pauli string each measures on the graph's ports (or leaf
 cubes). <code>rounds</code> and <code>merged</code> control the engine. Direct generation checks them
-against tqec's <code>2k + 1</code> layout and refuses any time slices it cannot honour,
-just as <code><a href="#CompiledBlockGraph.generate_stim_circuit">CompiledBlockGraph.generate_stim_circuit</a></code> does.</p>
+against tqec's <code>2k + 1</code> layout and refuses with a <code>ValueError</code> any time slices it cannot
+honour, just as <code><a href="#CompiledBlockGraph.generate_stim_circuit">CompiledBlockGraph.generate_stim_circuit</a></code> does. The check is arithmetic on
+the graph's time slices (one per cube height, a merge when a spatial pipe runs in it), so it
+holds on graphs the engine cannot express (spatial cubes, Hadamard pipes), whose matching
+controls pass through to tqec's circuit.</p>
 </div>
 
 
@@ -3812,7 +3818,9 @@ order), or on its leaf cubes when it has none.</p>
 each time slice <code>block_temporal_height(k) + 2</code> rounds (tqec's layers: an
 initialisation layer, the repeated rounds and a measurement layer; <code>2k + 1</code> by
 default), or <code>rounds</code> and <code>merged</code> as given. Here <code>block_temporal_height</code> may also
-be a whole number at least 0 (a NumPy integer too) or a callable of <code>k</code> giving one.</p>
+be a whole number at least 0 (a NumPy integer too) or a callable of <code>k</code> giving one.
+<code>distance</code> is an odd integer at least 3, a NumPy integer too; anything else (a float,
+a bool) is refused with a <code><a href="#TQECError">TQECError</a></code>.</p>
 </div>
 
 

@@ -2074,7 +2074,9 @@ as the QDK checks it, its errors the QDK's (<code><a href="#EstimatorError">Esti
     </div>
     <a class="headerlink" href="#LogicalPatch.logical_cycles_per_second"></a>
     
-    
+            <div class="docstring"><p>f64 division: infinite for a cycle time of 0 ns (which the QDK cannot format in its report).</p>
+</div>
+
 
                             </div>
                             <div id="LogicalPatch.asdict" class="classattr">
@@ -4253,7 +4255,11 @@ shortest) for the frontier estimate.</p>
     </div>
     <a class="headerlink" href="#AzureEstimator.logical_cycles_for_code_distance"></a>
     
-    
+            <div class="docstring"><p>The QDK's <code>(budget / (qubits as f64 * rate)).floor() as u64</code>: a logical error rate of 0 (a crossing
+prefactor of 0, or one so small the rate underflows) or one whose quotient overflows allows every cycle,
+2^64 - 1, as the saturating cast gives.</p>
+</div>
+
 
                             </div>
                             <div id="AzureEstimator.num_factories" class="classattr">

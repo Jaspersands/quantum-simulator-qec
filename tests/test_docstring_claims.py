@@ -71,3 +71,42 @@ def test_tsim_docstring_says_what_every_sampler_refuses():
     assert "is refused when the text is read, with Tsim's message after the line" in d
     assert "is the identity, as in Tsim, held as ``I 0``" in d
     assert tsim.Circuit("I[R_Z(theta=0.3*pi)#x] 0").stim_circuit == sq.Circuit("I 0")
+
+
+def published(page: str) -> str:
+    """An API reference page's text, its markup dropped and white space folded."""
+    import html
+    from pathlib import Path
+
+    text = (Path(__file__).resolve().parents[1] / "api" / page).read_text(encoding="utf-8")
+    return re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", "", text)))
+
+
+@pytest.mark.parametrize(
+    "page, obj",
+    [
+        ("stabilizer_qec.html", "Circuit.twirled"),
+        ("stabilizer_qec.html", "Circuit.compile_coherent_sampler"),
+        ("stabilizer_qec.html", "Circuit.explain_detector_error_model_errors"),
+        ("stabilizer_qec.html", "StabilizerRankSampler.probability_of"),
+        ("stabilizer_qec/tsim.html", None),
+    ],
+)
+def test_api_reference_publishes_these_docstrings(page, obj):
+    # api/ is built from the docstrings (tools/api_docs.py); each paragraph, its ``code`` and
+    # *emphasis* marks dropped, is on the published page.
+    import stabilizer_qec.tsim as tsim
+
+    target = tsim if obj is None else sq
+    for part in (obj or "").split(".") if obj else []:
+        target = getattr(target, part)
+    page_text = published(page)
+    for paragraph in re.split(r"\n\s*\n", target.__doc__):
+        if ">>>" in paragraph:
+            continue
+        for line in re.split(r"\n\s*- ", paragraph):
+            parts = line.split("``")
+            parts[::2] = [re.sub(r"\*(\w[^*]*?)\*", r"\1", p) for p in parts[::2]]
+            words = re.sub(r"\s+", " ", "".join(parts)).strip(" -")
+            if words:
+                assert words in page_text, (obj, words[:120])
