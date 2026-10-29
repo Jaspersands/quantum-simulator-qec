@@ -230,6 +230,67 @@ def test_sinter_decoder(monkeypatch):
     assert np.array_equal(ours, theirs)
 
 
+UNMATCHABLE = r"""
+import sys
+import fusion_blossom
+import stabilizer_qec.fusion_blossom
+case, op = sys.argv[1], sys.argv[2]
+for fb in (fusion_blossom, stabilizer_qec.fusion_blossom):
+    try:
+        if case == "sinter":
+            import stabilizer_qec as stim
+            from stabilizer_qec.sinter._decoding import _decoding_fusion_blossom as decoding
+            stim.fusion_blossom = fb
+            dem = stim.DetectorErrorModel("error(0.1) D0 D1 L0\nerror(0.1) D1 D2")
+            compiled = decoding.FusionBlossomDecoder().compile_decoder_for_dem(dem=dem)
+            assert type(compiled.solver) is fb.SolverSerial
+            r = compiled.decode_shots_bit_packed(bit_packed_detection_event_data=__import__("numpy").array([[0b001]], dtype="uint8")).tolist()
+        elif case == "fused":
+            # a defect past the vertices, then a good syndrome without clear(): the unmatched node
+            # is named by its index after fusion (26), which formatting it refreshes
+            code = fb.PhenomenologicalPlanarCode(d=5, noisy_measurements=5, p=0.05)
+            init = code.get_initializer()
+            n = init.vertex_num
+            config = fb.PartitionConfig(n)
+            config.partitions = [fb.VertexRange(0, 2 * (n // 6)), fb.VertexRange(3 * (n // 6), n)]
+            config.fusions = [(0, 1)]
+            s = fb.SolverParallel(init, config.info(), {})
+            s.solve(fb.SyndromePattern([n + 5]))
+            s.solve(code.generate_random_errors(3))
+            r = s.subgraph()
+        else:
+            n, edges, defects = {"single": (4, [(0, 1, 2), (1, 2, 2), (2, 3, 2)], [0]), "disconnected": (4, [(0, 1, 2), (2, 3, 2)], [0, 2]), "isolated": (2, [], [0, 1])}[case.split(":")[1]]
+            init = fb.SolverInitializer(n, edges, [])
+            cls = case.split(":")[0]
+            s = fb.SolverSerial(init) if cls == "SolverSerial" else getattr(fb, cls)(init, fb.PartitionConfig(n).info(), {})
+            s.solve(fb.SyndromePattern(defects))
+            r = getattr(s, op)()
+            r = (r.peer_matchings, r.virtual_matchings) if op == "perfect_matching" else r
+        print(fb.__name__, "returned", r, flush=True)
+    except BaseException as e:
+        print(fb.__name__, "raised", type(e).__name__, e, flush=True)
+"""
+
+
+@pytest.mark.parametrize("case,op", [(f"{cls}:single", op) for cls in ("SolverSerial", "SolverDualParallel", "SolverParallel") for op in ("perfect_matching", "subgraph")]
+                         + [("SolverSerial:disconnected", "perfect_matching"), ("SolverSerial:isolated", "subgraph"), ("sinter", ""), ("fused", "")])
+def test_unmatchable_syndromes_raise_as_fusion_blossom_does(case, op):
+    # A syndrome with no perfect matching makes Fusion Blossom panic, naming the unmatched node.
+    # Formatting that node takes its lock: it must not wait on a lock the panicking thread holds
+    # (which spun forever, holding the GIL). Run apart, so that a hang fails rather than stalls.
+    import subprocess
+    import sys
+
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(p for p in sys.path if p))
+    try:
+        out = subprocess.run([sys.executable, "-c", UNMATCHABLE, case, op], capture_output=True, text=True, timeout=120, env=env).stdout.splitlines()
+    except subprocess.TimeoutExpired as e:
+        partial = e.stdout or b""  # bytes, whatever text= says
+        out = (partial.decode() if isinstance(partial, bytes) else partial).splitlines() + ["hung (killed after 120 s)"]
+    assert len(out) == 2 and out[0].startswith("fusion_blossom raised PanicException cannot compute final matching"), out
+    assert out[1] == out[0].replace("fusion_blossom", "stabilizer_qec.fusion_blossom", 1)
+
+
 def test_weight_of_p_and_names():
     for p in (0.001, 0.1, 0.5):
         assert fb.weight_of_p(p) == ref.weight_of_p(p)

@@ -101,7 +101,12 @@ pub type PrimalNodeInternalWeak = WeakManualSafeLock<PrimalNodeInternal>;
 
 impl std::fmt::Debug for PrimalNodeInternalPtr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        self.update(); // to make sure index is up-to-date
+        // to make sure index is up-to-date; Fusion Blossom's lock-free pointers always can, but a
+        // lock this thread holds would make update()'s write wait on itself, so a locked node
+        // prints the index it has
+        if self.try_write().is_some() {
+            self.update();
+        }
         let primal_node_internal = self.read_recursive();
         write!(f, "{}", primal_node_internal.index)
     }
@@ -1252,6 +1257,11 @@ impl PrimalModuleImpl for PrimalModuleSerialPtr {
                     }
                 }
             } else {
+                // Formatting the node refreshes its index, which writes to it (`update`): Fusion
+                // Blossom's wheels hold no locks, but here this thread's own reads would make that
+                // write wait forever, so they are dropped first and the panic is raised, as there.
+                drop(interface_node);
+                drop(primal_node_internal);
                 panic!(
                     "cannot compute final matching with unmatched outer node {:?}",
                     primal_node_internal_ptr

@@ -373,6 +373,69 @@ def test_legacy_double_slash_routes_keep_containment(tmp_path):
         stop(server, thread)
 
 
+# index.js's one change from fusion_blossom 0.2.13's: before it imports the page's ``patch_url``, it
+# refuses one on another origin, as fusion_blossom's imports any URL and so lets any web page run its
+# own module in the data server's origin, where it can read the data folder. The answers for
+# index.js are compared as fusion_blossom's after taking out exactly these lines, and nothing else.
+PATCH_URL_GUARD = (
+    "                // stabilizer_qec: only a patch from this page's own server (local_render_visualizer's ./ path) is\n"
+    '                // imported. fusion_blossom 0.2.13 imports any URL, and a module run here can read whatever the data\n'
+    '                // server serves, so any web page could open this page with its own module and read the data folder.\n'
+    '                const patch_location = new URL(patch_url, window.location.href)\n'
+    '                if (patch_location.protocol != window.location.protocol || patch_location.host != window.location.host) {\n'
+    '                    this.error_message = `refused patch from another origin: ${patch_url}`\n'
+    '                    throw "patch file error"\n'
+    '                }\n'
+)
+
+
+def as_upstream_index_js(case, answer):
+    method, path, headers = case
+    status, reason, answer_headers, body = answer
+    if path.split('?')[0].lstrip('/') != 'index.js' or status != 200 or method not in ('GET', 'HEAD') or headers:
+        return answer
+    ours = fb.helper.visualizer_website['index.js'].encode('utf-8')
+    assert dict(answer_headers)['Content-Length'] == str(len(ours))
+    assert body == (ours if method == 'GET' else b'')
+    assert ours.count(PATCH_URL_GUARD.encode()) == 1
+    upstream = ours.replace(PATCH_URL_GUARD.encode(), b'')
+    answer_headers = [(key, str(len(upstream)) if key == 'Content-Length' else value) for key, value in answer_headers]
+    return status, reason, answer_headers, upstream if method == 'GET' else b''
+
+
+def test_index_js_imports_patches_from_its_own_origin_only():
+    # The guard as shipped, run in Node with the page's location and patch_url, before the import.
+    import shutil
+
+    node = shutil.which('node')
+    if node is None:
+        pytest.skip('node is not installed')
+    text = fb.helper.visualizer_website['index.js']
+    assert text.count(PATCH_URL_GUARD) == 1
+    block = text[text.index(PATCH_URL_GUARD):]
+    assert block.index('throw "patch file error"') < block.index('await import(patch_url)')
+    cases = [('http://localhost:51665/?filename=visualizer.json', './v.json.patch.js', True),
+             ('http://localhost:51665/?filename=visualizer.json', 'v.json.patch.js', True),
+             ('http://localhost:51665/', '/data/x.js', True),
+             ('http://localhost:51665/', 'http://localhost:51665/p.js', True),
+             ('http://localhost?filename=v.json', './v.json.patch.js', True),
+             ('http://localhost:51665/', 'https://evil.example/x.js', False),
+             ('http://localhost:51665/', '//evil.example/x.js', False),
+             ('http://localhost:51665/', 'http://localhost:51790/p.js', False),
+             ('http://localhost:51665/', 'http://127.0.0.1:51665/p.js', False),
+             ('http://localhost:51665/', 'https://localhost:51665/p.js', False),
+             ('http://localhost:51665/', 'data:text/javascript,export function patch(){}', False),
+             ('http://localhost:51665/', 'blob:http://localhost:51665/1', False),
+             ('http://localhost:51665/', 'javascript:alert(1)', False)]
+    script = ("const cases = %s\nconst out = []\nfor (const [href, patch_url] of cases) {\n"
+              "  const window = { location: new URL(href) }\n  const self = {}\n"
+              "  try { (function () {\n%s\n  }).call(self); out.push(true) } catch (e) { out.push(e === 'patch file error' && self.error_message === `refused patch from another origin: ${patch_url}` ? false : String(e)) }\n"
+              "}\nconsole.log(JSON.stringify(out))\n") % (json.dumps([c[:2] for c in cases]), PATCH_URL_GUARD)
+    result = subprocess.run([node, '-e', script], capture_output=True, text=True, timeout=60)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == [c[2] for c in cases]
+
+
 @isolated_server_test
 def test_serve_responses_equal_recorded(tmp_path):
     recorded = json.loads(FIXTURE.read_text())
@@ -384,6 +447,7 @@ def test_serve_responses_equal_recorded(tmp_path):
     finally:
         stop(server, thread)
     for case, answer in zip(recorded["cases"], ours):
+        answer = as_upstream_index_js(tuple(case["request"]), answer)
         assert summary(answer) == {k: v for k, v in case.items() if k != "request"}, case["request"]
 
 
@@ -474,6 +538,7 @@ def test_live_reference_legacy_path_is_pinned_and_canonical(tmp_path):
             stop(server, thread)
     assert [a[0] for a in theirs] == [404, 200, 404, 200, 405, 405]
     assert [a[0] for a in ours] == [200, 200, 200, 200, 405, 405]
+    ours = [as_upstream_index_js(case, answer) for case, answer in zip(cases, ours)]
     assert_reference_answers(cases, theirs, ours, ref.helper.visualizer_website)
 
 
@@ -513,6 +578,7 @@ def test_serve_responses_equal_reference(tmp_path):
     finally:
         for server, thread in started:
             stop(server, thread)
+    ours = [as_upstream_index_js(case, answer) for case, answer in zip(CASES, ours)]
     assert_reference_answers(CASES, theirs, ours, ref.helper.visualizer_website)
 
 

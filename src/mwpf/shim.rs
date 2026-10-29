@@ -566,8 +566,905 @@ pub mod rand {
 }
 
 /// gzip (RFC 1952) for `HTMLExport`'s compressed visualizer data (`flate2`'s `GzEncoder` and
-/// `GzDecoder`): this writes stored deflate blocks, and reads any deflate stream.
+/// `GzDecoder`): this writes what `GzEncoder` writes at `Compression::default()`, byte for byte
+/// (miniz_oxide's deflate, below), and reads any deflate stream.
 pub mod gzip {
+    /// `miniz_oxide` 0.8.0's deflate compressor (`deflate::core`), which `flate2` 1.0.35 (MWPF's
+    /// `GzEncoder`) runs: at `Compression::default()`, level 6, lazy parsing with 128 probes, raw
+    /// deflate. The parse, the block splits and the Huffman tables are miniz_oxide's, line for
+    /// line, so the bytes are MWPF's; what is left out is what level 6 never runs (the level-1
+    /// fast path, the zlib wrapper, RLE, filtered and forced raw or static blocks) and the
+    /// streaming buffers, as the whole input is compressed at once and ends the stream (which,
+    /// for its non-flushing writes, gives the bytes flate2's do). miniz_oxide is Copyright (c)
+    /// 2017 Frommi, under the MIT license (or Zlib, or Apache-2.0).
+    mod deflate {
+        use std::cmp;
+
+        /// The number of probes into the hash chains at level 6, as `NUM_PROBES[6]`.
+        const LEVEL6_PROBES: u32 = 128;
+        const MAX_SUPPORTED_HUFF_CODESIZE: usize = 32;
+        const MAX_HUFF_SYMBOLS: usize = 288;
+        const MAX_HUFF_TABLES: usize = 3;
+        const MAX_HUFF_SYMBOLS_0: usize = 288;
+        const MAX_HUFF_SYMBOLS_1: usize = 32;
+        const MAX_HUFF_SYMBOLS_2: usize = 19;
+        const LZ_DICT_SIZE: usize = 32_768;
+        const LZ_DICT_SIZE_MASK: usize = (LZ_DICT_SIZE as u32 - 1) as usize;
+        const MIN_MATCH_LEN: u8 = 3;
+        const MAX_MATCH_LEN: usize = 258;
+        const LZ_CODE_BUF_SIZE: usize = 64 * 1024;
+        const LZ_DICT_FULL_SIZE: usize = LZ_DICT_SIZE + MAX_MATCH_LEN - 1 + 1;
+        const LZ_HASH_BITS: i32 = 15;
+        const LZ_HASH_SHIFT: i32 = (LZ_HASH_BITS + 2) / 3;
+        const LZ_HASH_SIZE: usize = 1 << LZ_HASH_BITS;
+        const HUFFMAN_LENGTH_ORDER: [u8; 19] = [16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15];
+        const LITLEN_TABLE: usize = 0;
+        const DIST_TABLE: usize = 1;
+        const HUFF_CODES_TABLE: usize = 2;
+
+        #[rustfmt::skip]
+        const LEN_SYM: [u16; 256] = [
+            257, 258, 259, 260, 261, 262, 263, 264, 265, 265, 266, 266, 267, 267, 268, 268, 269, 269, 269, 269, 270, 270, 270, 270, 271, 271, 271, 271, 272, 272, 272, 272,
+            273, 273, 273, 273, 273, 273, 273, 273, 274, 274, 274, 274, 274, 274, 274, 274, 275, 275, 275, 275, 275, 275, 275, 275, 276, 276, 276, 276, 276, 276, 276, 276,
+            277, 277, 277, 277, 277, 277, 277, 277, 277, 277, 277, 277, 277, 277, 277, 277, 278, 278, 278, 278, 278, 278, 278, 278, 278, 278, 278, 278, 278, 278, 278, 278,
+            279, 279, 279, 279, 279, 279, 279, 279, 279, 279, 279, 279, 279, 279, 279, 279, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280, 280,
+            281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281, 281,
+            282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282, 282,
+            283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283, 283,
+            284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 284, 285,
+        ];
+        #[rustfmt::skip]
+        const LEN_EXTRA: [u8; 256] = [
+            0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 0,
+        ];
+        #[rustfmt::skip]
+        const SMALL_DIST_SYM: [u8; 512] = [
+            0, 1, 2, 3, 4, 4, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9,
+            10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+            12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
+            13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
+            14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+            14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+            16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+            16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+            16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+            16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16, 16,
+            17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,
+            17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,
+            17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,
+            17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17,
+        ];
+        #[rustfmt::skip]
+        const SMALL_DIST_EXTRA: [u8; 512] = [
+            0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+            6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+            6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+            6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+            6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+        ];
+        #[rustfmt::skip]
+        const LARGE_DIST_SYM: [u8; 128] = [
+            0, 0, 18, 19, 20, 20, 21, 21, 22, 22, 22, 22, 23, 23, 23, 23, 24, 24, 24, 24, 24, 24, 24, 24, 25, 25, 25, 25, 25, 25, 25, 25,
+            26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27, 27,
+            28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28,
+            29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29, 29,
+        ];
+        #[rustfmt::skip]
+        const LARGE_DIST_EXTRA: [u8; 128] = [
+            0, 0, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 10, 10, 10, 10, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11,
+            12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
+            13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
+            13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
+        ];
+        #[rustfmt::skip]
+        const BITMASKS: [u32; 17] = [
+            0x0000, 0x0001, 0x0003, 0x0007, 0x000F, 0x001F, 0x003F, 0x007F, 0x00FF, 0x01FF, 0x03FF, 0x07FF, 0x0FFF, 0x1FFF, 0x3FFF, 0x7FFF, 0xFFFF,
+        ];
+
+        type Result<T> = core::result::Result<T, ()>;
+
+        fn update_hash(current_hash: u16, byte: u8) -> u16 {
+            ((current_hash << LZ_HASH_SHIFT) ^ u16::from(byte)) & (LZ_HASH_SIZE as u16 - 1)
+        }
+
+        fn memset<T: Copy>(slice: &mut [T], val: T) {
+            for x in slice {
+                *x = val
+            }
+        }
+
+        const fn read_u16_le(slice: &[u8], pos: usize) -> u16 {
+            slice[pos] as u16 | ((slice[pos + 1] as u16) << 8)
+        }
+
+        #[derive(Copy, Clone)]
+        struct SymFreq {
+            key: u16,
+            sym_index: u16,
+        }
+
+        /// The output, a growing buffer in place of miniz_oxide's fixed one (`inner_pos` is its
+        /// length); a block that is rewritten (as a stored or a static block) is truncated back.
+        struct OutputBufferOxide {
+            inner: Vec<u8>,
+            bit_buffer: u32,
+            bits_in: u32,
+        }
+
+        struct SavedOutputBufferOxide {
+            pos: usize,
+            bit_buffer: u32,
+            bits_in: u32,
+        }
+
+        impl OutputBufferOxide {
+            fn put_bits(&mut self, bits: u32, len: u32) {
+                assert!(bits <= ((1u32 << len) - 1u32));
+                self.bit_buffer |= bits << self.bits_in;
+                self.bits_in += len;
+                while self.bits_in >= 8 {
+                    self.inner.push(self.bit_buffer as u8);
+                    self.bit_buffer >>= 8;
+                    self.bits_in -= 8;
+                }
+            }
+
+            fn save(&self) -> SavedOutputBufferOxide {
+                SavedOutputBufferOxide { pos: self.inner.len(), bit_buffer: self.bit_buffer, bits_in: self.bits_in }
+            }
+
+            fn load(&mut self, saved: SavedOutputBufferOxide) {
+                self.inner.truncate(saved.pos);
+                self.bit_buffer = saved.bit_buffer;
+                self.bits_in = saved.bits_in;
+            }
+
+            fn pad_to_bytes(&mut self) {
+                if self.bits_in != 0 {
+                    let len = 8 - self.bits_in;
+                    self.put_bits(0, len);
+                }
+            }
+        }
+
+        struct BitBuffer {
+            bit_buffer: u64,
+            bits_in: u32,
+        }
+
+        impl BitBuffer {
+            fn put_fast(&mut self, bits: u64, len: u32) {
+                self.bit_buffer |= bits << self.bits_in;
+                self.bits_in += len;
+            }
+
+            fn flush(&mut self, output: &mut OutputBufferOxide) {
+                let bytes = u64::to_le_bytes(self.bit_buffer);
+                output.inner.extend_from_slice(&bytes[..(self.bits_in >> 3) as usize]);
+                self.bit_buffer >>= self.bits_in & !7;
+                self.bits_in &= 7;
+            }
+        }
+
+        struct HuffmanOxide {
+            count: [[u16; MAX_HUFF_SYMBOLS]; MAX_HUFF_TABLES],
+            codes: [[u16; MAX_HUFF_SYMBOLS]; MAX_HUFF_TABLES],
+            code_sizes: [[u8; MAX_HUFF_SYMBOLS]; MAX_HUFF_TABLES],
+        }
+
+        struct Rle {
+            z_count: u32,
+            repeat_count: u32,
+            prev_code_size: u8,
+        }
+
+        impl Rle {
+            fn prev_code_size(&mut self, packed_code_sizes: &mut [u8], packed_pos: &mut usize, h: &mut HuffmanOxide) -> Result<()> {
+                let mut write = |buf| write(buf, packed_code_sizes, packed_pos);
+                let counts = &mut h.count[HUFF_CODES_TABLE];
+                if self.repeat_count != 0 {
+                    if self.repeat_count < 3 {
+                        counts[self.prev_code_size as usize] = counts[self.prev_code_size as usize].wrapping_add(self.repeat_count as u16);
+                        let code = self.prev_code_size;
+                        write(&[code, code, code][..self.repeat_count as usize])?;
+                    } else {
+                        counts[16] = counts[16].wrapping_add(1);
+                        write(&[16, (self.repeat_count - 3) as u8][..])?;
+                    }
+                    self.repeat_count = 0;
+                }
+                Ok(())
+            }
+
+            fn zero_code_size(&mut self, packed_code_sizes: &mut [u8], packed_pos: &mut usize, h: &mut HuffmanOxide) -> Result<()> {
+                let mut write = |buf| write(buf, packed_code_sizes, packed_pos);
+                let counts = &mut h.count[HUFF_CODES_TABLE];
+                if self.z_count != 0 {
+                    if self.z_count < 3 {
+                        counts[0] = counts[0].wrapping_add(self.z_count as u16);
+                        write(&[0, 0, 0][..self.z_count as usize])?;
+                    } else if self.z_count <= 10 {
+                        counts[17] = counts[17].wrapping_add(1);
+                        write(&[17, (self.z_count - 3) as u8][..])?;
+                    } else {
+                        counts[18] = counts[18].wrapping_add(1);
+                        write(&[18, (self.z_count - 11) as u8][..])?;
+                    }
+                    self.z_count = 0;
+                }
+                Ok(())
+            }
+        }
+
+        fn write(src: &[u8], dst: &mut [u8], dst_pos: &mut usize) -> Result<()> {
+            match dst.get_mut(*dst_pos..*dst_pos + src.len()) {
+                Some(s) => s.copy_from_slice(src),
+                None => return Err(()),
+            }
+            *dst_pos += src.len();
+            Ok(())
+        }
+
+        impl Default for HuffmanOxide {
+            fn default() -> Self {
+                HuffmanOxide { count: [[0; MAX_HUFF_SYMBOLS]; MAX_HUFF_TABLES], codes: [[0; MAX_HUFF_SYMBOLS]; MAX_HUFF_TABLES], code_sizes: [[0; MAX_HUFF_SYMBOLS]; MAX_HUFF_TABLES] }
+            }
+        }
+
+        impl HuffmanOxide {
+            fn radix_sort_symbols<'a>(symbols0: &'a mut [SymFreq], symbols1: &'a mut [SymFreq]) -> &'a mut [SymFreq] {
+                let mut hist = [[0; 256]; 2];
+                for freq in symbols0.iter() {
+                    hist[0][(freq.key & 0xFF) as usize] += 1;
+                    hist[1][((freq.key >> 8) & 0xFF) as usize] += 1;
+                }
+                let mut n_passes = 2;
+                if symbols0.len() == hist[1][0] {
+                    n_passes -= 1;
+                }
+                let mut current_symbols = symbols0;
+                let mut new_symbols = symbols1;
+                for (pass, hist_item) in hist.iter().enumerate().take(n_passes) {
+                    let mut offsets = [0; 256];
+                    let mut offset = 0;
+                    for i in 0..256 {
+                        offsets[i] = offset;
+                        offset += hist_item[i];
+                    }
+                    for sym in current_symbols.iter() {
+                        let j = ((sym.key >> (pass * 8)) & 0xFF) as usize;
+                        new_symbols[offsets[j]] = *sym;
+                        offsets[j] += 1;
+                    }
+                    std::mem::swap(&mut current_symbols, &mut new_symbols);
+                }
+                current_symbols
+            }
+
+            fn calculate_minimum_redundancy(symbols: &mut [SymFreq]) {
+                match symbols.len() {
+                    0 => (),
+                    1 => symbols[0].key = 1,
+                    n => {
+                        symbols[0].key += symbols[1].key;
+                        let mut root = 0;
+                        let mut leaf = 2;
+                        for next in 1..n - 1 {
+                            if (leaf >= n) || (symbols[root].key < symbols[leaf].key) {
+                                symbols[next].key = symbols[root].key;
+                                symbols[root].key = next as u16;
+                                root += 1;
+                            } else {
+                                symbols[next].key = symbols[leaf].key;
+                                leaf += 1;
+                            }
+                            if (leaf >= n) || (root < next && symbols[root].key < symbols[leaf].key) {
+                                symbols[next].key = symbols[next].key.wrapping_add(symbols[root].key);
+                                symbols[root].key = next as u16;
+                                root += 1;
+                            } else {
+                                symbols[next].key = symbols[next].key.wrapping_add(symbols[leaf].key);
+                                leaf += 1;
+                            }
+                        }
+                        symbols[n - 2].key = 0;
+                        for next in (0..n - 2).rev() {
+                            symbols[next].key = symbols[symbols[next].key as usize].key + 1;
+                        }
+                        let mut avbl = 1;
+                        let mut used = 0;
+                        let mut dpth = 0;
+                        let mut root = (n - 2) as i32;
+                        let mut next = (n - 1) as i32;
+                        while avbl > 0 {
+                            while (root >= 0) && (symbols[root as usize].key == dpth) {
+                                used += 1;
+                                root -= 1;
+                            }
+                            while avbl > used {
+                                symbols[next as usize].key = dpth;
+                                next -= 1;
+                                avbl -= 1;
+                            }
+                            avbl = 2 * used;
+                            dpth += 1;
+                            used = 0;
+                        }
+                    }
+                }
+            }
+
+            fn enforce_max_code_size(num_codes: &mut [i32], code_list_len: usize, max_code_size: usize) {
+                if code_list_len <= 1 {
+                    return;
+                }
+                num_codes[max_code_size] += num_codes[max_code_size + 1..].iter().sum::<i32>();
+                let total = num_codes[1..=max_code_size].iter().rev().enumerate().fold(0u32, |total, (i, &x)| total + ((x as u32) << i));
+                for _ in (1 << max_code_size)..total {
+                    num_codes[max_code_size] -= 1;
+                    for i in (1..max_code_size).rev() {
+                        if num_codes[i] != 0 {
+                            num_codes[i] -= 1;
+                            num_codes[i + 1] += 2;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            fn optimize_table(&mut self, table_num: usize, table_len: usize, code_size_limit: usize, static_table: bool) {
+                let mut num_codes = [0i32; MAX_SUPPORTED_HUFF_CODESIZE + 1];
+                let mut next_code = [0u32; MAX_SUPPORTED_HUFF_CODESIZE + 1];
+                if static_table {
+                    for &code_size in &self.code_sizes[table_num][..table_len] {
+                        num_codes[code_size as usize] += 1;
+                    }
+                } else {
+                    let mut symbols0 = [SymFreq { key: 0, sym_index: 0 }; MAX_HUFF_SYMBOLS];
+                    let mut symbols1 = [SymFreq { key: 0, sym_index: 0 }; MAX_HUFF_SYMBOLS];
+                    let mut num_used_symbols = 0;
+                    for i in 0..table_len {
+                        if self.count[table_num][i] != 0 {
+                            symbols0[num_used_symbols] = SymFreq { key: self.count[table_num][i], sym_index: i as u16 };
+                            num_used_symbols += 1;
+                        }
+                    }
+                    let symbols = Self::radix_sort_symbols(&mut symbols0[..num_used_symbols], &mut symbols1[..num_used_symbols]);
+                    Self::calculate_minimum_redundancy(symbols);
+                    for symbol in symbols.iter() {
+                        num_codes[symbol.key as usize] += 1;
+                    }
+                    Self::enforce_max_code_size(&mut num_codes, num_used_symbols, code_size_limit);
+                    memset(&mut self.code_sizes[table_num][..], 0);
+                    memset(&mut self.codes[table_num][..], 0);
+                    let mut last = num_used_symbols;
+                    for (i, &num_item) in num_codes.iter().enumerate().take(code_size_limit + 1).skip(1) {
+                        let first = last - num_item as usize;
+                        for symbol in &symbols[first..last] {
+                            self.code_sizes[table_num][symbol.sym_index as usize] = i as u8;
+                        }
+                        last = first;
+                    }
+                }
+                let mut j = 0;
+                next_code[1] = 0;
+                for i in 2..=code_size_limit {
+                    j = (j + num_codes[i - 1]) << 1;
+                    next_code[i] = j as u32;
+                }
+                for (&code_size, huff_code) in self.code_sizes[table_num].iter().take(table_len).zip(self.codes[table_num].iter_mut().take(table_len)) {
+                    if code_size == 0 {
+                        continue;
+                    }
+                    let mut code = next_code[code_size as usize];
+                    next_code[code_size as usize] += 1;
+                    let mut rev_code = 0;
+                    for _ in 0..code_size {
+                        rev_code = (rev_code << 1) | (code & 1);
+                        code >>= 1;
+                    }
+                    *huff_code = rev_code as u16;
+                }
+            }
+
+            fn start_static_block(&mut self, output: &mut OutputBufferOxide) {
+                memset(&mut self.code_sizes[LITLEN_TABLE][0..144], 8);
+                memset(&mut self.code_sizes[LITLEN_TABLE][144..256], 9);
+                memset(&mut self.code_sizes[LITLEN_TABLE][256..280], 7);
+                memset(&mut self.code_sizes[LITLEN_TABLE][280..288], 8);
+                memset(&mut self.code_sizes[DIST_TABLE][..32], 5);
+                self.optimize_table(LITLEN_TABLE, 288, 15, true);
+                self.optimize_table(DIST_TABLE, 32, 15, true);
+                output.put_bits(0b01, 2)
+            }
+
+            fn start_dynamic_block(&mut self, output: &mut OutputBufferOxide) -> Result<()> {
+                // There will always be one, and only one end of block code.
+                self.count[0][256] = 1;
+                self.optimize_table(0, MAX_HUFF_SYMBOLS_0, 15, false);
+                self.optimize_table(1, MAX_HUFF_SYMBOLS_1, 15, false);
+                let num_lit_codes = 286 - self.code_sizes[0][257..286].iter().rev().take_while(|&x| *x == 0).count();
+                let num_dist_codes = 30 - self.code_sizes[1][1..30].iter().rev().take_while(|&x| *x == 0).count();
+                let mut code_sizes_to_pack = [0u8; MAX_HUFF_SYMBOLS_0 + MAX_HUFF_SYMBOLS_1];
+                let mut packed_code_sizes = [0u8; MAX_HUFF_SYMBOLS_0 + MAX_HUFF_SYMBOLS_1];
+                let total_code_sizes_to_pack = num_lit_codes + num_dist_codes;
+                code_sizes_to_pack[..num_lit_codes].copy_from_slice(&self.code_sizes[0][..num_lit_codes]);
+                code_sizes_to_pack[num_lit_codes..total_code_sizes_to_pack].copy_from_slice(&self.code_sizes[1][..num_dist_codes]);
+                let mut rle = Rle { z_count: 0, repeat_count: 0, prev_code_size: 0xFF };
+                memset(&mut self.count[HUFF_CODES_TABLE][..MAX_HUFF_SYMBOLS_2], 0);
+                let mut packed_pos = 0;
+                for &code_size in &code_sizes_to_pack[..total_code_sizes_to_pack] {
+                    if code_size == 0 {
+                        rle.prev_code_size(&mut packed_code_sizes, &mut packed_pos, self)?;
+                        rle.z_count += 1;
+                        if rle.z_count == 138 {
+                            rle.zero_code_size(&mut packed_code_sizes, &mut packed_pos, self)?;
+                        }
+                    } else {
+                        rle.zero_code_size(&mut packed_code_sizes, &mut packed_pos, self)?;
+                        if code_size != rle.prev_code_size {
+                            rle.prev_code_size(&mut packed_code_sizes, &mut packed_pos, self)?;
+                            self.count[HUFF_CODES_TABLE][code_size as usize] = self.count[HUFF_CODES_TABLE][code_size as usize].wrapping_add(1);
+                            write(&[code_size], &mut packed_code_sizes, &mut packed_pos)?;
+                        } else {
+                            rle.repeat_count += 1;
+                            if rle.repeat_count == 6 {
+                                rle.prev_code_size(&mut packed_code_sizes, &mut packed_pos, self)?;
+                            }
+                        }
+                    }
+                    rle.prev_code_size = code_size;
+                }
+                if rle.repeat_count != 0 {
+                    rle.prev_code_size(&mut packed_code_sizes, &mut packed_pos, self)?;
+                } else {
+                    rle.zero_code_size(&mut packed_code_sizes, &mut packed_pos, self)?;
+                }
+                self.optimize_table(2, MAX_HUFF_SYMBOLS_2, 7, false);
+                output.put_bits(2, 2);
+                output.put_bits((num_lit_codes - 257) as u32, 5);
+                output.put_bits((num_dist_codes - 1) as u32, 5);
+                let mut num_bit_lengths = 18 - HUFFMAN_LENGTH_ORDER.iter().rev().take_while(|&swizzle| self.code_sizes[HUFF_CODES_TABLE][*swizzle as usize] == 0).count();
+                num_bit_lengths = cmp::max(4, num_bit_lengths + 1);
+                output.put_bits(num_bit_lengths as u32 - 4, 4);
+                for &swizzle in &HUFFMAN_LENGTH_ORDER[..num_bit_lengths] {
+                    output.put_bits(u32::from(self.code_sizes[HUFF_CODES_TABLE][swizzle as usize]), 3);
+                }
+                let mut packed_code_size_index = 0;
+                while packed_code_size_index < packed_pos {
+                    let code = packed_code_sizes[packed_code_size_index] as usize;
+                    packed_code_size_index += 1;
+                    assert!(code < MAX_HUFF_SYMBOLS_2);
+                    output.put_bits(u32::from(self.codes[HUFF_CODES_TABLE][code]), u32::from(self.code_sizes[HUFF_CODES_TABLE][code]));
+                    if code >= 16 {
+                        output.put_bits(u32::from(packed_code_sizes[packed_code_size_index]), [2, 3, 7][code - 16]);
+                        packed_code_size_index += 1;
+                    }
+                }
+                Ok(())
+            }
+        }
+
+        struct DictOxide {
+            /// The maximum number of checks in the hash chain, for the initial and the lazy match.
+            max_probes: [u32; 2],
+            dict: Vec<u8>,
+            next: Vec<u16>,
+            hash: Vec<u16>,
+            code_buf_dict_pos: usize,
+            lookahead_size: usize,
+            lookahead_pos: usize,
+            size: usize,
+        }
+
+        impl DictOxide {
+            fn new(flags: u32) -> Self {
+                DictOxide {
+                    max_probes: [1 + ((flags & 0xFFF) + 2) / 3, 1 + (((flags & 0xFFF) >> 2) + 2) / 3],
+                    dict: vec![0; LZ_DICT_FULL_SIZE],
+                    next: vec![0; LZ_DICT_SIZE],
+                    hash: vec![0; LZ_DICT_SIZE],
+                    code_buf_dict_pos: 0,
+                    lookahead_size: 0,
+                    lookahead_pos: 0,
+                    size: 0,
+                }
+            }
+
+            fn read_unaligned_u64(&self, pos: usize) -> u64 {
+                let pos = pos & LZ_DICT_SIZE_MASK;
+                let bytes: [u8; 8] = self.dict[pos..pos + 8].try_into().unwrap();
+                u64::from_le_bytes(bytes)
+            }
+
+            fn read_as_u16(&self, pos: usize) -> u16 {
+                read_u16_le(&self.dict[..], pos)
+            }
+
+            /// A match for the data at `lookahead_pos` longer than `match_len`, as (distance,
+            /// length); the inputs back if there is none.
+            fn find_match(&self, lookahead_pos: usize, max_dist: usize, max_match_len: u32, mut match_dist: u32, mut match_len: u32) -> (u32, u32) {
+                let max_match_len = cmp::min(MAX_MATCH_LEN as u32, max_match_len);
+                match_len = cmp::max(match_len, 1);
+                let pos = lookahead_pos & LZ_DICT_SIZE_MASK;
+                let mut probe_pos = pos;
+                let mut num_probes_left = self.max_probes[(match_len >= 32) as usize];
+                if max_match_len <= match_len {
+                    return (match_dist, match_len);
+                }
+                let mut c01: u16 = self.read_as_u16(pos + match_len as usize - 1);
+                let s01: u16 = self.read_as_u16(pos);
+                'outer: loop {
+                    let mut dist;
+                    'found: loop {
+                        num_probes_left -= 1;
+                        if num_probes_left == 0 {
+                            return (match_dist, match_len);
+                        }
+                        for _ in 0..3 {
+                            let next_probe_pos = self.next[probe_pos] as usize;
+                            dist = (lookahead_pos - next_probe_pos) & 0xFFFF;
+                            if next_probe_pos == 0 || dist > max_dist {
+                                return (match_dist, match_len);
+                            }
+                            probe_pos = next_probe_pos & LZ_DICT_SIZE_MASK;
+                            if self.read_as_u16(probe_pos + match_len as usize - 1) == c01 {
+                                break 'found;
+                            }
+                        }
+                    }
+                    if dist == 0 {
+                        return (match_dist, match_len);
+                    }
+                    if self.read_as_u16(probe_pos) != s01 {
+                        continue;
+                    }
+                    let mut p = pos + 2;
+                    let mut q = probe_pos + 2;
+                    for _ in 0..32 {
+                        let p_data: u64 = self.read_unaligned_u64(p);
+                        let q_data: u64 = self.read_unaligned_u64(q);
+                        let xor_data = p_data ^ q_data;
+                        if xor_data == 0 {
+                            p += 8;
+                            q += 8;
+                        } else {
+                            let trailing = xor_data.trailing_zeros();
+                            let probe_len = p - pos + (trailing as usize >> 3);
+                            if probe_len > match_len as usize {
+                                match_dist = dist as u32;
+                                match_len = cmp::min(max_match_len, probe_len as u32);
+                                if match_len == max_match_len {
+                                    return (match_dist, match_len);
+                                }
+                                c01 = self.read_as_u16(pos + match_len as usize - 1)
+                            }
+                            continue 'outer;
+                        }
+                    }
+                    return (dist as u32, cmp::min(max_match_len, MAX_MATCH_LEN as u32));
+                }
+            }
+        }
+
+        struct LZOxide {
+            codes: Vec<u8>,
+            code_position: usize,
+            flag_position: usize,
+            total_bytes: u32,
+            num_flags_left: u32,
+        }
+
+        impl LZOxide {
+            fn new() -> Self {
+                LZOxide { codes: vec![0; LZ_CODE_BUF_SIZE], code_position: 1, flag_position: 0, total_bytes: 0, num_flags_left: 8 }
+            }
+
+            fn write_code(&mut self, val: u8) {
+                self.codes[usize::from(self.code_position as u16)] = val;
+                self.code_position += 1;
+            }
+
+            fn init_flag(&mut self) {
+                if self.num_flags_left == 8 {
+                    *self.get_flag() = 0;
+                    self.code_position -= 1;
+                } else {
+                    *self.get_flag() >>= self.num_flags_left;
+                }
+            }
+
+            fn get_flag(&mut self) -> &mut u8 {
+                &mut self.codes[usize::from(self.flag_position as u16)]
+            }
+
+            fn plant_flag(&mut self) {
+                self.flag_position = self.code_position;
+                self.code_position += 1;
+            }
+
+            fn consume_flag(&mut self) {
+                self.num_flags_left -= 1;
+                if self.num_flags_left == 0 {
+                    self.num_flags_left = 8;
+                    self.plant_flag();
+                }
+            }
+        }
+
+        struct CompressorOxide {
+            lz: LZOxide,
+            huff: Box<HuffmanOxide>,
+            dict: DictOxide,
+            output: OutputBufferOxide,
+        }
+
+        fn compress_lz_codes(huff: &HuffmanOxide, output: &mut OutputBufferOxide, lz_code_buf: &[u8]) -> Result<bool> {
+            let mut flags = 1;
+            let mut bb = BitBuffer { bit_buffer: u64::from(output.bit_buffer), bits_in: output.bits_in };
+            let mut i: usize = 0;
+            while i < lz_code_buf.len() {
+                if flags == 1 {
+                    flags = u32::from(lz_code_buf[i]) | 0x100;
+                    i += 1;
+                }
+                if flags & 1 == 1 {
+                    // a length code
+                    flags >>= 1;
+                    let sym;
+                    let num_extra_bits;
+                    let match_len = lz_code_buf[i] as usize;
+                    let match_dist = read_u16_le(lz_code_buf, i + 1);
+                    i += 3;
+                    bb.put_fast(u64::from(huff.codes[0][LEN_SYM[match_len] as usize]), u32::from(huff.code_sizes[0][LEN_SYM[match_len] as usize]));
+                    bb.put_fast(match_len as u64 & u64::from(BITMASKS[LEN_EXTRA[match_len] as usize]), u32::from(LEN_EXTRA[match_len]));
+                    if match_dist < 512 {
+                        sym = SMALL_DIST_SYM[match_dist as usize] as usize;
+                        num_extra_bits = SMALL_DIST_EXTRA[match_dist as usize] as usize;
+                    } else {
+                        sym = LARGE_DIST_SYM[(match_dist >> 8) as usize] as usize;
+                        num_extra_bits = LARGE_DIST_EXTRA[(match_dist >> 8) as usize] as usize;
+                    }
+                    bb.put_fast(u64::from(huff.codes[1][sym]), u32::from(huff.code_sizes[1][sym]));
+                    bb.put_fast(u64::from(match_dist) & u64::from(BITMASKS[num_extra_bits]), num_extra_bits as u32);
+                } else {
+                    // literals
+                    for _ in 0..3 {
+                        flags >>= 1;
+                        let lit = lz_code_buf[i];
+                        i += 1;
+                        bb.put_fast(u64::from(huff.codes[0][lit as usize]), u32::from(huff.code_sizes[0][lit as usize]));
+                        if flags & 1 == 1 || i >= lz_code_buf.len() {
+                            break;
+                        }
+                    }
+                }
+                bb.flush(output);
+            }
+            output.bits_in = 0;
+            output.bit_buffer = 0;
+            while bb.bits_in != 0 {
+                let n = cmp::min(bb.bits_in, 16);
+                output.put_bits(bb.bit_buffer as u32 & BITMASKS[n as usize], n);
+                bb.bit_buffer >>= n;
+                bb.bits_in -= n;
+            }
+            // the end of block symbol
+            output.put_bits(u32::from(huff.codes[0][256]), u32::from(huff.code_sizes[0][256]));
+            Ok(true)
+        }
+
+        fn compress_block(huff: &mut HuffmanOxide, output: &mut OutputBufferOxide, lz: &LZOxide, static_block: bool) -> Result<bool> {
+            if static_block {
+                huff.start_static_block(output);
+            } else {
+                huff.start_dynamic_block(output)?;
+            }
+            compress_lz_codes(huff, output, &lz.codes[..lz.code_position])
+        }
+
+        fn flush_block(d: &mut CompressorOxide, finish: bool) -> Result<()> {
+            let output = &mut d.output;
+            d.lz.init_flag();
+            // the block header
+            output.put_bits(finish as u32, 1);
+            let saved_buffer = output.save();
+            let use_static = d.lz.total_bytes < 48;
+            let comp_success = compress_block(&mut d.huff, output, &d.lz, use_static)?;
+            // A stored block where the compressed one would take as much space as the data.
+            let expanded = (d.lz.total_bytes > 32) && (output.inner.len() - saved_buffer.pos + 1 >= (d.lz.total_bytes as usize)) && (d.dict.lookahead_pos - d.dict.code_buf_dict_pos <= d.dict.size);
+            if expanded {
+                output.load(saved_buffer);
+                output.put_bits(0, 2);
+                output.pad_to_bytes();
+                output.put_bits(d.lz.total_bytes & 0xFFFF, 16);
+                output.put_bits(!d.lz.total_bytes & 0xFFFF, 16);
+                for i in 0..d.lz.total_bytes {
+                    let pos = (d.dict.code_buf_dict_pos + i as usize) & LZ_DICT_SIZE_MASK;
+                    output.put_bits(u32::from(d.dict.dict[pos]), 8);
+                }
+            } else if !comp_success {
+                output.load(saved_buffer);
+                compress_block(&mut d.huff, output, &d.lz, true)?;
+            }
+            if finish {
+                output.pad_to_bytes();
+            }
+            memset(&mut d.huff.count[0][..MAX_HUFF_SYMBOLS_0], 0);
+            memset(&mut d.huff.count[1][..MAX_HUFF_SYMBOLS_1], 0);
+            d.lz.code_position = 1;
+            d.lz.flag_position = 0;
+            d.lz.num_flags_left = 8;
+            d.dict.code_buf_dict_pos += d.lz.total_bytes as usize;
+            d.lz.total_bytes = 0;
+            Ok(())
+        }
+
+        fn record_literal(h: &mut HuffmanOxide, lz: &mut LZOxide, lit: u8) {
+            lz.total_bytes += 1;
+            lz.write_code(lit);
+            *lz.get_flag() >>= 1;
+            lz.consume_flag();
+            h.count[0][lit as usize] += 1;
+        }
+
+        fn record_match(h: &mut HuffmanOxide, lz: &mut LZOxide, mut match_len: u32, mut match_dist: u32) {
+            lz.total_bytes += match_len;
+            match_dist -= 1;
+            match_len -= u32::from(MIN_MATCH_LEN);
+            lz.write_code(match_len as u8);
+            lz.write_code(match_dist as u8);
+            lz.write_code((match_dist >> 8) as u8);
+            *lz.get_flag() >>= 1;
+            *lz.get_flag() |= 0x80;
+            lz.consume_flag();
+            let symbol = if match_dist < 512 { SMALL_DIST_SYM[match_dist as usize] } else { LARGE_DIST_SYM[((match_dist >> 8) & 127) as usize] } as usize;
+            h.count[1][symbol] += 1;
+            h.count[0][LEN_SYM[usize::from(match_len as u8)] as usize] += 1;
+        }
+
+        /// `compress_normal` with the whole input and `TDEFLFlush::Finish`: miniz_oxide's lazy
+        /// parse, flushing a block when its code buffer fills.
+        fn compress_normal(d: &mut CompressorOxide, in_buf: &[u8]) -> Result<()> {
+            let mut src_pos = 0;
+            let mut lookahead_size = d.dict.lookahead_size;
+            let mut lookahead_pos = d.dict.lookahead_pos;
+            let mut saved_lit = 0u8;
+            let mut saved_match_dist = 0u32;
+            let mut saved_match_len = 0u32;
+            while src_pos < in_buf.len() || lookahead_size != 0 {
+                let src_buf_left = in_buf.len() - src_pos;
+                let num_bytes_to_process = cmp::min(src_buf_left, MAX_MATCH_LEN - lookahead_size);
+                if lookahead_size + d.dict.size >= usize::from(MIN_MATCH_LEN) - 1 && num_bytes_to_process > 0 {
+                    let dictb = &mut d.dict;
+                    let mut dst_pos = (lookahead_pos + lookahead_size) & LZ_DICT_SIZE_MASK;
+                    let mut ins_pos = lookahead_pos + lookahead_size - 2;
+                    // the hash starts from the first two bytes
+                    let mut hash = update_hash(u16::from(dictb.dict[ins_pos & LZ_DICT_SIZE_MASK]), dictb.dict[(ins_pos + 1) & LZ_DICT_SIZE_MASK]);
+                    lookahead_size += num_bytes_to_process;
+                    for &c in &in_buf[src_pos..src_pos + num_bytes_to_process] {
+                        dictb.dict[dst_pos] = c;
+                        if dst_pos < MAX_MATCH_LEN - 1 {
+                            dictb.dict[LZ_DICT_SIZE + dst_pos] = c;
+                        }
+                        hash = update_hash(hash, c);
+                        dictb.next[ins_pos & LZ_DICT_SIZE_MASK] = dictb.hash[hash as usize];
+                        dictb.hash[hash as usize] = ins_pos as u16;
+                        dst_pos = (dst_pos + 1) & LZ_DICT_SIZE_MASK;
+                        ins_pos += 1;
+                    }
+                    src_pos += num_bytes_to_process;
+                } else {
+                    let dictb = &mut d.dict;
+                    for &c in &in_buf[src_pos..src_pos + num_bytes_to_process] {
+                        let dst_pos = (lookahead_pos + lookahead_size) & LZ_DICT_SIZE_MASK;
+                        dictb.dict[dst_pos] = c;
+                        if dst_pos < MAX_MATCH_LEN - 1 {
+                            dictb.dict[LZ_DICT_SIZE + dst_pos] = c;
+                        }
+                        lookahead_size += 1;
+                        if lookahead_size + dictb.size >= usize::from(MIN_MATCH_LEN) {
+                            let ins_pos = lookahead_pos + lookahead_size - 3;
+                            let hash = ((u32::from(dictb.dict[ins_pos & LZ_DICT_SIZE_MASK]) << (LZ_HASH_SHIFT * 2)) ^ ((u32::from(dictb.dict[(ins_pos + 1) & LZ_DICT_SIZE_MASK]) << LZ_HASH_SHIFT) ^ u32::from(c))) & (LZ_HASH_SIZE as u32 - 1);
+                            dictb.next[ins_pos & LZ_DICT_SIZE_MASK] = dictb.hash[hash as usize];
+                            dictb.hash[hash as usize] = ins_pos as u16;
+                        }
+                    }
+                    src_pos += num_bytes_to_process;
+                }
+                d.dict.size = cmp::min(LZ_DICT_SIZE - lookahead_size, d.dict.size);
+                let mut len_to_move = 1;
+                let mut cur_match_len = if saved_match_len != 0 { saved_match_len } else { u32::from(MIN_MATCH_LEN) - 1 };
+                let cur_pos = lookahead_pos & LZ_DICT_SIZE_MASK;
+                // a match for the bytes at the current position
+                let (mut cur_match_dist, found_len) = d.dict.find_match(lookahead_pos, d.dict.size, lookahead_size as u32, 0, cur_match_len);
+                cur_match_len = found_len;
+                let far_and_small = cur_match_len == u32::from(MIN_MATCH_LEN) && cur_match_dist >= 8 * 1024;
+                if far_and_small || cur_pos == cur_match_dist as usize {
+                    cur_match_dist = 0;
+                    cur_match_len = 0;
+                }
+                if saved_match_len != 0 {
+                    if cur_match_len > saved_match_len {
+                        record_literal(&mut d.huff, &mut d.lz, saved_lit);
+                        if cur_match_len >= 128 {
+                            record_match(&mut d.huff, &mut d.lz, cur_match_len, cur_match_dist);
+                            saved_match_len = 0;
+                            len_to_move = cur_match_len as usize;
+                        } else {
+                            saved_lit = d.dict.dict[cur_pos];
+                            saved_match_dist = cur_match_dist;
+                            saved_match_len = cur_match_len;
+                        }
+                    } else {
+                        record_match(&mut d.huff, &mut d.lz, saved_match_len, saved_match_dist);
+                        len_to_move = (saved_match_len - 1) as usize;
+                        saved_match_len = 0;
+                    }
+                } else if cur_match_dist == 0 {
+                    record_literal(&mut d.huff, &mut d.lz, d.dict.dict[cmp::min(cur_pos, d.dict.dict.len() - 1)]);
+                } else if cur_match_len >= 128 {
+                    record_match(&mut d.huff, &mut d.lz, cur_match_len, cur_match_dist);
+                    len_to_move = cur_match_len as usize;
+                } else {
+                    // lazy matching: look for a better match at the next byte
+                    saved_lit = d.dict.dict[cmp::min(cur_pos, d.dict.dict.len() - 1)];
+                    saved_match_dist = cur_match_dist;
+                    saved_match_len = cur_match_len;
+                }
+                lookahead_pos += len_to_move;
+                assert!(lookahead_size >= len_to_move);
+                lookahead_size -= len_to_move;
+                d.dict.size = cmp::min(d.dict.size + len_to_move, LZ_DICT_SIZE);
+                let lz_buf_tight = d.lz.code_position > LZ_CODE_BUF_SIZE - 8;
+                let fat = ((d.lz.code_position * 115) >> 7) >= d.lz.total_bytes as usize;
+                let fat_or_raw = (d.lz.total_bytes > 31 * 1024) && fat;
+                if lz_buf_tight || fat_or_raw {
+                    // flush_block reads these
+                    d.dict.lookahead_size = lookahead_size;
+                    d.dict.lookahead_pos = lookahead_pos;
+                    flush_block(d, false)?;
+                }
+            }
+            d.dict.lookahead_size = lookahead_size;
+            d.dict.lookahead_pos = lookahead_pos;
+            Ok(())
+        }
+
+        /// `data` as a raw deflate stream, the bytes miniz_oxide 0.8.0 writes at level 6.
+        pub fn deflate(data: &[u8]) -> Vec<u8> {
+            let mut d = CompressorOxide {
+                lz: LZOxide::new(),
+                huff: Box::default(),
+                dict: DictOxide::new(LEVEL6_PROBES),
+                output: OutputBufferOxide { inner: Vec::with_capacity(data.len() / 2 + 64), bit_buffer: 0, bits_in: 0 },
+            };
+            compress_normal(&mut d, data).expect("deflate code lengths fit their buffer");
+            flush_block(&mut d, true).expect("deflate code lengths fit their buffer");
+            d.output.inner
+        }
+    }
+
     fn crc32(data: &[u8]) -> u32 {
         let mut crc = !0u32;
         for &b in data {
@@ -580,19 +1477,9 @@ pub mod gzip {
     }
 
     pub fn compress(data: &[u8]) -> Vec<u8> {
-        // flate2's header: no name, no mtime, OS byte 255
+        // flate2's header: no name, no mtime, no extra flags at level 6, OS byte 255
         let mut out = vec![0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 255];
-        let mut chunks = data.chunks(65535).peekable();
-        if chunks.peek().is_none() {
-            out.extend_from_slice(&[1, 0, 0, 0xff, 0xff]);
-        }
-        while let Some(chunk) = chunks.next() {
-            out.push(if chunks.peek().is_none() { 1 } else { 0 });
-            let n = chunk.len() as u16;
-            out.extend_from_slice(&n.to_le_bytes());
-            out.extend_from_slice(&(!n).to_le_bytes());
-            out.extend_from_slice(chunk);
-        }
+        out.extend_from_slice(&deflate::deflate(data));
         out.extend_from_slice(&crc32(data).to_le_bytes());
         out.extend_from_slice(&(data.len() as u32).to_le_bytes());
         out
@@ -810,6 +1697,16 @@ pub mod gzip {
                 let data: Vec<u8> = (0..n).map(|k| (k * 7 % 251) as u8).collect();
                 assert_eq!(decompress(&compress(&data)).unwrap(), data);
             }
+        }
+
+        #[test]
+        fn gzip_writes_mwpfs_bytes() {
+            // MWPF 0.2.12's HTMLExport.compress_content("hello world " * 10), base64-decoded
+            let hex = "1f8b08000000000000ffbdc6b10900000803c155329c428a87808debbb85ddb921da0c253ffa002cbc940178000000";
+            let expected: Vec<u8> = (0..hex.len()).step_by(2).map(|k| u8::from_str_radix(&hex[k..k + 2], 16).unwrap()).collect();
+            assert_eq!(compress("hello world ".repeat(10).as_bytes()), expected);
+            // an empty stream is one static block holding only its end
+            assert_eq!(compress(b""), [0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 0xff, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         }
 
         #[test]

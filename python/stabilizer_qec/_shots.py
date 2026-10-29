@@ -162,12 +162,20 @@ def write_shot_data_file(
     *, data: np.ndarray, path: Union[str, PathLike], format: str, num_measurements: int = 0, num_detectors: int = 0, num_observables: int = 0
 ) -> None:
     """Write shots to a file in one of Stim's result formats, as ``stim.write_shot_data_file``.
-    ``data`` is (shots, n) bool, or bit-packed uint8 rows (n = measurements + detectors +
-    observables)."""
+    ``data`` is a 2-D numpy array: (shots, n) bool, or (shots, ⌈n/8⌉) bit-packed uint8 rows
+    (n = measurements + detectors + observables). Anything else raises ValueError with Stim's
+    message, as Stim does: a uint8 array is always read as packed bits, so 0/1 uint8 rows, or
+    packed rows of the wrong width, are refused rather than written as other shots."""
     n = _width(num_measurements, num_detectors, num_observables)
-    a = np.asarray(data)
-    if a.dtype == np.uint8 and a.ndim == 2:
+    a = data
+    if not isinstance(a, np.ndarray) or a.ndim != 2 or a.dtype not in (np.bool_, np.uint8):
+        raise ValueError("data must be a 2-dimensional numpy array with dtype=np.uint8 or dtype=np.bool_")
+    if a.dtype == np.uint8:
+        if a.shape[1] != (n + 7) // 8:
+            raise ValueError(f"Expected {n} bits per shot. Got bit packed data (dtype=np.uint8) but data.shape[1]={a.shape[1]} != math.ceil({n} / 8)={(n + 7) // 8}")
         a = np.unpackbits(a, axis=1, bitorder="little", count=n).astype(bool)
+    elif a.shape[1] != n:
+        raise ValueError(f"Expected {n} bits per shot. Got unpacked boolean data (dtype=np.bool_) but data.shape[1]={a.shape[1]}")
     with open_file(path, "wb") as f:
         f.write(encode_shots(a, format, num_measurements, num_detectors, num_observables))
 

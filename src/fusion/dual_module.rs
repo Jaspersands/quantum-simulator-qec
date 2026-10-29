@@ -339,7 +339,11 @@ impl PartialOrd for DualNodePtr {
 
 impl std::fmt::Debug for DualNodePtr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        self.update(); // to make sure index is up-to-date
+        // to make sure index is up-to-date, unless this thread may hold the node's lock (see
+        // PrimalNodeInternalPtr's Debug)
+        if self.try_write().is_some() {
+            self.update();
+        }
         let dual_node = self.read_recursive(); // reading index is consistent
         write!(f, "{}", dual_node.index)
     }

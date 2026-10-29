@@ -118,6 +118,50 @@ def test_predictions_are_sinters(tmp_path):
     assert np.array_equal(np.packbits(c_, axis=1, bitorder="little"), a)
 
 
+def outcome(f):
+    try:
+        return f()
+    except ValueError as e:
+        return "ValueError: " + str(e)
+
+
+@pytest.mark.parametrize("decoder", ["pymatching", "fusion_blossom", "vacuous"])
+def test_malformed_detection_data_raises_as_sinter_does(decoder):
+    # A uint8 array is bit-packed by contract: 0/1 uint8 detection events, or packed rows of the
+    # wrong width, are refused by Stim's writer under sinter, never decoded as other shots.
+    if decoder == "fusion_blossom":
+        pytest.importorskip("fusion_blossom")
+    c = stim.Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=3, after_clifford_depolarization=0.02)
+    dem = c.detector_error_model(decompose_errors=True)
+    dets = c.compile_detector_sampler(seed=7).sample(50)
+    packed = np.packbits(dets, axis=1, bitorder="little")
+    for name, call in [
+        ("uint8 0/1", lambda m, d: m.predict_observables(dem=d, dets=dets.astype(np.uint8), decoder=decoder)),
+        ("int64 0/1", lambda m, d: m.predict_observables(dem=d, dets=dets.astype(np.int64), decoder=decoder)),
+        ("packed, 2 bytes short", lambda m, d: m.predict_observables_bit_packed(dem=d, dets_bit_packed=packed[:, :2], decoder=decoder)),
+        ("packed, a byte long", lambda m, d: m.predict_observables_bit_packed(dem=d, dets_bit_packed=np.hstack([packed, packed[:, :1]]), decoder=decoder)),
+    ]:
+        a = outcome(lambda: call(ours, sq.DetectorErrorModel(str(dem))))
+        b = outcome(lambda: call(theirs, dem))
+        assert isinstance(b, str), (name, b)
+        assert a == b if isinstance(a, str) else False, (name, "no error; predictions of shape", np.shape(a))
+
+
+def test_shot_writer_refuses_what_stims_refuses(tmp_path):
+    cases = [
+        (np.ones((2, 6), np.uint8), 6), (np.ones((2, 2), np.uint8), 6), (np.ones((2, 1), np.uint8), 6), (np.full((2, 1), 0xFF, np.uint8), 6),
+        (np.ones((2, 0), np.uint8), 0), (np.ones((2, 2), np.uint8), 9), (np.ones((2, 5), bool), 6), (np.ones((2, 6), bool), 6),
+        (np.ones((2, 6), np.int64), 6), (np.ones((2, 1), np.int8), 6), (np.ones((2, 6), float), 6), (np.ones(6, np.uint8), 6),
+        (np.ones(6, bool), 6), (np.ones((1, 2, 6), bool), 6), ([[True] * 6], 6),
+    ]
+    for data, n in cases:
+        a = outcome(lambda: sq.write_shot_data_file(data=data, path=tmp_path / "a", format="b8", num_detectors=n))
+        b = outcome(lambda: stim.write_shot_data_file(data=data, path=str(tmp_path / "b"), format="b8", num_detectors=n))
+        assert a == b, (data, n)
+        if a is None:
+            assert (tmp_path / "a").read_bytes() == (tmp_path / "b").read_bytes()
+
+
 def test_collect_agrees_with_sinter_statistically():
     c = stim.Circuit.generated("repetition_code:memory", distance=5, rounds=5, after_clifford_depolarization=0.06)
     a = ours.collect(tasks=[ours.Task(circuit=sq.Circuit(str(c)), json_metadata={})], decoders=["pymatching", "matching", "union_find"], num_workers=2, max_shots=10_000, max_errors=10**9)

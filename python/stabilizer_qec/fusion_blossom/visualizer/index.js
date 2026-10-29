@@ -161,6 +161,14 @@ const App = {
             }
             const patch_url = urlParams.get('patch_url')
             if (patch_url != null) {
+                // stabilizer_qec: only a patch from this page's own server (local_render_visualizer's ./ path) is
+                // imported. fusion_blossom 0.2.13 imports any URL, and a module run here can read whatever the data
+                // server serves, so any web page could open this page with its own module and read the data folder.
+                const patch_location = new URL(patch_url, window.location.href)
+                if (patch_location.protocol != window.location.protocol || patch_location.host != window.location.host) {
+                    this.error_message = `refused patch from another origin: ${patch_url}`
+                    throw "patch file error"
+                }
                 this.warning_message = `patching from external file: ${patch_url}`
                 let patch_module = await import(patch_url)
                 if (patch_module.patch == null) {
