@@ -567,3 +567,59 @@ def test_samplers_refuse_as_tsim_does(real):
         for name, make in theirs.items():
             with pytest.raises(IndexError):
                 make(real.Circuit(text))
+
+
+# Parametric tags Tsim refuses (when it builds the graph): this package refuses them when it reads
+# the text, with Tsim's message after the line.
+MALFORMED_TAGS = {
+    "I[R_Z(theta=0.3*pi, phi=0.1*pi)] 0": "Parametric tag 'R_Z(theta=0.3*pi, phi=0.1*pi)' has parameters ['phi', 'theta'], expected ['theta']",
+    "I[R_Z(theta=0.3*pi*pi)] 0": "Malformed parametric tag 'R_Z(theta=0.3*pi*pi)'",
+    "I[U3(theta=0.1*pi, phi=0.2*pi, lambda=0.3*pi, mu=0.1*pi)] 0": "Parametric tag 'U3(theta=0.1*pi, phi=0.2*pi, lambda=0.3*pi, mu=0.1*pi)' has parameters ['lambda', 'mu', 'phi', 'theta'], expected ['lambda', 'phi', 'theta']",
+    "I[R_Z(phi=0.3*pi)] 0": "Parametric tag 'R_Z(phi=0.3*pi)' has parameters ['phi'], expected ['theta']",
+    "I[U3(theta=0.1*pi)] 0": "Parametric tag 'U3(theta=0.1*pi)' has parameters ['theta'], expected ['lambda', 'phi', 'theta']",
+    "SPP[R_PAULI(alpha=0.3*pi)] X0": "Parametric tag 'R_PAULI(alpha=0.3*pi)' has parameters ['alpha'], expected ['theta']",
+    "I[R_Z(theta=1/3*pi)] 0": "Malformed parametric tag 'R_Z(theta=1/3*pi)'",
+    "I[R_Z(theta=abc*pi)] 0": "Malformed parametric tag 'R_Z(theta=abc*pi)'",
+    "H 0\nI[R_Z(theta = 0.3*pi)] 0": "Malformed parametric tag 'R_Z(theta = 0.3*pi)'",
+}
+
+
+@pytest.mark.parametrize("text", sorted(MALFORMED_TAGS))
+def test_malformed_parametric_tags_raise_tsims_error_naming_the_line(text):
+    line = text.count("\n") + 1
+    instruction = text.split("\n")[-1]
+    with pytest.raises(ValueError, match=f"^line {line}: Could not parse instruction {re.escape(repr(instruction))}\\. {re.escape(MALFORMED_TAGS[text])}$"):
+        tsim.Circuit(text)
+
+
+def test_malformed_parametric_tags_are_tsims_errors(real):
+    for text, message in MALFORMED_TAGS.items():
+        with pytest.raises(ValueError, match=f"{re.escape(message)}$"):
+            real.Circuit(text).tcount()
+
+
+# Tags Tsim does not read as a parametric gate (a space around the name, text after the
+# parentheses): the gate is the identity, as in Tsim.
+NOT_PARAMETRIC = ["I[R_Z (theta=0.5*pi)] 0", "I[ R_Z(theta=0.5*pi)] 0", "I[R_Z(theta=0.5*pi) ] 0", "I[R_Z(theta=0.5*pi)#x] 0", "I[ U3(theta=0.1*pi, phi=0.2*pi, lambda=0.3*pi)] 0"]
+
+
+@pytest.mark.parametrize("text", NOT_PARAMETRIC)
+def test_tags_tsim_does_not_read_are_the_identity(text):
+    c = tsim.Circuit(text)
+    assert c.tcount() == 0 and np.allclose(c.to_matrix(), np.eye(2))
+    sampled = tsim.Circuit(f"RX 0\n{text}\nMX 0").compile_sampler(seed=1).sample(200)
+    assert not sampled.any()
+    # A product rotation's tag likewise: Tsim's SPP, the Clifford.
+    spp = tsim.Circuit(text.replace(" 0", "").replace("I[", "SPP[").replace("R_Z", "R_PAULI").split("]")[0] + "] X0")
+    assert spp.tcount() == 0 and equal_up_to_phase(spp.to_matrix(), tsim.Circuit("SPP X0").to_matrix())
+    # A comment after the line is not part of the tag.
+    assert tsim.Circuit("I[R_Z(theta=0.3*pi)] 0 # x#y").tcount() == 1
+
+
+def test_tags_tsim_does_not_read_match_tsim(real):
+    for text in NOT_PARAMETRIC:
+        assert tsim.Circuit(text).tcount() == real.Circuit(text).tcount() == 0
+        assert equal_up_to_phase(tsim.Circuit(text).to_matrix(), np.asarray(real.Circuit(text).to_matrix()))
+        a = tsim.Circuit(f"RX 0\n{text}\nMX 0").compile_sampler(seed=1).sample(200)
+        b = np.asarray(real.Circuit(f"RX 0\n{text}\nMX 0").compile_sampler(seed=1).sample(200))
+        assert not a.any() and not b.any()

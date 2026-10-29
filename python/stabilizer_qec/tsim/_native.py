@@ -23,7 +23,15 @@ from stabilizer_qec.tsim.utils.program_text import _product_rotation, _stored_ra
 
 _LINE = re.compile(r"^(\s*)(S|S_DAG|SPP|SPP_DAG|I)\[([^\]\n]*)\]\s+(.*?)\s*$")
 _GATE = re.compile(r"^(\s*)([A-Za-z][A-Za-z0-9_]*)(?=[\s\[(]|$)")
-_ARG = re.compile(r"(\w+)\s*=\s*([^,()]+?)\s*\*\s*pi")
+# Tsim's grammar of a parametric tag (``tsim.core.parse.parse_parametric_tag``): the whole tag a name
+# and its parentheses, no space around either, each argument (spaces around it stripped) a key and a
+# decimal literal times pi, the keys exactly the gate's.
+_TSIM_TAG = re.compile(r"^(\w+)\((.*)\)$")
+_TSIM_PARAM = re.compile(r"^(\w+)=([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)\*pi$")
+_TSIM_PARAMS = {"R_X": {"theta"}, "R_Y": {"theta"}, "R_Z": {"theta"}, "R_PAULI": {"theta"}, "U3": {"theta", "phi", "lambda"}}
+# The tag names the core reads as a rotation however they are spaced: one Tsim reads as no gate (a
+# space around the name, text after the parentheses) is written as the plain identity.
+_CORE_ROTATIONS = {"R_X", "R_Y", "R_Z", "U3", "R_PAULI", "R_XX", "R_YY", "R_ZZ"}
 
 
 def canonical_gate(name: str) -> str:
@@ -36,9 +44,43 @@ def canonical_gate(name: str) -> str:
         return name
 
 
-def _literals(tag: str) -> dict:
-    """A tag's angles in half-turns, as floats (``theta=0.3*pi`` is 0.3)."""
-    return {k: float(v) for k, v in _ARG.findall(tag)}
+def _tsim_parameters(tag: str, instruction: str, number: int) -> Optional[tuple]:
+    """A tag Tsim reads as a parametric gate: ``(name, {key: half-turns})`` (``R_Z(theta=0.3*pi)`` is
+    ``("R_Z", {"theta": 0.3})``), ``None`` for one Tsim reads as no gate's (not of the form
+    ``name(...)``, or a name it does not know). A tag of that form with arguments Tsim refuses (a
+    literal that is not a decimal number times pi, a key missing or one too many) raises Tsim's
+    error, naming the line."""
+    m = _TSIM_TAG.match(tag)
+    if not m or m.group(1) not in _TSIM_PARAMS:
+        return None
+    where = f"line {number}: Could not parse instruction {instruction!r}"
+    params = {}
+    for param in m.group(2).split(","):
+        param = param.strip()
+        if not param:
+            continue
+        p = _TSIM_PARAM.match(param)
+        if not p:
+            raise ValueError(f"{where}. Malformed parametric tag {tag!r}")
+        params[p.group(1)] = float(p.group(2))
+    expected = _TSIM_PARAMS[m.group(1)]
+    if set(params) != expected:
+        raise ValueError(f"{where}. Parametric tag {tag!r} has parameters {sorted(params)}, expected {sorted(expected)}")
+    return m.group(1), params
+
+
+def _split_comment(line: str) -> tuple:
+    """``line.partition("#")`` at the first ``#`` outside a tag's brackets (Stim keeps one inside a
+    tag, ``I[R_Z(theta=0.3*pi)#x] 0``, as the tag's)."""
+    depth = 0
+    for i, ch in enumerate(line):
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth = max(depth - 1, 0)
+        elif ch == "#" and depth == 0:
+            return line[:i], "#", line[i + 1 :]
+    return line, "", ""
 
 
 def _is_t(tag: str) -> bool:
@@ -128,10 +170,14 @@ def stim_reading(text: str) -> str:
 
 def tsim_to_native(text: str) -> str:
     """Tsim's tagged Stim (``shorthand_to_stim``'s output) with its non-Clifford operations as
-    this package's; every other line as it is."""
+    this package's; every other line as it is. A tag is read with Tsim's grammar: one of the form
+    ``name(...)`` with arguments Tsim refuses (``I[R_Z(theta=0.3*pi*pi)] 0``, ``I[U3(theta=0.1*pi)] 0``)
+    raises Tsim's error as this package's ``ValueError`` naming the line, and a half-turn rotation
+    Tsim reads as no gate (``I[R_Z (theta=0.3*pi)] 0``, ``I[ R_Z(theta=0.3*pi)] 0``,
+    ``I[R_Z(theta=0.3*pi)#x] 0``) is the identity ``I 0`` (its tag, inert in Tsim, is not kept)."""
     lines = []
-    for line in text.splitlines():
-        body, sep, comment = line.partition("#")
+    for number, line in enumerate(text.splitlines(), 1):
+        body, sep, comment = _split_comment(line)
         gate_match = _GATE.match(body)
         if gate_match:
             name = canonical_gate(gate_match.group(2))
@@ -142,22 +188,26 @@ def tsim_to_native(text: str) -> str:
             lines.append(line)
             continue
         indent, gate, tag, targets = m.groups()
-        name = tag.split("(", 1)[0].strip()
+        instruction = body.strip()
+        parsed = _tsim_parameters(tag, instruction, number) if gate in ("I", "SPP", "SPP_DAG") and ("*pi" in tag or gate != "I") else None
+        name, turns = parsed if parsed is not None else (None, None)
         if gate in ("S", "S_DAG") and _is_t(tag):
             lines.append(f"{indent}I[{'T' if gate == 'S' else 'T_DAG'}] {targets}")
-        elif gate == "I" and name in ("R_X", "R_Y", "R_Z") and "*pi" in tag:
-            lines.append(f"{indent}I[{name}(theta={_stored_radians(_literals(tag)['theta'], 0.5)})] {targets}")
-        elif gate == "I" and name == "U3" and "*pi" in tag:
-            a = {k: _stored_radians(v, 1.0) for k, v in _literals(tag).items()}
+        elif gate == "I" and name in ("R_X", "R_Y", "R_Z"):
+            lines.append(f"{indent}I[{name}(theta={_stored_radians(turns['theta'], 0.5)})] {targets}")
+        elif gate == "I" and name == "U3":
+            a = {k: _stored_radians(v, 1.0) for k, v in turns.items()}
             lines.append(f"{indent}I[U3(theta={a['theta']}, phi={a['phi']}, lambda={a['lambda']})] {targets}")
+        elif gate == "I" and parsed is None and "*pi" in tag and tag.split("(", 1)[0].strip() in _CORE_ROTATIONS and not _TSIM_TAG.match(tag):
+            lines.append(f"{indent}I {targets}")
         elif gate in ("SPP", "SPP_DAG") and (_is_t(tag) or name == "R_PAULI") and _products(targets) is not None:
             dagger = -1.0 if gate == "SPP_DAG" else 1.0
-            turns = None if _is_t(tag) else _literals(tag)["theta"]
+            theta_turns = None if _is_t(tag) else turns["theta"]
             for sign, letters, qubits in _products(targets):
-                if turns is None:  # TPP: its dagger is its sign
+                if theta_turns is None:  # TPP: its dagger is its sign
                     arguments = f"theta={sign * dagger * math.pi / 8!r}, pauli={letters}"
                 else:
-                    theta = _stored_radians(sign * dagger * turns, 0.5, product=True)
+                    theta = _stored_radians(sign * dagger * theta_turns, 0.5, product=True)
                     arguments = f"pauli={letters}, theta={theta}" if gate == "SPP_DAG" else f"theta={theta}, pauli={letters}"
                 lines.append(f"{indent}I[R_PAULI({arguments})] {' '.join(qubits)}")
         else:
