@@ -36,6 +36,12 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "surgery"
 BATCH = 16_384
 TARGET = 1500
+# _core.sample_b8_batch draws each thread's batches from that thread's own stream, so its shots
+# depend on how many threads sample them; with every core (threads=0) a recording reproduced
+# only on a machine with as many cores. The recordings sample with this many threads on every
+# machine (the 10 cores of the M2 Pro that recorded 2.2.0's), so tests/test_recorded_data.py
+# reproduces their points anywhere. Decoding a shot does not depend on the thread count.
+SAMPLER_THREADS = 10
 
 
 def stamp():
@@ -117,7 +123,7 @@ def run_point(d, merged, p, correlated, shot_cap, time_cap):
     counts = dict(any=0, outcome=0, patches=0)
     shots, t0, batch = 0, time.perf_counter(), 0
     while True:
-        dets, obs, _ = sq.sample_b8_batch(text, BATCH, 1_000_003 * d + 10_007 * merged + batch + int(p * 1e5), 0)
+        dets, obs, _ = sq.sample_b8_batch(text, BATCH, 1_000_003 * d + 10_007 * merged + batch + int(p * 1e5), SAMPLER_THREADS)
         truth = np.frombuffer(obs, np.uint8).reshape(BATCH, -1)[:, 0].astype(np.uint64)
         raw, _, _, _ = sq.decode_b8_own(text, dets, BATCH, 0, correlated)
         pred = np.frombuffer(raw, "<u8")
@@ -170,7 +176,7 @@ def program_point(text, seed, correlated, shot_cap, time_cap, window=None):
     shots, t0, batch = 0, time.perf_counter(), 0
     mask = np.uint64((1 << nobs) - 1)
     while True:
-        dets, obs, _ = sq.sample_b8_batch(text, BATCH, seed + batch, 0)
+        dets, obs, _ = sq.sample_b8_batch(text, BATCH, seed + batch, SAMPLER_THREADS)
         rows = np.frombuffer(obs, np.uint8).reshape(BATCH, -1)
         truth = sum(((rows[:, i // 8] >> (i % 8)) & 1).astype(np.uint64) << np.uint64(i) for i in range(nobs))
         raw, _, _, _ = sq.decode_b8_own(text, dets, BATCH, 0, correlated)
