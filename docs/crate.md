@@ -29,13 +29,19 @@ assert!(failures < 1_000);
   of threads; [`MeasurementConverter`] turns raw records into detection events.
 - **Decoders** on an error model: [`Matching`] (exact, sparse blossom; plain or correlated, as
   fast as PyMatching), [`BeliefMatching`], [`BpOsd`], [`WindowMatching`]. On a check matrix:
-  [`BpDecoder`] and [`BpOsdDecoder`], equal to `ldpc`'s. All `Send + Sync`.
+  [`BpDecoder`] and [`BpOsdDecoder`], equal to `ldpc`'s. All `Send + Sync`. [`Matching`] runs
+  this crate's own sparse blossom, as the browser's decoders do; from 2.2 the Python package's
+  `Matching` runs PyMatching's, transliterated, so on the same shots the two can pick different
+  equal-weight matchings, and so different predictions (8 of 100,000 shots of a d = 7 SD6
+  memory at p = 0.6%).
 - **Beyond Clifford, and beyond the CPU** (2.0): [`Circuit::stabilizer_rank_sampler`] runs
   Clifford+T circuits (`I[T]`, tagged rotations) exactly, [`Circuit::coherent_sampler`] and the
   joint sampler reweight the Pauli twirl of coherent errors (`I_ERROR[R_Z(theta=…)]`) by the
   interference it leaves out, with the exact gates kept exact; the `gpu` feature runs the frame
   sampler and min-sum BP as wgpu compute shaders, bit for bit the CPU lane sampler's and the
-  f32 decoder's results; the `highs` feature adds the ILP circuit distance.
+  f32 decoder's results; the `highs` feature solves MWPF's linear programs with HiGHS 1.8.0, as
+  MWPF's own wheels do, in place of this crate's simplex (the circuit distance by integer
+  programming is the Python package's, through SciPy).
 - **Codes**: [`memory_circuit`] (rotated and XZZX surface codes), [`stream_memory`] and
   [`stream_circuit`] (a million rounds of a memory, or of any circuit with a loop,
   window-decoded as they stream), [`BivariateBicycleCode`] (the gross code, its
