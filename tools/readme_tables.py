@@ -11,7 +11,7 @@ the package's major.minor: a table can match its data while the data is a releas
 import html, json, math, pathlib, re, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-load = lambda path: json.loads((ROOT / path).read_text())
+load = lambda path: json.loads((ROOT / path).read_text(encoding="utf-8"))
 
 
 def sci(x):
@@ -311,7 +311,7 @@ def estimate_json():
         with tempfile.TemporaryDirectory() as tmp:
             out = pathlib.Path(tmp) / "estimate.json"
             subprocess.run(["node", "tools/estimate.mjs", "--json", str(out)], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
-            _ESTIMATE = _json.loads(out.read_text())
+            _ESTIMATE = _json.loads(out.read_text(encoding="utf-8"))
     return _ESTIMATE
 
 
@@ -532,7 +532,7 @@ RERUN_EACH_RELEASE = (
 
 def package_version():
     """The package's version, from pyproject.toml (the check runs without the package built)."""
-    m = re.search(r'^version\s*=\s*"([^"]+)"', (ROOT / "pyproject.toml").read_text(), re.M)
+    m = re.search(r'^version\s*=\s*"([^"]+)"', (ROOT / "pyproject.toml").read_text(encoding="utf-8"), re.M)
     return m.group(1)
 
 
@@ -566,7 +566,7 @@ def phrases():
 
 
 def main():
-    readme = (ROOT / "README.md").read_text()
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
     missing = [ph for ph in phrases() if ph not in readme]
     for ph in missing:
         print(f"README prose out of date: expected {ph!r}")
@@ -590,7 +590,7 @@ def main():
             print(f"README table out of date: {name}")
         return 1 if stale or missing or old else 0
     if "--write" in sys.argv:
-        (ROOT / "README.md").write_text(out)
+        (ROOT / "README.md").write_text(out, encoding="utf-8")
         print(f"rewrote {len(stale)} table(s): {', '.join(stale) or 'none'}")
     return 0
 

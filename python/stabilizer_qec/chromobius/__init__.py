@@ -184,7 +184,9 @@ class _ChromobiusSinterDecoder:
         another (sinter's file protocol)."""
         from .._circuit import DetectorErrorModel
 
-        decoder = CompiledDecoder.from_dem(DetectorErrorModel(_pathlib.Path(str(dem_path)).read_text()))
+        # The model is read as UTF-8 text, whatever the locale (so a byte that is not UTF-8 is a
+        # UnicodeDecodeError on every platform, as the README says, not text in Windows' code page).
+        decoder = CompiledDecoder.from_dem(DetectorErrorModel(_pathlib.Path(str(dem_path)).read_text(encoding="utf-8")))
         shots, nd, nob = int(num_shots), (int(num_dets) + 7) // 8, (int(num_obs) + 7) // 8
         try:
             raw = _pathlib.Path(str(dets_b8_in_path)).read_bytes()[: shots * nd]
