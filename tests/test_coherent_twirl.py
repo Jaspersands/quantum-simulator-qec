@@ -1,0 +1,223 @@
+"""The Pauli twirl of a circuit (`Circuit.twirled`) keeps its gates as they are, once, and twirls
+its coherent errors alone; with merge, rotations that are one fault become one error, tagged
+Clifford-angle gates being the Clifford gates they are. Also: the time reversal of a circuit's
+tagged gates, and the coherent sampler's order 0."""
+
+from __future__ import annotations
+
+import math
+
+import numpy as np
+import pytest
+
+import stabilizer_qec as sq
+
+
+# Tagged gates of several targets, and of none but a noise channel (`I_ERROR[LEAK]`): no coherent
+# error, so the twirl is the circuit itself. The parser fuses `I[T] 0` and `I[T] 1` into one.
+GATES = [
+    "I[T] 0 1",
+    "I[T_DAG] 0 1 2",
+    "I[R_Z(theta=0.1)] 0 1 2",
+    "I[R_X(theta=0.3)] 0 1 2",
+    "II[R_ZZ(theta=0.2)] 0 1 2 3",
+    "I[R_PAULI(theta=0.3, pauli=XZ)] 0 1",
+    "I[U3(theta=0.3, phi=0.2, lambda=0.1)] 0 1",
+    "I[T] 0\nI[T] 1",
+    "R 0 1\nI_ERROR[LEAK(p=0.1)] 0 1\nM 0 1",
+]
+
+
+@pytest.mark.parametrize("text", GATES)
+def test_the_twirl_keeps_each_gate_once(text):
+    c = sq.Circuit(text)
+    assert str(c.twirled()) == str(c)
+    assert c.twirled().num_non_clifford_gates() == c.num_non_clifford_gates()
+
+
+def test_the_twirl_of_gates_and_errors_on_several_targets():
+    """A gate of several targets is kept once, beside its errors twirled target by target."""
+    c = sq.Circuit("I[T] 0 1\nI_ERROR[R_X(theta=0.1)] 0 1\nII[R_ZZ(theta=0.2)] 0 1 2 3")
+    lines = str(c.twirled()).splitlines()
+    assert lines[0] == "I[T] 0 1" and lines[-1] == "II[R_ZZ(theta=0.2)] 0 1 2 3" and len(lines) == 4
+    for line, q in zip(lines[1:3], "01"):
+        assert line.startswith("X_ERROR(") and line.endswith(f") {q}")
+        assert abs(float(line.split("(")[1].split(")")[0]) - math.sin(0.1) ** 2) < 1e-6
+
+
+def test_the_twirl_samples_what_the_circuit_samples_without_errors():
+    """With no coherent error the twirl changes nothing: H T H on two qubits reads 1 with
+    probability sin²(π/8) on each (not 1/2, as H S H, the T run twice, would)."""
+    c = sq.Circuit("R 0 1\nH 0 1\nI[T] 0 1\nH 0 1\nM 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]")
+    for t in (c.twirled(), c.twirled(merge=True)):
+        dist = t.exact_distribution(method="stabilizer_rank")
+        assert dist.keys() == c.exact_distribution(method="stabilizer_rank").keys()
+        for key, p in c.exact_distribution(method="stabilizer_rank").items():
+            assert abs(dist[key] - p) < 1e-12, (str(t), key, dist[key], p)
+        assert abs(dist[((False, False), ())] - math.cos(math.pi / 8) ** 4) < 1e-12
+
+
+MERGE = """R 0 1
+I_ERROR[R_X(theta=0.1)] 0
+TICK
+{H} 0
+I_ERROR[R_Z(theta=0.15)] 0
+TICK
+{H} 0
+{S} 1
+I_ERROR[R_Y(theta=0.2)] 1
+TICK
+{S} 1
+I_ERROR[R_X(theta=0.05)] 1
+M 0 1
+DETECTOR rec[-2]
+DETECTOR rec[-1]
+"""
+
+
+def errors(c: sq.Circuit) -> list[str]:
+    return [line for line in str(c).splitlines() if "_ERROR(" in line]
+
+
+@pytest.mark.parametrize("tagged", [
+    {"H": "I[U3(theta=1.5707963267948966, phi=0, lambda=3.141592653589793)]", "S": "I[R_Z(theta=0.7853981633974483)]"},
+    {"H": "I[U3(theta=1.5707963267948966, phi=0, lambda=3.141592653589793)]", "S": "I[R_PAULI(theta=0.7853981633974483, pauli=Z)]"},
+])
+def test_the_merged_twirl_reads_tagged_clifford_gates_as_the_gates(tagged):
+    """A tagged gate at a Clifford angle is the Clifford gate (as in the coherent samplers), so
+    the rotations either side of it that are one fault merge as they do around the plain gate:
+    X before H and Z after it are one error of sin²(0.25), Y before S and X after it one of
+    sin²(0.25). The merged twirl keeps the tagged gates as written."""
+    plain = sq.Circuit(MERGE.format(H="H", S="S"))
+    ours = sq.Circuit(MERGE.format(**tagged))
+    m = ours.twirled(merge=True)
+    assert errors(m) == errors(plain.twirled(merge=True)) and len(errors(m)) == 2
+    assert str(m).count("I[") == str(ours).count("I[")
+    exact = plain.exact_distribution()
+    for c in (m, plain.twirled(merge=True)):
+        dist = c.exact_distribution()
+        for key in exact.keys() | dist.keys():
+            assert abs(dist.get(key, 0.0) - exact.get(key, 0.0)) < 1e-12, (key, dist, exact)
+
+
+def probabilities(c: sq.Circuit) -> list[float]:
+    return sorted(float(line.split("(")[1].split(")")[0]) for line in errors(c))
+
+
+def assert_same_distribution(a: sq.Circuit, b: sq.Circuit) -> None:
+    da, db = a.exact_distribution(method="stabilizer_rank"), b.exact_distribution(method="stabilizer_rank")
+    for key in da.keys() | db.keys():
+        assert abs(da.get(key, 0.0) - db.get(key, 0.0)) < 1e-12, (str(a), key, da, db)
+
+
+@pytest.mark.parametrize("gate, axis, basis", [
+    ("I[R_X(theta=0.3)]", "X", ""),
+    ("I[R_Z(theta=0.3)]", "Z", "X"),
+    ("I[R_PAULI(theta=0.3, pauli=Y)]", "Y", "X"),
+])
+def test_the_merged_twirl_merges_errors_beside_a_gate_they_commute_with(gate, axis, basis):
+    """Errors either side of a non-Clifford gate of their own axis commute with it, so they are
+    one fault and merge, to sin²(0.1 + 0.2) beside the gate; the gate's angle is never added
+    into them (it still runs, once)."""
+    c = sq.Circuit(f"R{basis} 0\nI_ERROR[R_{axis}(theta=0.1)] 0\n{gate} 0\nI_ERROR[R_{axis}(theta=0.2)] 0\nM{basis} 0\nDETECTOR rec[-1]")
+    m = c.twirled(merge=True)
+    assert m.num_non_clifford_gates() == 1
+    assert np.allclose(probabilities(m), [math.sin(0.3) ** 2], atol=1e-6), str(m)
+    # The gate flips with probability sin²(0.3) and the error with sin²(0.3), independently.
+    q = math.sin(0.3) ** 2
+    assert abs(m.exact_distribution(method="stabilizer_rank")[((True,), ())] - 2 * q * (1 - q)) < 1e-12, str(m)
+
+
+@pytest.mark.parametrize("gate, axis, basis", [
+    ("I[R_X(theta=0.3)]", "Z", "X"),
+    ("I[T]", "X", ""),
+    ("I[R_PAULI(theta=0.3, pauli=X)]", "Y", ""),
+])
+def test_the_merged_twirl_does_not_merge_across_a_gate_they_anticommute_with(gate, axis, basis):
+    """Errors either side of a gate they anticommute with (Z either side of R_X, X either side of
+    T) are not one fault: they stay two errors, and the gate is kept once."""
+    c = sq.Circuit(f"R{basis} 0\nI_ERROR[R_{axis}(theta=0.1)] 0\n{gate} 0\nI_ERROR[R_{axis}(theta=0.2)] 0\nM{basis} 0\nDETECTOR rec[-1]")
+    m = c.twirled(merge=True)
+    assert m.num_non_clifford_gates() == 1
+    assert np.allclose(probabilities(m), sorted([math.sin(0.1) ** 2, math.sin(0.2) ** 2]), atol=1e-6), str(m)
+
+
+def test_the_merged_twirl_merges_across_a_clifford_angle_gate():
+    m = sq.Circuit("RX 0\nI_ERROR[R_X(theta=0.1)] 0\nI[R_X(theta=1.5707963267948966)] 0\nI_ERROR[R_X(theta=0.2)] 0\nMX 0\nDETECTOR rec[-1]").twirled(merge=True)
+    assert np.allclose(probabilities(m), [math.sin(0.3) ** 2], atol=1e-6), str(m)
+    m = sq.Circuit("R 0\nI_ERROR[R_X(theta=0.1)] 0\nI[R_X(theta=1.5707963267948966)] 0\nI_ERROR[R_X(theta=0.2)] 0\nM 0\nDETECTOR rec[-1]").twirled(merge=True)
+    assert np.allclose(probabilities(m), [math.sin(0.3) ** 2], atol=1e-6), str(m)
+
+
+ELSEWHERE = [
+    "R 0 1\nI_ERROR[R_X(theta=0.1)] 0\nI[T] 1\nI_ERROR[R_X(theta=0.1)] 0\nM 0 1\nDETECTOR rec[-2]",
+    "R 0 1\nI_ERROR[R_X(theta=0.1)] 0\nTICK\nH 1\nI[T] 1\nH 1\nTICK\nI_ERROR[R_X(theta=0.1)] 0\nM 0 1\nDETECTOR rec[-2]\nDETECTOR rec[-1]",
+    "R 0 1\nREPEAT 3 {\nI_ERROR[R_X(theta=0.05)] 0\nI[T] 1\n}\nM 0 1\nDETECTOR rec[-2]",
+    "R 0 1\nI_ERROR[R_X(theta=0.1)] 0\nI[R_X(theta=0.3)] 0\nI[T] 1\nI_ERROR[R_X(theta=0.2)] 0\nM 0 1\nDETECTOR rec[-2]",
+]
+
+
+@pytest.mark.parametrize("text", ELSEWHERE)
+def test_the_merged_twirl_merges_across_a_gate_on_another_qubit(text):
+    """A non-Clifford gate on another qubit (a T layer between a fault's places) leaves the fault
+    alone: its rotations merge into one error, and the merged twirl is the circuit's exact
+    distribution, the gates kept once."""
+    c = sq.Circuit(text)
+    m = c.twirled(merge=True)
+    assert len(errors(m)) == 1, str(m)
+    assert m.num_non_clifford_gates() == c.flattened().num_non_clifford_gates()
+    if "R_X(theta=0.3)" not in text:
+        assert_same_distribution(m, c)
+
+
+# The time reversal of a tagged gate is its inverse (as `Circuit.inverse` writes it): each R_PAULI
+# letter on its qubit, angles negated, T and T_DAG swapped.
+REVERSED = [
+    ("I[R_PAULI(theta=0.7853981633974483, pauli=XZ)] 0 1", "I[R_PAULI(theta=-0.7853981633974483, pauli=ZX)] 1 0"),
+    ("II[R_PAULI(theta=0.7853981633974483, pauli=XZYZ)] 0 1 2 3", "II[R_PAULI(theta=-0.7853981633974483, pauli=YZXZ)] 2 3 0 1"),
+    ("I[R_PAULI(theta=0.3, pauli=XYZ)] 0 1 2", "I[R_PAULI(theta=-0.3, pauli=ZYX)] 2 1 0"),
+    ("I[T] 0 1", "I[T_DAG] 1 0"),
+    ("I[R_Z(theta=0.7853981633974483)] 0", "I[R_Z(theta=-0.7853981633974483)] 0"),
+    ("I[U3(theta=1.0, phi=2.0, lambda=3.0)] 0", "I[U3(theta=-1.0, phi=-3.0, lambda=-2.0)] 0"),
+]
+
+
+@pytest.mark.parametrize("text, expected", REVERSED)
+def test_the_time_reversal_of_a_tagged_gate_is_its_inverse(text, expected):
+    c = sq.Circuit(text)
+    r = c.time_reversed_for_flows([])[0]
+    assert str(r) == expected == str(c.inverse())
+    u, v = r.to_matrix(), c.to_matrix()
+    assert np.allclose(u @ v, np.eye(len(u)) * (u @ v)[0, 0]) and abs(abs((u @ v)[0, 0]) - 1) < 1e-9
+
+
+def test_the_time_reversal_keeps_noise_tags():
+    """A tagged channel that is not unitary (damping, leakage) is kept as the reversal keeps
+    Stim's noise; a tag that is not ours is inert and kept."""
+    for text in ["I_ERROR[AMPLITUDE_DAMPING(gamma=0.1)] 0 1", "I_ERROR[LEAK(p=0.1)] 0", "I[someone_else] 0 1"]:
+        r = sq.Circuit(text).time_reversed_for_flows([])[0]
+        assert str(r).split("]")[0] == text.split("]")[0]
+
+
+@pytest.fixture(scope="module")
+def memory() -> sq.Circuit:
+    lines = str(sq.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3)).splitlines()
+    data = " ".join([line for line in lines if line.strip().startswith("MX ")][-1].split()[1:])
+    out = []
+    for i, line in enumerate(lines):
+        if line.strip().startswith("H ") and i + 2 < len(lines) and lines[i + 1].strip() == "TICK" and lines[i + 2].strip().startswith("CX "):
+            out.append(f"I_ERROR[R_Z(theta=0.25)] {data}")
+        out.append(line)
+    return sq.Circuit("\n".join(out))
+
+
+def test_order_zero_is_order_one(memory):
+    """`order` is at least 1, as the Rust builder takes it: 0 sums products of single generators,
+    not every connected product of a cluster (which, on a large truncated kernel, never ends)."""
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        weights = [memory.compile_coherent_sampler(seed=5, order=order, max_contraction=0).sample(2000, threads=1)[2] for order in (0, 1, 3)]
+    assert np.array_equal(weights[0], weights[1])
+    assert not np.array_equal(weights[1], weights[2])
