@@ -80,9 +80,12 @@ can dominate compilation.
 The [root guide](https://github.com/Jaspersands/quantum-simulator-qec/blob/master/README.md)
 documents port-specific refusals, exceptions, tie choices and migration changes. Crashes and
 hangs remain bugs to report; resource checks do not make all allocation failures recoverable.
-Old coherent measurements, including development rows labeled 2.2.0, predate the merged-proposal
-correction and are archival until remeasured with the explicit generation revision. That marker
-records provenance independently of exactness and validation.
+All coherent validation and capacity rows, and the d = 3 sweep and crosstalk rows, were
+remeasured with the actual 2.2.0 wheel and carry the generation revision `coherent-merged-proposal-v1`, which records
+provenance independently of exactness and validation; current tables accept only those rows.
+Only the 12 larger-distance sweep and 5 crosstalk rows, measured by 1.8.0 before the
+merged-proposal correction, remain archival and are excluded from current tables. Earlier
+development-2.2 measurements remain in Git history and the preserved raw evidence.
 See the [changelog](https://github.com/Jaspersands/quantum-simulator-qec/blob/master/CHANGELOG.md).
 
 The explainer, its figures running the engine in the browser, is at
