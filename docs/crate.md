@@ -49,13 +49,19 @@ assert!(failures < 1_000);
   [`lattice_surgery`] (Z⊗Z and X⊗X merges, a logical CNOT).
 
 Shots are [`BitTable`]s, bit-packed as Stim's `b8` format. Every fallible call returns
-[`Error`]. Bad-input panics and hangs are bugs to report; size checks do not guarantee
-recovery from every allocation or OS memory failure.
+[`Error`] on bad input; a panic or a hang on any input is a bug to report. Size checks bound what
+a call allocates, but cannot make every allocation or OS memory failure recoverable.
 
 ## Stability
 
-Semantic versioning from 1.0: the items in this documentation keep compiling, with the same
-meaning, through every 2.x release (checked by `cargo-semver-checks` in CI). The engine's own
-modules are public so the Python bindings, the site and the tools can reach them, but they are
-hidden from this documentation and carry no such promise. The Python bindings sit behind the
+Semantic versioning from 1.0, under the project's
+[compatibility policy](https://github.com/Jaspersands/quantum-simulator-qec/blob/master/CONTRIBUTING.md#compatibility-policy):
+the items in this documentation keep compiling through every 2.x release (checked by
+`cargo semver-checks` in CI), and one to be removed is `#[deprecated]`, naming its replacement,
+for at least one minor release before a major release removes it. What an item computes changes
+in a minor release only to correct it (a port to its upstream's behaviour, or a defect), and the
+changelog names each such change and what to do; a correction to a sampler can change its seeded
+shots, as 2.2's to the coherent sampler does. The engine's own modules are public so the Python
+bindings, the site and the tools can reach them, but they are hidden from this documentation and
+carry no such promise. The Python bindings sit behind the
 `python` feature, off by default. The minimum supported Rust is 1.87.

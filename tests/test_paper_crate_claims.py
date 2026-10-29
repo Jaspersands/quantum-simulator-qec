@@ -59,3 +59,18 @@ def test_crate_page_says_what_the_highs_feature_does():
     assert "ILP circuit distance" not in crate
     assert re.search(r"the `highs` feature solves MWPF's linear programs with HiGHS", crate)
 
+
+def test_the_compatibility_policy_the_docs_name_is_defined():
+    # README and the package docstring send readers to "the compatibility policy"; CONTRIBUTING
+    # defines it, and the crate's Stability section states the same terms.
+    named = [p for p in ("README.md", "python/stabilizer_qec/__init__.py", "docs/crate.md") if "compatibility policy" in text(p)]
+    assert named
+    contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    assert "\n## Compatibility policy\n" in contributing
+    policy = re.sub(r"\s+", " ", contributing.split("\n## Compatibility policy\n", 1)[1].split("\n## ", 1)[0])
+    for term in ("deprecated", "DeprecationWarning", "#[deprecated]", "upstream", "Changed", "seed", "cargo semver-checks"):
+        assert term in policy, term
+    crate = text("docs/crate.md")
+    assert "keep compiling, with the same meaning, through every 2.x release" not in crate
+    assert "CONTRIBUTING.md#compatibility-policy" in crate
+
