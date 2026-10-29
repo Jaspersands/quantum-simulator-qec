@@ -1719,6 +1719,44 @@ impl PyPreDecoder {
         self.trainer.as_ref().map_or(0, |t| t.step)
     }
 
+    /// The optimizer's state, for a copy to train on from where this one is: (optimizer, its
+    /// weight decay, first moments, second moments (Adam's; f32 bytes each), steps taken); None
+    /// before training.
+    #[allow(clippy::type_complexity)]
+    fn trainer_state<'py>(&self, py: Python<'py>) -> Option<(&'static str, f32, Bound<'py, PyBytes>, Bound<'py, PyBytes>, u64)> {
+        use crate::predecoder::Optimizer;
+        self.trainer.as_ref().map(|t| {
+            let (name, weight_decay) = match t.optimizer {
+                Optimizer::Lion { weight_decay } => ("lion", weight_decay),
+                Optimizer::Adam => ("adam", 0.0),
+            };
+            (name, weight_decay, PyBytes::new(py, &f32_bytes(&t.m)), PyBytes::new(py, &f32_bytes(&t.v)), t.step)
+        })
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn set_trainer_state(&mut self, state: Option<(String, f32, Bound<'_, PyBytes>, Bound<'_, PyBytes>, u64)>) -> PyResult<()> {
+        use crate::predecoder::{Optimizer, Trainer};
+        let Some((name, weight_decay, m, v, step)) = state else {
+            self.trainer = None;
+            return Ok(());
+        };
+        let optimizer = match name.as_str() {
+            "lion" => Optimizer::Lion { weight_decay },
+            "adam" => Optimizer::Adam,
+            other => return Err(err(format!("optimizer '{other}' is not lion or adam"))),
+        };
+        let floats = |raw: &[u8]| -> Vec<f32> { raw.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect() };
+        let mut t = Trainer::new(optimizer, self.net.params.len());
+        let (m, v) = (m.as_bytes(), v.as_bytes());
+        if m.len() != 4 * t.m.len() || v.len() != 4 * t.v.len() {
+            return Err(err(format!("an optimizer's state for {} parameters, not {} and {} bytes of moments", self.net.params.len(), m.len(), v.len())));
+        }
+        (t.m, t.v, t.step) = (floats(m), floats(v), step);
+        self.trainer = Some(t);
+        Ok(())
+    }
+
     /// The mean loss of packed shots and the faults that fired, and its gradient (f32 bytes).
     fn loss_and_grad<'py>(&self, py: Python<'py>, dets: &[u8], errors: &[u8], shots: usize, threads: usize) -> PyResult<(f64, Bound<'py, PyBytes>)> {
         let l = &self.layout;

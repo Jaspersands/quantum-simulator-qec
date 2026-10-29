@@ -182,3 +182,31 @@ def test_calls_from_threads_wait_for_training():
         for j in jobs:
             j.result()
     assert p.steps == 4
+
+
+@pytest.mark.parametrize("engine", ["rust", "numpy"])
+def test_copies_keep_the_threshold_and_training(engine):
+    # A pickled, deep-copied or copied pre-decoder has the threshold set after it was made (so
+    # applies the same faults and decodes alike), and the optimizer's state: trained on, it
+    # takes the steps the original takes.
+    import copy
+
+    dem = model()
+    dets, _, _ = dem.compile_sampler(seed=1).sample(1000)
+    pre = sq.PreDecoder(dem, hidden=(4,), kernel=3, seed=3)
+    pre.train(3, batch=32, seed=1, engine=engine)
+    pre.threshold = 0.05
+    copies = [pickle.loads(pickle.dumps(pre)), copy.deepcopy(pre), copy.copy(pre)]
+    applied = pre.predecode(dets)[2]
+    for c in copies:
+        assert (c.threshold, c.steps, c.reweight) == (0.05, 3, pre.reweight)
+        np.testing.assert_array_equal(c.predecode(dets)[2], applied)
+        np.testing.assert_array_equal(c.decode_batch(dets), pre.decode_batch(dets))
+    losses = [c.train(3, batch=32, seed=2, engine=engine) for c in copies]
+    want = pre.train(3, batch=32, seed=2, engine=engine)
+    for c, got in zip(copies, losses):
+        np.testing.assert_array_equal(got, want)
+        assert c.steps == pre.steps == 6
+        for (w1, b1), (w2, b2) in zip(c.weights["layers"], pre.weights["layers"]):
+            np.testing.assert_array_equal(w1, w2)
+            np.testing.assert_array_equal(b1, b2)
