@@ -3,3 +3,7 @@
 
 # The visualizer is embedded upstream as LF text; keep installed resource bytes stable.
 /python/stabilizer_qec/fusion_blossom/visualizer/* text eol=lf
+
+# MWPF's visualizer is embedded with include_str! (src/mwpf/html_export.rs): a CRLF checkout on
+# Windows would put \r into every page the Windows wheels write.
+/src/mwpf/visualize/standalone.html text eol=lf

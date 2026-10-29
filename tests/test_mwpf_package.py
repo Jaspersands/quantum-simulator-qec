@@ -6,7 +6,11 @@ benchmark suites and HTML exports."""
 
 from __future__ import annotations
 
+import base64
+import gzip
 import json
+import pathlib
+import re
 import sys
 import pickle
 import random
@@ -237,7 +241,31 @@ def test_html_export_compresses_as_mwpf():
         visualizer = lib.Visualizer(positions=code.get_positions())
         visualizer.snapshot("syndrome", code)
         pages.append(visualizer.generate_html())
-    assert len(pages[1]) < 500_000 and pages[0] == pages[1]
+    assert len(pages[1]) < 500_000
+    # Each of MWPF's wheels embeds the visualizer its own build made: under that build's time stamp
+    # (window.hyperion_visual_2025_08_17_HH_MM_SS), its module gzipped with the build machine's OS
+    # byte, and on Windows from a CRLF checkout (another build of the module, Vue's scoped-style
+    # hashes and the minifier's names differing, and some of the page's lines ending in \r\n).
+    # This package embeds its macOS wheels' (src/mwpf/visualize/standalone.html) on every platform:
+    # on macOS the page is the installed MWPF's byte for byte; elsewhere it is the same page but for
+    # the stamp and the module's encoding, the module the same code but on Windows.
+    if sys.platform == "darwin":
+        assert pages[0] == pages[1]
+    stamp = re.compile(r"2025_08_17_\d\d_\d\d_\d\d")
+    gz = re.compile(r'(/\* HYPERION_VISUAL_GZIP_B64_BEGIN \*/\s*")([^"]+)"')
+
+    def module(page):
+        return gzip.decompress(base64.b64decode(gz.search(page).group(2)))
+
+    def rest(page):
+        return stamp.sub("STAMP", gz.sub(r'\1MODULE"', page)).replace("\r\n", "\n")
+
+    vendored = (pathlib.Path(__file__).resolve().parents[1] / "src" / "mwpf" / "visualize" / "standalone.html").read_text(encoding="utf-8")
+    assert "\r" not in pages[1] and set(stamp.findall(pages[1])) == {"2025_08_17_23_51_46"}
+    assert gz.search(pages[1]).group(2) == gz.search(vendored).group(2)
+    assert rest(pages[1]) == rest(pages[0])
+    if sys.platform != "win32":
+        assert module(pages[1]) == module(pages[0])
 
 
 @pytest.mark.parametrize("seed", range(20, 60, 10))

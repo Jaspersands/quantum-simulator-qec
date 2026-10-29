@@ -16,8 +16,9 @@ use std::sync::Mutex;
 
 static HYPERION_VISUAL_JUPYTER_LOADED: std::sync::LazyLock<Mutex<bool>> = std::sync::LazyLock::new(|| Mutex::new(false));
 
-// the build time stamp of MWPF 0.2.12's wheels, which their visualizer (src/mwpf/visualize/standalone.html,
-// built from MWPF's visualize/ by its build.rs) carries
+// the build time stamp of MWPF 0.2.12's macOS wheels, which their visualizer (src/mwpf/visualize/standalone.html,
+// built from MWPF's visualize/ by its build.rs) carries; its Linux and Windows wheels carry their own builds'
+// (23_46_44 and 23_49_50), the Windows one a build from a CRLF checkout
 const WINDOW_HYPERION_VISUAL: &str = "window.hyperion_visual_2025_08_17_23_51_46";
 const HYPERION_VISUAL_ID: &str = "hyperion_visual_compressed_js_caller_2025_08_17_23_51_46";
 
