@@ -1896,25 +1896,26 @@ data qubits, 801 coherent rotations, 10 non-Clifford gates), where no state vect
 
 | circuit | ε | qubits | rotations | acceptance: twirl / joint / exact | output infidelity: twirl / joint / exact | sample size kept | per shot |
 |---|---|---|---|---|---|---|---|
-| 5 qubits | 0.01 | 5 | 34 | 0.116 / 0.166 / 0.168 | 2.0 × 10⁻² / 6.1 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 349 µs |
-| 5 qubits | 0.02 | 5 | 34 | 0.116 / 0.166 / 0.168 | 2.2 × 10⁻² / 1.3 × 10⁻³ / 5.2 × 10⁻⁵ | 96% | 352 µs |
-| 5 qubits | 0.05 | 5 | 34 | 0.112 / 0.161 / 0.167 | 3.5 × 10⁻² / 9.3 × 10⁻³ / 1.0 × 10⁻⁵ | 77% | 366 µs |
-| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.107 / 0.151 / — | 3.0 × 10⁻¹ / 2.2 × 10⁻¹ / — | 94% | 144.0 ms |
-| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.087 / 0.129 / — | 3.2 × 10⁻¹ / 2.1 × 10⁻¹ / — | 79% | 141.8 ms |
-| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.018 / 0.047 / — | 4.6 × 10⁻¹ / 2.8 × 10⁻¹ / — | 28% | 163.7 ms |
+| 5 qubits | 0.01 | 5 | 34 | 0.164 / 0.166 / 0.168 | 6.1 × 10⁻⁴ / 6.1 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 517 µs |
+| 5 qubits | 0.02 | 5 | 34 | 0.164 / 0.166 / 0.168 | 1.8 × 10⁻³ / 1.3 × 10⁻³ / 5.2 × 10⁻⁵ | 96% | 535 µs |
+| 5 qubits | 0.05 | 5 | 34 | 0.157 / 0.161 / 0.167 | 1.1 × 10⁻² / 9.3 × 10⁻³ / 1.0 × 10⁻⁵ | 77% | 555 µs |
+| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.148 / 0.151 / — | 2.2 × 10⁻¹ / 2.2 × 10⁻¹ / — | 94% | 190.5 ms |
+| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.120 / 0.129 / — | 2.1 × 10⁻¹ / 2.1 × 10⁻¹ / — | 79% | 195.4 ms |
+| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.029 / 0.047 / — | 2.8 × 10⁻¹ / 2.8 × 10⁻¹ / — | 28% | 220.1 ms |
 
 The unencoded rows use 20,000 shots each; encoded rows use 2,000 shots each. All six
 selected truncated weights (`exact_weights=False`): the unencoded circuits have 54 kernel
 generators and the encoded circuits 921, confirmed by compile-only inspection with no new
 samples. The `exact_gates` field counts non-Clifford gates and does not describe weight coverage.
 At ε = 0.01, unencoded acceptance (twirl / joint / state vector) is
-0.1162 /
+0.1643 /
 0.1655 /
 0.1676, while output infidelity is
-0.0198 /
+0.000608 /
 0.000611 /
-2.48e-05. The table preserves any remaining joint/state-vector
-gap. The old attribution to truncation alone is not established by this remeasurement.
+2.48e-05. The twirl's and the joint sampler's infidelities agree with each other (6.08 × 10⁻⁴
+and 6.11 × 10⁻⁴), both about 25 times the state vector's. The table preserves any remaining
+joint/state-vector gap. The old attribution to truncation alone is not established by this remeasurement.
 The per-shot column is coherent compilation-plus-sampling wall time divided by input shots,
 with `threads=0` (all cores). The encoded circuit has no state-vector control; its weighted
 estimates and timings do not validate the approximation.
@@ -1966,16 +1967,16 @@ rounds T, correlated matching.
 
 | d | p | T = 2 | T = d | T = 2d | T = d, plain | either patch, T = d |
 |---|---|---|---|---|---|---|
-| 3 | 0.3% | 10.99% | 6.38% | 6.15% | 7.53% | 10.93% |
-| 5 | 0.3% | 12.87% | 3.48% | 3.19% | 5.12% | 6.25% |
-| 7 | 0.3% | 15.34% | 1.62% | 1.60% | 3.21% | 2.99% |
-| 3 | 0.2% | 7.31% | 3.23% | 2.90% | 3.59% | 5.65% |
-| 5 | 0.2% | 7.61% | 1.02% | 0.94% | 1.65% | 1.85% |
-| 7 | 0.2% | 9.97% | 0.28% | 0.27% | 0.71% | 0.54% |
+| 3 | 0.3% | 11.45% | 6.38% | 6.15% | 7.53% | 10.93% |
+| 5 | 0.3% | 13.30% | 3.48% | 3.19% | 5.12% | 6.25% |
+| 7 | 0.3% | 15.88% | 1.62% | 1.60% | 3.21% | 2.99% |
+| 3 | 0.2% | 7.20% | 3.23% | 2.90% | 3.59% | 5.65% |
+| 5 | 0.2% | 8.12% | 1.02% | 0.94% | 1.65% | 1.85% |
+| 7 | 0.2% | 10.38% | 0.28% | 0.27% | 0.71% | 0.54% |
 
 - **T = 2 is a trap that grows with the code.** A pair of measurement errors on one seam check,
   in consecutive rounds, flips the outcome unseen, and a bigger code has more seam checks. At
-  p = 0.3%, T = 2 fails 11%, 13% and 15% of the time at d = 3, 5 and 7.
+  p = 0.3%, T = 2 fails 11%, 13% and 16% of the time at d = 3, 5 and 7.
 - **By T = d the curve has flattened.** From then on the merge outcome fails about as often as a
   single patch of the same size, and further rounds buy nothing: the textbook "d rounds per
   lattice surgery", measured.
@@ -2130,45 +2131,48 @@ search gives the same number of faults as Stim's on every circuit compared (Stim
 repetition and colour codes, the Steane code and the [[72, 12, 6]] code). Each fault either
 returns is explained: the gate it comes from, its targets, and the Pauli product or measurement
 it flips, as Stim's `explain_detector_error_model_errors` prints it.
-Every memory the package builds, measured by `tools/distances.py` (d rounds; the bivariate
-bicycle memories 2):
+Every memory the package builds, measured by `tools/distances.py` at 2.2.0 (d rounds; the
+bivariate bicycle memories 2; the search within a 1 GB memory budget):
 
 | memory | code distance | faults | graph-like search | Stim's search | integer program |
 |---|---|---|---|---|---|
 | surface, rotated (Stim's) | 3 | 219 | 3 | 3 | **3** |
-| surface, rotated (Stim's) | 5 | 1,677 | 5 | — | **5** |
+| surface, rotated (Stim's) | 5 | 1,677 | 5 | 5 | **5** |
 | surface, rotated (Stim's) | 7 | 6,023 | 7 | — | ≤ 7 (not proven in 300 s) |
 | surface, unrotated (Stim's) | 3 | 423 | 3 | 3 | **3** |
-| surface, unrotated (Stim's) | 5 | 3,139 | 5 | — | **5** |
+| surface, unrotated (Stim's) | 5 | 3,139 | 5 | 5 | **5** |
 | colour code XYZ (Stim's) | 3 | 72 | 2 | 2 | **2** |
 | colour code XYZ (Stim's) | 5 | 1,104 | 3 | 3 | **3** |
-| colour code XYZ (Stim's) | 7 | 3,651 | 4 | — | **4** |
+| colour code XYZ (Stim's) | 7 | 3,651 | 4 | 4 | **4** |
 | surface, rotated, SD6 | 3 | 219 | 3 | 3 | **3** |
-| surface, rotated, SD6 | 5 | 1,677 | 5 | — | **5** |
+| surface, rotated, SD6 | 5 | 1,677 | 5 | 5 | **5** |
 | surface, XZZX, SD6 | 3 | 219 | 3 | 3 | **3** |
-| surface, XZZX, SD6 | 5 | 1,677 | 5 | — | **5** |
+| surface, XZZX, SD6 | 5 | 1,677 | 5 | 5 | **5** |
 | colour code 6.6.6 (CssCode) | 3 | 277 | 2 | 2 | **2** |
 | colour code 6.6.6 (CssCode) | 5 | 2,388 | 3 | 3 | **3** |
 | Hamming hypergraph product [[58, 16, 3]] (CssCode) | 3 | 3,564 | 3 | 3 | **3** |
 | bivariate bicycle [[72, 12, 6]] | 6 | 792 | — | 6 | ≤ 6 (not proven in 300 s) |
 | bivariate bicycle [[90, 8, 10]] | 10 | 990 | — | — | ≤ 9 (not proven in 300 s) |
-| bivariate bicycle [[108, 8, 10]] | 10 | 1,188 | — | — | ≤ 11 (not proven in 300 s) |
+| bivariate bicycle [[108, 8, 10]] | 10 | 1,188 | — | — | ≤ 9 (not proven in 300 s) |
 | bivariate bicycle [[144, 12, 12]] (gross) | 12 | 1,584 | — | — | ≤ 12 (not proven in 300 s) |
 
 - **The surface codes keep their distance.** Rotated, unrotated and XZZX, Stim's circuits and
   the SD6 ones: d at d = 3 and 5, proven.
 - **The colour code does not.** Stim's generated XYZ colour-code memory has circuit distance 2,
-  3 and 4 at code distance 3, 5 and 7, proven, and Stim's own search agrees where it reaches. Two
+  3 and 4 at code distance 3, 5 and 7, proven, and Stim's search finds the same at all three. Two
   or three correlated two-qubit faults do the work of d data errors. The generic `CssCode`
   schedule loses the colour code's distance the same way, so the loss belongs to the code's
   schedules, not only to one circuit.
 - **The bivariate bicycle codes were not settled.** Five minutes proved none of them. For
-  [[90, 8, 10]] the integer program found 9 faults that flip a logical qubit unnoticed, so this
-  2-round memory has circuit distance at most 9, below the code's 10. Bravyi et al. (their
+  [[90, 8, 10]] and [[108, 8, 10]] the integer program found 9 faults that flip a logical qubit
+  unnoticed, so these 2-round memories have circuit distance at most 9, below the codes' 10. Bravyi et al. (their
   Table 1) bound the circuit distance at 6, 8, 8 and 10 for [[72, 12, 6]], [[90, 8, 10]],
-  [[108, 8, 10]] and the gross code. Ours are 6, 9, 11 and 12, so at this time limit the
-  larger two are loose and say nothing new. The graph-like search does not apply (their
-  faults are not graph-like), and Stim's search finds nothing within its limits.
+  [[108, 8, 10]] and the gross code. Ours are 6, 9, 9 and 12, so at this time limit the
+  gross code's is loose and says nothing new. The graph-like search does not apply (their
+  faults are not graph-like), and the search through hyperedges (limits 6 and 6, a 1 GB
+  memory budget) finds the [[72, 12, 6]] code's 6 but runs out of memory on the other three
+  after 12.7 to 14.3 million states (sets of detectors), as it does on the rotated d = 7
+  memory.
 
 ## What it would take: a resource estimate
 
