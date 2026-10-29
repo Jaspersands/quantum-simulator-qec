@@ -39,7 +39,8 @@ Where it differs from Tesseract's program:
   not Stim's.
 - A circuit or model is read as UTF-8, a byte that is not UTF-8 replaced (Stim passes over
   such bytes in a comment, so both read the file alike; one in a tag is written back to
-  ``--dem-out`` replaced, where Stim keeps the byte). ``--dem-out`` is written as UTF-8.
+  ``--dem-out`` replaced, where Stim keeps the byte). ``--dem-out`` is written as UTF-8 text,
+  its lines ended as the platform's (``\\r\\n`` on Windows), as Tesseract's ``std::ofstream`` ends them.
 - Any number of observables, as Tesseract's.
 """
 

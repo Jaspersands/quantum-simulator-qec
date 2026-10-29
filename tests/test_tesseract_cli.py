@@ -559,10 +559,13 @@ def test_cli_reads_models_with_non_utf8_comment_bytes(tmp_path, capsys):
         assert (code, err) == (0, ""), name
         got.append(((tmp_path / f"{name}.01").read_text(), (tmp_path / f"{name}_out.dem").read_text(), final_line(out)["num_errors"]))
     assert got[0] == got[1]
-    # A tag's UTF-8 is written back to --dem-out as it was read.
+    # A tag's UTF-8 is written back to --dem-out as it was read (in a text file, its lines ended as
+    # the platform's text mode ends them, \r\n on Windows, as Tesseract's std::ofstream writes it).
     (tmp_path / "tag.dem").write_bytes(SMALL_DEM.replace("[t]", "[caf\xe9]").encode("utf-8"))
     code, out, err = run(["--dem", tmp_path / "tag.dem", "--in", tmp_path / "s.01", "--in-format", "01", "--in-includes-appended-observables", "--dem-out", tmp_path / "tag_out.dem"], capsys)
-    assert (code, err) == (0, "") and (tmp_path / "tag_out.dem").read_bytes() == got[0][1].replace("[t]", "[caf\xe9]").encode("utf-8")
+    raw = (tmp_path / "tag_out.dem").read_bytes()
+    assert (code, err) == (0, "") and raw.count(b"\n") == raw.count(os.linesep.encode())
+    assert raw.decode("utf-8").replace(os.linesep, "\n") == got[0][1].replace("[t]", "[caf\xe9]")
     circuit = MODELS["repetition_d3"]["circuit"]
     (tmp_path / "plain.stim").write_text(circuit)
     (tmp_path / "high.stim").write_bytes(b"# \xe9t\xe9 \xff\n" + circuit.encode())
