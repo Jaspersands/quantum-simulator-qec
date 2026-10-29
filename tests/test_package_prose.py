@@ -9,6 +9,9 @@ import importlib.util
 import json
 import pathlib
 import re
+import warnings
+
+import stabilizer_qec as sq
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 LONG_DESCRIPTION = ROOT / "python" / "README.md"
@@ -79,3 +82,37 @@ def test_the_long_description_names_only_the_archival_coherent_rows():
 
 def test_the_site_names_only_the_archival_coherent_rows():
     check_archival_claims(SITE)
+
+
+def joint_surface_memory() -> sq.Circuit:
+    """A d = 3, three-round rotated X memory with a Z rotation on every data qubit each round, and a
+    T, T-dagger pair (an identity, but non-Clifford gates): the joint sampler, past twelve generators."""
+    lines = str(sq.Circuit.generated("surface_code:rotated_memory_x", distance=3, rounds=3)).splitlines()
+    data = " ".join([line for line in lines if line.strip().startswith("MX ")][-1].split()[1:])
+    out = []
+    for i, line in enumerate(lines):
+        if line.strip().startswith("H ") and i + 2 < len(lines) and lines[i + 1].strip() == "TICK" and lines[i + 2].strip().startswith("CX "):
+            out.append(f"I_ERROR[R_Z(theta=0.02)] {data}")
+        out.append(line)
+    return sq.Circuit("\n".join(out).replace("TICK", "TICK\nI[T] 1\nI[T_DAG] 1", 1))
+
+
+def test_the_joint_sampler_truncation_is_documented_as_silent():
+    """The joint sampler has no contraction plan: past twelve generators it truncates its class sums
+    whatever ``max_contraction`` is, without a warning, and only ``exact_weights`` says so. The long
+    description and ``compile_coherent_sampler``'s docstring must not promise a warning there."""
+    c = joint_surface_memory()
+    assert c.num_non_clifford_gates() == 2
+    for budget in (65536, 2**31, 0):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            s = c.compile_coherent_sampler(seed=1, max_contraction=budget)
+        assert s.num_generators > 12 and s.kernel_complete and not s.exact_weights and s.contraction_width is None
+        assert caught == []
+    text = prose(LONG_DESCRIPTION)
+    assert "larger/incomplete sums are approximations and warn" not in text
+    joint = [s for s in sentences(text) if "joint sampler" in s]
+    assert any("`max_contraction`" in s and "twelve generators" in s and "without a warning" in s for s in joint), joint
+    doc = " ".join(sq.Circuit.compile_coherent_sampler.__doc__.split())
+    joint = [s for s in sentences(doc) if "joint sampler" in s]
+    assert any("``max_contraction``" in s and "twelve generators" in s and "without a warning" in s for s in joint), joint

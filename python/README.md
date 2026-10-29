@@ -72,8 +72,12 @@ PyMatching (`Matching`, `decode_batch`, `enable_correlations`) and `ldpc` (`BpDe
 sampler/version contract and supported
 thread counts. Algorithm corrections, including 2.2's coherent merged-proposal and stable-group
 arithmetic fixes, can change seeded outcomes. Coherent whole-class sums require a completed
-kernel and a fitting contraction plan (or at most twelve generators); larger/incomplete sums
-are approximations and warn. `exact_weights` describes coverage in floating-point arithmetic,
+kernel and a fitting contraction plan (or at most twelve generators); larger or incomplete sums
+are approximations. An incomplete kernel warns, and so does the coherent sampler of a Clifford
+circuit past its contraction budget. The joint sampler (non-Clifford gates or Clifford-angle
+errors) has no contraction plan and ignores `max_contraction`: past twelve generators it
+truncates without a warning, and only `exact_weights=False` reports it.
+`exact_weights` describes coverage in floating-point arithmetic,
 not universal numerical validation. Entry budgets are not byte limits and successful planning
 can dominate compilation.
 
