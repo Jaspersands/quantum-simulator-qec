@@ -93,10 +93,12 @@ class CheckMatrices:
         to_one = np.argwhere(self.error_priors >= 1.0 - threshold).reshape(-1)
 
         if len(to_one):
-            syndrome_bias = np.sum(self.check_matrix[:, to_one], axis=1).reshape(-1) % 2
-            observables_bias = (
-                np.sum(self.check_matrix[:, to_one], axis=1).reshape(-1) % 2
-            )
+            # (relay_bp 0.2.2 sums the sparse columns to an np.matrix, which its decoders refuse,
+            # and takes the observables' bias from the check matrix: here both are flat uint8
+            # arrays, the observables' from the observables' matrix, so a model with a fault of
+            # probability 1 decodes.)
+            syndrome_bias = (np.asarray(self.check_matrix[:, to_one].sum(axis=1)).ravel() % 2).astype(np.uint8)
+            observables_bias = (np.asarray(self.observables_matrix[:, to_one].sum(axis=1)).ravel() % 2).astype(np.uint8)
         else:
             syndrome_bias = None
             observables_bias = None

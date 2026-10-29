@@ -12,7 +12,9 @@ exact types and one positional argument. And ``BpOsdDecoder.decoding`` returns t
 
 from __future__ import annotations
 
+import functools
 import sys
+import threading
 import warnings
 from typing import Any, List, Optional, Union
 
@@ -138,6 +140,20 @@ def _declared(value: Any) -> Any:
     return value.value if isinstance(value, _Default) else value
 
 
+def _one_at_a_time(method: Any) -> Any:
+    """A decode with the decoder's other decodes kept out: each keeps its results on the decoder
+    (``converge``, ``log_prob_ratios``, the decoding) and answers from them, so decodes from two
+    threads on one decoder take turns (ldpc's hold the GIL throughout), and each answers its own
+    syndrome."""
+
+    @functools.wraps(method)
+    def run(self: Any, *args: Any, **kwargs: Any) -> Any:
+        with self._lock:
+            return method(self, *args, **kwargs)
+
+    return run
+
+
 class BpDecoderBase:
     """What ldpc's BP decoders share: the matrix, the channel, the BP options and the last
     run's results."""
@@ -154,6 +170,7 @@ class BpDecoderBase:
         serial_schedule_order, random_serial_schedule = _base("serial_schedule_order", serial_schedule_order), _base("random_serial_schedule", random_serial_schedule)
         if not _is_matrix(pcm) and not isinstance(pcm, (list, tuple)):
             raise TypeError(f"The input matrix is of an invalid type. Please input{_S12}a np.ndarray or scipy.sparse.spmatrix object, not {type(pcm)}")
+        self._lock = threading.RLock()
         self.m, self.n, self._cols = _columns(pcm)
         self._channel = np.full(self.n, 0.5)
         self._method, self._scale, self._max_iter = "product_sum", 1.0, 0
@@ -404,18 +421,38 @@ class BpDecoderBase:
         return bits, self._syndrome_of(bits), v.dtype
 
     def __reduce__(self) -> tuple:
-        # Rebuilt from its matrix and options; the settings and last results come along.
-        state = {k: v for k, v in self.__dict__.items() if k not in ("m", "n", "_cols") and not type(v).__module__.startswith("stabilizer_qec._core")}
+        # Rebuilt from its matrix and options, then the settings changed since replayed on it,
+        # as they were made on this one (OSD's candidates are those it was built with), and the
+        # serial schedule's state carried over (its order, and a random one's generator, as the
+        # decodes so far left them): the copy decodes on as this one does. The last results
+        # come along.
+        with self._lock:
+            state = {k: v for k, v in self.__dict__.items() if k not in ("m", "n", "_cols", "_lock") and not type(v).__module__.startswith("stabilizer_qec._core")}
+            state["_serial_state"] = self._x.serial_state()
+            state.update(self._core_settings())
         args, kwargs = self._made_from
         return (_rebuild, (type(self), args, kwargs), state)
 
     def __setstate__(self, state: dict) -> None:
+        state = dict(state)
+        serial = state.pop("_serial_state", None)
         self.__dict__.update(state)
         call(self._x.set_priors, list(self._channel))
         self._x.set_max_iter(self._max_iter)
         call(self._x.set_method, self._method, float(self._scale))
         call(self._x.set_schedule, self._schedule)
         self._x.set_random(self._random)
+        self._replay()
+        if serial is not None:
+            call(self._x.set_serial_state, serial)
+
+    def _core_settings(self) -> dict:
+        """Settings the core keeps alone, for a copy (beside the attributes)."""
+        return {}
+
+    def _replay(self) -> None:
+        """The settings a subclass changes on the core after construction, made again on a
+        copy's (from its attributes, ``_core_settings``' among them)."""
 
 
 class BpDecoder(BpDecoderBase):
@@ -460,6 +497,7 @@ class BpDecoder(BpDecoderBase):
             if self.bp_method != "minimum_sum" or self.schedule != "parallel":
                 raise ValueError(f"device {device!r} runs minimum_sum with the parallel schedule only, not {self.bp_method} / {self.schedule}")
 
+    @_one_at_a_time
     def decode(self, input_vector: np.ndarray) -> np.ndarray:
         """The hard decision: for a syndrome, the error; for a received vector, the codeword.
         On a single-precision device (``"cpu-f32"``, ``"gpu"``) the shot goes through
@@ -504,6 +542,7 @@ class BpDecoder(BpDecoderBase):
         bits = np.unpackbits(np.frombuffer(hard, dtype=np.uint8).reshape(len(rows), stride), axis=1, bitorder="little")[:, : self.n]
         return bits, np.frombuffer(converged, dtype=np.uint8).astype(bool), np.asarray(iterations, dtype=np.int64)
 
+    @_one_at_a_time
     def decode_batch(self, syndromes: Any, *, threads: int = 0, _details: bool = False) -> np.ndarray:
         """Many syndromes at once (one row each, ``m`` bits: syndromes whatever
         ``input_vector_type`` says): the hard decisions as rows of 0/1. On ``device="cpu"`` each
@@ -581,6 +620,7 @@ class SoftInfoBpDecoder(BpDecoderBase):
         self.input_vector_type = "syndrome"
         self._soft = np.zeros(self.m)
 
+    @_one_at_a_time
     def decode(self, soft_info_syndrome: np.ndarray) -> np.ndarray:
         soft = [float(x) for x in np.asarray(soft_info_syndrome, dtype=float)[: self.m]]
         hard, llr, converged, iterations, out = call(self._x.decode_soft, soft, float(self.cutoff), float(self.sigma), float(self._scale), self._seed & 0xFFFFFFFF)
@@ -668,6 +708,7 @@ class BpOsdDecoder(BpDecoderBase):
         if name == "osd_e" and order > 15:
             warnings.warn("WARNING: Running the 'OSD_E' (Exhaustive method) with search depth greater than 15 is not recommended. Use the 'osd_cs' method instead.")
 
+    @_one_at_a_time
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
         received = self._received(syndrome)
         if received is None:
@@ -699,6 +740,9 @@ class BpOsdDecoder(BpDecoderBase):
             self._osd0 = np.asarray(osd0, dtype=np.uint8)
             self._osdw = np.asarray(correction, dtype=np.uint8)
         return np.asarray(correction, dtype=syndrome.dtype)
+
+    def _replay(self) -> None:
+        self._x.set_osd_order(self._order)
 
     @property
     def osd_method(self) -> Optional[str]:
@@ -851,6 +895,7 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
         self.last_tied = False
         self._stat_fields: dict = {}
 
+    @_one_at_a_time
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
         received = self._received(syndrome)
         if received is None:
@@ -884,6 +929,13 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
         self.last_tied = ties > 0
         self._stat_fields = {}  # (each decode starts the statistics afresh, as in ldpc)
         return np.asarray(correction, dtype=syndrome.dtype)
+
+    def _core_settings(self) -> dict:
+        return {"_do_stats": self.do_stats}
+
+    def _replay(self) -> None:
+        call(self._x.set_lsd, self._lsd_method, self._lsd_order)
+        self.set_do_stats(self.__dict__.pop("_do_stats", False))
 
     # -- ldpc's statistics -----------------------------------------------------------------
 
@@ -923,18 +975,24 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
         call(self._x.reset_stats)
         self._stat_fields = {}
 
+    @_one_at_a_time
     def _cluster_bits(self, syndrome: Any) -> list:
         """Each final cluster's (id, bits in robin-set order): for checking against ldpc's
         statistics."""
         return call(self._x.decode, [int(x != 0) for x in np.asarray(syndrome)], True)[5]
 
+    @_one_at_a_time
     def _merge_order_outcomes(self, syndrome: np.ndarray, max_leaves: int = 4096, target: Optional[np.ndarray] = None) -> set[bytes]:
         """Every correction a decode of ``syndrome`` reaches over the merge orders ldpc can take,
         each as ``np.uint8`` bytes, one per column: for checking against ldpc. ldpc merges the
         clusters a growth step meets in the order of their hashed heap addresses, so one
         syndrome can decode two ways in one process; ``decode`` takes one of the orders, and its
-        answer is always in the set. A syndrome no correction explains raises ``decode``'s
-        ValueError (no order explains it, so the walk ends at the first). BP runs once. The
+        answer is always in the set. The decode is the last one when that was of ``syndrome``
+        (a random or relative serial schedule moves on at each decode: its BP runs again from
+        where that decode's started), else the next one; the schedule is left as it was, so a
+        search before ``decode(syndrome)`` and one after it are alike. A syndrome no correction
+        explains raises ``decode``'s ValueError (no order explains it, so the walk ends at the
+        first). BP runs once. The
         orders (any order of the clusters met, and whether each cluster met while merging is
         merged) are walked for at most ``max_leaves`` of them, fewest departures from
         ``decode``'s order first. With ``target`` (a correction, one entry per column), the walk
@@ -994,6 +1052,7 @@ class BpFlipDecoder(BpDecoderBase):
         self._flip = call(_core.Flip, self.m, self._cols, int(flip_iterations), int(pflip_frequency), int(pflip_seed) & 0xFFFFFFFF)
         self._decoding = np.zeros(self.n, dtype=np.uint8)
 
+    @_one_at_a_time
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
         syndrome = np.asarray(syndrome)
         if not len(syndrome) == self.m:
@@ -1035,14 +1094,18 @@ class LsdDecoder(_LsdOptions):
         self._x = call(_core.BpLsd, self.m, cols, [0.5] * self.n, 1, "product_sum", 1.0, method, order, self.bits_per_step, True)
         self._decoding = np.zeros(self.n, dtype=np.uint8)
         self.last_tied = False
+        self._lock = threading.RLock()
 
     def __reduce__(self) -> tuple:
+        # Rebuilt from its matrix and options, with the LSD method and order it has now.
         args, kwargs = self._made_from
-        return (_rebuild, (type(self), args, kwargs), {"_decoding": self._decoding, "last_tied": self.last_tied})
+        return (_rebuild, (type(self), args, kwargs), {"_decoding": self._decoding, "last_tied": self.last_tied, "_lsd_method": self._lsd_method, "_lsd_order": self._lsd_order})
 
     def __setstate__(self, state: dict) -> None:
         self.__dict__.update(state)
+        call(self._x.set_lsd, self._lsd_method, self._lsd_order)
 
+    @_one_at_a_time
     def decode(self, syndrome: np.ndarray, bit_weights: Any) -> np.ndarray:
         syndrome = np.asarray(syndrome)
         if not len(bit_weights) == self.n:
@@ -1100,6 +1163,7 @@ class UnionFindDecoder:
         self.bits_per_step = 0
         self._decoding = np.zeros(self.n, dtype=np.uint8)
         self.last_tied = self.last_stuck = False
+        self._lock = threading.RLock()
 
     def __reduce__(self) -> tuple:
         args, kwargs = self._made_from
@@ -1108,6 +1172,7 @@ class UnionFindDecoder:
     def __setstate__(self, state: dict) -> None:
         self.__dict__.update(state)
 
+    @_one_at_a_time
     def decode(self, syndrome: np.ndarray, llrs: Optional[np.ndarray] = None, bits_per_step: int = 0) -> np.ndarray:
         syndrome = np.asarray(syndrome)
         if not len(syndrome) == self.m:
@@ -1179,6 +1244,7 @@ class BeliefFindDecoder(BpDecoderBase):
         self.input_vector_type = "syndrome"
         self.last_tied = self.last_stuck = False
 
+    @_one_at_a_time
     def decode(self, syndrome: np.ndarray) -> np.ndarray:
         received = self._received(syndrome)
         if received is None:
@@ -1305,6 +1371,7 @@ class MbpDecoder:
         self._decoding = np.zeros(n, dtype=np.uint8)
         self._llr = np.zeros((3, n))
         self._converge, self._iter = False, 0
+        self._lock = threading.RLock()
 
     def __reduce__(self) -> tuple:
         args, kwargs = self._made_from
@@ -1330,6 +1397,7 @@ class MbpDecoder:
         if hasattr(self, "_x"):
             call(self._x.set_alpha, new.tolist())
 
+    @_one_at_a_time
     def decode(self, syndrome: Any = None, sx: Any = None, sz: Any = None) -> Any:
         if syndrome is not None:
             syndrome = np.asarray(syndrome)
@@ -1355,6 +1423,7 @@ class MbpDecoder:
         outz = np.isin(self._decoding, (2, 3)).astype(dtype)
         return outx, outz
 
+    @_one_at_a_time
     def uf_decode(self, sx: Any = None, sz: Any = None) -> Any:
         if self._gf4:
             raise ValueError("uf_decode needs the code as HX_CSS and HZ_CSS.")
@@ -1460,6 +1529,7 @@ class SoftInfoBpOsdDecoder(SoftInfoBpDecoder):
         self._osd0 = np.zeros(self.n, dtype=np.uint8)
         self._osdw = np.zeros(self.n, dtype=np.uint8)
 
+    @_one_at_a_time
     def decode(self, soft_info_syndrome: np.ndarray) -> np.ndarray:
         if not len(soft_info_syndrome) == self.m:
             raise ValueError(f"The syndrome must have length {self.m}. Not {len(soft_info_syndrome)}.")

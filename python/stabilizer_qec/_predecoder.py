@@ -113,8 +113,19 @@ class PreDecoder(_DemDecoder):
             self.weights = weights
 
     def __reduce__(self) -> tuple:
+        # Rebuilt from its model and options with the weights and threshold it has now, and the
+        # optimizer's state (either engine's) set on it: the copy decodes as this one does, and
+        # trained on, takes the steps this one would.
         (model,), kw = self._made_from
-        return (_rebuild, (type(self), (model,), {**kw, "weights": self.weights}))
+        with self._lock:
+            numpy_state = None if self._np is None else {k: (v.copy() if isinstance(v, np.ndarray) else v) for k, v in self._np.items()}
+            state = {"trainer": self._x.trainer_state(), "numpy": numpy_state}
+            return (_rebuild, (type(self), (model,), {**kw, "weights": self.weights, "threshold": self._threshold}), state)
+
+    def __setstate__(self, state: dict) -> None:
+        with self._lock:
+            call(self._x.set_trainer_state, state["trainer"])
+            self._np = state["numpy"]
 
     @classmethod
     def pretrained(cls, model: ModelLike, **kwargs: Any) -> "PreDecoder":
@@ -234,7 +245,7 @@ class PreDecoder(_DemDecoder):
         binary cross-entropy against the graph-like faults that fired, by Lion (the paper's,
         β 0.9 and 0.95, rate 3e-4) or Adam (rate 1e-3), the rate warmed up over ``warmup`` steps
         and ×0.7 at a quarter and at half of the steps. Returns each step's mean loss. Calls with
-        the same optimizer continue its state.
+        the same optimizer continue its state, on a pickled or copied pre-decoder too.
 
         ``engine="numpy"`` trains in numpy instead, on the same shots: the two agree step for
         step but for rounding."""

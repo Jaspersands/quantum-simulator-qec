@@ -1740,6 +1740,44 @@ impl PyPreDecoder {
         self.trainer.as_ref().map_or(0, |t| t.step)
     }
 
+    /// The optimizer's state, for a copy to train on from where this one is: (optimizer, its
+    /// weight decay, first moments, second moments (Adam's; f32 bytes each), steps taken); None
+    /// before training.
+    #[allow(clippy::type_complexity)]
+    fn trainer_state<'py>(&self, py: Python<'py>) -> Option<(&'static str, f32, Bound<'py, PyBytes>, Bound<'py, PyBytes>, u64)> {
+        use crate::predecoder::Optimizer;
+        self.trainer.as_ref().map(|t| {
+            let (name, weight_decay) = match t.optimizer {
+                Optimizer::Lion { weight_decay } => ("lion", weight_decay),
+                Optimizer::Adam => ("adam", 0.0),
+            };
+            (name, weight_decay, PyBytes::new(py, &f32_bytes(&t.m)), PyBytes::new(py, &f32_bytes(&t.v)), t.step)
+        })
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn set_trainer_state(&mut self, state: Option<(String, f32, Bound<'_, PyBytes>, Bound<'_, PyBytes>, u64)>) -> PyResult<()> {
+        use crate::predecoder::{Optimizer, Trainer};
+        let Some((name, weight_decay, m, v, step)) = state else {
+            self.trainer = None;
+            return Ok(());
+        };
+        let optimizer = match name.as_str() {
+            "lion" => Optimizer::Lion { weight_decay },
+            "adam" => Optimizer::Adam,
+            other => return Err(err(format!("optimizer '{other}' is not lion or adam"))),
+        };
+        let floats = |raw: &[u8]| -> Vec<f32> { raw.chunks_exact(4).map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]])).collect() };
+        let mut t = Trainer::new(optimizer, self.net.params.len());
+        let (m, v) = (m.as_bytes(), v.as_bytes());
+        if m.len() != 4 * t.m.len() || v.len() != 4 * t.v.len() {
+            return Err(err(format!("an optimizer's state for {} parameters, not {} and {} bytes of moments", self.net.params.len(), m.len(), v.len())));
+        }
+        (t.m, t.v, t.step) = (floats(m), floats(v), step);
+        self.trainer = Some(t);
+        Ok(())
+    }
+
     /// The mean loss of packed shots and the faults that fired, and its gradient (f32 bytes).
     fn loss_and_grad<'py>(&self, py: Python<'py>, dets: &[u8], errors: &[u8], shots: usize, threads: usize) -> PyResult<(f64, Bound<'py, PyBytes>)> {
         let l = &self.layout;
@@ -2027,6 +2065,20 @@ fn checked_order(order: &[u32], n: usize) -> PyResult<()> {
     Ok(())
 }
 
+/// A serial schedule's state, for a copy to go on from: (order, random, the generator's words).
+type SerialWords = (Vec<u32>, bool, Vec<u32>);
+
+fn serial_words(s: &crate::bp::SerialState) -> SerialWords {
+    (s.order.clone(), s.random, s.rng.words())
+}
+
+fn serial_from_words(state: SerialWords, n: usize) -> PyResult<crate::bp::SerialState> {
+    let (order, random, words) = state;
+    checked_order(&order, n)?;
+    let rng = crate::cpp_random::Mt19937::from_words(&words).ok_or_else(|| err("a serial schedule's generator is 624 words and a position up to 624".to_string()))?;
+    Ok(crate::bp::SerialState { order, random, rng })
+}
+
 /// Belief propagation on a check matrix given by its columns, as `ldpc`'s `BpDecoder`: every
 /// schedule, and the state `ldpc` keeps from decode to decode (the last decision and
 /// posteriors, the serial order and its generator).
@@ -2087,6 +2139,16 @@ impl PyBp {
 
     fn seed(&mut self, seed: u32) {
         self.serial.seed(seed);
+    }
+
+    /// The serial schedule's order, whether it is random, and its generator, as they are now.
+    fn serial_state(&self) -> SerialWords {
+        serial_words(&self.serial)
+    }
+
+    fn set_serial_state(&mut self, state: SerialWords) -> PyResult<()> {
+        self.serial = serial_from_words(state, self.bp.num_vars)?;
+        Ok(())
     }
 
     /// (hard decision, posterior log-likelihood ratios, converged, iterations).
@@ -2199,6 +2261,16 @@ impl PyBpOsd {
         self.work.serial.seed(seed);
     }
 
+    /// The serial schedule's order, whether it is random, and its generator, as they are now.
+    fn serial_state(&self) -> SerialWords {
+        serial_words(&self.work.serial)
+    }
+
+    fn set_serial_state(&mut self, state: SerialWords) -> PyResult<()> {
+        self.work.serial = serial_from_words(state, self.dec.bp.num_vars)?;
+        Ok(())
+    }
+
     /// The OSD order now (the candidates stay those set up at construction, as in `ldpc`).
     fn set_osd_order(&mut self, order: usize) {
         self.dec.order = order;
@@ -2263,9 +2335,11 @@ impl PyBpLsd {
         Ok(())
     }
 
+    // (A schedule set anew: a search of the last decode's syndrome is the next decode's.)
     fn set_order(&mut self, order: Vec<u32>) -> PyResult<()> {
         checked_order(&order, self.dec.bp.num_vars)?;
         self.work.serial.order = order;
+        self.work.before = None;
         Ok(())
     }
 
@@ -2275,10 +2349,23 @@ impl PyBpLsd {
 
     fn set_random(&mut self, random: bool) {
         self.work.serial.random = random;
+        self.work.before = None;
     }
 
     fn seed(&mut self, seed: u32) {
         self.work.serial.seed(seed);
+        self.work.before = None;
+    }
+
+    /// The serial schedule's order, whether it is random, and its generator, as they are now.
+    fn serial_state(&self) -> SerialWords {
+        serial_words(&self.work.serial)
+    }
+
+    fn set_serial_state(&mut self, state: SerialWords) -> PyResult<()> {
+        self.work.serial = serial_from_words(state, self.dec.bp.num_vars)?;
+        self.work.before = None;
+        Ok(())
     }
 
     /// The LSD method and order now (`ldpc`'s `lsd_method` and `lsd_order` setters, which the
@@ -2372,8 +2459,9 @@ impl PyBpLsd {
     /// (Every correction a decode of `syndrome` reaches over at most `max_paths` of the merge
     /// orders `ldpc` can take, `decode`'s first, stopping at `target` when given, and none when
     /// no correction explains the syndrome; paths walked; the departures from `decode`'s order
-    /// up to which every path was walked; whether every path was): `BpLsd::merge_order_outcomes`.
-    /// The serial schedule and statistics are left as they were.
+    /// up to which every path was walked; whether every path was): `BpLsd::merge_order_outcomes`,
+    /// of the last decode when that was of `syndrome`, else of the next. The serial schedule and
+    /// statistics are left as they were.
     #[pyo3(signature = (syndrome, max_paths, target=None))]
     #[allow(clippy::type_complexity)]
     fn merge_order_outcomes(&mut self, syndrome: Vec<u8>, max_paths: usize, target: Option<Vec<u8>>) -> PyResult<(Vec<Vec<u32>>, usize, usize, bool)> {
@@ -2383,12 +2471,10 @@ impl PyBpLsd {
                 return Err(err(format!("{} target bits for {} bits", t.len(), self.dec.bp.num_vars)));
             }
         }
-        let serial = self.work.serial.clone();
         let stats = std::mem::take(&mut self.work.stats);
         let do_stats = std::mem::replace(&mut self.work.do_stats, false);
         self.work.record = false;
         let found = self.dec.merge_order_outcomes(&syndrome, max_paths, target.as_deref(), &mut self.work);
-        self.work.serial = serial;
         self.work.stats = stats;
         self.work.do_stats = do_stats;
         Ok((found.corrections.iter().map(|c| bits(c)).collect(), found.paths, found.departures, found.complete))
@@ -2575,20 +2661,23 @@ type RelayResult = (Vec<u32>, Vec<u32>, Vec<f64>, bool, usize, usize, f64);
 
 /// IBM's `relay_bp` decoders (`RelayDecoder*` with `relay`, `MinSumBPDecoder*` without) in the
 /// number type `kind` ("f32", "f64", "i8", "i16", "i32", "i64", or "fixed" with `frac_bits`).
-/// Its state, random memory strengths included, continues from decode to decode.
+/// Its state, random memory strengths included, continues from decode to decode. Calls from
+/// several threads take turns: each takes the state's lock with the GIL released, so a batch
+/// running on one thread holds up another's call to the same decoder, not the interpreter.
 #[pyclass(name = "RelayEngine", module = "stabilizer_qec._core")]
 pub struct PyRelayEngine {
-    eng: Box<dyn DynRelay>,
+    eng: std::sync::Mutex<Box<dyn DynRelay>>,
     relay: bool,
     num_checks: usize,
     num_vars: usize,
 }
 
 impl PyRelayEngine {
-    fn one(&mut self, syndrome: &[u8]) -> RelayResult {
-        let out = self.eng.run(syndrome, self.relay);
-        let (c, d, p) = self.eng.result();
-        (c, d, p, out.converged, out.iterations, out.max_iter, out.weight)
+    /// `f` on the decoder, its turn taken without the GIL (a panic in another call leaves the
+    /// state as that call left it).
+    fn with<R: Send>(&self, py: Python<'_>, f: impl FnOnce(&mut dyn DynRelay) -> R + Send) -> R {
+        let eng = &self.eng;
+        py.detach(move || f(&mut **eng.lock().unwrap_or_else(|e| e.into_inner())))
     }
 }
 
@@ -2641,17 +2730,23 @@ impl PyRelayEngine {
             "fixed" => fixed!(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31),
             _ => return Err(err(format!("unknown number type {kind:?}"))),
         };
-        Ok(PyRelayEngine { eng, relay, num_checks, num_vars: columns.len() })
+        Ok(PyRelayEngine { eng: std::sync::Mutex::new(eng), relay, num_checks, num_vars: columns.len() })
     }
 
     /// The decoder with its state as it is now, to go on independently.
-    fn copy(&self) -> Self {
-        PyRelayEngine { eng: self.eng.boxed_clone(), relay: self.relay, num_checks: self.num_checks, num_vars: self.num_vars }
+    fn copy(&self, py: Python<'_>) -> Self {
+        let eng = self.with(py, |e| e.boxed_clone());
+        PyRelayEngine { eng: std::sync::Mutex::new(eng), relay: self.relay, num_checks: self.num_checks, num_vars: self.num_vars }
     }
 
-    fn decode(&mut self, syndrome: Vec<u8>) -> PyResult<RelayResult> {
+    fn decode(&self, py: Python<'_>, syndrome: Vec<u8>) -> PyResult<RelayResult> {
         checked_syndrome(&syndrome, self.num_checks)?;
-        Ok(self.one(&syndrome))
+        let relay = self.relay;
+        Ok(self.with(py, |e| {
+            let out = e.run(&syndrome, relay);
+            let (c, d, p) = e.result();
+            (c, d, p, out.converged, out.iterations, out.max_iter, out.weight)
+        }))
     }
 
     /// `count` rows of syndrome bytes (one per check), without the GIL: each in turn, the state
@@ -2664,7 +2759,7 @@ impl PyRelayEngine {
     #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     #[pyo3(signature = (rows, count, fresh, threads=0, posteriors=true, logs=false))]
     fn decode_rows<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         rows: &[u8],
         count: usize,
@@ -2675,8 +2770,7 @@ impl PyRelayEngine {
     ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>, Bound<'py, PyBytes>, Vec<(bool, usize, usize, f64)>, Vec<Vec<String>>)> {
         check_rows(rows.len(), self.num_checks, count, self.num_checks, "syndrome bits")?;
         let relay = self.relay;
-        let eng = &mut self.eng;
-        let out = py.detach(move || eng.batch(rows, count, relay, fresh, threads, posteriors, logs));
+        let out = self.with(py, |e| e.batch(rows, count, relay, fresh, threads, posteriors, logs));
         let corrections: Vec<u8> = out.iter().flat_map(|r| r.correction.iter().copied()).collect();
         let decoded: Vec<u8> = out.iter().flat_map(|r| r.decoded.iter().copied()).collect();
         let post = le_f64(out.iter().flat_map(|r| r.posteriors.iter().copied()));
@@ -2686,16 +2780,16 @@ impl PyRelayEngine {
     }
 
     /// IBM's decoding quality of an error: Σ ln((1 − p)/p) over its faults (finite ones).
-    fn quality(&self, error: Vec<u8>) -> PyResult<f64> {
+    fn quality(&self, py: Python<'_>, error: Vec<u8>) -> PyResult<f64> {
         if error.len() != self.num_vars {
             return Err(err(format!("{} error bits for {} faults", error.len(), self.num_vars)));
         }
-        Ok(self.eng.quality(&error))
+        Ok(self.with(py, |e| e.quality(&error)))
     }
 
     /// IBM's Relay log lines for the last decode.
-    fn log_lines(&self) -> Vec<String> {
-        self.eng.log_lines()
+    fn log_lines(&self, py: Python<'_>) -> Vec<String> {
+        self.with(py, |e| e.log_lines())
     }
 }
 

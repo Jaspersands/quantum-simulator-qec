@@ -9,6 +9,7 @@ the merge orders ldpc can take (every order that departs from ours at one merge,
 `decode` must still take the order it took before the search existed.
 """
 
+import copy
 import hashlib
 import json
 import pathlib
@@ -185,3 +186,36 @@ def test_an_unexplainable_syndrome_raises_as_decode():
         assert (paths, departures) == (1, 0)
         stopped += not complete
     assert stopped >= 15, stopped  # (all 20 on macOS arm64)
+
+
+@pytest.mark.parametrize("schedule, extra, error", [("serial", dict(random_serial_schedule=True, random_schedule_seed=7), None), ("serial_relative", {}, None), ("serial_relative", {}, 0.05), ("serial", {}, None), ("parallel", {}, None)])
+def test_the_search_after_a_decode_is_that_decodes(schedule, extra, error):
+    """A random serial schedule reshuffles, and a relative one re-sorts, at every decode: the
+    search after `decode(s)` runs that decode's BP again (from the schedule's state it started
+    from), so `decode`'s answer is in the set; a search of a syndrome not decoded last is the
+    next decode's; and neither moves the schedule on."""
+    rng = np.random.default_rng(5)
+    missing = not_next = moved = 0
+    for _ in range(10):
+        m, n = 30, 70
+        pcm = np.zeros((m, n), dtype=np.uint8)
+        for j in range(n):
+            pcm[rng.choice(m, 3, replace=False), j] = 1
+        channel = {"error_rate": error} if error else {"error_channel": list(rng.uniform(0.02, 0.1, n))}
+        make = lambda: BpLsdDecoder(pcm, max_iter=3, bp_method="minimum_sum", schedule=schedule, lsd_method="lsd_cs", lsd_order=3, always_run_lsd=True, **channel, **extra)  # noqa: E731
+        dec, twin = make(), make()
+        for _ in range(10):
+            s = (pcm @ (rng.random(n) < 0.08) % 2).astype(np.uint8)
+            other = (pcm @ (rng.random(n) < 0.08) % 2).astype(np.uint8)
+            if not s.any() or not other.any() or np.array_equal(s, other):
+                continue
+            order = dec.serial_schedule_order
+            ours = np.asarray(dec.decode(s), dtype=np.uint8)
+            assert np.array_equal(ours, twin.decode(s))  # (the twin never searches)
+            moved += not np.array_equal(order, dec.serial_schedule_order)
+            missing += ours.tobytes() not in dec._merge_order_outcomes(s, max_leaves=64)
+            (first,) = dec._merge_order_outcomes(other, max_leaves=1)
+            ahead = copy.deepcopy(twin)
+            not_next += first != np.asarray(ahead.decode(other), dtype=np.uint8).tobytes()
+    assert (missing, not_next) == (0, 0)
+    assert moved > 0 or schedule in ("parallel", "serial") and not extra
