@@ -221,7 +221,31 @@ def _as_u64(x: float) -> int:
     return int(x)
 
 
+def _ceil_as_u64(x: float) -> int:
+    """`x.ceil() as u64`: saturating, NaN to 0."""
+    return _as_u64(float(math.ceil(x)) if math.isfinite(x) else x)
+
+
+def _divide_by_zero() -> ValueError:
+    # A u64 division by zero is a panic in the QDK (``attempt to divide by zero``), whatever the build. The
+    # inputs that lead here are degenerate but accepted by both: a logical cycle time (of the algorithm's patch
+    # or of a factory's) that rounds to 0 ns, a factory that cannot finish one run in the cycles it is given
+    # (`maxTFactories` on a short program), a patch of 0 physical qubits. As for the QDK's other panics, a
+    # ValueError here (not an EstimatorError, so a batch fails as a whole, as the QDK's call does).
+    return ValueError("the estimate divides by zero: a logical cycle time or T-factory duration of 0 ns, a T factory that cannot finish a run in the cycles available, or a patch of 0 physical qubits (the QDK panics here: attempt to divide by zero)")
+
+
+def _floor_div(a: int, b: int) -> int:
+    """u64 `/`: by zero the QDK panics, a ValueError here."""
+    if b == 0:
+        raise _divide_by_zero()
+    return a // b
+
+
 def _ceil_div(a: int, b: int) -> int:
+    """`u64::div_ceil`: by zero the QDK panics, a ValueError here."""
+    if b == 0:
+        raise _divide_by_zero()
     return -(-a // b)
 
 
@@ -1391,7 +1415,8 @@ class LogicalPatch:
         return LogicalPatch(scheme, qubit, code_distance, scheme.physical_qubits(code_distance), scheme.cycle_time(qubit, code_distance), scheme.logical_error_rate(qubit, code_distance))
 
     def logical_cycles_per_second(self) -> float:
-        return 1e9 / self.logical_cycle_time
+        """f64 division: infinite for a cycle time of 0 ns (which the QDK cannot format in its report)."""
+        return _div(1e9, float(self.logical_cycle_time))
 
     def asdict(self) -> dict:
         return {"codeDistance": self.code_distance, "physicalQubits": self.physical_qubits, "logicalCycleTime": self.logical_cycle_time, "logicalErrorRate": self.logical_error_rate}
@@ -2221,6 +2246,9 @@ def _thousands(value) -> str:
 
 
 def _thousands_f64(value: float) -> str:
+    if not math.isfinite(value):
+        # `format!("{val:.2}")` writes `inf` or `NaN`, with no point to split at: the QDK's `expect` panics.
+        raise ValueError(f"the report cannot format {value} (a clock frequency of a 0 ns logical cycle): the QDK panics here (Invalid formatting)")
     integer, fraction = f"{value:.2f}".split(".")
     return f"{_thousands(integer)}.{fraction}"
 
@@ -2474,7 +2502,7 @@ class EstimationResult:
         return self.logical_patch.logical_cycle_time * self.num_cycles
 
     def rqops(self) -> int:
-        return math.ceil(self.counts.logical_qubits() * self.logical_patch.logical_cycles_per_second())
+        return _ceil_as_u64(self.counts.logical_qubits() * self.logical_patch.logical_cycles_per_second())
 
     def physical_counts(self) -> dict:
         counts, budget, part = self.counts, self.error_budget, self.factory_part
@@ -2582,12 +2610,15 @@ class AzureEstimator:
         return logical_budget / (self.counts.logical_qubits() * num_cycles)
 
     def logical_cycles_for_code_distance(self, logical_budget: float, code_distance: int) -> int:
-        return int(math.floor(logical_budget / (self.counts.logical_qubits() * self.scheme.logical_error_rate(self.qubit, code_distance))))
+        """The QDK's ``(budget / (qubits as f64 * rate)).floor() as u64``: a logical error rate of 0 (a crossing
+        prefactor of 0, or one so small the rate underflows) or one whose quotient overflows allows every cycle,
+        2^64 - 1, as the saturating cast gives."""
+        return _as_u64(_div(logical_budget, self.counts.logical_qubits() * self.scheme.logical_error_rate(self.qubit, code_distance)))
 
     def num_factories(self, patch: LogicalPatch, factory: TFactory, num_magic_states: int, num_cycles: int) -> int:
         total_duration = num_cycles * patch.logical_cycle_time
         if total_duration < 2**64:
-            num_states_per_run = (total_duration // factory.duration()) * factory.num_output_states()
+            num_states_per_run = _floor_div(total_duration, factory.duration()) * factory.num_output_states()
             return _ceil_div(num_magic_states, num_states_per_run)
         magic_states_per_cycle = num_magic_states / (factory.num_output_states() * num_cycles)
         return math.ceil(magic_states_per_cycle * (factory.duration() / patch.logical_cycle_time))
@@ -2730,7 +2761,7 @@ class AzureEstimator:
         last_d: Optional[int] = None
         for d in reversed(self.scheme.code_distance_range(min_d)):
             patch = self.patch(d)
-            by_duration = int(math.floor(max_duration / patch.logical_cycle_time))
+            by_duration = _as_u64(_div(float(max_duration), float(patch.logical_cycle_time)))  # f64, `.floor() as u64`
             if by_duration < num_cycles_layout:
                 continue
             by_error = self.logical_cycles_for_code_distance(budget.logical, d)
@@ -2817,7 +2848,7 @@ class AzureEstimator:
             factory = self._first_min([f for f in last_factories if f.physical_qubits() <= allowed], lambda f: f.normalized_volume())
             if factory is None:
                 continue
-            copies = allowed // factory.physical_qubits()
+            copies = _floor_div(allowed, factory.physical_qubits())
             if copies == 0:
                 continue
             num_cycles = max(self.cycles_required_for_magic_states(copies, factory, patch, num_magic_states), num_cycles_layout)
