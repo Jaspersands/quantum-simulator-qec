@@ -503,6 +503,26 @@ def test_a_contraction_refused_by_a_bug_says_so():
     assert s._s.contraction_internal_error is None and s._s.contraction_refusal is None and s._s.contraction_entries_needed is None
 
 
+def test_order_zero_is_order_one():
+    """The core takes ``order=0`` as 1 (an order of 0 enumerated every product of a cluster and
+    hung on a truncated kernel), so the sampler is order 1's, and the truncation warning names
+    the order the shots sum, not 0."""
+    c = surface_memory(3, 0.25)
+    shots = {}
+    for order in (0, 1):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            s = c.compile_coherent_sampler(seed=5, order=order, max_contraction=0)
+        assert [str(w.message) for w in caught] == [
+            "the contraction is off (max_contraction=0), so the circuit's 14 interference generators are not contracted: each shot "
+            "sums the products of up to order=1 generators its faults touch, not its whole class, so the weights are truncated "
+            "(exact_weights is False)"
+        ], order
+        shots[order] = s.sample(200)
+    for a, b in zip(shots[0], shots[1]):
+        assert np.array_equal(a, b)
+
+
 def test_the_budget_warning_says_what_budget_contracts():
     """Past the budget the warning says how many table entries the class sums need at least, and
     a budget of that many contracts them, or (when the couplings widen the order the early

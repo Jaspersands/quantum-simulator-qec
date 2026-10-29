@@ -430,8 +430,9 @@ def _global_decoder(name: str, inputs: _Inputs, params: dict) -> Any:
         source = np.zeros((inputs.num_rows, inputs.num_cols), dtype=np.uint8)
         for j, col in enumerate(inputs.columns):
             source[col, j] = 1
-    # (CUDA-Q's pymatching decodes to observables whenever its model has them, which this
-    # package's does when asked; the frame trt_decoder combines is that.)
+    # (CUDA-Q's pymatching, and this package's, decode to observables whenever the model has
+    # them; the frame trt_decoder combines is that. Asking for it here states it, and keeps it
+    # if the plugin's default changes.)
     if name == "pymatching" and "output" not in params:
         if "O" in params or (isinstance(source, str) and _dem_observables(source) > 0):
             params["output"] = "observables"

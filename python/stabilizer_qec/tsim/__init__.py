@@ -30,8 +30,9 @@
   the default backend (and ``zx.pyzx_param_available()``) imports pyzx_param when it is installed,
   and importing pyzx_param calls ``numpy.set_printoptions(suppress=True)`` for the whole process, as
   importing Tsim does; ``backend="own"`` imports nothing. A record entry from before the circuit's
-  first measurement (``M 0`` then ``DETECTOR rec[-2]``) raises ``zx.parse.MeasurementRecordError``,
-  an ``IndexError`` as Tsim's is and a ``ValueError`` that names the instruction.
+  first measurement (``M 0`` then ``DETECTOR rec[-2]``) raises ``zx.parse.MeasurementRecordError``
+  from the graph, ``tcount``, ``to_matrix`` and every sampler: an ``IndexError``, as Tsim's error
+  is, and a ``ValueError`` that names the instruction.
 - ``CompiledDetectorSampler`` (``Circuit.compile_detector_sampler``): Tsim's convention, each
   detector's and observable's *value*, the parity of its measurements (``X 0``, ``M 0``,
   ``DETECTOR rec[-1]`` reads True), not Stim's flip from a reference run;
@@ -39,7 +40,9 @@
   noiseless shot each call is the reference, as Tsim's; on a Clifford circuit Stim's events
   exactly). ``CompiledMeasurementSampler`` (``Circuit.compile_sampler``): the records.
   ``batch_size`` and ``postselection_mask`` are checked as Tsim checks them and ``strategy`` is
-  accepted (Tsim does not check it either); none changes a sample (they are performance knobs
+  accepted (Tsim does not check it either); a circuit Tsim's graph builder refuses (an
+  anti-Hermitian product, an ``R_PAULI`` naming a qubit twice or more than 64, a sweep bit) is
+  refused by every sampler, with Tsim's message, before any sampler is built; none changes a sample (they are performance knobs
   of Tsim's JAX programs; every row is a full sample). The shots are this package's samplers'
   (the frame sampler on a Clifford circuit, the stabilizer-rank sampler on a non-Clifford one),
   so they match Tsim's in distribution, not bit for bit. ``stabilizer_qec.Circuit``'s own
@@ -70,7 +73,13 @@ Where it differs from Tsim:
   ``from_stim_program`` keeps the stim circuit's ``0.30000000000000001*pi``, the phase
   30000000000000001/10^17, where this is 3/10). Text that does not parse raises this package's
   ``ValueError`` naming the line (``SPP: bad Pauli product '2'`` for ``R_ZZ(0.25) 0 1 2 3``, Stim's
-  "Gate SPP only takes Pauli targets").
+  "Gate SPP only takes Pauli targets"). A parametric tag of the form ``name(...)`` that Tsim refuses
+  when it builds the graph (``I[R_Z(theta=0.3*pi*pi)] 0``, ``I[U3(theta=0.1*pi)] 0``, an extra or
+  unknown key, ``theta = 0.3*pi``) is refused when the text is read, with Tsim's message after the
+  line. A half-turn tag that Tsim does not read as a gate (a space around the name or after the
+  parentheses, ``I[R_Z (theta=0.3*pi)] 0``, or text after them, ``I[R_Z(theta=0.3*pi)#x] 0``) is
+  the identity, as in Tsim, held as ``I 0``. Its tag, which is inert in Tsim, is not kept, so it
+  prints ``I 0`` where Tsim prints the tag.
 - A product rotation is held one product a line, ``I[R_PAULI(theta=t, pauli=XY)] 0 1`` in radians,
   and the rest of Tsim's instruction is kept in how that is written: a factor's letter is lower
   case where it has a ``!`` (``SPP[T] !X0*Y1`` is ``pauli=xY``), the ``SPP_DAG`` of a rotation has

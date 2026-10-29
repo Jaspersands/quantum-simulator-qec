@@ -565,9 +565,13 @@ class Circuit:
     def twirled(self, *, merge: bool = False) -> "Circuit":
         """The circuit with each coherent rotation (``I_ERROR[R_Z(theta=θ)] q`` and the rest)
         replaced by its Pauli twirl, the Pauli with probability sin²θ: the model Stim and every
-        decoder assume. With ``merge``, rotations that are the same fault in different places
-        (either side of a gate that leaves them alone, say) become one with their angles added,
-        sin²(Σθ): the coherence-aware model. Merging writes the circuit without loops."""
+        decoder assume. The gates (``I[T]``, a rotation written on ``I`` or ``II``) are kept as
+        they are, once. With ``merge``, rotations that are the same fault in different places
+        (either side of a gate that leaves them alone, say: a T on another qubit, or R_X between
+        X errors) become one with their angles added, sin²(Σθ): the coherence-aware model. A
+        tagged gate at a Clifford angle is the Clifford gate there; a non-Clifford gate's angle is
+        never added into an error, and errors either side of a gate they anticommute with (Z
+        either side of R_X) stay apart. Merging writes the circuit without loops."""
         out = type(self).__new__(type(self))
         out._c = call(self._c.twirled, bool(merge))
         return out
@@ -807,7 +811,9 @@ class Circuit:
         """Where the faults of the circuit's error model arise, as Stim's method of the same name
         explains them: for each fault class (each fault of ``dem_filter`` when given), every
         place in the circuit such a fault arises, or with ``reduce_to_one_representative_error``
-        one. Loops are walked in full. Each result prints as Stim's text.
+        one. Loops are walked in full. Each result prints as Stim's text. As in Stim, detectors
+        may depend on random outcomes (each collapse is explained as a fault of the instruction
+        that makes it, where Stim's matcher puts it); observables may not.
 
         >>> c = Circuit("R 0\\nX_ERROR(0.1) 0\\nM 0\\nDETECTOR rec[-1]")
         >>> e = c.explain_detector_error_model_errors()[0]
@@ -979,7 +985,8 @@ class Circuit:
         seven). ``max_contraction`` caps the contraction's tables (entries in all, 2^16 by
         default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans 32 or more
         generators at any budget): past it, and with more than twelve generators, a shot sums
-        the products of up to ``order`` generators its faults touch, a truncation, and the
+        the products of up to ``order`` generators its faults touch (an ``order`` of 0 is taken
+        as 1), a truncation, and the
         sampler warns with an entry lower bound, not a guaranteed sufficient budget, or says
         that the selected plan cannot fit any budget up to 2^31. Width depends on the selected
         completed basis and elimination heuristic, not an optimum over equivalent circuits.
@@ -2243,9 +2250,13 @@ class StabilizerRankSampler(DetectorSampler):
 
     def probability_of(self, records: Any, *, samples: int = 1000, seed: Union[int, None] = None) -> np.ndarray:
         """The probability of each measurement record in ``records`` (a bool array of shape
-        (measurements,) or (shots, measurements)): exact when the circuit has no noise channel
-        or measurement flip; with noise, an average over ``samples`` draws of it (from the
-        stream ``seed``, so the same seed gives the same estimate)."""
+        (measurements,) or (shots, measurements)), every bit of it (``MPAD`` bits and heralds as
+        measurements): exact when the circuit has no noise channel or flip, a reset's unread
+        outcome summed over where the qubit is entangled with the rest (up to 10 such on a path,
+        past which the further ones are drawn, as noise is; a reset of a qubit on its own, a
+        fresh qubit's ``RX``, leaves the same state either way and is neither summed nor drawn);
+        with noise, an average over ``samples`` draws of it (from the stream ``seed``, so the
+        same seed gives the same estimate)."""
         r = np.asarray(records)
         if r.dtype != bool:
             r = r != 0
@@ -2368,13 +2379,16 @@ class CoherentSampler:
         if isinstance(max_contraction, (int, np.integer)) and not isinstance(max_contraction, bool):
             max_contraction = min(int(max_contraction), _MAX_CONTRACTION)
         entries = count(max_contraction, "max_contraction")
+        # The core takes an order of 0 as 1, as the Rust builder does; the warning names the
+        # order the shots sum.
+        order = max(count(order, "order"), 1)
         # Non-Clifford gates, or coherent errors at Clifford angles (fixed Cliffords): the joint
         # sampler, which runs them exactly and twirls the other errors.
         joint = bool(circuit.num_non_clifford_gates() or call(circuit._c.num_clifford_angle_errors))
         if joint:
-            self._s = call(circuit._c.joint_sampler, seed_of(seed), count(order, "order"), 12, True, 1, bool(pairs), limit)
+            self._s = call(circuit._c.joint_sampler, seed_of(seed), order, 12, True, 1, bool(pairs), limit)
         else:
-            self._s = call(circuit._c.coherent_sampler, seed_of(seed), count(order, "order"), 12, True, 1, limit, entries)
+            self._s = call(circuit._c.coherent_sampler, seed_of(seed), order, 12, True, 1, limit, entries)
         if not self._s.kernel_complete:
             warnings.warn(
                 f"the circuit's {self.num_locations} coherent rotations are past max_complete={limit}: the sampler's interference "
