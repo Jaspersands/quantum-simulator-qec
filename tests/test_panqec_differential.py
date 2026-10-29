@@ -32,6 +32,13 @@ def _default_direction(self):
 _sweep_decoder_3d.SweepDecoder3D.get_default_direction = _default_direction
 _rotated_sweep_decoder.RotatedSweepDecoder3D.get_default_direction = _default_direction
 
+# PanQEC 0.1.7's BP-OSD decoder reads ldpc's osdw_decoding after decode, which ldpc 2 leaves as the previous shot's
+# correction when a sector's syndrome is zero; the port reads decode's return. The reference takes the port's fix
+# (its own BP-OSD and the XCube decoder's Z part), and test_bposd_fix_only_drops_stale_corrections checks that it
+# changes nothing else.
+_REF_BPOSD_DECODE = panqec.decoders.BeliefPropagationOSDDecoder.decode
+panqec.decoders.BeliefPropagationOSDDecoder.decode = ours.decoders.BeliefPropagationOSDDecoder.decode
+
 CODE_NAMES = list(ref_config.CODES)
 SIZES = [(3,), (4,), (2, 3, 4), (3, 4, 3)]
 
@@ -146,6 +153,21 @@ def test_decoders_equal(decoder, code, size, kwargs, capsys):
     # The matching decoders on this package's Matching, which breaks PyMatching's ties as it does.
     for _, a, b in _decodes(decoder, code, size, kwargs)[3]:
         np.testing.assert_array_equal(a, b)
+    capsys.readouterr()
+
+
+@pytest.mark.parametrize("code,size,kwargs", [("Toric2DCode", (4,), {}), ("RhombicToricCode", (2,), {"channel_update": True, "osd_order": 2})])
+def test_bposd_fix_only_drops_stale_corrections(code, size, kwargs, capsys):
+    # PanQEC's own BP-OSD decode, on a fresh decoder for each shot (so with no previous shot to carry over), gives the
+    # port's corrections from one decoder used for every shot.
+    ca, cb = our_config.CODES[code](*size), ref_config.CODES[code](*size)
+    ma, mb = ours.error_models.PauliErrorModel(0.2, 0.3, 0.5), panqec.error_models.PauliErrorModel(0.2, 0.3, 0.5)
+    da = our_config.DECODERS["BeliefPropagationOSDDecoder"](ca, ma, 0.05, **kwargs)
+    ra, rb = np.random.default_rng(11), np.random.default_rng(11)
+    for _ in range(25):
+        ea, eb = ma.generate(ca, 0.05, rng=ra), mb.generate(cb, 0.05, rng=rb)
+        db = ref_config.DECODERS["BeliefPropagationOSDDecoder"](cb, mb, 0.05, **kwargs)
+        np.testing.assert_array_equal(np.asarray(da.decode(ca.measure_syndrome(ea))), np.asarray(_REF_BPOSD_DECODE(db, cb.measure_syndrome(eb))))
     capsys.readouterr()
 
 

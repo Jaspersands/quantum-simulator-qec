@@ -1,4 +1,5 @@
-# modified for stabilizer_qec: its ldpc and PyMatching are this package's, and panqec is stabilizer_qec.panqec.
+# modified for stabilizer_qec: its ldpc and PyMatching are this package's, and panqec is stabilizer_qec.panqec; decode
+# reads each ldpc decoder's return value, not its osdw_decoding (see decode).
 import numpy as np
 from stabilizer_qec.ldpc import BpOsdDecoder
 from stabilizer_qec.panqec.codes import StabilizerCode
@@ -117,7 +118,12 @@ class BeliefPropagationOSDDecoder(BaseDecoder):
         self._initialized = True
 
     def decode(self, syndrome: np.ndarray, **kwargs) -> np.ndarray:
-        """Get X and Z corrections given code and measured syndrome."""
+        """Get X and Z corrections given code and measured syndrome.
+
+        (stabilizer_qec: each correction is what ldpc's ``decode`` returns. PanQEC 0.1.7 read the decoder's
+        ``osdw_decoding`` afterwards, which ldpc 2 leaves as the previous shot's correction when a sector's syndrome is
+        zero, so that correction was applied again, did not explain the syndrome, and raised the logical failure rate
+        by orders of magnitude; on a nonzero syndrome the two are the same.)"""
 
         if not self._initialized:
             self.initialize_decoders()
@@ -144,8 +150,7 @@ class BeliefPropagationOSDDecoder(BaseDecoder):
             self.z_decoder.update_channel_probs(probabilities_z)
 
             # Decode Z errors
-            self.z_decoder.decode(syndrome_x)
-            z_correction = self.z_decoder.osdw_decoding
+            z_correction = np.asarray(self.z_decoder.decode(syndrome_x)).astype(int)
 
             # Bayes update of the probability
             if self._channel_update:
@@ -155,8 +160,7 @@ class BeliefPropagationOSDDecoder(BaseDecoder):
                 self.x_decoder.update_channel_probs(new_x_probs)
 
             # Decode X errors
-            self.x_decoder.decode(syndrome_z)
-            x_correction = self.x_decoder.osdw_decoding
+            x_correction = np.asarray(self.x_decoder.decode(syndrome_z)).astype(int)
 
             correction = np.concatenate([x_correction, z_correction])
         else:
@@ -165,8 +169,7 @@ class BeliefPropagationOSDDecoder(BaseDecoder):
             self.decoder.update_channel_probs(probabilities)
 
             # Decode all errors
-            self.decoder.decode(syndrome)
-            correction = self.decoder.osdw_decoding
+            correction = np.asarray(self.decoder.decode(syndrome)).astype(int)
             correction = np.concatenate(
                 [correction[n_qubits:], correction[:n_qubits]]
             )
