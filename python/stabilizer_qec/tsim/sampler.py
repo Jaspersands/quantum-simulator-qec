@@ -28,6 +28,43 @@ def _as_circuit(circuit: Any) -> _circuit.Circuit:
     return circuit if isinstance(circuit, _circuit.Circuit) else Circuit(circuit)
 
 
+def _check_like_tsim(circuit: _circuit.Circuit) -> None:
+    """Tsim builds a circuit's ZX graph before it builds a sampler, and its builders refuse what this
+    package's engines would run: an anti-Hermitian product (``TPP Y0*X0``), an ``R_PAULI`` naming a
+    qubit twice or more than 64 (33 ``R_ZZ`` lines in a row), a sweep bit. As ``to_matrix`` does, a
+    circuit with what they can refuse (a Pauli product or a sweep bit) has that graph built first, so
+    it raises Tsim's error; an instruction the builders cannot read that the core leaves inert (a tag
+    of someone else's, ``I[foo(x)]``) is left to the engine, unless a product rotation names a qubit
+    twice."""
+    from stabilizer_qec.tsim.circuit import _UNREAD_BY_TSIMS_BUILDERS, _lane_scan
+    from stabilizer_qec.tsim.zx import parse_stim_circuit
+
+    _, _, _, products, repeated = _lane_scan(circuit)
+    if not products:
+        return
+    try:
+        parse_stim_circuit(circuit, backend="own")
+    except ValueError as exc:
+        if not str(exc).startswith(_UNREAD_BY_TSIMS_BUILDERS) or repeated:
+            raise
+
+
+def _engine(make: Any, circuit: _circuit.Circuit) -> Any:
+    """``make()``, an engine of ``circuit``: a record entry from before the first measurement (the
+    engine's ``ValueError``) is Tsim's ``IndexError``, ``zx.parse.MeasurementRecordError``, raised as
+    Tsim's graph builder raises it (the instruction named), as ``get_graph`` and ``to_matrix`` raise it."""
+    try:
+        return make()
+    except ValueError as exc:
+        if "reaches before the first measurement" not in str(exc):
+            raise
+        from stabilizer_qec.tsim.zx import parse_stim_circuit
+        from stabilizer_qec.tsim.zx.parse import MeasurementRecordError
+
+        parse_stim_circuit(circuit, backend="own")
+        raise MeasurementRecordError(str(exc)) from None
+
+
 def _check_shots(shots: Any) -> int:
     if isinstance(shots, bool) or not isinstance(shots, (int, np.integer)):
         raise TypeError(f"shots must be an integer, not {type(shots).__name__}")
@@ -125,7 +162,8 @@ class CompiledMeasurementSampler:
 
         """
         self.circuit = _as_circuit(circuit)
-        self._inner = _circuit.MeasurementSampler(self.circuit, seed_of(seed))
+        _check_like_tsim(self.circuit)
+        self._inner = _engine(lambda: _circuit.MeasurementSampler(self.circuit, seed_of(seed)), self.circuit)
 
     def __repr__(self) -> str:
         return f"CompiledMeasurementSampler({self.circuit.num_measurements} measurements of {self.circuit.num_qubits} qubits, {self.circuit.num_non_clifford_gates()} non-Clifford gates)"
@@ -174,7 +212,8 @@ class CompiledDetectorSampler:
         """
         self.circuit = _as_circuit(circuit)
         self._seed = seed_of(seed)
-        self._inner = _circuit.Circuit.compile_detector_sampler(self.circuit, seed=self._seed)
+        _check_like_tsim(self.circuit)
+        self._inner = _engine(lambda: _circuit.Circuit.compile_detector_sampler(self.circuit, seed=self._seed), self.circuit)
         self._num_detectors = self.circuit.num_detectors
         self._num_observables = self.circuit.num_observables
         self._non_clifford = self.circuit.num_non_clifford_gates() > 0
@@ -319,9 +358,17 @@ class CompiledStateProbs:
     With ``sample_detectors``, P(state | f) sums the probabilities of the measurement records
     whose parities are the state: at most 2^16 of them (a state's records are 2^k, k the
     measurements no detector or observable pins down, a reset-free circuit's unread
-    measurements among them). A reset of a qubit left in superposition (``H 0`` then ``R 0``)
-    draws its unread outcome along with the noise, so a draw's probability is given that outcome
-    too; the mean is unchanged."""
+    measurements among them). Every bit of a record is the state's, ``MPAD`` bits and heralds as
+    measurements are; an ``MPAD`` flip and a herald (whether it fires, with which Pauli) are noise,
+    drawn as Tsim draws them, so P(state | f) is 0 where the bit drawn is not the state's. A seed's
+    draws are the same whatever the state, so in each the outcomes' probabilities sum to 1.
+
+    A reset of a qubit entangled with the rest (``H 0``, ``CX 0 1``, ``R 0``) has its unread outcome
+    summed over, as in Tsim, so a noiseless circuit's probability is exact in every draw. A reset
+    of a qubit that is a factor of its own (a fresh qubit's ``RX``) leaves the same state whatever
+    its outcome, so one outcome stands for both: it is neither summed over nor drawn. Past ten
+    summed resets on a path (the engine's ``MAX_SUMMED_RESETS``), the further ones' outcomes are
+    drawn with the noise: a draw's probability is given them too, and the mean is unchanged."""
 
     def __init__(self, circuit: Any, *, sample_detectors: bool = False, strategy: str = "cat5", seed: Union[int, None] = None) -> None:
         """Create a probability estimator.
@@ -337,8 +384,11 @@ class CompiledStateProbs:
         self.circuit = _as_circuit(circuit)
         self._sample_detectors = bool(sample_detectors)
         self._rng = np.random.default_rng(seed_of(seed))
-        self._sampler = _circuit.StabilizerRankSampler(self.circuit, 0)
-        self._noisy = _circuit.Circuit.without_noise(self.circuit)._stim_exact_text() != self.circuit._stim_exact_text()
+        _check_like_tsim(self.circuit)
+        self._sampler = _engine(lambda: _circuit.StabilizerRankSampler(self.circuit, 0), self.circuit)
+        # A draw depends on its seed when the engine draws anything: noise, or the outcome of a
+        # reset past those it sums over (``is_noisy``). Otherwise one draw is every draw.
+        self._noisy = bool(self._sampler._s.is_noisy) or _circuit.Circuit.without_noise(self.circuit)._stim_exact_text() != self.circuit._stim_exact_text()
         if self._sample_detectors:
             self._h = parity_matrix(self.circuit)
             self._num_outputs = self._h.shape[0]

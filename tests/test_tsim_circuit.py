@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pickle
 import re
+import time
 
 import numpy as np
 import pytest
@@ -278,6 +279,103 @@ def test_state_probs_per_noise_draw():
     assert never.probability_of(np.array([True, False]), batch_size=2).tolist() == [0.0, 0.0]
 
 
+# Tsim's P(record) on noiseless circuits whose records have MPAD bits or whose resets leave an
+# unread outcome random: each draw's probability is exact, the same whatever the seed.
+RECORD_BITS = {
+    "MPAD 0": {(0,): 1.0, (1,): 0.0},
+    "MPAD 1": {(0,): 0.0, (1,): 1.0},
+    "H 0\nM 0\nMPAD 1": {(0, 0): 0.0, (0, 1): 0.5, (1, 0): 0.0, (1, 1): 0.5},
+    "T 0\nMPAD 1\nM 0": {(0, 0): 0.0, (1, 0): 1.0, (0, 1): 0.0, (1, 1): 0.0},
+    "MPAD 1 0\nH 0\nT 0\nH 0\nM 0": {(1, 0, 0): (1 + np.cos(np.pi / 4)) / 2, (1, 0, 1): (1 - np.cos(np.pi / 4)) / 2, (0, 0, 0): 0.0, (1, 1, 0): 0.0},
+    "H 0\nCX 0 1\nR 0\nM 1": {(0,): 0.5, (1,): 0.5},
+    "H 0\nCX 0 1\nR 0\nH 1\nT 1\nH 1\nM 1": {(0,): 0.5, (1,): 0.5},
+    "H 0\nCX 0 1\nMPAD 0\nR 0\nM 1": {(0, 0): 0.5, (0, 1): 0.5, (1, 0): 0.0, (1, 1): 0.0},
+}
+
+
+@pytest.mark.parametrize("text", sorted(RECORD_BITS))
+def test_state_probs_force_every_record_bit_and_sum_over_resets(text):
+    c = tsim.Circuit(text)
+    for seed in range(4):
+        probs = CompiledStateProbs(c, seed=seed)
+        for state, want in RECORD_BITS[text].items():
+            assert np.allclose(probs.probability_of(np.array(state, dtype=bool), batch_size=5), want, atol=1e-12), (seed, state)
+    # The outcomes' probabilities sum to 1, as this package's sampler of the same records.
+    m = c.num_measurements
+    states = [np.array([(i >> j) & 1 for j in range(m)], dtype=bool) for i in range(1 << m)]
+    assert sum(CompiledStateProbs(c, seed=1).probability_of(s, batch_size=1)[0] for s in states) == pytest.approx(1, abs=1e-12)
+    s = sq.Circuit(c.stim_circuit).compile_stabilizer_rank_sampler(seed=0)
+    assert s.probability_of(np.array(states), seed=3).sum() == pytest.approx(1, abs=1e-12)
+
+
+def test_state_probs_of_mpad_and_herald_bits():
+    # MPAD bits are detector parities too.
+    dets = CompiledStateProbs(tsim.Circuit("MPAD 1 0\nOBSERVABLE_INCLUDE(0) rec[-2]"), sample_detectors=True, seed=1)
+    assert dets.probability_of(np.array([False]), batch_size=2).tolist() == [0.0, 0.0]
+    assert dets.probability_of(np.array([True]), batch_size=2).tolist() == [1.0, 1.0]
+    # An MPAD flip and a herald (whether it fires, with which Pauli) are noise, drawn as Tsim draws
+    # them: P(state | draw) is 0 where the bit drawn is not the state's, the draws are the same
+    # whatever the state (so each draw's probabilities sum to 1), and the mean is P(state).
+    for text, want in (
+        ("MPAD(0.2) 0\nM 0", {(0, 0): 0.8, (1, 0): 0.2, (0, 1): 0.0, (1, 1): 0.0}),
+        ("HERALDED_ERASE(0.3) 0\nM 0", {(0, 0): 0.7, (1, 0): 0.15, (0, 1): 0.0, (1, 1): 0.15}),
+    ):
+        p = {state: CompiledStateProbs(tsim.Circuit(text), seed=3).probability_of(np.array(state, dtype=bool), batch_size=4000) for state in want}
+        assert np.allclose(sum(p.values()), 1)
+        for state, mean in want.items():
+            assert np.all(np.isclose(p[state], 0) | np.isclose(p[state], 1)), (text, state)
+            assert abs(p[state].mean() - mean) < 5 * np.sqrt(mean * (1 - mean) / 4000) + 1e-12, (text, state)
+    then = "M 0\nHERALDED_ERASE(0.3) 0\nM 0"
+    states = [np.array([(i >> j) & 1 for j in range(3)], dtype=bool) for i in range(8)]
+    assert np.allclose(sum(CompiledStateProbs(tsim.Circuit(then), seed=3).probability_of(s, batch_size=50) for s in states), 1)
+
+
+def test_state_probs_draw_resets_past_those_summed():
+    # Ten Bell pairs' halves reset: every unread outcome summed, 2^-10 exactly in each draw.
+    def bell(k):
+        pairs = " ".join(f"{q} {q + k}" for q in range(k))
+        return f"H {' '.join(map(str, range(k)))}\nCX {pairs}\nR {' '.join(map(str, range(k)))}\nM {' '.join(map(str, range(k, 2 * k)))}"
+
+    exact = CompiledStateProbs(tsim.Circuit(bell(10)), seed=1).probability_of(np.zeros(10, dtype=bool), batch_size=3)
+    assert np.allclose(exact, 2.0**-10, rtol=0, atol=1e-15)
+    # Eleven: the last outcome is drawn in each draw (0 or 2^-10), so the draws differ and their mean is 2^-11.
+    drawn = CompiledStateProbs(tsim.Circuit(bell(11)), seed=1).probability_of(np.zeros(11, dtype=bool), batch_size=40)
+    assert np.all(np.isclose(drawn * 2**10, 0) | np.isclose(drawn * 2**10, 1)) and 0 < (drawn > 0).sum() < 40
+
+
+def test_state_probs_take_one_outcome_of_a_reset_on_a_qubit_on_its_own():
+    # A fresh qubit's RX leaves the same state whatever its unread outcome, so it is neither
+    # summed over (2^10 runs a draw) nor drawn: seventeen of them in a repetition round, each
+    # detector state 2^9 records, cost one run per record, and the round's detectors never fire.
+    d, a = list(range(9)), list(range(9, 17))
+    lines = [f"RX {' '.join(map(str, d + a))}"] + [f"CX {a[i]} {d[i]} {a[i]} {d[i + 1]}" for i in range(8)]
+    lines += [f"MX {' '.join(map(str, a + d))}"] + [f"DETECTOR rec[-{17 - i}]" for i in range(8)]
+    probs = CompiledStateProbs(tsim.Circuit("\n".join(lines)), sample_detectors=True, seed=1)
+    start = time.perf_counter()
+    p = probs.probability_of(np.zeros(8, dtype=bool), batch_size=1)
+    assert time.perf_counter() - start < 10
+    assert np.allclose(p, 1, rtol=0, atol=1e-12)
+    qs = " ".join(map(str, range(20)))
+    p = CompiledStateProbs(tsim.Circuit(f"RX {qs}\nT 0\nMX {qs}"), seed=1).probability_of(np.zeros(20, dtype=bool), batch_size=3)
+    assert np.allclose(p, (1 + np.cos(np.pi / 4)) / 2, rtol=0, atol=1e-12)
+
+
+def test_state_probs_with_mpad_heralds_and_resets_match_tsim(real):
+    from tsim.sampler import CompiledStateProbs as TheirStateProbs
+
+    for text in sorted(RECORD_BITS):
+        for state in RECORD_BITS[text]:
+            ours = CompiledStateProbs(tsim.Circuit(text), seed=0).probability_of(np.array(state, dtype=bool), batch_size=2)
+            theirs = np.asarray(TheirStateProbs(real.Circuit(text), seed=0).probability_of(np.array(state, dtype=bool), batch_size=2))
+            assert np.allclose(ours, theirs.astype(np.float64), atol=1e-6), (text, state)
+    for text in ("MPAD(0.2) 0\nM 0", "HERALDED_ERASE(0.3) 0\nM 0", "HERALDED_PAULI_CHANNEL_1(0.1, 0.2, 0.0, 0.0) 0\nM 0"):
+        for state in ((0, 0), (1, 0), (0, 1), (1, 1)):
+            ours = CompiledStateProbs(tsim.Circuit(text), seed=0).probability_of(np.array(state, dtype=bool), batch_size=200)
+            theirs = np.asarray(TheirStateProbs(real.Circuit(text), seed=0).probability_of(np.array(state, dtype=bool), batch_size=200)).astype(np.float64)
+            assert set(np.round(ours, 5)) <= set(np.round(theirs, 5)) | {0.0}, (text, state)
+            assert abs(ours.mean() - theirs.mean()) < 0.1, (text, state)
+
+
 def test_state_probs_match_tsim(real):
     from tsim.sampler import CompiledStateProbs as TheirStateProbs
 
@@ -423,3 +521,123 @@ def test_diagram_html_is_tsims_wrapper(real):
                 else:
                     want = theirs.wrap_svg(svg, width=width, height=height)
                 assert unzoom(d._repr_html_()) == unzoom(want), (text, kind, kw)
+
+
+# What Tsim's graph builder refuses, before any sampler is built: every sampler refuses it too.
+BUILDER_REFUSALS = {
+    "H 0\nTPP Y0*X0\nH 0\nM 0": "SPP[T] Y0*X0 acted on an anti-Hermitian operator",
+    "H 0\nTPP_DAG X0*Y0\nH 0\nM 0\nDETECTOR rec[-1]": "SPP_DAG[T] X0*Y0 acted on an anti-Hermitian operator",
+    "H 0\nR_PAULI(0.3) X0*Y0\nH 0\nM 0": "R_PAULI target qubits must be distinct within a product, got repeated qubit 0 in 'SPP[R_PAULI(theta=0.3*pi)] X0*Y0'.",
+    "R_PAULI(0.3) " + "*".join(f"X{q}" for q in range(65)) + "\nM 0": "R_PAULI supports at most 64 qubits per instruction, got 65.",
+    "".join(f"R_ZZ(0.3) {2 * k} {2 * k + 1}\n" for k in range(33)) + "M 0": "R_PAULI supports at most 64 qubits per instruction, got 66.",
+}
+
+SAMPLERS = {
+    "compile_sampler": lambda c: c.compile_sampler(seed=1),
+    "compile_detector_sampler": lambda c: c.compile_detector_sampler(seed=1),
+    "CompiledStateProbs": lambda c: CompiledStateProbs(c, seed=1),
+}
+
+
+@pytest.mark.parametrize("text", sorted(BUILDER_REFUSALS))
+@pytest.mark.parametrize("sampler", sorted(SAMPLERS))
+def test_samplers_refuse_what_tsims_graph_builder_refuses(text, sampler):
+    c = tsim.Circuit(text)
+    with pytest.raises(ValueError, match=f"^{re.escape(BUILDER_REFUSALS[text])}$"):
+        SAMPLERS[sampler](c)
+    with pytest.raises(ValueError, match=f"^{re.escape(BUILDER_REFUSALS[text])}$"):
+        c.tcount()
+
+
+@pytest.mark.parametrize("sampler", sorted(SAMPLERS))
+def test_samplers_refuse_sweep_bits_as_tsim_does(sampler):
+    with pytest.raises(NotImplementedError, match=re.escape("Sweep bit targets (e.g. sweep[N]) are not supported in instruction 'CX sweep[0] 0'")):
+        SAMPLERS[sampler](tsim.Circuit("H 0\nT 0\nCX sweep[0] 0\nM 0"))
+
+
+LOOKBACKS = {
+    "M 0\nCX rec[-2] 1": "CX rec[-2] 1 reads rec[-2], but only 1 measurement results precede it.",
+    "M 0\nDETECTOR rec[-2]": "DETECTOR rec[-2] reads rec[-2], but only 1 measurement results precede it.",
+    "H 0\nT 0\nM 0\nOBSERVABLE_INCLUDE(0) rec[-2]": "OBSERVABLE_INCLUDE(0) rec[-2] reads rec[-2], but only 1 measurement results precede it.",
+    "DETECTOR rec[-1]": "DETECTOR rec[-1] reads rec[-1], but only 0 measurement results precede it.",
+}
+
+
+@pytest.mark.parametrize("text", sorted(LOOKBACKS))
+@pytest.mark.parametrize("sampler", sorted(SAMPLERS))
+def test_samplers_raise_tsims_index_error_for_record_lookbacks(text, sampler):
+    from stabilizer_qec.tsim.zx.parse import MeasurementRecordError
+
+    with pytest.raises(MeasurementRecordError, match=f"^{re.escape(LOOKBACKS[text])}$") as info:
+        SAMPLERS[sampler](tsim.Circuit(text))
+    assert isinstance(info.value, IndexError)
+
+
+def test_samplers_refuse_as_tsim_does(real):
+    from tsim.sampler import CompiledStateProbs as TheirStateProbs
+
+    theirs = {"compile_sampler": lambda c: c.compile_sampler(seed=1), "compile_detector_sampler": lambda c: c.compile_detector_sampler(seed=1), "CompiledStateProbs": lambda c: TheirStateProbs(c, seed=1)}
+    for text, message in BUILDER_REFUSALS.items():
+        for name, make in theirs.items():
+            with pytest.raises(ValueError, match=f"^{re.escape(message)}$"):
+                make(real.Circuit(text))
+    for text in LOOKBACKS:
+        for name, make in theirs.items():
+            with pytest.raises(IndexError):
+                make(real.Circuit(text))
+
+
+# Parametric tags Tsim refuses (when it builds the graph): this package refuses them when it reads
+# the text, with Tsim's message after the line.
+MALFORMED_TAGS = {
+    "I[R_Z(theta=0.3*pi, phi=0.1*pi)] 0": "Parametric tag 'R_Z(theta=0.3*pi, phi=0.1*pi)' has parameters ['phi', 'theta'], expected ['theta']",
+    "I[R_Z(theta=0.3*pi*pi)] 0": "Malformed parametric tag 'R_Z(theta=0.3*pi*pi)'",
+    "I[U3(theta=0.1*pi, phi=0.2*pi, lambda=0.3*pi, mu=0.1*pi)] 0": "Parametric tag 'U3(theta=0.1*pi, phi=0.2*pi, lambda=0.3*pi, mu=0.1*pi)' has parameters ['lambda', 'mu', 'phi', 'theta'], expected ['lambda', 'phi', 'theta']",
+    "I[R_Z(phi=0.3*pi)] 0": "Parametric tag 'R_Z(phi=0.3*pi)' has parameters ['phi'], expected ['theta']",
+    "I[U3(theta=0.1*pi)] 0": "Parametric tag 'U3(theta=0.1*pi)' has parameters ['theta'], expected ['lambda', 'phi', 'theta']",
+    "SPP[R_PAULI(alpha=0.3*pi)] X0": "Parametric tag 'R_PAULI(alpha=0.3*pi)' has parameters ['alpha'], expected ['theta']",
+    "I[R_Z(theta=1/3*pi)] 0": "Malformed parametric tag 'R_Z(theta=1/3*pi)'",
+    "I[R_Z(theta=abc*pi)] 0": "Malformed parametric tag 'R_Z(theta=abc*pi)'",
+    "H 0\nI[R_Z(theta = 0.3*pi)] 0": "Malformed parametric tag 'R_Z(theta = 0.3*pi)'",
+}
+
+
+@pytest.mark.parametrize("text", sorted(MALFORMED_TAGS))
+def test_malformed_parametric_tags_raise_tsims_error_naming_the_line(text):
+    line = text.count("\n") + 1
+    instruction = text.split("\n")[-1]
+    with pytest.raises(ValueError, match=f"^line {line}: Could not parse instruction {re.escape(repr(instruction))}\\. {re.escape(MALFORMED_TAGS[text])}$"):
+        tsim.Circuit(text)
+
+
+def test_malformed_parametric_tags_are_tsims_errors(real):
+    for text, message in MALFORMED_TAGS.items():
+        with pytest.raises(ValueError, match=f"{re.escape(message)}$"):
+            real.Circuit(text).tcount()
+
+
+# Tags Tsim does not read as a parametric gate (a space around the name, text after the
+# parentheses): the gate is the identity, as in Tsim.
+NOT_PARAMETRIC = ["I[R_Z (theta=0.5*pi)] 0", "I[ R_Z(theta=0.5*pi)] 0", "I[R_Z(theta=0.5*pi) ] 0", "I[R_Z(theta=0.5*pi)#x] 0", "I[ U3(theta=0.1*pi, phi=0.2*pi, lambda=0.3*pi)] 0"]
+
+
+@pytest.mark.parametrize("text", NOT_PARAMETRIC)
+def test_tags_tsim_does_not_read_are_the_identity(text):
+    c = tsim.Circuit(text)
+    assert c.tcount() == 0 and np.allclose(c.to_matrix(), np.eye(2))
+    sampled = tsim.Circuit(f"RX 0\n{text}\nMX 0").compile_sampler(seed=1).sample(200)
+    assert not sampled.any()
+    # A product rotation's tag likewise: Tsim's SPP, the Clifford.
+    spp = tsim.Circuit(text.replace(" 0", "").replace("I[", "SPP[").replace("R_Z", "R_PAULI").split("]")[0] + "] X0")
+    assert spp.tcount() == 0 and equal_up_to_phase(spp.to_matrix(), tsim.Circuit("SPP X0").to_matrix())
+    # A comment after the line is not part of the tag.
+    assert tsim.Circuit("I[R_Z(theta=0.3*pi)] 0 # x#y").tcount() == 1
+
+
+def test_tags_tsim_does_not_read_match_tsim(real):
+    for text in NOT_PARAMETRIC:
+        assert tsim.Circuit(text).tcount() == real.Circuit(text).tcount() == 0
+        assert equal_up_to_phase(tsim.Circuit(text).to_matrix(), np.asarray(real.Circuit(text).to_matrix()))
+        a = tsim.Circuit(f"RX 0\n{text}\nMX 0").compile_sampler(seed=1).sample(200)
+        b = np.asarray(real.Circuit(f"RX 0\n{text}\nMX 0").compile_sampler(seed=1).sample(200))
+        assert not a.any() and not b.any()
