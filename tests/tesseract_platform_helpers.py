@@ -35,8 +35,9 @@ def stim_number(x):
 def assert_dem_text(actual, expected):
     # Stim uses long double's digits10 + 1: 16 on Apple silicon/Windows, 19 on
     # x86-64 Unix, 34 on ARM64 Linux (src/dem_program.rs). Keep every instruction,
-    # target, tag and coordinate in order; only numeric argument spelling can vary.
-    if sys.platform == "darwin":
+    # target, tag and coordinate in order; only numeric argument spelling can vary. (The
+    # references were recorded on Apple silicon: an Intel Mac writes 19 digits.)
+    if sys.platform == "darwin" and STIM_DIGITS == 16:
         assert actual == expected
         return
     args = r"\(([-+0-9.eE, ]+)\)"

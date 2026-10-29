@@ -8,6 +8,7 @@ import sys
 import pytest
 
 import stabilizer_qec as sq
+import tesseract_platform_helpers
 from tesseract_platform_helpers import assert_dem_text, assert_search_log
 
 
@@ -23,7 +24,9 @@ def test_dem_comparison_only_allows_last_bit_numeric_changes(monkeypatch):
             assert_dem_text(actual, expected)
     with pytest.raises(AssertionError):
         assert_dem_text("error(1e-300) D0", "error(0) D0")
+    # On Apple silicon (16 digits, as the references were recorded), exactly.
     monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.setattr(tesseract_platform_helpers, "STIM_DIGITS", 16)
     with pytest.raises(AssertionError):
         assert_dem_text(expected.replace("0.1", "0.1000000000000000056"), expected)
 
