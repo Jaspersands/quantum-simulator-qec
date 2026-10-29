@@ -6,6 +6,7 @@ count_mistakes, match graph diagrams of models, and model files with bytes that 
 from __future__ import annotations
 
 import gc
+import os
 import pathlib
 import re
 import shutil
@@ -255,10 +256,17 @@ MATCH_GRAPHS = ["matchgraph-svg", "match-graph-svg", "matchgraph-3d", "matchgrap
 @pytest.mark.parametrize("kind", MATCH_GRAPHS)
 def test_match_graph_diagrams_of_a_model(model, kind):
     """Every match graph type draws a detector error model as the model's own diagram does,
-    and a circuit by its model; --remove_noise is refused for them, as by Stim."""
+    and a circuit by its model; --remove_noise is refused for them, as by Stim. The command
+    writes a diagram as text, its lines ended as the platform's text mode ends them (\\r\\n on
+    Windows), as `_cli._write` writes all text, after Stim's text-mode output."""
     tmp, c, dem = model
-    assert ours("diagram", "--in", tmp / "c.dem", "--type", kind).decode().rstrip("\n") == str(dem.diagram(kind)).rstrip("\n")
-    assert ours("diagram", "--in", tmp / "c.stim", "--type", kind).decode().rstrip("\n") == str(c.diagram(kind)).rstrip("\n")
+
+    def text(raw):
+        assert raw.count(b"\n") == raw.count(os.linesep.encode())
+        return raw.decode().replace(os.linesep, "\n").rstrip("\n")
+
+    assert text(ours("diagram", "--in", tmp / "c.dem", "--type", kind)) == str(dem.diagram(kind)).rstrip("\n")
+    assert text(ours("diagram", "--in", tmp / "c.stim", "--type", kind)) == str(c.diagram(kind)).rstrip("\n")
     for src in ("c.stim", "c.dem"):
         r = run("diagram", "--in", tmp / src, "--type", kind, "--remove_noise", "--out", tmp / "nothing")
         assert r.returncode == 1 and r.stdout == b"" and not (tmp / "nothing").exists()
