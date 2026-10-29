@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 import stabilizer_qec as sq
 
@@ -156,12 +157,22 @@ def test_count_mistakes_is_not_claimed_byte_for_byte():
 
 def test_pecos_default_simulator_is_described_against_pypi_pecos():
     # B21.8: PECOS 0.2.0 from PyPI has no compiled simulator, so its SparseSim is the Python one.
-    from stabilizer_qec.pecos import simulators
-
-    assert simulators.SparseSim is not simulators.pySparseSim
     text = fold(release("2.0.0"))
     assert "(`cySparseSim`, the default `SparseSim`)" not in text
     assert "PECOS 0.2.0 installed from PyPI has no compiled C++, so its `SparseSim` is the Python one" in text
+
+
+def test_ported_pecos_default_simulator_is_the_compiled_one():
+    # B21.8: the contrast the sentence above draws, that the port's default SparseSim is the
+    # compiled one, not the Python one. stabilizer_qec.pecos needs the pecos extra (scipy,
+    # matplotlib and networkx on import), so this half skips where that extra is not installed,
+    # as test_pecos_differential.py does; the sentence itself is checked everywhere.
+    pytest.importorskip("scipy")
+    pytest.importorskip("matplotlib")
+    pytest.importorskip("networkx")
+    from stabilizer_qec.pecos import simulators
+
+    assert simulators.SparseSim is not simulators.pySparseSim
 
 
 def test_panqec_test_count_says_how_the_slow_tests_run():
