@@ -15,7 +15,22 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #  =========================================================================  #
-# modified for stabilizer_qec: pecos is stabilizer_qec.pecos.
+# modified for stabilizer_qec: pecos is stabilizer_qec.pecos; the functions take the default SparseSim (PECOS's C++
+# one, whose stabs and destabs are dicts and whose signs are the simulator's) as well as the Python SparseSim.
+from types import SimpleNamespace
+
+
+def _gens(state):
+    # (stabilizer_qec) The state as the Python SparseSim's: stabs and destabs with col_x, ..., row_z, and the signs on
+    # the stabs. The default SparseSim gives a copy (see _put_back).
+    to_gens = getattr(state, '_gens', None)
+    return to_gens() if to_gens is not None else state
+
+
+def _put_back(state, gens):
+    # (stabilizer_qec) The default SparseSim takes back the generators _gens copied out.
+    if gens is not state:
+        state._set_gens(gens)
 
 
 def circ2set(circuit):
@@ -37,6 +52,8 @@ def op_commutes(stab_xs, stab_zs, commute_with):
     # Does the stabilizer anti-commute with any of the stabilizers in the stabilizer state?
 
     anticom_stabs = set()
+    if isinstance(commute_with, dict):  # (stabilizer_qec: the default SparseSim's stabs)
+        commute_with = SimpleNamespace(**commute_with)
 
     for q in stab_xs:
         anticom_stabs ^= commute_with.col_z[q]  # stabilizers that anti-commute with q
@@ -71,6 +88,7 @@ def find_stab(state, stab_xs, stab_zs):
     stab_xs = set(stab_xs)
     stab_zs = set(stab_zs)
 
+    state = _gens(state)
     stabs = state.stabs
 
     # Attempt to build stabilizers from the stabilizers in the stabilizer state.
@@ -111,6 +129,7 @@ def remove_stab(state, stab_xs, stab_zs, destab_xs, destab_zs):
     delogical_xs = destab_xs
     delogical_zs = destab_zs
 
+    sim, state = state, _gens(state)
     stabs = state.stabs
     destabs = state.destabs
 
@@ -283,9 +302,12 @@ def remove_stab(state, stab_xs, stab_zs, destab_xs, destab_zs):
 
         stabs.signs_i ^= delog_anticom
 
+    _put_back(sim, state)
+
 
 def is_not_stabilizer(state, qubits_x, qubits_z):
 
+    state = _gens(state)
     stabs = state.stabs
     destabs = state.destabs
 

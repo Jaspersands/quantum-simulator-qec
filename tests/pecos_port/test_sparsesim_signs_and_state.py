@@ -75,3 +75,53 @@ def test_refactor_then_measure_as_the_density_matrix(sim):
         copy = state.copy()
         outcomes = [copy.run_gate('measure Z', {q}, forced_outcome=forced).get(q, 0) for q in (0, 1)]
         assert outcomes[0] == outcomes[1]
+
+
+def _bell(sim):
+    state = sim(2)
+    state.run_gate('H', {0})
+    state.run_gate('CNOT', {(0, 1)})
+    return state
+
+
+@pytest.mark.parametrize('sim', SIMS)
+def test_stabilizer_funcs_take_either_simulator(sim):
+    # stabilizer_qec: misc.stabilizer_funcs reads PECOS's Python SparseSim's Gens; it takes the default SparseSim (the
+    # C++ one's, whose stabs and destabs are dicts and whose signs are the simulator's) too.
+    from stabilizer_qec.pecos.misc import stabilizer_funcs as funcs
+
+    state = _bell(sim)
+    assert funcs.find_stab(state, {0, 1}, set()) is True
+    assert funcs.find_stab(state, {0}, set()) is False
+    assert funcs.op_commutes(set(), {0, 1}, state.stabs) is True
+    assert funcs.op_commutes({0}, set(), state.stabs) is False
+    assert funcs.is_not_stabilizer(state, set(), {0, 1}) == 0
+    assert funcs.is_not_stabilizer(state, {0}, set()) == 1
+    assert funcs.is_not_stabilizer(state, {0}, {0}) == 1
+    state.run_gate('X', {1})  # Z0 Z1 = -1
+    funcs.remove_stab(state, set(), {0, 1}, {0}, set())
+    stabs = [s for s in state.print_stabs(verbose=False, print_y=False) if s.strip(' -i') != 'II']
+    assert stabs == ['  XX']
+    assert state.logical_sign(QuantumCircuit([{'X': {0, 1}}])) == 0
+
+
+def test_default_sparsesim_copies_pickles_and_checks_num_qubits():
+    # stabilizer_qec: as PECOS's Python SparseSim, the default one deep-copies and pickles, and refuses a num_qubits
+    # that is not an integer.
+    import copy
+    import pickle
+
+    import numpy as np
+
+    state = _bell(SparseSim)
+    state.run_gate('S', {0})
+    expected = state.print_stabs(verbose=False, print_y=False, print_destabs=True)
+    for twin in (copy.deepcopy(state), pickle.loads(pickle.dumps(state)), copy.copy(state)):
+        assert type(twin) is SparseSim and twin.num_qubits == 2
+        assert twin.print_stabs(verbose=False, print_y=False, print_destabs=True) == expected
+        twin.run_gate('measure Z', {0}, forced_outcome=1)
+        assert state.print_stabs(verbose=False, print_y=False, print_destabs=True) == expected
+        assert twin.run_gate('measure Z', {1}) == {1: 1}
+    with pytest.raises(TypeError, match='num_qubits'):
+        SparseSim(2.5)
+    assert SparseSim(np.int64(3)).num_qubits == 3

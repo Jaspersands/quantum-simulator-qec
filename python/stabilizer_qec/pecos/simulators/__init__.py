@@ -15,7 +15,9 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 #  =========================================================================  #
-# modified for stabilizer_qec: pecos is stabilizer_qec.pecos.
+# modified for stabilizer_qec: pecos is stabilizer_qec.pecos. SparseSim is the C++ one (cySparseSim, here in Rust),
+# PECOS's default where it is compiled; PECOS 0.2.0 from PyPI never has it, so its SparseSim is the Python one,
+# pySparseSim here (see stabilizer_qec.pecos's docstring for how the two differ).
 
 from ._parent_sim_classes import Simulator
 from . import sim_class_types
