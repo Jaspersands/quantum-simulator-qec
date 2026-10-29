@@ -5,6 +5,8 @@ decoder does; CUDA-Q QEC's host functions."""
 
 from __future__ import annotations
 
+import io
+import json
 import sys
 import threading
 import time
@@ -375,3 +377,215 @@ def test_a_silent_peer_does_not_hang_connect(tmp_path):
         sq.realtime.DecoderClient.connect("127.0.0.1", silent.getsockname()[1], timeout=0.5)
     assert _time.perf_counter() - t0 < 5
     silent.close()
+
+
+# ---------------------------------------------------------------------------------------------
+# The 2.2 adversarial review's regressions
+# ---------------------------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def colour():
+    # A distance-5 colour code: its model cannot be split into graph-like pieces.
+    c = sq.CssCode.color_code(5).memory_circuit(5, 0.005, annotate_colors=True)
+    dets, obs = c.compile_detector_sampler(seed=7).sample(500, separate_observables=True)
+    return c, dets, obs
+
+
+@pytest.fixture(scope="module")
+def small_noisy():
+    # A distance-3 surface code at p=0.01, where ambiguity clustering predicts differently on the
+    # decomposed and the undecomposed model (11 of these 1000 shots), so the model it gets shows.
+    c = sq.memory_circuit(distance=3, rounds=3, p=0.01)
+    dets, obs = c.compile_detector_sampler(seed=4).sample(1000, separate_observables=True)
+    return c, dets, obs
+
+
+def test_make_decoder_builds_the_model_sinters_sampler_builds(memory, colour, small_noisy):
+    """Every decoder kind gets the same model from a circuit in make_decoder (and so in
+    `stabilizer-qec serve --circuit` and `DecoderClient.spawn(circuit=...)`) as in
+    `sinter.Sampler(kind)`: decomposed only for the decoders that match on a graph, so Chromobius
+    decodes a real colour code and ambiguity clustering its undecomposed model."""
+    from stabilizer_qec import sinter
+
+    with pytest.raises(ValueError, match="graph-like"):
+        colour[0].detector_error_model(decompose_errors=True)
+    for name in realtime.DECODERS:
+        c, dets, obs = {"color_matching": colour, "ambiguity_clustering": small_noisy}.get(name, memory)
+        dets = dets[:60] if name != "ambiguity_clustering" else dets
+        want = sinter.Sampler(name).compiled_sampler_for_task(sinter.Task(circuit=c)).decoder.decode_batch(dets)
+        assert np.array_equal(make_decoder(name, circuit=c).decode_batch(dets), want), name
+    c, dets, obs = colour
+    got = make_decoder("color_matching", circuit=c).decode_batch(dets)
+    assert np.array_equal(got, sq.ColorMatching(c.detector_error_model(approximate_disjoint_errors=True)).decode_batch(dets))
+    assert (got != obs).any(axis=1).mean() < 0.2
+    c, dets, obs = small_noisy
+    got = make_decoder("ambiguity_clustering", circuit=c).decode_batch(dets)
+    undecomposed = sq.AmbiguityClustering(c.detector_error_model(approximate_disjoint_errors=True)).decode_batch(dets)
+    decomposed = sq.AmbiguityClustering(c.detector_error_model(decompose_errors=True, approximate_disjoint_errors=True)).decode_batch(dets)
+    assert (decomposed != undecomposed).any(axis=1).sum() > 0  # the fixture tells the two models apart
+    assert np.array_equal(got, undecomposed)
+
+
+def test_spawn_serves_color_matching_on_a_colour_code_circuit(colour, tmp_path):
+    c, dets, obs = colour
+    path = tmp_path / "cc.stim"
+    path.write_text(str(c))
+    with DecoderClient.spawn(circuit=str(path), decoder="color_matching") as client:
+        assert client.decoder_name == "ColorMatching"
+        assert np.array_equal(client.decode_batch(dets[:100]), sq.ColorMatching(c.detector_error_model()).decode_batch(dets[:100]))
+
+
+def _no_boundary():
+    # Three detectors on a triangle, no boundary: a syndrome of odd weight has no matching.
+    return sq.Matching(sq.DetectorErrorModel("error(0.1) D0 D1\nerror(0.1) D1 D2\nerror(0.1) D2 D0 L0\n"))
+
+
+def test_a_failed_decode_is_collected_once_and_the_queue_moves_on():
+    m = _no_boundary()
+    bad, good = np.array([[1, 0, 0]], dtype=bool), np.array([[1, 1, 0]], dtype=bool)
+    with DecoderQueue(m) as q:
+        q.enqueue_syndromes(bad)
+        q.enqueue_syndromes(good)
+        with pytest.raises(ValueError, match="matching"):
+            q.get_corrections()
+        assert q.pending() == 1 and q.stats().pending == 1
+        assert np.array_equal(q.get_corrections(), m.decode_batch(good))  # the next batch, not the old error
+        assert q.pending() == 0 and q.stats().pending == 0 and not q._results
+        with pytest.raises(LookupError):
+            q.get_corrections()
+        t = q.enqueue_syndromes(bad)  # by ticket too: its error is raised once, then it is gone
+        with pytest.raises(ValueError):
+            q.get_corrections(t)
+        with pytest.raises(LookupError):
+            q.get_corrections(t)
+        assert q.pending() == 0 and not q._results
+
+
+def test_the_server_frees_a_failed_decodes_syndromes():
+    """A DECODE the decoder rejects is answered with ERROR and leaves nothing behind: not the
+    batch in the queue, nor its syndromes (held by the error's traceback) once the reply is out."""
+    import weakref
+
+    m = _no_boundary()
+    held = []
+
+    def decode(shots, **kwargs):
+        held.append(weakref.ref(shots))
+        return m.decode_batch(shots, **kwargs)
+
+    import gc
+
+    session = realtime._Session(DecoderQueue(decode=decode), m.num_detectors, m.num_observables, 0)
+    enabled = gc.isenabled()
+    gc.disable()  # freed when the reply is out, not when the garbage collector next runs
+    try:
+        for _ in range(5):
+            reply = session.handle(Protocol.DECODE, 0, 4, b"\x01" * 4)
+            assert Protocol.HEADER.unpack(reply[:Protocol.HEADER.size])[2] == Protocol.ERROR and b"matching" in reply
+        assert session.queue.pending() == 0 and not session.queue._results
+        assert json.loads(Protocol.read(io.BytesIO(session.handle(Protocol.STATS, 0, 0, b"")))[3])["pending"] == 0
+        assert len(held) == 5 and all(r() is None for r in held)
+    finally:
+        if enabled:
+            gc.enable()
+        session.queue.close()
+
+
+def test_serve_passes_threads_zero_as_every_core():
+    """`serve`'s and `stabilizer-qec serve`'s default of threads=0 reaches the decoder as 0 (every
+    core), rather than leaving it at the decoder's own default of one thread."""
+    m = sq.Matching(sq.memory_circuit(distance=3, rounds=2, p=0.01).detector_error_model(decompose_errors=True))
+    seen = []
+
+    def decode(shots, *, bit_packed_shots=False, threads=1):
+        seen.append(threads)
+        return m.decode_batch(shots, bit_packed_shots=bit_packed_shots, threads=threads)
+
+    stride = (m.num_detectors + 7) // 8
+    for threads in (0, 3):
+        session = realtime._Session(DecoderQueue(decode=decode), m.num_detectors, m.num_observables, threads)
+        try:
+            reply = session.handle(Protocol.DECODE, 0, 2, bytes(2 * stride))
+            assert Protocol.HEADER.unpack(reply[:Protocol.HEADER.size])[2] == Protocol.CORRECTIONS
+        finally:
+            session.queue.close()
+    assert seen == [0, 3]
+    seen.clear()
+
+    def plain(shots, *, bit_packed_shots=False):  # a decoder without threads hears none
+        seen.append(None)
+        return m.decode_batch(shots, bit_packed_shots=bit_packed_shots)
+
+    session = realtime._Session(DecoderQueue(decode=plain), m.num_detectors, m.num_observables, 0)
+    try:
+        session.handle(Protocol.DECODE, 0, 2, bytes(2 * stride))
+    finally:
+        session.queue.close()
+    assert seen == [None]
+
+
+class _Interrupting:
+    """A stream that raises KeyboardInterrupt on its first ``read`` (or ``flush``), as Ctrl-C
+    does when it lands while a client waits for its reply (or sends its request)."""
+
+    def __init__(self, inner, on):
+        self.inner, self.on, self.fired = inner, on, False
+
+    def _maybe(self, what):
+        if what == self.on and not self.fired:
+            self.fired = True
+            raise KeyboardInterrupt
+
+    def read(self, n=-1):
+        self._maybe("read")
+        return self.inner.read(n)
+
+    def write(self, b):
+        return self.inner.write(b)
+
+    def flush(self):
+        self._maybe("flush")
+        return self.inner.flush()
+
+    def close(self):
+        return self.inner.close()
+
+
+@pytest.mark.parametrize("on", ["read", "flush"])
+def test_an_interrupted_request_breaks_the_client_rather_than_shifting_its_replies(memory, on):
+    """After Ctrl-C between a request and its reply, the client never hands one batch another's
+    predictions: the connection is dropped and every later call raises."""
+    c, dets, obs = memory
+    m = sq.Matching(c.detector_error_model(decompose_errors=True))
+    a, b = dets[:200], dets[200:400]
+    assert not np.array_equal(m.decode_batch(a), m.decode_batch(b))
+    bound = {}
+    started = threading.Event()
+
+    def ready(server):
+        bound["server"] = server
+        started.set()
+
+    thread = threading.Thread(target=serve, args=(m,), kwargs=dict(tcp="127.0.0.1:0", ready=ready, timeout=10.0), daemon=True)
+    thread.start()
+    assert started.wait(10)
+    host, port = bound["server"].server_address[:2]
+    try:
+        client = DecoderClient.connect(host, port, timeout=10)
+        if on == "read":
+            client._reader = _Interrupting(client._reader, on)
+        else:
+            client._writer = _Interrupting(client._writer, on)
+        with pytest.raises(KeyboardInterrupt):
+            client.decode_batch(a)
+        for call in (lambda: client.decode_batch(b), lambda: client.decode_batch(a), client.stats, client.reset):
+            with pytest.raises(ConnectionError, match="interrupted"):
+                call()
+        client.close()  # quietly, and more than once
+        client.close()
+        with DecoderClient.connect(host, port, timeout=10) as fresh:  # the server is still serving
+            assert np.array_equal(fresh.decode_batch(b), m.decode_batch(b))
+    finally:
+        bound["server"].shutdown()
+        thread.join(10)

@@ -53,12 +53,13 @@ class AsyncResult:
     returns). ``latency`` is the seconds from submission to completion, ``service`` the seconds
     the decode itself took, both once it is done."""
 
-    __slots__ = ("_future", "_ticket", "_submitted", "_started", "_finished", "_shots")
+    __slots__ = ("_future", "_ticket", "_submitted", "_times", "_shots")
 
-    def __init__(self, future: "concurrent.futures.Future", ticket: int, submitted: float, shots: int) -> None:
+    def __init__(self, future: "concurrent.futures.Future", ticket: int, submitted: float, shots: int, times: Optional[Dict[str, float]] = None) -> None:
         self._future, self._ticket, self._submitted, self._shots = future, ticket, submitted, shots
-        self._started: Optional[float] = None
-        self._finished: Optional[float] = None
+        # "started" and "finished", written by the future's done callback once it is done (a dict
+        # of its own, so that callback need not hold this result, nor this result the callback).
+        self._times: Dict[str, float] = {} if times is None else times
 
     @property
     def ticket(self) -> int:
@@ -85,22 +86,35 @@ class AsyncResult:
     def get(self, timeout: Optional[float] = None) -> Any:
         """The predictions; raises what the decode raised, or ``RuntimeError`` for a batch a
         reset dropped."""
+        future = self._future
         try:
-            return self._future.result(timeout=timeout)
+            return future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             raise TimeoutError(f"the decode of ticket {self._ticket} is not finished after {timeout} s") from None
         except concurrent.futures.CancelledError:
             raise RuntimeError(f"the decode of ticket {self._ticket} was dropped by a reset") from None
+        finally:
+            # This frame joins the traceback of an error the decode raised, which the future
+            # keeps: holding the future here would close a cycle that keeps the decode's frames,
+            # and its syndromes, until the garbage collector runs (concurrent.futures does the same).
+            self = future = None
 
     result = get
 
+    def _failed(self) -> bool:
+        """Whether the decode finished by raising (not cancelled, not still running)."""
+        f = self._future
+        return f.done() and not f.cancelled() and f.exception() is not None
+
     @property
     def latency(self) -> Optional[float]:
-        return None if self._finished is None else self._finished - self._submitted
+        finished = self._times.get("finished")
+        return None if finished is None else finished - self._submitted
 
     @property
     def service(self) -> Optional[float]:
-        return None if self._finished is None or self._started is None else self._finished - self._started
+        started, finished = self._times.get("started"), self._times.get("finished")
+        return None if finished is None or started is None else finished - started
 
     def __repr__(self) -> str:
         state = "done" if self.ready() else "pending"
@@ -216,14 +230,15 @@ class DecoderQueue:
             return value
 
         future = self._pool.submit(run)
-        result = AsyncResult(future, ticket, submitted, n)
+        times: Dict[str, float] = {}
+        result = AsyncResult(future, ticket, submitted, n, times)
         with self._lock:
             self._results[ticket] = result
             self._uncollected.append(ticket)
 
         def done(f: "concurrent.futures.Future") -> None:
-            result._started = holder.get("started", submitted)
-            result._finished = holder.get("finished", time.perf_counter())
+            times["started"] = holder.get("started", submitted)
+            times["finished"] = holder.get("finished", time.perf_counter())
             if f.cancelled():  # never ran: nothing above counted it out
                 with self._lock:
                     self._in_flight -= 1
@@ -250,14 +265,29 @@ class DecoderQueue:
             result = self._results.get(ticket)
         if result is None:
             raise LookupError(f"ticket {ticket} is unknown, collected already, or dropped by reset")
-        # Wait first: a batch whose wait timed out is still there for the next call.
-        out = result.get(timeout)
+        # Wait first: a batch whose wait timed out (or whose waiter was interrupted) is still
+        # there for the next call. A batch whose decode raised is collected by raising its error:
+        # it leaves the queue as a decoded one does, so the next call moves on to the next batch
+        # and the queue (a server's, say) lets go of its syndromes.
+        try:
+            out = result.get(timeout)
+        except BaseException:
+            if not result._failed():
+                raise
+            self._collected(ticket, result)
+            # This frame joins the error's traceback: it lets go of the result (whose future keeps
+            # the error) so the batch, its syndromes among the decode's frames, goes with the error.
+            del result
+            raise
+        self._collected(ticket, result)
+        return out
+
+    def _collected(self, ticket: int, result: AsyncResult) -> None:
         with self._lock:
             if self._results.get(ticket) is result:
                 del self._results[ticket]
                 if ticket in self._uncollected:
                     self._uncollected.remove(ticket)
-        return out
 
     def pending(self) -> int:
         """Batches enqueued and not yet collected."""
@@ -379,20 +409,24 @@ def _registry() -> Dict[str, Callable[[Any], Any]]:
 
 
 DECODERS = ("matching", "correlated_matching", "belief_matching", "union_find", "bposd", "bplsd", "relay_bp", "color_matching", "search", "ambiguity_clustering", "collision_clustering", "local_clustering")
-_GRAPH = {"matching", "correlated_matching", "belief_matching", "union_find", "color_matching", "ambiguity_clustering", "collision_clustering", "local_clustering"}
 
 
 def make_decoder(name: str, model: Any = None, *, circuit: Any = None, **options: Any) -> Any:
-    """A decoder by its CLI name on a detector error model, or on a circuit's model (decomposed
-    for the graph decoders, as they need it)."""
+    """A decoder by its CLI name on a detector error model, or on a circuit's model built as
+    ``stabilizer_qec.sinter.Sampler(name)`` builds it: decomposed into graph-like pieces only for
+    the decoders that match on a graph (matching, correlated and belief matching, union-find,
+    collision and local clustering), whole for the others (Chromobius's colour matching decodes a
+    colour code, whose faults do not split into graph-like pieces), with
+    ``approximate_disjoint_errors=True``."""
     if name not in DECODERS:
         raise ValueError(f"unknown decoder {name!r}; one of {', '.join(DECODERS)}")
     if circuit is not None:
         from ._circuit import Circuit
+        from .sinter._legacy import _GRAPH_KINDS  # one table of the kinds that want decomposition
 
         if not isinstance(circuit, Circuit):
             circuit = Circuit(circuit)
-        model = circuit.detector_error_model(decompose_errors=name in _GRAPH)
+        model = circuit.detector_error_model(decompose_errors=name in _GRAPH_KINDS, approximate_disjoint_errors=True)
     if model is None:
         raise TypeError("make_decoder needs a model or a circuit")
     return _registry()[name](model, **options)
@@ -528,7 +562,7 @@ class _Session:
                     kwargs["bit_packed_shots"] = True
                 else:  # a decoder of plain rows (CUDA-Q QEC's, say)
                     rows = np.unpackbits(rows, axis=1, bitorder="little")[:, : self.nd]
-                if self.threads and ("threads" in takes or "**" in takes):
+                if "threads" in takes or "**" in takes:  # 0 too: every core, as the decoders read it
                     kwargs["threads"] = self.threads
                 ticket = self.queue.enqueue_syndromes(rows, **kwargs)
                 out = self.queue.get_corrections(ticket)
@@ -649,11 +683,17 @@ class DecoderClient:
     """A decoder served elsewhere. ``DecoderClient.connect(host, port)`` reaches a TCP server;
     ``DecoderClient.spawn(...)`` starts ``stabilizer-qec serve --stdio`` as a subprocess on a
     model or circuit file and talks over its pipes. ``decode_batch`` and ``decode`` are the
-    decoders'; ``stats`` and ``reset`` are the server's queue's; ``close`` says BYE."""
+    decoders'; ``stats`` and ``reset`` are the server's queue's; ``close`` says BYE.
+
+    A request that does not finish (Ctrl-C between sending it and reading its reply, say) leaves
+    the connection's replies out of step with its requests, so the client drops the connection
+    (a spawned server is stopped) and every later call raises ``ConnectionError``: connect again.
+    It never hands one batch another's predictions."""
 
     def __init__(self, reader: Any, writer: Any, *, process: Optional[subprocess.Popen] = None, sock: Optional[socket.socket] = None, timeout: Optional[float] = 30.0) -> None:
         self._reader, self._writer, self._process, self._sock = reader, writer, process, sock
         self._lock = threading.Lock()
+        self._broken: Optional[str] = None  # why the connection was dropped, once it was
         try:
             if sock is not None and timeout is not None:
                 # The socket's own timeout: a helper thread blocked in a read cannot be unblocked
@@ -730,9 +770,19 @@ class DecoderClient:
 
     def _ask(self, kind: int, payload: bytes = b"", shots: int = 0) -> "tuple[int, int, bytes]":
         with self._lock:
-            self._writer.write(Protocol.pack(kind, payload, shots))
-            self._writer.flush()
-            k, _, n, body = Protocol.read(self._reader)
+            if self._broken is not None:
+                raise ConnectionError(self._broken)
+            try:
+                self._writer.write(Protocol.pack(kind, payload, shots))
+                self._writer.flush()
+                k, _, n, body = Protocol.read(self._reader)
+            except BaseException as ex:
+                # Part of a request may be sent, or its reply be left unread (or half read): the
+                # next reply read would not be the next request's. Nothing on this connection
+                # can be trusted again.
+                self._broken = f"the connection to the decoder server was dropped: a {Protocol.NAMES.get(kind, kind)} request was interrupted before its reply arrived ({type(ex).__name__}{': ' + str(ex) if str(ex) else ''}); connect again"
+                self._abandon()
+                raise
         if k == Protocol.ERROR:
             raise ValueError("the decoder server refused: " + json.loads(body.decode()).get("error", "?"))
         return k, n, body
@@ -775,8 +825,9 @@ class DecoderClient:
     def close(self) -> None:
         try:
             with self._lock:
-                self._writer.write(Protocol.pack(Protocol.BYE))
-                self._writer.flush()
+                if self._broken is None:
+                    self._writer.write(Protocol.pack(Protocol.BYE))
+                    self._writer.flush()
         except (OSError, ValueError):
             pass
         for f in (self._writer, self._reader):
