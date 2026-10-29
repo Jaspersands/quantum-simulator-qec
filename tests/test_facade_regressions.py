@@ -10,6 +10,7 @@ from __future__ import annotations
 import copy
 import io
 import pickle
+import sys
 import warnings
 
 import numpy as np
@@ -114,8 +115,11 @@ def test_deltakit_circuit_copies_keep_their_leakage(how, again):
 
 def test_deltakit_parallel_engine_samples_the_leakage():
     # Deltakit's engine sends its decoder managers, circuits and all, to a process pool.
+    # stabilizer_qec.deltakit needs what the `deltakit` extra brings, and Python 3.11, as Deltakit.
+    if sys.version_info < (3, 11):
+        pytest.skip("stabilizer_qec.deltakit needs Python 3.11, as Deltakit")
     pytest.importorskip("pathos")
-    import pandas  # noqa: F401  (the engine's results)
+    pytest.importorskip("pandas")  # the engine's results
 
     from stabilizer_qec.deltakit.decode import PyMatchingDecoder
     from stabilizer_qec.deltakit.decode.analysis import RunAllAnalysisEngine, StimDecoderManager
