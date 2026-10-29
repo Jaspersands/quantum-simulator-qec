@@ -146,8 +146,11 @@ contraction width (`CoherentSampler.contraction_width`).
   `--pqlimit`, `--multipass`, `--stats-out`, ...), its argparse library's errors and help, its
   output lines, `--dem-out` and the `--stats-out` JSON. Checked against Tesseract's Python API
   run as its program runs it (7 flag sets on 120 and 60 recorded shots) and its source:
-  predictions, counts and `--dem-out` equal, and the cost lines equal on the same model. Where
-  it differs: `--sample-num-shots` draws this package's shots, not Stim's; an exception that
+  predictions, counts and `--dem-out` equal, and the cost lines equal on the same model. With
+  no shot to count from (an empty `--in`, or every shot a logical error), `--dem-out` holds
+  `error(nan)` lines, as Tesseract's program writes them, and the stats and final line follow.
+  Model and circuit bytes that are not UTF-8 are replaced, as in the Chromobius program, so a
+  comment holding one reads as Stim reads it. Where it differs: `--sample-num-shots` draws this package's shots, not Stim's; an exception that
   ends Tesseract's `main` prints the same message and exits 134 without a core dump; an `--out`
   it cannot open stops with `Failed to open <path>` (Tesseract's program writes through a null
   file); `--max-errors` stops exactly at the limit (Tesseract's program keeps the shots its
@@ -162,7 +165,10 @@ contraction width (`CoherentSampler.contraction_width`).
   In all three programs, as everywhere in this package, a model or
   circuit that does not parse is refused with this package's parser's message, not Stim's
   (`line 2: unsupported instruction 'FOO'`, where Stim raises `Unrecognized instruction name:
-  foo`).
+  foo`). The exception is a model fault that Stim's parser throws `std::out_of_range` for:
+  an unrecognized instruction name, a number of 2^60 or more, a `{` never closed or a `}` never
+  opened. Chromobius's program does not catch it, so the Chromobius program aborts as
+  Chromobius's does, with Stim's message in the pinned libc++abi text and status 134.
 - **tqec's compile pipeline, byte for byte.** tqec 0.2.0's `circuit`, `plaquette`, `templates`
   and `compile` packages are ported, with tqecd 0.2.1's detector search
   (`stabilizer_qec/tqec/_compile/`, on numpy alone, Python 3.9 up).
@@ -211,7 +217,8 @@ contraction width (`CoherentSampler.contraction_width`).
   (I_ERROR/II_ERROR are absent from this corpus) on
   both backends, and against live Tsim on 4,200 random circuits (five graphs each), 8,000
   random `to_matrix` (902 of them equal up to a global phase, the unitary engine's, below) and
-  60 circuits' diagrams: 0 differences. Where it differs: the shots stay this package's (see
+  60 circuits' diagrams: 0 differences. CI runs a bounded sample of these live comparisons on
+  every push (one Linux job with Tsim installed). Where it differs: the shots stay this package's (see
   Not ported); an angle appended as an int prints as a float, the spacing inside a tag is not
   kept, and a `stim.Circuit`'s angle literals are read as floats; two product rotations with
   the same angle in a row print as two lines, and so do a pair rotation's `TPP`s on several
@@ -241,12 +248,14 @@ contraction width (`CoherentSampler.contraction_width`).
   derives from the same circuit. `trt_decoder` runs its ONNX model on the CPU: a zero-dependency
   ONNX reader and a numpy evaluator of the operators the decoder needs (Gemm, MatMul, Add, Relu,
   Sigmoid, Identity, Cast, Reshape, Flatten, and QuantizeLinear and DequantizeLinear in int8,
-  uint8 and float8), using deterministic typed operations and selected MLAS arithmetic. Its
-  outputs match onnxruntime 1.31.0's bit for bit on all 157 cases recorded on 17 models (macOS
-  arm64; CUDA-Q 0.8.1's three models among them, equal to its git-lfs pointers' sha256).
-  The selected numerical contract also checks CUDA-Q's 30 PyTorch surface-model outputs at
-  absolute tolerance 1e-4. Arbitrary ORT optimizer/prepacking, computed MatMul weights,
-  weight-only DQ fusion and reduced-precision paths can round differently on the same CPU;
+  uint8 and float8), using deterministic typed operations and selected MLAS arithmetic: each
+  float32 multiply-add rounded once, as MLAS's FMA rounds it, and a MatMul followed by an Add
+  fused into one Gemm where onnxruntime's default optimizer fuses them. Its outputs match
+  onnxruntime 1.31.0's bit for bit on all 180 cases recorded on 23 models (macOS arm64; CUDA-Q
+  0.8.1's three models among them, equal to its git-lfs pointers' sha256). The selected
+  numerical contract also checks CUDA-Q's 30 PyTorch surface-model outputs at absolute
+  tolerance 1e-4. Other ORT optimizer/prepacking paths, computed MatMul weights, weight-only DQ
+  fusion and reduced-precision paths can round differently on the same CPU;
   near 0.5 this can change a binary correction. This is not a native TensorRT/GPU comparison.
   [ONNX_CONTRACT.md](python/stabilizer_qec/cudaq_qec/ONNX_CONTRACT.md) specifies the targeted
   IR 7–10/opset 13–21 eleven-operator subset, types, tolerances and limits; it is not a full
@@ -289,7 +298,11 @@ contraction width (`CoherentSampler.contraction_width`).
 - **Fusion Blossom's `helper.bottle`.** fusion_blossom 0.2.13's vendored Bottle (0.14-dev) is
   `stabilizer_qec.fusion_blossom.helper.bottle`, byte for byte, and `helper.serve` is
   fusion_blossom's server on it: 55 recorded requests (18 paths by GET, HEAD and POST, and a
-  range request) retain exact recorded headers and bodies. Raw live parity also has two platform limits:
+  range request) retain exact recorded headers and bodies, `index.js` after taking out the one
+  change made to it: the page imports a `patch_url` only from its own origin, where
+  fusion_blossom 0.2.13's imports any URL and so runs any web page's module in the data
+  server's origin, where it can read the data folder (`serve`, `open_visualizer` and
+  `peek_code` serve the working directory by default). Raw live parity also has two platform limits:
   GET/HEAD `//index.js` keeps the recorded 200 on older HTTP handlers whose upstream returns
   404; that exact 404 is checked separately, and the port must match the same live upstream's
   canonical `/index.js`. Windows upstream website CRLF is compared as LF after raw body/length
@@ -330,7 +343,10 @@ contraction width (`CoherentSampler.contraction_width`).
   test now replays ldpc's window answers and requires equal predictions, where it let a shot or
   two differ, and `tools/decoder_check.py` counts a BP+LSD shot as tied only when ldpc's answer
   is one of the reachable ones: in every run, none is not (how many differ varies from run to
-  run with ldpc's heap). `decode` is unchanged.
+  run with ldpc's heap). `decode` is unchanged. A random or relative serial schedule moves on
+  at every decode; the search after `decode(syndrome)` runs that decode's BP again, from the
+  schedule's state it started from, so `decode`'s answer is always among the corrections. The
+  search of any other syndrome is the next decode's, and no search moves the schedule on.
 
 ### Changed
 
@@ -375,8 +391,9 @@ contraction width (`CoherentSampler.contraction_width`).
   with PyMatching's "Failed to find neighbor.", and `decode_to_edges_array` with
   `enable_correlations=True` checks the syndrome first. Rust: `UserDecoder`'s 2.1 decoding
   methods (`scratch`, `decode`, `decode_to_edges`, `decode_to_matched_pairs`, the four-argument
-  `decode_packed`, and `Decoded`) are deprecated, in favour of `mwpm()`, `Mwpm`'s methods and
-  `decode_packed_with`.
+  `decode_packed`, and `Decoded`) are deprecated, in favour of `decode_with`,
+  `decode_to_edges_with`, `decode_to_matched_pairs_with` and `decode_packed_with`, each taking a
+  workspace from `mwpm()`.
 - **Chromobius.** A colour-code model is refused as Chromobius refuses it, with its messages: a
   detector declared without a fourth coordinate that is a whole number from −1 to 5
   (`detector D0` among them), which 2.1 decoded as uncoloured; an error naming a detector no
@@ -398,7 +415,9 @@ contraction width (`CoherentSampler.contraction_width`).
     that constant height, and for a callable, one saying the height must be a `LinearFunction`.
     Each is followed by a sentence pointing at the engine, which still takes numbers and
     callables at a distance: `compile_block_graph(g, distance, block_temporal_height=...)` and
-    `BlockGraph.compile`. The engine now also takes NumPy integers, which 2.1 refused.
+    `BlockGraph.compile`. The engine now also takes NumPy integers, which 2.1 refused, as
+    heights and as the distance (see Fixed); a float or bool distance is a TQECError (2.1
+    raised a TypeError for a float).
   - `CompiledBlockGraph.generate_stim_circuit` (on `compile_block_graph(g, distance)`) wrote
     the engine's layout at distance 2k + 1 with the program's `rounds` and `merged`. It now
     writes tqec's layout and takes tqec's keyword parameters (an unknown keyword is a
@@ -408,8 +427,10 @@ contraction width (`CoherentSampler.contraction_width`).
     First generation matches a fresh reference process; repeated generation of one compilation
     retains upstream mutable rescheduling. Concurrent mutation/generation of one object is not
     guaranteed. Built-in compilation pickle restores schedules and the next generated circuit;
-    observable iterables are materialized once. Direct graph rounds/merged controls receive
-    the same layout refusal as the distance wrapper.
+    observable iterables are materialized once. Direct graph rounds/merged controls are checked
+    against tqec's 2k + 1 layout on the graph's time slices, on every graph tqec compiles
+    (spatial cubes and Hadamard pipes too): matching values pass through to tqec's circuit,
+    others receive the same layout ValueError as the distance wrapper.
   - `LinearFunction.unambiguous_max_on_positives` inherits tqec's single-pass-iterator caveat
     (unlike 2.1): candidate checks can consume it and yield an incorrect maximum; pass a list.
   - `database_path` (on `generate_stim_circuit`, `generate_stim_circuits_with_detectors`,
@@ -469,6 +490,67 @@ contraction width (`CoherentSampler.contraction_width`).
   `dem_chunks` with `stim_dem_path` is refused, as in CUDA-Q. `trt_decoder`, which 2.1 lacked
   (as a CUDA-Q built without TensorRT lacks it), is a registered decoder with CUDA-Q's
   parameter schema.
+- **CUDA-Q QEC's `pymatching` decodes to the observables when its model has them**, as CUDA-Q
+  0.8.1's plugin does: given `O`, or a detector error model's text with observables, a decode
+  returns the observable flips (2.1 returned an error frame unless asked with
+  `output="observables"`), and parallel edges merge as independent errors unless
+  `merge_strategy` says otherwise (2.1 refused model text whose mechanisms shared a detector
+  pair). `output="errors"`, this package's keyword, still asks for the error frame. With model
+  text, an `O` or `error_rate_vec` the caller gives replaces the text's, as CUDA-Q's
+  `make_pcm_decoder` lets the caller's keys win (2.1 refused them), and a wrongly shaped `O` gets
+  CUDA-Q's message ("O must be of shape (num_observables, block_size); ..."). CUDA-Q's two
+  PyMatching decoding tests of `test_dem.py` are ported.
+- **Stim's shot writer, and sinter's predictions.** `write_shot_data_file` takes what Stim's
+  takes: a 2-D numpy array, bool with one column per bit or uint8 bit-packed with ⌈n/8⌉
+  columns, and refuses anything else with Stim's ValueError ("Expected 24 bits per shot. Got
+  bit packed data (dtype=np.uint8) but data.shape[1]=24 != math.ceil(24 / 8)=3", "data must be
+  a 2-dimensional numpy array with dtype=np.uint8 or dtype=np.bool_"). 2.1 read any uint8 array
+  as packed and cut or padded it to the width, so `sinter.predict_observables(dets=)` with 0/1
+  uint8 detection events, or `predict_observables_bit_packed` with rows of the wrong width,
+  decoded other shots without an error; both raise now, as sinter does.
+- **Fusion Blossom on a syndrome with no perfect matching** (an odd number of defects in a part
+  of the graph with no virtual vertex, say, or a sinter model that does not match its data):
+  `perfect_matching()`, `subgraph()` and the Stim and sinter decoders on every solver raise
+  fusion_blossom's `PanicException` ("cannot compute final matching with unmatched outer node
+  0") at once. 2.1 spun forever there, holding the GIL and deaf to Ctrl-C, as formatting the
+  unmatched node for that message waited on a lock its own thread held.
+- **MWPF's HTML export.** `HTMLExport.compress_content`, `Visualizer.generate_html` and the
+  command line's `--visualizer-filename` gzip the visualizer data as MWPF does, with
+  miniz_oxide 0.8.0's deflate at flate2's default level, byte for byte: a d=15 planar code's
+  page is MWPF's 493,740 bytes, where 2.1 wrote stored (uncompressed) deflate blocks and
+  1,141,236 bytes.
+- **The command line streams shots.** `sample`, `detect`, `m2d`, `convert`, `sample_dem`,
+  `decode`, `predict` and `count_mistakes` read, sample, decode and write 1,024 shots at a
+  time, as Stim's command line does, so their memory no longer grows with `--shots` or the
+  input's length (2.1 held every shot, about 10 bytes per output bit in `01`). The bytes are
+  those of one pass: seeded samples are the samplers' own, and `decode --decoder relay_bp`
+  seeds each batch as the whole run's. A ptb64 output whose `--shots` is not a multiple of 64
+  is refused before anything is written. Bad data, or `m2d` sweep data that ends early, is
+  refused when its batch is reached, after the batches before it are written.
+- **`count_mistakes` is PyMatching's.** `--time` writes its two lines to stderr in PyMatching's
+  format (`Decoding time per shot: infus` for no shots); 2.1 wrote them to stdout after the
+  count. `--obs_in` is used whenever it is given, even with
+  `--in_includes_appended_observables`. Without either, the predictions are compared with zero
+  observables, as PyMatching's program compares them (2.1 refused). Extra `--obs_in` shots are
+  not read, and too few is PyMatching's `Obs data ended before shot data ended.`; 2.1 broadcast
+  mismatched files, printing impossible counts when either had one shot. Malformed shot data
+  is still refused with this package's reader's message, not Stim's.
+- **`diagram` draws a detector error model for every match graph type** (`matchgraph-3d`,
+  `matchgraph-3d-html` and the `match-graph-*` names, as well as `matchgraph-svg`); 2.1 parsed
+  a model as a circuit there and failed. `--remove_noise` with a match graph type is refused
+  with Stim's message, where 2.1 drew a noiseless circuit's empty graph.
+- **Model and circuit files are read as bytes.** A byte that is not UTF-8 (in a comment, say)
+  becomes U+FFFD rather than refusing the file, in every `stabilizer-qec` command, whatever the
+  locale (stdin too).
+- **Licence notices.** The wheels and the sdist carry `THIRD_PARTY_CRATES.md`, the licence texts
+  and notices of the Rust crates the compiled module links (PyO3, rand, wgpu, naga, objc2,
+  libloading, libm and the rest, about 90, listed for each wheel's target; written from
+  Cargo.lock by `tools/third_party_crates.py`), and `THIRD_PARTY_NOTICES.md` quotes HiGHS's,
+  filereaderlp's and pdqsort's licences, where it cited files the wheels do not carry. It also
+  reproduces the attribution of CUDA-Q QEC's NOTICE file, and names fasteval 0.2.4 (Christopher
+  Sebastian, MIT), whose parser and evaluator the Azure estimator's formulas run on, with its
+  notice in `estimate/LICENSE-qdk`. `CITATION.cff` gives `license: MIT` and says in its abstract
+  that the package is MIT AND Apache-2.0, as CFF reads a list of licences as a choice.
 
 ### Fixed
 
@@ -493,8 +575,11 @@ contraction width (`CoherentSampler.contraction_width`).
   developer HTML wrappers remain HTML. Finite output/semantic checks are not browser/CDN safety
   certification.
 - **CI and helpers.** PyMatching 2.4.0/Stim 1.16.0 references are pinned. One bounded extended
-  Ubuntu/Python 3.12 job covers three designated slow corpus files; other matrices use reduced
-  cases. This source change does not establish remote CI success. Valid scalar qsample comb
+  Ubuntu/Python 3.12 job covers three designated slow corpus files, and a second runs what the
+  matrix cannot install, none of it skipped: the Tsim tests against live Tsim, the sinter 1.16.0
+  and relay-bp 0.2.2 differentials (both built from their sources), and PanQEC's slow tests
+  (`PANQEC_RUNSLOW=1`); other matrices use reduced cases. The matrix no longer names
+  `relay-bp==0.2.2` or `qldpc==0.4.1`, which it could never install. This source change does not establish remote CI success. Valid scalar qsample comb
   results again retain numpy.float64 rather than Python float.
 
 - **Tsim.**
@@ -522,11 +607,271 @@ contraction width (`CoherentSampler.contraction_width`).
   - `to_matrix` raises Tsim's errors for an `R_PAULI` naming a qubit twice or more than 64
     qubits, an anti-Hermitian product and sweep bits, and is Tsim's for `TPP Z0*Z0` ([[1]]) and
     for products naming a qubit twice. `SPP[T] X0 * Y1` no longer raises `IndexError`.
+  - `CompiledStateProbs` conditions on every record bit (since 2.1.0). Before, the
+    stabilizer-rank engine ignored `MPAD` bits and herald bits and matched each later
+    measurement against the wrong bit, so probabilities over all outcomes summed to 2 and
+    impossible records got probability 1 (`MPAD 0` gave 1 for both outcomes). An `MPAD` flip and
+    a herald are now noise drawn with the rest, as Tsim draws them, and a draw's probabilities
+    sum to 1. A reset's unread outcome is summed over, as in Tsim, where the qubit is entangled
+    with the rest. A reset of a qubit on its own, such as a fresh qubit's `RX`, leaves the same
+    state either way, so it costs one run and is never drawn. Before, the outcome was drawn
+    once, so a noiseless circuit that resets an entangled qubit (`H 0`, `CX 0 1`, `R 0`, `M 1`)
+    gave 0 or 1 depending on the seed, where the truth and Tsim's answer are 0.5.
+  - `compile_sampler`, `compile_detector_sampler` and `CompiledStateProbs` refuse what Tsim's
+    graph builder refuses, with Tsim's messages, as `to_matrix` and `tcount` already did: an
+    anti-Hermitian product (`TPP Y0*X0`), an `R_PAULI` that names a qubit twice or more than 64
+    qubits (33 `R_ZZ` lines in a row), and sweep bits. Before, they sampled such circuits. A
+    record entry from before the first measurement raises `MeasurementRecordError` (an
+    `IndexError`, as in Tsim) from every sampler. Before, the samplers raised a plain
+    `ValueError`.
+  - Parametric tags are read with Tsim's grammar. A tag of the form `name(...)` that Tsim
+    refuses raises Tsim's message, prefixed with the line number. Examples: an extra or unknown
+    key (`I[R_Z(theta=0.3*pi, phi=0.1*pi)]`, `U3(..., mu=0.1*pi)`), a missing key
+    (`I[U3(theta=0.1*pi)]`, which gave a bare `KeyError`), and a literal that is not a decimal
+    number times pi (`theta=0.3*pi*pi`, `theta=1/3*pi`, `theta=abc*pi`, `theta = 0.3*pi`).
+    Before, these were read as rotations, or crashed with `KeyError` or "could not convert
+    string to float". A half-turn tag that Tsim does not read as a rotation (`I[R_Z (theta=0.5*pi)] 0`,
+    `I[ R_Z(...)] 0`, `I[R_Z(...) ] 0`, `I[R_Z(theta=0.3*pi)#x] 0`) is the identity, as in
+    Tsim, and `SPP[ R_PAULI(...)] X0` is Tsim's `SPP`. Before, both were rotations. A `#` inside
+    a tag's brackets is part of the tag, as Stim reads it, not the start of a comment.
 - **Stim.** `Circuit.inverse()` of `II[R_PAULI(theta=t, pauli=...)]` keeps each letter on its
   qubit. It reversed the letters whole while reversing II's targets pair by pair, so
   `c + c.inverse()` was not the identity.
+- **Coherent twirl.** `Circuit.twirled()` (merge=False) repeated a tagged gate of several
+  targets once per target: `I[T] 0 1` came out as `I[T] 0 1` twice (S on each qubit) and
+  `I[R_Z(theta=0.1)] 0 1 2` three times, silently (also `I[T] 0` and `I[T] 1` on separate lines,
+  which the parser fuses, and a tagged channel such as `I_ERROR[LEAK(p=0.1)] 0 1`). Each gate is
+  now kept once, beside its errors twirled target by target, so a circuit with no coherent error
+  twirls to itself (since 2.0.0).
+- **Merged twirl.** `twirled(merge=True)` read a tagged gate at a Clifford angle
+  (`I[U3(theta=π/2, phi=0, lambda=π)]`, `I[R_Z(theta=π/4)]`) as a non-Clifford location rather
+  than the Clifford gate it is, so the rotations either side of it that are one fault were not
+  merged and the "coherence-aware" model was the plain twirl. It now reads them as the coherent
+  samplers do, and gives the plain-gate circuit's merged errors. A non-Clifford gate between
+  errors of its own axis was counted twice: `R_X(0.1)`, `I[R_X(0.3)]`, `R_X(0.2)` merged to one
+  error of sin²(0.6) while the gate also ran. The errors now merge to sin²(0.3) beside the gate.
+  Errors either side of a gate they anticommute with (Z either side of R_X, X either side of T)
+  stay apart, and a gate on other qubits (a T layer between a fault's places) does not stop the
+  merge.
+- **Time reversal.** `Circuit.time_reversed_for_flows` reversed a tagged `I`/`II` gate's
+  targets but kept its tag, so `I[R_PAULI(theta=π/4, pauli=XZ)] 0 1` became `... pauli=XZ)] 1 0`
+  (the letters on other qubits) and `I[T]`, rotation angles and `U3` were not inverted. The tag is
+  now inverted as `Circuit.inverse()` inverts it (`I[R_PAULI(theta=-π/4, pauli=ZX)] 1 0`,
+  `I[T_DAG]`); a coherent error is negated as `inverse()` negates it
+  (`I_ERROR[R_X(theta=-0.1)]`, the same twirl), and a channel with no inverse (damping,
+  leakage) and a tag that is not ours are kept. This text differs from Stim's, which treats
+  every tag as inert.
+- **Coherent sampler order.** `compile_coherent_sampler(order=0)` (and the joint sampler's)
+  enumerated every connected product of each cluster, exponential in its size, and hung on a
+  truncated kernel (d = 3, 40 rounds, `max_contraction=0`). The core now takes 0 as 1, as the
+  Rust builder's `order` already did.
+- **Copies keep their class.** `pickle`, `copy` and `deepcopy` rebuild a `Circuit`,
+  `DetectorErrorModel`, `PauliString`, `Tableau` or `Matching` as its own class, as Stim's
+  and PyMatching's do. A subclass stays one, rebuilt without calling its constructor (as
+  Stim's), so a subclass whose constructor takes other arguments than the text copies too. A
+  `Matching` subclass keeps its overrides and its attributes; the other classes keep none of
+  the instance's own attributes, as in Stim. Deltakit's circuit
+  (`stabilizer_qec.deltakit_stim`) keeps its leakage, so its copies sample and model it.
+  Before, every copy was the base class. A Deltakit circuit sent to `RunAllAnalysisEngine`'s
+  process pool (its default of 16 processes) therefore lost its leakage there, and the engine
+  counted 0 failures where a serial run counts about 3%. Pickles written by 2.1 still load.
+- **Reference signs of tagged Clifford-angle gates.** `reference_detector_and_observable_signs`
+  and `count_determined_measurements` read a tagged gate at a Clifford angle
+  (`I[R_X(theta=π/2)] 0`) as the Clifford gate it is, as `reference_sample` and the samplers
+  do. `compile_m2d_converter(skip_reference_sample=True)` on such a circuit now gives raw
+  parities, where it gave the reference-relative events.
+- **A `#` in a model's tag.** `DetectorErrorModel` reads `error[t#g](0.1) D0` as Stim does,
+  with the tag whole. Before, `len`, iteration, indexing, `repr`, `rounded`, `+`,
+  `approx_equals` and `get_detector_coordinates` raised `Failed to parse as a stim.DemTarget`
+  on such a model, and so `pymatching animate` refused it.
+- **Indexing is linear.** A `Circuit` or `DetectorErrorModel` parses its instructions once and
+  keeps them until it changes, so `len(c)` and `c[i]` in a loop are O(1) each, as Stim's.
+  Before, each call printed and re-parsed the whole object. Indexing all 1,600 items took
+  2.1 s for a circuit and 9.5 s for a model; it now takes under 0.01 s. QUITS's
+  `check_overlapping_CX` and MQT's `collect_circuit_layers` loop this way.
+- **A stray byte in a file.** `Circuit.from_file` and `DetectorErrorModel.from_file` (and
+  through them `Matching.from_detector_error_model_file` and `from_stim_circuit_file`) read a
+  byte that is not UTF-8 (`caf\xe9` in a comment) as U+FFFD, not refusing the file. Stim skips
+  such bytes in comments. They also take a file opened in binary mode.
+- **WDIMACS with a certain error.** `likeliest_error_sat_problem` writes Stim 1.16's problem for
+  a model with a probability-1 error, where it raised `math domain error`.
+- **The exact distance.** `DetectorErrorModel.distance()` (the integer program) leaves out
+  faults of probability 0, as the graph-like and search distances and Stim do. It reads the
+  model's own faults, so a tag holding `)` no longer breaks it. Before, it could prove a
+  distance below the true one (1 for `error(0) L0` beside a distance-2 model), or raise.
+- **Heavy graph edges.** `Matching` built from a networkx or rustworkx graph leaves out an edge
+  whose weight is past 2^24 − 1, with PyMatching's `UserWarning`, and decodes the rest. Before,
+  it kept the edge, and then every decode raised. The warning's weight is printed as
+  PyMatching prints it (`Weight 20000000.000000 of edge (1, 2) ...`), for `add_edge` too.
+- **Docstring examples.** Every example the API reference publishes runs in
+  `tests/test_docs.py`, found from `api/`'s pages and the modules defining their members. The
+  `Matching` example now prints `array([0, 1, 0], dtype=uint8)` and the `PauliString` one
+  `stabilizer_qec.PauliString("+i_ZZ")`, the answers PyMatching and Stim give. The `analysis`
+  examples import what they use.
+- **Deltakit's Stim.** Deltakit's `Circuit.from_stim_circuit` (and `parse_stim_circuit`
+  through it) reads this package's own `stabilizer_qec.Circuit`, which a pickled Deltakit
+  circuit comes back as, where it read an empty circuit and an empty decoding graph without
+  error. A `deltakit_stim` circuit's diagrams draw Deltakit's instructions (`LEAKAGE(0.1)`,
+  `RL`, a herald as `HERALD_LEAKAGE_EVENT(0.01):rec[k]` on the qubit it reads, a transport
+  gate's four arguments on both its ends), where they drew the lowered `I_ERROR` and `MPAD`
+  lines, a second qubit's herald on qubit 0; `flattened_operations` lists `("LEAKAGE", [0],
+  0.1)`, not `("I_ERROR", [0], 0)`; `to_tableau` and `time_reversed_for_flows` refuse
+  `LEAKAGE`, `RELAX`, `RL` and heralds with deltakit_stim's messages; `approx_equals` compares
+  their probabilities; and `explain_detector_error_model_errors` explains only Stim's own
+  noise, as deltakit_stim does, so Deltakit's `parse_explained_dem` reads it (it raised
+  `TypeError: Unsupported gate type: MPAD`). A tag on Deltakit's own instructions
+  (`LEAKAGE[site](0.1) 0`, which deltakit_stim and `deltakit.circuit`'s tagged `Leakage` and
+  `Relax` write) is still refused with `ValueError`: the lowered line's tag is where the
+  instruction is held.
 - **Tesseract.** An empty answer's cost is 0, as Tesseract's `cost_from_errors` gives it, not
   −0.
+- **ldpc.**
+  - A pickled or copied `BpDecoder`, `BpOsdDecoder`, `BpLsdDecoder` or `BeliefFindDecoder`
+    decoded with its constructor's settings where one had been changed
+    since (`lsd_method`, `lsd_order`, `osd_order`, `serial_schedule_order`,
+    `random_schedule_seed`, `set_do_stats`), while it reported the new ones; a copied
+    `LsdDecoder` lost its `lsd_method` and `lsd_order` (since 2.1.0). A copy now has them, and
+    the serial schedule's state as the decodes so far left it (a random schedule's
+    generator, a relative schedule's order), so it decodes on as the original does.
+  - One decoder decoding from several threads could answer a decode with another thread's
+    correction, silently (8 threads at a 1 µs switch interval: about 13% of `BpDecoder`'s
+    decodes, 4% of `BeliefFindDecoder`'s; since 2.1.0). Each decode keeps its results on the
+    decoder and answered from them. Decodes on one decoder of the ldpc family now take turns,
+    as ldpc's do under the GIL.
+  - On Linux, OSD's column sort could panic ("user-provided comparison function does not
+    correctly implement a total order"), or order the columns otherwise than glibc's `qsort`
+    (ldpc's there), when BP's posteriors held NaN: product-sum BP gives them on a model with
+    `error(0)` or `error(1)` faults (since 2.1.0). The sort is glibc's merge sort (msort.c)
+    now, which takes any comparison.
+- **relay_bp.**
+  - A decoder or `ObservableDecoderRunner` shared between threads raised "Already borrowed"
+    when two calls overlapped (since 2.1.0). Calls now wait their turn, as relay_bp's do.
+  - The sinter decoders (`relay-bp`, `mem-bp`, `msl-bp`) on a model with a fault of
+    probability 1 predicted wrongly on nearly every shot, silently (logical error rate 0.9985
+    where 0.0015 is right; since 2.1.0). The default pruning built the biases as `np.matrix`
+    values, and the observables' from the check matrix's rows. Both are flat arrays now, the
+    observables' from the observables' matrix. relay_bp 0.2.2 raises `TypeError` there.
+  - A `uint8` CSR or CSC check matrix storing an entry twice was read with that entry set
+    (1 + 1 taken as 1, not 0), so `success` could be True for a correction whose real checks
+    are not the syndrome (since 2.1.0). The entry is now the matrix's sum, 0 mod 2, as with
+    any stored values; relay_bp 0.2.2 panics on such a matrix.
+- **PreDecoder.** A pickled or copied pre-decoder had its constructor's `threshold` (0.5 by
+  default) where one had been set since, so it applied other faults (about 4 times as many
+  on the distance-5 memory at threshold 0.95) and decoded some shots otherwise. It also lost
+  the optimizer's state and `steps`, so trained on, it took other steps (since 2.1.0). A
+  copy now has the threshold and either engine's optimizer state.
+- **Real-time decoding** (since 2.0.0). `realtime.make_decoder(name, circuit=...)`, and so
+  `stabilizer-qec serve --circuit` and `DecoderClient.spawn(circuit=...)`, builds the circuit's
+  model as `stabilizer_qec.sinter.Sampler(name)` does: decomposed only for the decoders that
+  match on a graph, with `approximate_disjoint_errors=True`. It decomposed it for
+  `color_matching` and `ambiguity_clustering` too, so a distance-5 colour code could not be
+  served with `color_matching` (its faults do not split into graph-like pieces) and ambiguity
+  clustering decoded another model than sinter's (31 of 3,000 shots differed on a d=3 surface
+  code). A `DecoderQueue` batch whose decode raised is collected by raising its error once: it
+  stayed in the queue, so every later `get_corrections()` raised the same error, `pending()`
+  never fell, and the decoder server kept each rejected `DECODE`'s syndromes (200 rejected
+  1 MiB frames grew it from 62 to 565 MB; it now levels off at 155 MB). A `DecoderClient`
+  request interrupted between sending and reading its reply (Ctrl-C) drops the connection, and
+  later calls raise `ConnectionError`; the next call of the same size returned the interrupted
+  batch's predictions. `stabilizer-qec serve`'s default `--threads 0` reaches the decoder as 0,
+  every core, as its help says; it was left out, so each batch decoded on one thread.
+- **qecsim, PanQEC, PECOS and Loom ports.**
+  - qecsim's Blossom V interface numbered its nodes in a set's order. The planar CMWPM and the
+    rotated planar and rotated toric SMWPM decoders hash their nodes by identity, so the choice
+    among equal-weight matchings followed memory addresses, and a seeded `stabilizer-qec qecsim
+    run` or `run-ftp` gave a different result in each process (`rotated_planar(4,4)`,
+    `rotated_planar.smwpm`, `-s5`: n_fail 113 to 126). The nodes are now numbered in order of
+    first appearance, so the same seed gives the same result every time. Ties can still be
+    broken differently from qecsim's NetworkX matching.
+  - `stabilizer-qec qecsim`, and any decode through qecsim's `graphtools.mwpm`, read
+    `logging_qecsim.ini` and `clib/libpypm.so` from the working directory first, as qecsim
+    1.0b9 does. Python evaluates the first file's handler arguments, and the second is loaded as
+    a library in place of the matcher, so running in a directory someone else supplied ran that
+    directory's code. Both files are now read from `$QECSIM_CFG` or `~/.qecsim` only, and an
+    empty `QECSIM_CFG` (which qecsim took as the working directory, and which a CI `env` entry
+    for an undefined variable gives) counts as unset. A relative `QECSIM_CFG` is still read
+    relative to the working directory, as in qecsim (SECURITY.md).
+  - PanQEC's BP-OSD decoder took each sector's correction from ldpc's `osdw_decoding`, which
+    ldpc 2 leaves holding the previous shot's correction whenever a sector's syndrome is zero. A
+    decoder used for many shots (`DirectSimulation`, `generate-input`'s default decoder, and the
+    X-cube decoder's Z part) therefore reapplied a stale correction that did not explain the
+    syndrome: 216 of 300 logical failures on `Toric3DCode(3)` at p = 0.01, against 0 now. It
+    now uses `decode`'s return value. PanQEC 0.1.7 has the same bug on ldpc 2. Its own
+    single-error test for this decoder, which was marked as an expected failure, now passes.
+  - PECOS's `SparseSim.refactor` (both the default simulator and `pySparseSim`) ignored the
+    -1s that come from reordering the generators it multiplies together. In about one call in
+    five this flipped the new generator's sign, and later measurements then gave outcomes the
+    state cannot produce. The signed stabilizer group is now unchanged by `refactor`.
+  - Loom's `Eka` is a frozen dataclass, as Loom's is: `Eka.fromdict(e.asdict()) == e`, its
+    fields cannot be assigned (assigning `blocks` used to skip its lattice and label checks),
+    and it has Loom's repr. `AuxCNOT` accepts exactly two block names, as Loom does. With
+    three names it used to drop the third without warning, and with one it failed later with
+    `IndexError`.
+- **qsample.**
+  - Each `Protocol` built without check functions has its own dict. qsample's default was one
+    dict shared by them all, so a second `NoisyDFTStatePrepSimulator` rebound the first one's
+    decoder and checks: a |+> simulator's p_L at p = 0.02 went from 0.022 to 0.078 once a |0>
+    one was built.
+  - Subset probabilities stay finite for any number of fault locations. A group of 1030 or more
+    raised OverflowError (qsample gives NaN from 171); terms whose coefficient is beyond a
+    float, or whose power falls below the normal floats (`binom(200, 1029, 0.02)` was 0, not
+    3.3e-129), come from Loader's saddle-point method, as R's `dbinom`. `comb` gives inf where
+    the coefficient is beyond a float.
+  - `save` (and `DirectSampler.save`, `SubsetSampler.save`) uses dill when it is installed, as
+    qsample does, so samplers with lambda or nested check functions save; without dill it uses
+    pickle, which takes only top-level functions. It writes a new file beside the target and
+    replaces the target only once written whole: a failed save no longer leaves an existing
+    file at 0 bytes.
+- **MQT QECC.** Every `circuit_utils` function that takes a circuit, each noise model's
+  `apply`, `CatStatePreparationExperiment` and the NDFT simulators take Stim's own circuits;
+  they raised AssertionError or TypeError, though 2.1.0 said every port took them. Adding this
+  package's `Circuit` and Stim's with `+` still raises TypeError: convert with
+  `stabilizer_qec.Circuit(str(c))` first.
+- **qLDPC.**
+  - `as_noiseless_circuit`, `get_state_stabilizers`, `get_logical_state_stabilizers`,
+    `get_state_prep_diagnostic_circuit`/`_tasks`, `QuditCode.deformed`/`CSSCode.deformed`,
+    `get_logical_tableau`, `get_encoder_and_decoder`, `get_pauli_product_measurements` and
+    `get_transversal_circuit(s)` take Stim's own `Circuit`, `Tableau` and `PauliString`; they
+    raised, though 2.1.0 said every port took Stim's objects. Adding this package's `Circuit`
+    and Stim's with `+` still raises TypeError: convert with `stabilizer_qec.Circuit(str(c))`
+    first.
+  - `CSSCode.reduce_logical_op(s)` and the SL, PSL, GL and PGL lifts run on NumPy before 2.1
+    (qLDPC's `np.reshape(..., copy=False)` needs 2.1, its `np.vstack(..., dtype=int)` 1.24); the
+    port's suite passes on NumPy 1.23.5. The `qldpc` extra now asks for qLDPC's own NumPy floor
+    (`numpy>=1.24` on Python 3.11 and later).
+- **qec-util's tools** (`stabilizer_qec.analysis`).
+  - `dems.detectors_to_observables` and `dem_instrs.detectors_to_observables` apply a mapping
+    keyed by Stim's own `DemTarget`s, as qec-util does. Stim's targets neither equal nor hash
+    like this package's, so such a mapping matched nothing and the model came back unchanged.
+  - `samplers.merge_batches_in_file` keeps every extra metric. It wrote `seconds` into the
+    header a second time (as qec-util 0.5.0 does), so the merged row was one value short and,
+    read back, a metric named after `seconds` lost its count to `seconds`.
+  - `distance.get_upper_bound_circuit_distance` decodes over dem_decoders' check matrix (errors
+    flipping the same detectors merged, their probabilities combined), so its bound is
+    qec-util's (3 against qec-util's 2 on a decomposed d = 3 color code before), and returns
+    the decoded errors, which flip observables and no detector. It (like qec-util) took the
+    fault indices as indices of every instruction of the model, so it could return detector
+    lines or errors that flip detectors.
+  - Without scipy, threshold fits are MINPACK's Levenberg-Marquardt, as scipy's `curve_fit`:
+    they stop where scipy's do (poly-4's threshold was 0.042 of a standard error off, and
+    tanh took 400,000 evaluations against scipy's 7,000), and report scipy's infinite error,
+    with its warning, where the fit cannot fix the threshold (poly-9 gave a finite interval,
+    all-zero failures NaN).
+  - Without lmfit, `LogicalErrorProbDecayModel.fit` fits as lmfit does (MINPACK, with lmfit's
+    options and standard errors) and takes lmfit's arguments: `weights` and `max_nfev` were
+    ignored, as were unknown keywords (lmfit warns), and too few points or NaN data gave a
+    fit or a LinAlgError where lmfit raises TypeError or ValueError.
+- **Azure estimates on degenerate parameters.** A crossing prefactor of 0 (or one whose logical
+  error rate underflows) gives the QDK's estimate: its f64 quotient and saturating cast allow
+  every cycle. A division by zero (a logical cycle time that rounds to 0 ns, a T factory that
+  cannot finish a run under `maxTFactories`, a patch of 0 physical qubits) and a report that
+  cannot format the infinite clock frequency of a 0 ns cycle are each a `ValueError`, where the
+  QDK panics (a batch fails as a whole, as the QDK's call does). 2.1 raised a bare
+  `ZeroDivisionError` or `OverflowError` on all of these.
+- **tqec's engine at a NumPy-integer distance.** `compile_block_graph(g, np.int64(3),
+  block_temporal_height=5)` and `BlockGraph.compile` at such a distance ran the default rounds,
+  dropping the height (and a callable or `LinearFunction` one), silently; the distance is now
+  read as an integer, and the height honoured.
 - **2.1.0's "Not ported" list** said QUITS's distance search used more memory and time than
   Stim's: 456 MB and 8.7 s against 139 MB and 1.6 s on [[72, 8, 8]]. That was the search before
   it took Stim's steps (f3dc7ac, which is in 2.1.0). 2.1.0's own search used a 228 to 241 MB
@@ -953,9 +1298,11 @@ references, their scripts in the session's scratchpad; fixed before tagging):
   enough; 1.x code that built with it now decodes without correlations unless the decode call
   asks too. `decode_batch` casts shots of any integer or bool
   dtype as PyMatching does, where 1.x refused values other than 0 and 1.
-- **A reference sample takes every random measurement as 0, as Stim's does** (it was a seeded
-  draw): `reference_sample()`, the samplers' references and the measurement-to-detection
-  converter, which now takes detectors and observables that are not deterministic (gauge
+- **A reference sample takes every random measurement as 0** (it was a seeded draw), as
+  Stim's does where the measured qubit is not entangled with another; where it is, Stim's
+  tableau can make another choice (`H 0`, `CX 0 1`, `CZ 1 0`, `MX 1`, `MX 0` gives 1, 0 in
+  Stim's reference and 0, 1 here): `reference_sample()`, the samplers' references and the
+  measurement-to-detection converter, which now takes detectors and observables that are not deterministic (gauge
   detectors) and compares them with that reference, as Stim's converter does. A seed's raw
   measurement shots change with it; detection events do not.
 - `num_qubits` counts targets as written, as Stim does: an `II`'s or `I_ERROR`'s, an `MPAD`'s
