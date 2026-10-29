@@ -17,6 +17,10 @@ by name, so that tests/test_third_party_notices.py notices a Cargo.lock this fil
 regenerated for.
 
 cargo reads the crates from its registry (``--offline``, the default; ``--online`` lets it fetch).
+The tool needs every crate of every wheel target with the wheels' features, which a registry filled
+by a build for one host does not hold: when cargo stops offline for a crate or an index entry it has
+not got, the tool exits with OFFLINE_UNAVAILABLE (3), not 1, so that the test can tell a registry
+that cannot answer from a THIRD_PARTY_CRATES.md that is out of date.
 """
 
 from __future__ import annotations
@@ -69,11 +73,29 @@ _OBJC2 = ("none in the package; the MIT License, with the copyright line of objc
 NO_FILE = {"objc2": _OBJC2, "block2": _OBJC2, "objc2-encode": _OBJC2, "objc2-foundation": _OBJC2}
 
 
+# The exit status when cargo, offline, lacks a crate or an index entry the wheels' targets need.
+OFFLINE_UNAVAILABLE = 3
+
+# What cargo says when --offline stopped it: a crate's package it would have to download, or a
+# package the index it has does not list. A stale Cargo.lock under --locked says "--offline" too
+# (it suggests using it), so the match is on these two phrases, not on the word.
+_OFFLINE_STOP = re.compile(r"--offline was specified|you're using offline mode")
+
+
+def offline_stop(stderr):
+    """Whether cargo's error is that it could not get, offline, what it needs."""
+    return _OFFLINE_STOP.search(stderr) is not None
+
+
 def cargo(args, online):
     cmd = ["cargo"] + args + ["--locked"] + ([] if online else ["--offline"])
     r = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
     if r.returncode != 0:
-        sys.exit("third_party_crates: `{}` failed:\n{}".format(" ".join(cmd), r.stderr))
+        msg = "third_party_crates: `{}` failed:\n{}".format(" ".join(cmd), r.stderr)
+        if not online and offline_stop(r.stderr):
+            sys.stderr.write(msg + "cargo's registry lacks crates the wheels' targets need: run with --online to fetch them\n")
+            sys.exit(OFFLINE_UNAVAILABLE)
+        sys.exit(msg)
     return r.stdout
 
 

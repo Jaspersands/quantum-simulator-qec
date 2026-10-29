@@ -5,6 +5,8 @@ the ported code (THIRD_PARTY_NOTICES.md, estimate/LICENSE-qdk), and the licence 
 
 from __future__ import annotations
 
+import importlib.util
+import os
 import re
 import shutil
 import subprocess
@@ -95,17 +97,49 @@ def test_each_linked_crate_has_its_licence_text():
     assert "Windows" in rows[next(k for k in rows if k[0] == "libloading")][3] or rows[next(k for k in rows if k[0] == "libloading")][3] == "all"
 
 
-def _cargo_resolves_offline():
-    if shutil.which("cargo") is None:
-        return False
-    r = subprocess.run(["cargo", "metadata", "--format-version", "1", "--locked", "--offline"], cwd=ROOT, capture_output=True)
-    return r.returncode == 0
+def tool():
+    spec = importlib.util.spec_from_file_location("third_party_crates", str(TOOL))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 
-@pytest.mark.skipif(not _cargo_resolves_offline(), reason="needs cargo with every crate of Cargo.lock in its registry")
+def run_tool(*args, env=None):
+    return subprocess.run([sys.executable, str(TOOL)] + list(args), cwd=ROOT, capture_output=True, text=True, env=env)
+
+
+needs_cargo = pytest.mark.skipif(shutil.which("cargo") is None, reason="needs cargo")
+
+
+@needs_cargo
 def test_crate_notices_are_what_cargo_tree_gives():
-    r = subprocess.run([sys.executable, str(TOOL), "--check"], cwd=ROOT, capture_output=True, text=True)
+    # The tool needs every crate of every wheel target with the wheels' features; a registry that
+    # holds only what a build for this host fetched cannot give them offline, and the tool says so
+    # by its exit status rather than failing as an out-of-date file would.
+    r = run_tool("--check")
+    if r.returncode == tool().OFFLINE_UNAVAILABLE:
+        pytest.skip("cargo's registry lacks crates the wheels' targets need (tools/third_party_crates.py --check --online fetches them)")
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+@needs_cargo
+def test_crate_tool_says_when_cargo_cannot_answer_offline(tmp_path):
+    # A CARGO_HOME without the crates (here an empty one) is the tool's distinct exit status, on
+    # which the test above skips, not the status of a failure.
+    r = run_tool("--check", env=dict(os.environ, CARGO_HOME=str(tmp_path)))
+    assert r.returncode == tool().OFFLINE_UNAVAILABLE, r.stdout + r.stderr
+    assert "--online" in r.stderr
+
+
+def test_crate_tool_does_not_take_a_stale_lock_for_a_missing_crate():
+    # cargo's words, offline: a crate's package it has not got, a package its index does not list,
+    # and a Cargo.lock that --locked forbids updating (which must fail the test, not skip it).
+    t = tool()
+    assert t.offline_stop("error: failed to download `allocator-api2 v0.2.21`\n\nCaused by:\n  attempting to make an HTTP request, but --offline was specified\n")
+    assert t.offline_stop("error: no matching package named `pyo3` found\nlocation searched: crates.io index\nrequired by package `stabilizer_qec v2.2.0 (/repo)`\n"
+                          "As a reminder, you're using offline mode (--offline) which can sometimes cause surprising resolution failures, if this error is too confusing you may wish to retry without `--offline`.\n")
+    assert not t.offline_stop("error: the lock file /repo/Cargo.lock needs to be updated but --locked was passed to prevent this\n"
+                              "If you want to try to generate the lock file without accessing the network, remove the --locked flag and use --offline instead.\n")
 
 
 def test_highs_licence_texts_are_quoted_not_cited():
