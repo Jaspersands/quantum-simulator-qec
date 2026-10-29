@@ -165,8 +165,7 @@ def _compile(graph: "BlockGraph", distance: int, *, p: float = 0.0, rounds: Opti
         observables = graph.find_correlation_surfaces()
     elif observables is None:
         observables = []
-    if distance < 3 or distance % 2 == 0:
-        raise TQECError(f"lattice surgery needs an odd distance of at least 3, not {distance}")
+    distance = _distance(distance)
     rounds = distance if rounds is None else rounds
     merged = rounds if merged is None else merged
     if rounds < 1 or merged < 1:
@@ -441,6 +440,22 @@ def _convention(convention: object) -> Convention:
     return ALL_CONVENTIONS[name]
 
 
+def _distance(distance: object) -> int:
+    """The engine's ``distance`` as an ``int`` (a NumPy integer too, as ``np.arange(3, 10, 2)``
+    gives them), refused unless it is an odd integer at least 3. Floats and bools are refused, as
+    ``_scale`` refuses them for ``k``: the engine would fail on a float in its core, and a
+    distance that was not an ``int`` here used to skip ``block_temporal_height``."""
+    if not isinstance(distance, bool):
+        try:
+            value = operator.index(distance)
+        except TypeError:
+            pass
+        else:
+            if value >= 3 and value % 2 == 1:
+                return value
+    raise TQECError(f"lattice surgery needs an odd distance of at least 3, not {distance!r}")
+
+
 def _scale(k: object) -> int:
     """``k`` as an ``int`` (a NumPy integer too); tqec takes others and writes nonsense or fails
     in its layers, so they are refused here."""
@@ -619,8 +634,11 @@ class TopologicalComputationGraph:
         each time slice ``block_temporal_height(k) + 2`` rounds (tqec's layers: an
         initialisation layer, the repeated rounds and a measurement layer; ``2k + 1`` by
         default), or ``rounds`` and ``merged`` as given. Here ``block_temporal_height`` may also
-        be a whole number at least 0 (a NumPy integer too) or a callable of ``k`` giving one."""
-        rounds = self._rounds_at((distance - 1) // 2) if isinstance(distance, int) and distance >= 3 else self._rounds
+        be a whole number at least 0 (a NumPy integer too) or a callable of ``k`` giving one.
+        ``distance`` is an odd integer at least 3, a NumPy integer too; anything else (a float,
+        a bool) is refused with a ``TQECError``."""
+        distance = _distance(distance)
+        rounds = self._rounds_at((distance - 1) // 2)
         compiled = _compile(self._graph, distance, p=p, rounds=rounds, merged=self._merged, observables=self._observables)
         compiled.computation = self
         return compiled
