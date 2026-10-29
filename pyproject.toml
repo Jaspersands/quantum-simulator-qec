@@ -42,8 +42,10 @@ sinter = ["matplotlib>=3.5"]
 ldpc = ["scipy>=1.7"]
 # stabilizer_qec.stimbposd (stimbposd 0.2.0) needs what stabilizer_qec.ldpc does.
 stimbposd = ["scipy>=1.7"]
-# stabilizer_qec.qldpc (qLDPC 0.4.1) needs what qLDPC needs beyond its QEC stack, and Python 3.11.
+# stabilizer_qec.qldpc (qLDPC 0.4.1) needs what qLDPC needs beyond its QEC stack (NumPy at qLDPC's
+# own floor among them), and Python 3.11.
 qldpc = [
+  "numpy>=1.24; python_version >= '3.11'",
   "scipy>=1.14.1; python_version >= '3.11'",
   "galois>=0.4.2; python_version >= '3.11'",
   "sympy>=1.12; python_version >= '3.11'",

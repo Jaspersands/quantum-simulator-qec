@@ -146,3 +146,18 @@ def test_citation_licence_is_not_a_choice():
     assert re.search(r'(?m)^license = "MIT AND Apache-2.0"$', pyproject())
 
 
+def test_qldpc_extra_has_qldpc_numpy_floor():
+    assert "numpy>=1.24; python_version >= '3.11'" in toml_list(pyproject(), "qldpc")
+
+
+def test_qecsim_notice_says_where_config_is_read():
+    qecsim = words(section("qecsim"))
+    assert "$QECSIM_CFG" in qecsim and "~/.qecsim" in qecsim
+    assert "logging_qecsim.ini" in qecsim and "libpypm" in qecsim
+    assert "not the working directory" in qecsim
+
+
+def test_qsample_notice_says_save_needs_dill_for_lambdas():
+    qsample = words(section("qsample"))
+    assert "dill to save" in qsample
+    assert "saving uses pickle, which cannot save lambda or nested check functions" in qsample

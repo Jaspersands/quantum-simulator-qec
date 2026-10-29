@@ -129,8 +129,12 @@ Source: https://github.com/dpwinter/qsample
 tableau simulator (`qsample/sim.py`) in place of chp-sim and projectq, and needs none of
 networkx, anytree, simpleeval, scipy, dill, latextools or pydot (`qsample/_graph.py` and
 `qsample/_anytree.py` stand in for what it uses of them; matplotlib, tqdm, networkx and pydot are
-used to plot, show progress and draw when installed). It also fixes `utils.load`, which opened its
-file for writing. Each file says so at its top.
+used to plot, show progress and draw when installed, and dill to save, as qsample does, when it
+is installed: without it, saving uses pickle, which cannot save lambda or nested check
+functions). It also fixes `utils.load`, which opened its file for writing, makes `utils.save`
+replace its file only once the new one is written whole, gives each `Protocol` its own
+check-function dict, and computes subset probabilities that stay finite past 170 fault
+locations. Each file says so at its top.
 
 ## ldpc
 
@@ -342,7 +346,11 @@ Copyright (c) 2016, qecsim developers. Licensed under the BSD 3-Clause License (
 `python/stabilizer_qec/qecsim/` is qecsim 1.0b9's package, and `tests/qecsim_port/` its tests,
 with qecsim at stabilizer_qec.qecsim; its command line's models come from a table (its entry
 points) rather than `pkg_resources`, and without Blossom V's library this package's exact matcher
-serves its Blossom V interface.
+serves its Blossom V interface. Its logging configuration (`logging_qecsim.ini`, whose handler
+arguments `logging.config.fileConfig` evaluates) and Blossom V's library (`clib/libpypm.so`, which
+ctypes loads) are read from `$QECSIM_CFG` when it is set and from `~/.qecsim` otherwise, as qecsim
+reads them, but not the working directory, which qecsim searches first: both files are code, so
+they come only from where the user put them, not from whatever directory the command runs in.
 
 ## bposd
 
