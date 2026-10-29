@@ -1,7 +1,7 @@
 {
  "version": "2.2.0",
  "platform": "Darwin arm64",
- "note": "Recorded 2026-10-29 at 2.2.0 (engine 17b29d8 plus tool stamps) on an Apple M2 Pro shared with parallel build and test jobs (load average 16 to 55): the samples are deterministic (seed 0), the timings are slower than on an idle machine. Against the 2.0-era recording only the Pauli-twirl columns changed (the twirl now keeps a multi-target tagged gate once); the joint-sampler and state-vector columns are the same to within float rounding (three encoded joint-sampler numbers differ in their last digits).",
+ "note": "Recorded 2026-10-29 at 2.2.0 (engine 17b29d8 plus tool stamps) on an Apple M2 Pro shared with parallel build and test jobs (load average 16 to 55): the samples are deterministic (seed 0), the timings are slower than on an idle machine. Against the 2.0-era recording only the Pauli-twirl columns changed (the twirl now keeps a multi-target tagged gate once); the joint-sampler and state-vector columns are the same to within float rounding (three encoded joint-sampler numbers differ in their last digits). The joint-sampler times (`coherent_s`, the README's per-shot column) are not this run's: they are the 2026-10-23 recording's (commit 011b01c, the same joint sampler on the same samples), kept because no later run was made at a load average below 4; this run measured them 1.3 to 1.5 times slower under its load. The Pauli-twirl times (`twirl_s`) are this run's, under that load, since the fixed twirl is a different circuit from the one timed before.",
  "shots": 20000,
  "encoded_shots": 2000,
  "unencoded": {
@@ -9,7 +9,7 @@
    "qubits": 5,
    "timing": {
     "twirl_s": 0.28303241699177306,
-    "coherent_s": 10.346373375010444,
+    "coherent_s": 6.977989874998457,
     "locations": 34,
     "exact_gates": 12,
     "generators": 54,
@@ -34,7 +34,7 @@
    "qubits": 5,
    "timing": {
     "twirl_s": 0.24289387499447912,
-    "coherent_s": 10.703207917002146,
+    "coherent_s": 7.047627375002776,
     "locations": 34,
     "exact_gates": 12,
     "generators": 54,
@@ -59,7 +59,7 @@
    "qubits": 5,
    "timing": {
     "twirl_s": 0.27069945899711456,
-    "coherent_s": 11.109727457995177,
+    "coherent_s": 7.323020958996494,
     "locations": 34,
     "exact_gates": 12,
     "generators": 54,
@@ -86,7 +86,7 @@
    "qubits": 85,
    "timing": {
     "twirl_s": 1.0148657909885515,
-    "coherent_s": 381.06378479200066,
+    "coherent_s": 287.94742770800076,
     "locations": 801,
     "exact_gates": 10,
     "generators": 921,
@@ -107,7 +107,7 @@
    "qubits": 85,
    "timing": {
     "twirl_s": 1.0272372080071364,
-    "coherent_s": 390.8808291250025,
+    "coherent_s": 283.54257879099896,
     "locations": 801,
     "exact_gates": 10,
     "generators": 921,
@@ -128,7 +128,7 @@
    "qubits": 85,
    "timing": {
     "twirl_s": 0.9989712499955203,
-    "coherent_s": 440.12442900000315,
+    "coherent_s": 327.40429250000307,
     "locations": 801,
     "exact_gates": 10,
     "generators": 921,

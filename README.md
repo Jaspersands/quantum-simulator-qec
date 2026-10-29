@@ -77,22 +77,28 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   [compilation and estimation](tutorials/08_compilation_and_estimation.ipynb) and
   [real time and the GPU](tutorials/09_real_time_and_the_gpu.ipynb). Each is built from a plain
   Python file by `tools/notebooks.py`; notebook execution is a CI check. The extended
-  regression corpus has one bounded Ubuntu/Python 3.12 CI job; other matrices run reduced cases.
+  regression corpus has one bounded Ubuntu/Python 3.12 CI job, and a second runs what the matrix
+  cannot install: the comparisons with live Tsim, sinter 1.16.0 and relay-bp 0.2.2 (built from their
+  sources), and PanQEC's slow tests. Other matrices run reduced cases.
 - **Benchmarks.** Against Stim and PyMatching on the same machine, one thread:
   [qcompiler.jaspersands.com/benchmarks](https://qcompiler.jaspersands.com/benchmarks/).
   `tools/bench.py` runs them; CI fails a push whose ratio to the reference doubles.
 - **Docs.** A guide and the full reference at
   [qcompiler.jaspersands.com/api](https://qcompiler.jaspersands.com/api/) (`tools/api_docs.py`
   builds it from the docstrings, whose examples the tests run). The package is typed.
-- **Promises.** Seed reproducibility belongs to each documented sampler/version contract and
-  supported thread counts; algorithm corrections can change outcomes (including coherent shots
-  in 2.2). Bad input
-  raises `ValueError` or `TypeError` (a port raises its original's errors where they differ, as the
-  QDK's parameter classes raise `LookupError` and `Exception`); an engine bug raises `RuntimeError`.
-  From 1.0, semantic versioning: the public API (everything in `stabilizer_qec` without a leading
-  underscore) follows the compatibility policy with documented corrections/migrations, and
-  anything removed is deprecated first (see
-  [CHANGELOG.md](CHANGELOG.md)). The Rust crate is versioned on its own, under its documented compatibility policy.
+- **Promises.** These are the [compatibility policy](CONTRIBUTING.md#compatibility-policy)'s.
+  Within a version, a seed and shot position give the same shots on any number of threads; a
+  correction to a sampler can change its seeded shots, and [CHANGELOG.md](CHANGELOG.md) names it
+  (2.2's coherent corrections do). Bad input raises `ValueError` or `TypeError` (a port raises its
+  original's errors where they differ, as the QDK's parameter classes raise `LookupError` and
+  `Exception`); an engine panic the core catches raises `RuntimeError` asking for a report, and
+  beyond that a crash or a hang is a bug to report, not a supported response. From 1.0, semantic
+  versioning: the public API (everything in `stabilizer_qec` without a leading underscore) keeps
+  its names and signatures through every 2.x release, and anything removed is deprecated first;
+  behaviour changes in a minor release only to correct it (a port to its upstream, or a defect),
+  and the changelog names each such change. 2.2 narrowed 2.1's wording of these promises to the
+  policy's, as the changelog's "The compatibility promise" says. The Rust crate is versioned on
+  its own, under the same policy for its documented items.
 - **Tests.** `tests/` (pytest and Hypothesis) runs on Python 3.9 to 3.14 on Linux, macOS and
   Windows, against Stim, PyMatching, `ldpc` and `beliefmatching` where they install.
   `python tools/smoke.py`, run from outside the repository, checks an installed wheel end to end.
@@ -117,8 +123,12 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
 
 `.github/workflows/ci.yml` runs on every push and pull request:
 - the Rust tests, among them a randomized run of 20,000 generated and mutated circuits and
-  models through every parser, model builder, sampler and decoder, which may refuse an input
-  but never panic;
+  models (`src/fuzzing.rs`) through the parsers and printers, both error-model builders, the
+  bit-parallel, frame, coherent and state-vector samplers, m2d, and the decoders built on a
+  model: the matcher of `src/sparse/` (plain and correlated), belief-matching, BP+OSD and the
+  window decoders. Each may refuse an input but never panic. The other decoders, `Matching`'s
+  transliterated matcher (`src/pm_exact/`), BP+LSD, Relay-BP, colour-code matching, the search
+  decoder and the clustering decoders among them, are not in this run;
 - the WebAssembly engine, built fresh and driven in Node through the page's own wrappers
   (`tools/wasm-smoke.mjs`: Willow's raw measurements must hash to Google's detection events, then
   decode, and a stream must window-decode). The committed engine, the one the site serves, runs
@@ -133,7 +143,7 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   Tesseract (`tools/decoder_check.py`);
 - the test suite (`tests/`) against each platform's wheel on Python 3.9, 3.10, 3.11, 3.12, 3.13
   and 3.14;
-- `cargo fuzz` on the circuit and model parsers and everything behind them, a minute each
+- `cargo fuzz` on the circuit and model parsers and the same stages behind them, a minute each
   (`fuzz/`; locally `cargo +nightly fuzz run circuit`).
 
 ## Key Features
@@ -146,10 +156,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   temporal drift.
 - **Decoders**: disjoint-set Union-Find cluster peeling, exact minimum-weight perfect matching, a
   greedy nearest-neighbour baseline, and probability-weighted exact matching over any detector error
-  model by sparse blossom: plain, at about PyMatching's single-threaded time (0.98 in the recorded
-  Apple-silicon run), and correlated (PyMatching 2.4's two-pass reweighting, agreeing with it shot
-  for shot but for ties), at about the same (1.01; on Linux x86_64 both about 1.2, see
-  [Speed](#speed-against-stim-and-pymatching)). PyMatching's class, `Matching`, decodes on
+  model by sparse blossom: plain, at about PyMatching's single-threaded time (1.02 in the recorded
+  Apple-silicon run of 2.2.0), and correlated (PyMatching 2.4's two-pass reweighting, agreeing with
+  it shot for shot but for ties), at about the same (1.03; on Linux x86_64 both about 1.2 in
+  1.8.0's run, see [Speed](#speed-against-stim-and-pymatching)). PyMatching's class, `Matching`, decodes on
   PyMatching 2.4.0's sparse blossom transliterated, with tied-selection parity in the recorded
   plain-decoding corpus; correlated decoding has the domain limits below.
 - **Throughput**: a bit-parallel sampler (64 shots a word, `REPEAT` without flattening) at 15–20×
@@ -210,16 +220,25 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   checked against Gidney's RSA-2048 and Lee et al.'s FeMoco estimates.
 - **Clifford+T circuits, with coherent noise on every gate**: a stabilizer-rank sampler for circuits
   with T gates and rotations at any qubit count (exact, the cost growing with the non-Clifford
-  gates, checked bit for bit against the state vector and against Tsim), Tsim's circuit surface and
-  ZX graphs, and the joint coherent sampler, which runs the non-Clifford gates exactly and reweights
-  the twirl of small rotations around them. Historical magic-state injection/distillation
-  results predate the merged-proposal correction and require revalidation.
+  gates; its exact distribution equals the state vector's distribution (to 10⁻⁹) on random
+  circuits, and its shots match Tsim's in distribution (χ²) on Tsim's demonstrations), Tsim's
+  circuit surface and ZX graphs, and the joint coherent sampler, which runs the non-Clifford gates
+  exactly and reweights the twirl of small rotations around them. Its magic-state injection and
+  distillation measurements were re-recorded with the 2.2.0 wheel; past twelve generators the
+  joint sampler truncates its sums, so they are estimates, held to the state vector where it
+  reaches.
 - **Fault-tolerant compilation, two ways**: tqec's block graphs (`stabilizer_qec.tqec`: cubes,
   pipes, ports, correlation surfaces found on a ZX graph of its own, the gallery, Collada and JSON
   files, every gallery graph equal to tqec's) compiled by tqec 0.2.0's own pipeline with tqecd
-  0.2.1's detector search: 51 recorded circuits and 6 refusals match the pinned reference,
-  with a historical 6–16 times speed ratio on those measured cases. Spatial Hadamards along x
-  require `fixed_boundary`; Y cubes and unfilled ports are refused. Distance compilation
+  0.2.1's detector search: 51 recorded circuits and 6 refusals match the pinned reference. It
+  is faster than tqec in wall time on the cases timed (`compile_block_graph(graph,
+  convention=...).generate_stim_circuit(1)`, three runs a side in separate processes at a load
+  average of 5 to 11: 1.5 to 1.6 times on the Steane encoding, 2.8 to 3.1 on the CNOT, 5.9 to
+  6.6 on the memory; at load averages of 38 to 184, 1.9 to 5.0 on the CNOT and 5.0 to 8.8 on
+  the memory, higher in some runs and lower in others, with no trend with load). A spatial
+  Hadamard pipe between two non-spatial cubes (along x or y) requires `fixed_boundary`, as tqec
+  0.2.0's `fixed_bulk` has no template for it (one at a spatial junction, as in the CZ, compiles
+  in both); Y cubes and unfilled ports are refused. Distance compilation
   retains the engine layout at `.circuit`; `generate_stim_circuit` writes tqec's layout; and Loom's Eka model
   (`stabilizer_qec.loom`: rotated-surface-code blocks, reset, syndrome rounds, logical measurements,
   grow, shrink, merge, split, conditional Paulis, move, rotate, move corners, the Y-wall phase gate,
@@ -256,7 +275,11 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   from Python (see [Install](#install)). The other tools' APIs are there under their own names;
   Fusion Blossom's (`stabilizer_qec.fusion_blossom`) serves its visualiser on its own vendored
   Bottle, byte for byte, answering 55 recorded requests as fusion_blossom 0.2.13's server does.
-  Recorded responses stay exact. On older HTTP handlers, GET/HEAD `//index.js` returns 200 here
+  Recorded responses stay exact, but for one deliberate change to the page's `index.js`: it
+  imports a `patch_url` only from its own origin (as `local_render_visualizer`'s `./` path is),
+  where fusion_blossom's imports any URL, so that a web page that opens the visualizer with its
+  own module cannot read the data folder; `index.js` is compared as fusion_blossom's with exactly
+  those lines taken out. On older HTTP handlers, GET/HEAD `//index.js` returns 200 here
   while the live upstream returns 404; the port is compared with that live upstream's
   canonical `/index.js` response after checking that exact upstream 404. Windows upstream
   website CRLF is compared as LF, with raw upstream body/length and installed LF resource checks. These are explicit
@@ -274,7 +297,8 @@ Tqec separate compilations isolate the complete cache initialization/build trans
 threads; repeated generation on one object retains upstream mutable rescheduling. Concurrent
 mutation/generation of one object is not guaranteed. Built-in compilation pickle preserves
 schedules and next-generation behavior; observable iterables are materialized once. Direct
-rounds/merged controls receive the same layout refusals as the distance wrapper.
+rounds/merged controls are checked against tqec's 2k + 1 layout on every graph tqec
+compiles, with the same layout refusals as the distance wrapper.
 `LinearFunction.unambiguous_max_on_positives` inherits tqec's single-pass-iterator caveat
 (unlike 2.1): checks may consume the iterator and return an incorrect maximum; pass a list.
 Inherited non-deterministic detector/observable circuits include CZ and spatial-Hadamard/junction
@@ -507,22 +531,30 @@ written for `stim` runs with `import stabilizer_qec as stim`. Two suites check i
 | Stim | Here | Checked |
 |---|---|---|
 | `Circuit` (text, list interface, transformations, flows, exports, diagrams, searches) | the same; text, QASM, Quirk and Crumble URLs, glTF and the text diagrams (timeline and detector slices) byte for byte; the SVG diagrams are this package's own drawings | examples, random circuits |
-| `DetectorErrorModel`, `DemInstruction`, `DemRepeatBlock`, `DemTarget` | the same; any number of observables | examples, generated codes |
+| `DetectorErrorModel`, `DemInstruction`, `DemRepeatBlock`, `DemTarget` | the same; any number of observables, detector indices as Stim writes them, up to 2^60 - 1 (2^62 - 1 after shifts; decoders take up to 2^24 - 1) | examples, generated codes |
 | `PauliString`, `Tableau`, `TableauSimulator`, `CliffordString`, `Flow`, `GateData`, `GateTarget` | the same, with Stim's conversions and RNG-free results identical | examples, random Cliffords |
-| `FlipSimulator` | bit-packed rows in Rust; flips identical to Stim's with randomization off | examples, random circuits, noise statistics |
+| `FlipSimulator` | bit-packed rows in Rust; flips identical to Stim's with randomization off, but for `broadcast_pauli_errors` at `p=0` (below) | examples, random circuits, noise statistics |
 | `Compiled*Sampler`, `CompiledMeasurementsToDetectionEventsConverter` | the same (aliases of the native samplers), every file format byte for byte | examples, file comparisons |
 | `ExplainedError` and its parts | the same objects, text and reprs | examples, generated codes |
-| `read_shot_data_file`, `write_shot_data_file`, `main` and the `stim` command line | the same flags, formats and help pages; `repl` byte for byte | examples, command-line comparisons |
+| `read_shot_data_file`, `write_shot_data_file`, `main` and the `stim` command line | the same flags, formats and help pages; `repl` byte for byte; shots streamed 1,024 at a time, so memory stays flat in `--shots` | examples, command-line comparisons |
 
 Where Stim's output depends on its random number generator, results agree in distribution, not
-bit for bit. Three differences are deliberate and documented: products Stim parses but cannot
+bit for bit. Four differences are deliberate and documented: products Stim parses but cannot
 run (anti-Hermitian Pauli products, writes to the measurement record) are refused when the
 circuit is built rather than when it runs; `diagram("interactive")` opens the circuit in Crumble
-from algassert.com rather than embedding Crumble's code; and with `decompose_errors=True`, a
+from algassert.com rather than embedding Crumble's code; with `decompose_errors=True`, a
 fault Stim would split into pieces of its channel whose observables do not add up to its own is
 left whole (Stim's split changes what the fault does to the observables: on ldpc's [[4,2,2]]
-memory in the X basis, 1.3e-4 of probability moves from `D1 D2 L0` to `D1 D2`, and so on). The
-SVG diagrams are this package's own drawings.
+memory in the X basis, 1.3e-4 of probability moves from `D1 D2 L0` to `D1 D2`, and so on); and
+a tag Stim reads as inert names a gate here. `I[T]`, `I[R_Z(…)]`, `I[U3(…)]` and the other
+rotations written on `I` or `II` are run as the gates they name by `compile_sampler` and
+`compile_detector_sampler` (the stabilizer-rank sampler, see
+[Clifford+T circuits](#cliffordt-circuits-and-coherent-noise-on-every-gate)), and `inverse()`
+inverts them (`I[T]` to `I[T_DAG]`), where Stim runs and inverts an identity; `without_tags()`
+gives the circuit Stim runs. The error model, `to_tableau`, flows and `TableauSimulator.do` read
+them as Stim does. One known difference is not deliberate: `FlipSimulator.broadcast_pauli_errors`
+at `p=0` applies no flip, where Stim 1.16 applies the masked flips as at `p=1`. The SVG diagrams
+are this package's own drawings.
 
 Where several answers are equally good, PyMatching's class here, `Matching`, returns
 PyMatching's: from 2.2 it decodes on PyMatching 2.4.0's own sparse blossom, transliterated
@@ -550,7 +582,11 @@ stabilizer_qec.tesseract_decoder`, `python -m stabilizer_qec.chromobius`; see
 [More decoders](#more-decoders)). In all of them, as everywhere in this package, a model or
 circuit that does not parse is refused with this package's parser's message, not Stim's
 (`line 2: unsupported instruction 'FOO'`, where Stim raises `Unrecognized instruction name:
-foo`). Code ported from Stim is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+foo`). The exception is a model fault that Stim's parser throws `std::out_of_range` for:
+an unrecognized instruction name, a number of 2^60 or more, a `{` never closed or a `}` never
+opened. Chromobius's program does not catch it, so the Chromobius program aborts there with
+Stim's message and status 134, as Chromobius's does. Code ported from Stim is listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Plain independent decode/search calls on a stable `Matching` lease separate mutable scratch.
 Arbitrary concurrent facade mutation/load is not an atomic transaction. Independent-merge
@@ -563,8 +599,13 @@ Projection uses coordinates after the first two too. Finite coordinate overflow/
 and high-byte locale parsing do not have universal native byte parity. Animate and Tesseract
 write/close failures now produce controlled exit 1; native Tesseract I/O-failure parity is untested.
 Chromobius reads records whole; sparse hits/dets additionally allocate a shots-by-detectors bool
-array. Invalid UTF-8 model bytes use replacement, not promised native byte preservation. CLI
-abort text is pinned libc++abi wording on every host. Decimal precision follows the local
+array. Invalid UTF-8 bytes in a model or circuit file (in a comment, say) are read as U+FFFD,
+not refused, by `Circuit.from_file`, `DetectorErrorModel.from_file` (and PyMatching's file
+loaders through them), the `stabilizer-qec` commands (`predict` and `count_mistakes` among
+them), and Tesseract's and Chromobius's programs; they are not preserved byte for byte, and
+`animate` passes over them in comments and tags, as Stim does. Chromobius's sinter decoder
+still refuses such a file in `decode_via_files` (a `UnicodeDecodeError`), where Stim's parser,
+and so Chromobius's, reads it. CLI abort text is pinned libc++abi wording on every host. Decimal precision follows the local
 architecture policy (16 digits macOS arm64/Windows, 19 non-Windows x86-64, 34 other ARM64);
 exact recorded text is checked only on macOS arm64. API lifting failures use the port's
 shot-indexed message and allow later valid calls, without copying native damaged state.
@@ -676,8 +717,12 @@ shot by shot against PyMatching 2.4.0 on 950,000 shots of 19 models (surface cod
 at p = 0.001 to 0.02, colour-code Möbius graphs, repetition codes, unit and negative weights)
 and 600,000 of 3,000 hand-built graphs (merges, boundaries, zero and negative weights, more
 than 64 fault ids): 0 differences. It takes 1.00 to 1.04 times PyMatching's time
-(`decode_batch` with weights, d = 5 memory over 5 rounds, 100,000 shots, one thread).
-Plain routes built on `Matching` use it too. Correlated matching, `BeliefMatching`,
+(`decode_batch` with weights, d = 5 memory over 5 rounds, 100,000 shots, one thread). One
+departure from the line-for-line copy is deliberate: a region's radius offset is 64-bit, where
+PyMatching 2.4.0's `compute_wrapped_radius` returns `int32_t`, so on a uniform chain of 131 or
+more nodes at a non-integer weight (1.5, or 16,777,214.5), where a region's scaled radius passes
+what 32 bits hold, PyMatching's decoder never finishes and this one decodes the path
+(`tests/test_matching_radius.py`). Plain routes built on `Matching` use it too. Correlated matching, `BeliefMatching`,
 `WindowMatching`, `stream_memory`, `LeakageAwareDecoder`, `ArgumentReweighting` and
 `PreDecoder` (unless `reweight=False`) with matching, the Rust crate's `Matching` and
 `BeliefMatching`, and the extension's `decode_b8` family keep `src/sparse/`, timed above (the
@@ -776,13 +821,17 @@ gitignored, and are fetched by `data/google/fetch.sh`. What is committed is the 
   ignore both.
 - **From raw measurements to detection events** (`src/m2d.rs`). A detector compares a parity of
   measurements with what a noiseless run gives. One noiseless run of the ideal circuit on the
-  stabilizer tableau is the reference. Each sweep bit's effect on every detector is fixed, since
-  the circuit is Clifford, so one more run per bit finds it. Seven more references with other
-  random outcomes must agree, or a detector is refused as nondeterministic.
-
-  This is the tableau reading the circuit, independently of the backward walk the error models
-  come from. On synthetic circuits with random sweep bits it matches Stim's own `m2d` converter bit
-  for bit.
+  stabilizer tableau, every random outcome taken as 0, is the reference. Detectors and
+  observables need not be deterministic: each is compared with that reference, as Stim's
+  converter compares it. Each sweep bit's effect is fixed, since the circuit is Clifford. Where
+  every detector and observable is deterministic, the backward walk the error models come from
+  finds it; where one is not, the bits are carried forward through the circuit as Pauli frames,
+  as Stim's converter carries them, so a bit that reaches a collapsed qubit flips what Stim's
+  frame says it flips. On random circuits with sweep bits, collapses in every basis, feedback,
+  loops and observables on Pauli targets it matches Stim's own `m2d` converter in what the sweep
+  bits flip, bit for bit (`tests/test_m2d.py`); where a random outcome is entangled with another
+  qubit, Stim's reference sample can take another branch than this one's, which changes gauge
+  detectors' absolute values.
 
 **Checked against Google's own files** (`tools/google.py check`, all 550 experiments, 27.5 million
 shots):
@@ -1179,9 +1228,10 @@ local decoder's shot for shot, over TCP and over a subprocess's pipes. CUDA-Q QE
 (`decoder_config.dem_chunks`, read from and written to CUDA-Q's YAML and closed into the model the
 decoder gets, with every name of its `py_extended_dem.cpp` and its 101 extended-model tests
 ported) and its `trt_decoder`, which runs the ONNX model on the CPU with numpy, its outputs equal
-to ORT 1.31.0 CPU/macOS-arm64 bit for bit on 157 recorded cases of 17 models. This finite
-contract does not emulate arbitrary ORT optimizer/weight-DQ/reduced-precision paths; rounding
-near 0.5 can change a correction. See [ONNX_CONTRACT.md](python/stabilizer_qec/cudaq_qec/ONNX_CONTRACT.md)
+to ORT 1.31.0 CPU/macOS-arm64 bit for bit on 180 recorded cases of 23 models. It fuses a MatMul
+and the Add after it as ORT's default optimizer does; this finite contract does not emulate
+other ORT optimizer/weight-DQ/reduced-precision paths, and rounding near 0.5 can change a
+correction. See [ONNX_CONTRACT.md](python/stabilizer_qec/cudaq_qec/ONNX_CONTRACT.md)
 for typed arithmetic, the targeted IR/opset/operator subset, tolerances and retained broader
 numeric/strided/sparse `O` inputs. TensorRT's engines
 (`engine_load_path`, `engine_save_path`) are refused by name, and the `dispatch` and
@@ -1597,8 +1647,10 @@ literature audit or a universal novelty/advantage claim.
 - **`Circuit.compile_exact_sampler`** and **`Circuit.exact_distribution`** run the full state
   vector, up to 24 qubits in use. They handle `I[T]`, `I[U3(…)]` and amplitude damping as well;
   this is the oracle.
-- **`Circuit.twirled(merge=…)`** gives the twirl, or the coherence-aware model with equivalent
-  rotations added up before twirling, as a decoder's prior.
+- **`Circuit.twirled(merge=…)`** gives the twirl (the gates kept as they are), or the
+  coherence-aware model with equivalent rotations added up before twirling, as a decoder's prior;
+  a tagged gate at a Clifford angle is the Clifford gate there, and a non-Clifford gate is never
+  added into an error, nor an error moved past a gate it anticommutes with.
 - **Leakage** (`I_ERROR[LEAK(p=…)]`, `SEEP`, `II_ERROR[LEAK_TRANSPORT(p=…)]`) runs in a frame
   sampler with heralds (`Circuit.compile_leakage_sampler`) and in the state vector, which agree.
 
@@ -1844,30 +1896,35 @@ data qubits, 801 coherent rotations, 10 non-Clifford gates), where no state vect
 
 | circuit | ε | qubits | rotations | acceptance: twirl / joint / exact | output infidelity: twirl / joint / exact | sample size kept | per shot |
 |---|---|---|---|---|---|---|---|
-| 5 qubits | 0.01 | 5 | 34 | 0.116 / 0.166 / 0.168 | 2.0 × 10⁻² / 6.1 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 349 µs |
-| 5 qubits | 0.02 | 5 | 34 | 0.116 / 0.166 / 0.168 | 2.2 × 10⁻² / 1.3 × 10⁻³ / 5.2 × 10⁻⁵ | 96% | 352 µs |
-| 5 qubits | 0.05 | 5 | 34 | 0.112 / 0.161 / 0.167 | 3.5 × 10⁻² / 9.3 × 10⁻³ / 1.0 × 10⁻⁵ | 77% | 366 µs |
-| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.107 / 0.151 / — | 3.0 × 10⁻¹ / 2.2 × 10⁻¹ / — | 94% | 144.0 ms |
-| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.087 / 0.129 / — | 3.2 × 10⁻¹ / 2.1 × 10⁻¹ / — | 79% | 141.8 ms |
-| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.018 / 0.047 / — | 4.6 × 10⁻¹ / 2.8 × 10⁻¹ / — | 28% | 163.7 ms |
+| 5 qubits | 0.01 | 5 | 34 | 0.164 / 0.166 / 0.168 | 6.1 × 10⁻⁴ / 6.1 × 10⁻⁴ / 2.5 × 10⁻⁵ | 99% | 349 µs |
+| 5 qubits | 0.02 | 5 | 34 | 0.164 / 0.166 / 0.168 | 1.8 × 10⁻³ / 1.3 × 10⁻³ / 5.2 × 10⁻⁵ | 96% | 352 µs |
+| 5 qubits | 0.05 | 5 | 34 | 0.157 / 0.161 / 0.167 | 1.1 × 10⁻² / 9.3 × 10⁻³ / 1.0 × 10⁻⁵ | 77% | 366 µs |
+| in the [[17,1,5]] colour code | 0.01 | 85 | 801 | 0.148 / 0.151 / — | 2.2 × 10⁻¹ / 2.2 × 10⁻¹ / — | 94% | 144.0 ms |
+| in the [[17,1,5]] colour code | 0.02 | 85 | 801 | 0.120 / 0.129 / — | 2.1 × 10⁻¹ / 2.1 × 10⁻¹ / — | 79% | 141.8 ms |
+| in the [[17,1,5]] colour code | 0.05 | 85 | 801 | 0.029 / 0.047 / — | 2.8 × 10⁻¹ / 2.8 × 10⁻¹ / — | 28% | 163.7 ms |
 
 The unencoded rows use 20,000 shots each; encoded rows use 2,000 shots each. All six
 selected truncated weights (`exact_weights=False`): the unencoded circuits have 54 kernel
 generators and the encoded circuits 921, confirmed by compile-only inspection with no new
 samples. The `exact_gates` field counts non-Clifford gates and does not describe weight coverage.
 At ε = 0.01, unencoded acceptance (twirl / joint / state vector) is
-0.1162 /
+0.1643 /
 0.1655 /
 0.1676, while output infidelity is
-0.0198 /
+0.000608 /
 0.000611 /
-2.48e-05. The table preserves any remaining joint/state-vector
-gap. The old attribution to truncation alone is not established by this remeasurement.
+2.48e-05. The twirl's and the joint sampler's infidelities agree with each other (6.08 × 10⁻⁴
+and 6.11 × 10⁻⁴), both about 25 times the state vector's. The table preserves any remaining
+joint/state-vector gap. The old attribution to truncation alone is not established by this remeasurement.
 The per-shot column is coherent compilation-plus-sampling wall time divided by input shots,
-with `threads=0` (all cores). The encoded circuit has no state-vector control; its weighted
+with `threads=0` (all cores), from the 2026-10-23 recording: the 2.2.0 re-recording drew the
+same joint-sampler samples on a machine too busy to time them (`data/clifford_t/distill.json`'s
+note). The encoded circuit has no state-vector control; its weighted
 estimates and timings do not validate the approximation.
 
 **Limits.** The joint sampler still omits products beyond its twelve-generator whole-sum route.
+It does so without a warning: `max_contraction` has no effect on it, and only
+`exact_weights=False` reports the truncation (an incomplete kernel still warns).
 Omitted interference can bias an estimate, including acceptance and individual X/Y components;
 a close derived infidelity does not bound that bias. Full-kernel checks are affordable only for
 small circuits (`exact_distribution(method="coherent")`). Truncation can produce negative weights;
@@ -1912,16 +1969,16 @@ rounds T, correlated matching.
 
 | d | p | T = 2 | T = d | T = 2d | T = d, plain | either patch, T = d |
 |---|---|---|---|---|---|---|
-| 3 | 0.3% | 10.99% | 6.38% | 6.15% | 7.53% | 10.93% |
-| 5 | 0.3% | 12.87% | 3.48% | 3.19% | 5.12% | 6.25% |
-| 7 | 0.3% | 15.34% | 1.62% | 1.60% | 3.21% | 2.99% |
-| 3 | 0.2% | 7.31% | 3.23% | 2.90% | 3.59% | 5.65% |
-| 5 | 0.2% | 7.61% | 1.02% | 0.94% | 1.65% | 1.85% |
-| 7 | 0.2% | 9.97% | 0.28% | 0.27% | 0.71% | 0.54% |
+| 3 | 0.3% | 11.45% | 6.38% | 6.15% | 7.53% | 10.93% |
+| 5 | 0.3% | 13.30% | 3.48% | 3.19% | 5.12% | 6.25% |
+| 7 | 0.3% | 15.88% | 1.62% | 1.60% | 3.21% | 2.99% |
+| 3 | 0.2% | 7.20% | 3.23% | 2.90% | 3.59% | 5.65% |
+| 5 | 0.2% | 8.12% | 1.02% | 0.94% | 1.65% | 1.85% |
+| 7 | 0.2% | 10.38% | 0.28% | 0.27% | 0.71% | 0.54% |
 
 - **T = 2 is a trap that grows with the code.** A pair of measurement errors on one seam check,
   in consecutive rounds, flips the outcome unseen, and a bigger code has more seam checks. At
-  p = 0.3%, T = 2 fails 11%, 13% and 15% of the time at d = 3, 5 and 7.
+  p = 0.3%, T = 2 fails 11%, 13% and 16% of the time at d = 3, 5 and 7.
 - **By T = d the curve has flattened.** From then on the merge outcome fails about as often as a
   single patch of the same size, and further rounds buy nothing: the textbook "d rounds per
   lattice surgery", measured.
@@ -2065,8 +2122,8 @@ whole circuit that flip an observable and set off no detector. It is measured th
   the budget does not cover. On QUITS's [[72, 8, 8]] (PYTHONHASHSEED 0, the whole process) it
   takes 0.64 to 0.66 s of user time and a 144 to 148 MB peak footprint, against Stim's 4.25 to
   4.54 s and 530 MB;
-- `DetectorErrorModel.distance()`: an integer program over every fault, which proves the
-  distance exactly when it finishes (scipy's HiGHS). When it does not, the best solution it
+- `DetectorErrorModel.distance()`: an integer program over every fault that can happen
+  (probability above 0), which proves the distance exactly when it finishes (scipy's HiGHS). When it does not, the best solution it
   found is still a real undetectable logical error, and so an upper bound.
 
 The graph-like search is Stim's own algorithm and returns Stim's own faults: its model text and
@@ -2076,45 +2133,48 @@ search gives the same number of faults as Stim's on every circuit compared (Stim
 repetition and colour codes, the Steane code and the [[72, 12, 6]] code). Each fault either
 returns is explained: the gate it comes from, its targets, and the Pauli product or measurement
 it flips, as Stim's `explain_detector_error_model_errors` prints it.
-Every memory the package builds, measured by `tools/distances.py` (d rounds; the bivariate
-bicycle memories 2):
+Every memory the package builds, measured by `tools/distances.py` at 2.2.0 (d rounds; the
+bivariate bicycle memories 2; the search within a 1 GB memory budget):
 
 | memory | code distance | faults | graph-like search | Stim's search | integer program |
 |---|---|---|---|---|---|
 | surface, rotated (Stim's) | 3 | 219 | 3 | 3 | **3** |
-| surface, rotated (Stim's) | 5 | 1,677 | 5 | — | **5** |
+| surface, rotated (Stim's) | 5 | 1,677 | 5 | 5 | **5** |
 | surface, rotated (Stim's) | 7 | 6,023 | 7 | — | ≤ 7 (not proven in 300 s) |
 | surface, unrotated (Stim's) | 3 | 423 | 3 | 3 | **3** |
-| surface, unrotated (Stim's) | 5 | 3,139 | 5 | — | **5** |
+| surface, unrotated (Stim's) | 5 | 3,139 | 5 | 5 | **5** |
 | colour code XYZ (Stim's) | 3 | 72 | 2 | 2 | **2** |
 | colour code XYZ (Stim's) | 5 | 1,104 | 3 | 3 | **3** |
-| colour code XYZ (Stim's) | 7 | 3,651 | 4 | — | **4** |
+| colour code XYZ (Stim's) | 7 | 3,651 | 4 | 4 | **4** |
 | surface, rotated, SD6 | 3 | 219 | 3 | 3 | **3** |
-| surface, rotated, SD6 | 5 | 1,677 | 5 | — | **5** |
+| surface, rotated, SD6 | 5 | 1,677 | 5 | 5 | **5** |
 | surface, XZZX, SD6 | 3 | 219 | 3 | 3 | **3** |
-| surface, XZZX, SD6 | 5 | 1,677 | 5 | — | **5** |
+| surface, XZZX, SD6 | 5 | 1,677 | 5 | 5 | **5** |
 | colour code 6.6.6 (CssCode) | 3 | 277 | 2 | 2 | **2** |
 | colour code 6.6.6 (CssCode) | 5 | 2,388 | 3 | 3 | **3** |
 | Hamming hypergraph product [[58, 16, 3]] (CssCode) | 3 | 3,564 | 3 | 3 | **3** |
 | bivariate bicycle [[72, 12, 6]] | 6 | 792 | — | 6 | ≤ 6 (not proven in 300 s) |
 | bivariate bicycle [[90, 8, 10]] | 10 | 990 | — | — | ≤ 9 (not proven in 300 s) |
-| bivariate bicycle [[108, 8, 10]] | 10 | 1,188 | — | — | ≤ 11 (not proven in 300 s) |
+| bivariate bicycle [[108, 8, 10]] | 10 | 1,188 | — | — | ≤ 9 (not proven in 300 s) |
 | bivariate bicycle [[144, 12, 12]] (gross) | 12 | 1,584 | — | — | ≤ 12 (not proven in 300 s) |
 
 - **The surface codes keep their distance.** Rotated, unrotated and XZZX, Stim's circuits and
   the SD6 ones: d at d = 3 and 5, proven.
 - **The colour code does not.** Stim's generated XYZ colour-code memory has circuit distance 2,
-  3 and 4 at code distance 3, 5 and 7, proven, and Stim's own search agrees where it reaches. Two
+  3 and 4 at code distance 3, 5 and 7, proven, and Stim's search finds the same at all three. Two
   or three correlated two-qubit faults do the work of d data errors. The generic `CssCode`
   schedule loses the colour code's distance the same way, so the loss belongs to the code's
   schedules, not only to one circuit.
 - **The bivariate bicycle codes were not settled.** Five minutes proved none of them. For
-  [[90, 8, 10]] the integer program found 9 faults that flip a logical qubit unnoticed, so this
-  2-round memory has circuit distance at most 9, below the code's 10. Bravyi et al. (their
+  [[90, 8, 10]] and [[108, 8, 10]] the integer program found 9 faults that flip a logical qubit
+  unnoticed, so these 2-round memories have circuit distance at most 9, below the codes' 10. Bravyi et al. (their
   Table 1) bound the circuit distance at 6, 8, 8 and 10 for [[72, 12, 6]], [[90, 8, 10]],
-  [[108, 8, 10]] and the gross code. Ours are 6, 9, 11 and 12, so at this time limit the
-  larger two are loose and say nothing new. The graph-like search does not apply (their
-  faults are not graph-like), and Stim's search finds nothing within its limits.
+  [[108, 8, 10]] and the gross code. Ours are 6, 9, 9 and 12, so at this time limit the
+  gross code's is loose and says nothing new. The graph-like search does not apply (their
+  faults are not graph-like), and the search through hyperedges (limits 6 and 6, a 1 GB
+  memory budget) finds the [[72, 12, 6]] code's 6 but runs out of memory on the other three
+  after 12.7 to 14.3 million states (sets of detectors), as it does on the rotated d = 7
+  memory.
 
 ## What it would take: a resource estimate
 
@@ -2654,7 +2714,10 @@ which handles the odd cycles that make general-graph matching hard by contractin
 contracted graph, and expanding them again. The boundary is modelled as `m` interchangeable copies:
 pairing a defect with any copy costs its distance to the boundary, and copies pair with each other
 for nothing. That turns "match these defects, and any may instead run to the boundary" into a plain
-perfect matching with every weight finite.
+perfect matching with every weight finite. Edmonds' solver here holds 512 vertices, two per
+defect; past 256 defects the decoder matches on the same graph with the sparse blossom of
+`src/pm_exact/` (PyMatching's, transliterated), which needs no table of distances and is exact
+too.
 
 Measured against Union-Find over 8,000 shots at each of 18 code × noise × distance combinations,
 **MWPM is now lighter in every one**, by 2.8σ to 10σ. Before the cap was removed it lost outright on
@@ -2712,7 +2775,7 @@ src/sparse/           sparse blossom: exact matching by growing regions on the d
                       and correlated matching's two passes on top of it
 src/pm_exact/         PyMatching 2.4.0's sparse blossom, transliterated: the matcher of
                       PyMatching's API and of Chromobius, and animate's frames
-src/m2d.rs            raw measurements and sweep bits to detection events, by noiseless tableau runs
+src/m2d.rs            raw measurements and sweep bits to detection events: a noiseless reference run and the sweep bits' Pauli frames
 src/diagram.rs        timelines, detector slices and matching graphs, as text and SVG
 src/generated.rs      Stim's generated memory circuits, written as Stim writes them
 src/css.rs            CSS codes from their checks: hypergraph products, colour codes, a memory for any
@@ -2761,7 +2824,7 @@ src/clifford/         QuantumClifford's canonical forms, entropies, graph states
 src/user_graph.rs     PyMatching's graph API over the matcher
 src/fusion/           Fusion Blossom, ported
 src/mwpf/             MWPF (hypergraph matching), ported
-src/highs/            HiGHS behind the ILP distance (feature highs)
+src/highs/            HiGHS 1.8.0, MWPF's LP solver (feature highs)
 src/lanes.rs          the lane program: 32 shots a word, integer draws, the GPU's reference
 src/gpu/              wgpu: the lane sampler and min-sum BP as compute shaders (feature gpu)
 src/bp32.rs           min-sum BP in single precision, the GPU kernel's arithmetic
@@ -2860,6 +2923,7 @@ tools/notebooks.py      the tutorials: each .py run and built into its notebook,
 tutorials/              nine notebooks, each built from the Python file beside it
 paper/                  the JOSS paper
 LICENSES/, THIRD_PARTY_NOTICES.md  the licences of the ported parts, and what each part is
+THIRD_PARTY_CRATES.md   the Rust crates each wheel's module links, with their licence texts (tools/third_party_crates.py)
 CITATION.cff, CONTRIBUTING.md, SECURITY.md  how to cite, contribute, and report
 tools/bench.py          the benchmarks against Stim and PyMatching, recorded and checked
 benchmarks/             the benchmarks page; data/bench/runs.json the recorded runs
@@ -2935,6 +2999,8 @@ MIT for the code written here. The parts ported from other projects keep their o
 (Apache-2.0 for Stim, sinter, deltakit, qsample and PECOS among others; MIT, BSD and zlib for
 the rest; Apache-2.0 with LLVM exceptions for the standard-library algorithms reproduced) and
 are listed, with their copyright notices, in
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). One file is left out for its licence: Loom's
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The Rust crates the compiled module links
+(PyO3, rand, wgpu and what they depend on, per wheel target) are listed with their licence texts
+in [THIRD_PARTY_CRATES.md](THIRD_PARTY_CRATES.md). One file is left out for its licence: Loom's
 `ifelse_circuit.py` (its if/else circuits), whose notice prohibits its use, distribution and
 reproduction without Entropica Labs' consent.

@@ -2704,22 +2704,27 @@ this package's decoders under <code>sq_</code> names.</p>
 <h2 id="promises">Promises</h2>
 
 <ul>
-<li><strong>Seeds reproduce.</strong> Within a documented sampler/version contract, a seed and shot position
-reproduce shots across supported thread counts (<code>threads=0</code> is every core). Algorithm
-corrections can change seeded outcomes; 2.2's coherent proposal/arithmetic corrections do.</li>
+<li><strong>Seeds reproduce.</strong> Within a version, a seed and shot position give the same shots on any
+number of threads (<code>threads=0</code> is every core). A correction to a sampler's algorithm can
+change its seeded shots, and the changelog names it; 2.2's coherent proposal/arithmetic
+corrections do.</li>
 <li><strong>Errors are errors.</strong> Core validation uses <code>ValueError</code> or <code>TypeError</code>; ports may raise
-documented upstream exception types. Crashes and hangs are bugs to report, not a supported
+documented upstream exception types. An engine panic the core catches raises <code>RuntimeError</code>
+asking for a report; beyond that, a crash or a hang is a bug to report, not a supported
 response. Resource checks do not make every allocation or OS memory failure recoverable.</li>
-<li><strong>Limits.</strong> Qubit indices up to 2<strong>24 - 1, as in Stim. An error model folds the loops that
-repeat, as Stim folds them, so a d = 11 memory of 10,000 rounds is analysed in a tenth of a
-second; a decoder unrolls its model, up to 2</strong>24 faults and declarations. The m2d converter
-holds a circuit unrolled, up to 2**24 instructions and targets; the sampler runs loops
-without unrolling them. Generated circuits are written out round by round, up to 10,000
-rounds.</li>
-<li><strong>Stability.</strong> Semantic versioning: everything importable from <code><a href="">stabilizer_qec</a></code> without a
-leading underscore follows the compatibility policy, with corrections and migration changes
-documented in the changelog. A name
-is deprecated (with a <code>DeprecationWarning</code> naming its replacement) for at least one minor
+<li><strong>Limits.</strong> Qubit indices up to <code>2**24 - 1</code>, as in Stim. A detector error model reads and
+writes detector indices as Stim does, up to <code>2**60 - 1</code> as written and <code>2**62 - 1</code> after
+shifts (Stim's run on past that), and <code>flattened</code> keeps them; a decoder, which unrolls its
+model, takes detector indices up to <code>2**24 - 1</code> and up to <code>2**24</code> faults and declarations.
+An error model folds the loops that repeat, as Stim folds them, so a d = 11 memory of 10,000
+rounds is analysed in a tenth of a second. The m2d converter holds a circuit unrolled, up to
+<code>2**24</code> instructions and targets; the sampler runs loops without unrolling them. Generated
+circuits are written out round by round, up to 10,000 rounds.</li>
+<li><strong>Stability.</strong> Semantic versioning under the compatibility policy in the repository's
+CONTRIBUTING.md: everything importable from <code><a href="">stabilizer_qec</a></code> without a leading underscore
+keeps its names and signatures through every 2.x release, and behaviour changes in a minor
+release only to correct it (a port to its upstream, or a defect), as the changelog records. A
+name is deprecated (with a <code>DeprecationWarning</code> naming its replacement) for at least one minor
 release before a major release removes it. <code>stabilizer_qec._core</code> is the engine's
 extension, used by the repository's own tools, and carries no such promise.</li>
 </ul>
