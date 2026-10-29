@@ -236,12 +236,13 @@ jobs:
           path: dist
       - name: Install the wheel and the pinned references, sinter and relay-bp from their sources
         shell: bash
-        # pyzx 0.10.7 draws the diagrams pyzx_param does not; PanQEC's extra (scipy to click) lets
+        # pyzx 0.10.7 draws the diagrams pyzx_param does not; fusion-blossom 0.2.13 is one of the decoders
+        # tests/test_sinter_differential.py runs under sinter 1.16; PanQEC's extra (scipy to click) lets
         # tests/conftest.py collect tests/panqec_port, which it otherwise leaves out without a skip.
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --only-binary=:all: --no-binary=sinter,relay-bp dist/*.whl pytest hypothesis stim==1.16.0 pymatching==2.4.0 ldpc==2.4.1 beliefmatching==0.2.0 bloqade-tsim==0.1.5 pyzx-param==0.9.3 pyzx==0.10.7 jax==0.12.0.1 jaxlib==0.12.0.1 sinter==1.16.0 relay-bp==0.2.2 scipy pandas matplotlib tqdm python-dotenv psutil click
-          python -c "import tsim, pyzx, pyzx_param, sinter, relay_bp, stim, pymatching, beliefmatching, scipy, pandas, matplotlib, click, psutil, tqdm; assert sinter.__version__ == '1.16.0', sinter.__version__"
+          python -m pip install --only-binary=:all: --no-binary=sinter,relay-bp dist/*.whl pytest hypothesis stim==1.16.0 pymatching==2.4.0 ldpc==2.4.1 beliefmatching==0.2.0 bloqade-tsim==0.1.5 pyzx-param==0.9.3 pyzx==0.10.7 jax==0.12.0.1 jaxlib==0.12.0.1 sinter==1.16.0 relay-bp==0.2.2 fusion-blossom==0.2.13 scipy pandas matplotlib tqdm python-dotenv psutil click
+          python -c "import tsim, pyzx, pyzx_param, sinter, relay_bp, fusion_blossom, stim, pymatching, beliefmatching, scipy, pandas, matplotlib, click, psutil, tqdm; assert sinter.__version__ == '1.16.0', sinter.__version__"
       - name: The Tsim files against Tsim, and sinter's and relay-bp's differentials, none skipped
         shell: bash
         run: |
