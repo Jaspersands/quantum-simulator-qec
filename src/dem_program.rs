@@ -18,8 +18,19 @@ use crate::obsbits::ObsBits;
 /// targets the detectors come first, as in Stim.
 pub const OBS: u64 = 1 << 63;
 
-/// The largest detector index a flat model may name.
+/// The largest detector index the flat model the decoders take (`Dem`, `to_dem`) may name: its
+/// detectors are 32-bit, and everything built on it (decoders, samplers, matching graphs, a
+/// model's detector times) holds one entry per detector.
 pub const MAX_DETECTOR: u64 = (1 << 24) - 1;
+
+/// The largest detector index, and `shift_detectors` count, a model's text may write: Stim's,
+/// which reads them as 60-bit numbers.
+pub const MAX_WRITTEN: u64 = (1 << 60) - 1;
+
+/// The largest detector index a model may name once its shifts are applied (`flattened`):
+/// Stim's (`MAX_DET`). The text, the counts and `flattened` take any model within it; only the
+/// flat model the decoders take is held to `MAX_DETECTOR`.
+pub const MAX_DET_ID: u64 = (1 << 62) - 1;
 
 /// The most errors and declarations a model may unroll into.
 pub const MAX_UNROLLED_LINES: u64 = 1 << 24;
@@ -259,18 +270,21 @@ impl DemProgram {
 
     /// The program unrolled: no `repeat` and no `shift_detectors`, detectors absolute and
     /// coordinates shifted, in the program's order. Refuses past `MAX_UNROLLED_LINES` errors and
-    /// declarations, or past detector `MAX_DETECTOR`.
+    /// declarations, or past detector `MAX_DET_ID` (Stim's largest), as Stim's `flattened`
+    /// takes any model: it is the flat model the decoders take (`to_dem`) that stops at
+    /// `MAX_DETECTOR`.
     pub fn flattened(&self) -> Result<DemProgram, String> {
         let mut out = Vec::new();
-        let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES };
+        let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES, max: MAX_DET_ID };
         unroll(&self.instrs, &mut st, &mut |ins| out.push(ins))?;
         Ok(DemProgram { instrs: out })
     }
 
-    /// Whether the program unrolls within the flat model's limits (`flattened`'s), without
-    /// keeping what it unrolls into.
+    /// Whether the program unrolls within the limits of the flat model the decoders take
+    /// (`to_dem`'s: `MAX_UNROLLED_LINES`, and detector `MAX_DETECTOR`), without keeping what
+    /// it unrolls into.
     pub fn check_unrolls(&self) -> Result<(), String> {
-        let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES };
+        let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES, max: MAX_DETECTOR };
         unroll(&self.instrs, &mut st, &mut |_| {})
     }
 
@@ -350,7 +364,7 @@ impl DemProgram {
         }
         let mut dem = Dem { num_detectors: stats.num_detectors as usize, num_observables: stats.num_observables, ..Dem::default() };
         dem.detector_coords = vec![Vec::new(); dem.num_detectors];
-        let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES };
+        let mut st = Unroll { offset: 0, coords: Vec::new(), budget: MAX_UNROLLED_LINES, max: MAX_DETECTOR };
         unroll(&self.instrs, &mut st, &mut |ins| match ins {
             DemInstr::Error { p, pieces, tag } => match wide.as_deref_mut() {
                 None => dem.mechanisms.push(mechanism(p, &pieces, tag)),
@@ -459,16 +473,17 @@ struct Unroll {
     offset: u64,
     coords: Vec<f64>,
     budget: u64,
+    /// The largest absolute detector index allowed.
+    max: u64,
 }
 
 fn unroll(instrs: &[DemInstr], st: &mut Unroll, out: &mut dyn FnMut(DemInstr)) -> Result<(), String> {
+    let max = st.max;
     let absolute = |t: u64, offset: u64| -> Result<u64, String> {
         if t & OBS != 0 {
             return Ok(t);
         }
-        t.checked_add(offset)
-            .filter(|&d| d <= MAX_DETECTOR)
-            .ok_or_else(|| format!("the model names a detector past the largest index, {MAX_DETECTOR}"))
+        t.checked_add(offset).filter(|&d| d <= max).ok_or_else(|| format!("the model names a detector past the largest index, {max}"))
     };
     let spend = |st: &mut Unroll| -> Result<(), String> {
         if st.budget == 0 {
@@ -504,9 +519,7 @@ fn unroll(instrs: &[DemInstr], st: &mut Unroll, out: &mut dyn FnMut(DemInstr)) -
                 for (a, b) in st.coords.iter_mut().zip(coords) {
                     *a += b;
                 }
-                st.offset = st.offset.checked_add(*by).filter(|&o| o <= MAX_DETECTOR + 1).ok_or_else(|| {
-                    format!("shift_detectors moves past detector {MAX_DETECTOR}, the largest index")
-                })?;
+                st.offset = st.offset.checked_add(*by).filter(|&o| o <= max + 1).ok_or_else(|| format!("shift_detectors moves past detector {max}, the largest index"))?;
             }
             DemInstr::Repeat { count, body, .. } => {
                 for _ in 0..*count {
@@ -595,9 +608,15 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
         let (name, tag, args, tokens) = split_instruction(line).map_err(|e| format!("line {lineno}: {e}"))?;
         let tag = tag.to_string();
         let bad = |t: &str| format!("line {lineno}: bad target '{t}'");
-        let detector = |t: &str| -> Result<u64, String> {
-            t.strip_prefix(['D', 'd']).and_then(crate::circuit::uint::<u64>).filter(|&d| d <= MAX_DETECTOR).ok_or_else(|| bad(t))
+        // A number Stim reads (60 bits); a longer run of digits is too large, not malformed.
+        let written = |t: &str, digits: &str| -> Result<u64, String> {
+            match crate::circuit::uint::<u64>(digits) {
+                Some(n) if n <= MAX_WRITTEN => Ok(n),
+                None if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) => Err(bad(t)),
+                _ => Err(format!("line {lineno}: '{t}' is too large: a model writes numbers up to {MAX_WRITTEN}, as Stim reads them")),
+            }
         };
+        let detector = |t: &str| -> Result<u64, String> { written(t, t.strip_prefix(['D', 'd']).ok_or_else(|| bad(t))?) };
         let observable = |t: &str| -> Result<u32, String> {
             let l = t.strip_prefix(['L', 'l']).and_then(crate::circuit::uint::<u32>).ok_or_else(|| bad(t))?;
             Ok(l)
@@ -642,7 +661,7 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
             "SHIFT_DETECTORS" => {
                 let by = match tokens.as_slice() {
                     [] => 0,
-                    [n] => crate::circuit::uint::<u64>(n).filter(|&n| n <= MAX_DETECTOR + 1).ok_or_else(|| bad(n))?,
+                    [n] => written(n, n)?,
                     _ => return Err(format!("line {lineno}: shift_detectors takes one count")),
                 };
                 DemInstr::Shift { coords: args, by, tag }
@@ -666,6 +685,26 @@ mod tests {
         assert_eq!(text("error(0.5) d0 l1\ndetector(1) d3\nlogical_observable l2").unwrap().trim_end(), "error(0.5) D0 L1\ndetector(1) D3\nlogical_observable L2");
         for bad in ["detector D0 D1", "detector(1)", "logical_observable L0 L1", "logical_observable", "error (0.1) D0", "error(0.1)D0"] {
             assert!(text(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn detector_indices_reach_stims_range() {
+        // Text, counts and `flattened` take Stim's range (written numbers below 2^60, shifted
+        // ones up to 2^62 - 1); only the flat model the decoders take stops at 2^24 - 1.
+        let d = DemProgram::parse("error(0.125) D16777216\ndetector D500000000").unwrap();
+        assert_eq!(d.to_stim(), "error(0.125) D16777216\ndetector D500000000\n");
+        assert_eq!(d.stats().num_detectors, 500_000_001);
+        assert!(d.to_dem().unwrap_err().contains("past the largest index, 16777215"));
+        let d = DemProgram::parse("shift_detectors 16777215\nerror(0.125) D1").unwrap();
+        assert_eq!(d.flattened().unwrap().to_stim(), "error(0.125) D16777216\n");
+        let big = "shift_detectors 1152921504606846975\n".repeat(4) + "error(0.125) D1";
+        assert_eq!(DemProgram::parse(&big).unwrap().flattened().unwrap().to_stim(), "error(0.125) D4611686018427387901\n");
+        let past = "shift_detectors 1152921504606846975\n".repeat(5) + "error(0.1) D1";
+        assert!(DemProgram::parse(&past).unwrap().flattened().unwrap_err().contains("past"));
+        for (text, want) in [("error(0.1) D1152921504606846976", "too large"), ("shift_detectors 1152921504606846976", "too large"), ("error(0.1) D99999999999999999999999", "too large"), ("error(0.1) Dx", "bad target")] {
+            let err = DemProgram::parse(text).unwrap_err();
+            assert!(err.contains(want), "{text}: {err}");
         }
     }
 
