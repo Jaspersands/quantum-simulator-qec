@@ -76,10 +76,12 @@ NO_FILE = {"objc2": _OBJC2, "block2": _OBJC2, "objc2-encode": _OBJC2, "objc2-fou
 # The exit status when cargo, offline, lacks a crate or an index entry the wheels' targets need.
 OFFLINE_UNAVAILABLE = 3
 
-# What cargo says when --offline stopped it: a crate's package it would have to download, or a
-# package the index it has does not list. A stale Cargo.lock under --locked says "--offline" too
-# (it suggests using it), so the match is on these two phrases, not on the word.
-_OFFLINE_STOP = re.compile(r"--offline was specified|you're using offline mode")
+# What cargo says when --offline stopped it: a crate's package it would have to download ("but
+# --offline was specified"), or a package the index it has does not list (cargo 1.90: "As a reminder,
+# you're using offline mode"; cargo 1.99, as on the CI runners: "note: offline mode (via `--offline`)").
+# A stale Cargo.lock under --locked says "--offline" too (it suggests using it), so the match is
+# on these phrases, not on the word.
+_OFFLINE_STOP = re.compile(r"--offline was specified|you're using offline mode|offline mode \(via `--offline`\)")
 
 
 def offline_stop(stderr):

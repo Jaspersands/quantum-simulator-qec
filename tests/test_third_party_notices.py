@@ -138,8 +138,13 @@ def test_crate_tool_does_not_take_a_stale_lock_for_a_missing_crate():
     assert t.offline_stop("error: failed to download `allocator-api2 v0.2.21`\n\nCaused by:\n  attempting to make an HTTP request, but --offline was specified\n")
     assert t.offline_stop("error: no matching package named `pyo3` found\nlocation searched: crates.io index\nrequired by package `stabilizer_qec v2.2.0 (/repo)`\n"
                           "As a reminder, you're using offline mode (--offline) which can sometimes cause surprising resolution failures, if this error is too confusing you may wish to retry without `--offline`.\n")
+    # The same, as cargo 1.99 words it (the CI runners' cargo).
+    assert t.offline_stop("error: no matching package named `pollster` found\nlocation searched: crates.io index\nrequired by package `stabilizer_qec v2.2.0 (/repo)`\n"
+                          "note: offline mode (via `--offline`) can sometimes cause surprising resolution failures\nhelp: if this error is too confusing you may wish to retry without `--offline`\n")
     assert not t.offline_stop("error: the lock file /repo/Cargo.lock needs to be updated but --locked was passed to prevent this\n"
                               "If you want to try to generate the lock file without accessing the network, remove the --locked flag and use --offline instead.\n")
+    assert not t.offline_stop("error: cannot update the lock file /repo/Cargo.lock because --locked was passed to prevent this\n"
+                              "help: to generate the lock file without accessing the network, remove the --locked flag and use --offline instead.\n")
 
 
 def test_highs_licence_texts_are_quoted_not_cited():
