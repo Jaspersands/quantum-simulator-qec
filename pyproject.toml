@@ -9,7 +9,9 @@ version = "2.2.0"
 description = "A quantum error-correction simulator and decoder in Rust: circuits and error models in Stim's formats, exact sparse-blossom, correlated and belief matching, BP+OSD for IBM's gross code, lattice surgery, window decoders for real time, the APIs of twenty-five other QEC tools, Clifford+T circuits with coherent noise, fault-tolerant compilation and resource estimates, and sampling and BP on the GPU."
 readme = "python/README.md"
 license = "MIT AND Apache-2.0"
-license-files = ["LICENSE", "LICENSES/Apache-2.0.txt", "THIRD_PARTY_NOTICES.md"]
+# THIRD_PARTY_CRATES.md (tools/third_party_crates.py) holds the licence texts of the Rust crates the
+# compiled module links, per wheel target; THIRD_PARTY_NOTICES.md those of HiGHS and the ported code.
+license-files = ["LICENSE", "LICENSES/Apache-2.0.txt", "THIRD_PARTY_NOTICES.md", "THIRD_PARTY_CRATES.md"]
 requires-python = ">=3.9"
 dependencies = ["numpy>=1.21"]
 authors = [{ name = "Jasper Sands" }]
