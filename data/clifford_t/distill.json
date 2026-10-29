@@ -1,20 +1,23 @@
 {
+ "version": "2.2.0",
+ "platform": "Darwin arm64",
+ "note": "Recorded 2026-10-29 at 2.2.0 (engine 17b29d8 plus tool stamps) on an Apple M2 Pro shared with parallel build and test jobs (load average 16 to 55): the samples are deterministic (seed 0), the timings are slower than on an idle machine. Against the 2.0-era recording only the Pauli-twirl columns changed (the twirl now keeps a multi-target tagged gate once); the joint-sampler and state-vector columns are bit for bit the same.",
  "shots": 20000,
  "encoded_shots": 2000,
  "unencoded": {
   "0.01": {
    "qubits": 5,
    "timing": {
-    "twirl_s": 0.9042857500026003,
-    "coherent_s": 6.977989874998457,
+    "twirl_s": 0.28303241699177306,
+    "coherent_s": 10.346373375010444,
     "locations": 34,
     "exact_gates": 12,
     "generators": 54,
     "twirl_peak_terms": 32
    },
    "twirl": {
-    "infidelity": 0.019801980198019802,
-    "acceptance": 0.11615,
+    "infidelity": 0.000608457560085184,
+    "acceptance": 0.16435,
     "ess": 20000.0
    },
    "coherent": {
@@ -30,16 +33,16 @@
   "0.02": {
    "qubits": 5,
    "timing": {
-    "twirl_s": 0.7787628750011208,
-    "coherent_s": 7.047627375002776,
+    "twirl_s": 0.24289387499447912,
+    "coherent_s": 10.703207917002146,
     "locations": 34,
     "exact_gates": 12,
     "generators": 54,
     "twirl_peak_terms": 32
    },
    "twirl": {
-    "infidelity": 0.02200172562553926,
-    "acceptance": 0.1159,
+    "infidelity": 0.001834862385321101,
+    "acceptance": 0.1635,
     "ess": 20000.0
    },
    "coherent": {
@@ -55,16 +58,16 @@
   "0.05": {
    "qubits": 5,
    "timing": {
-    "twirl_s": 0.8306339170012507,
-    "coherent_s": 7.323020958996494,
+    "twirl_s": 0.27069945899711456,
+    "coherent_s": 11.109727457995177,
     "locations": 34,
     "exact_gates": 12,
     "generators": 54,
     "twirl_peak_terms": 32
    },
    "twirl": {
-    "infidelity": 0.03539426523297491,
-    "acceptance": 0.1116,
+    "infidelity": 0.010522959183673469,
+    "acceptance": 0.1568,
     "ess": 20000.0
    },
    "coherent": {
@@ -82,16 +85,16 @@
   "0.01": {
    "qubits": 85,
    "timing": {
-    "twirl_s": 0.8439060829987284,
-    "coherent_s": 287.94742770800076,
+    "twirl_s": 1.0148657909885515,
+    "coherent_s": 381.06378479200066,
     "locations": 801,
     "exact_gates": 10,
     "generators": 921,
     "twirl_peak_terms": 32
    },
    "twirl": {
-    "infidelity": 0.3023255813953488,
-    "acceptance": 0.1075,
+    "infidelity": 0.21548821548821548,
+    "acceptance": 0.1485,
     "ess": 2000.0
    },
    "coherent": {
@@ -103,42 +106,42 @@
   "0.02": {
    "qubits": 85,
    "timing": {
-    "twirl_s": 0.928498542001762,
-    "coherent_s": 283.54257879099896,
+    "twirl_s": 1.0272372080071364,
+    "coherent_s": 390.8808291250025,
     "locations": 801,
     "exact_gates": 10,
     "generators": 921,
     "twirl_peak_terms": 32
    },
    "twirl": {
-    "infidelity": 0.3218390804597701,
-    "acceptance": 0.087,
+    "infidelity": 0.21161825726141079,
+    "acceptance": 0.1205,
     "ess": 2000.0
    },
    "coherent": {
     "infidelity": 0.21168764706190016,
     "acceptance": 0.12923296831571265,
-    "ess": 1578.6370922496285
+    "ess": 1578.637092249628
    }
   },
   "0.05": {
    "qubits": 85,
    "timing": {
-    "twirl_s": 0.9831136659995536,
-    "coherent_s": 327.40429250000307,
+    "twirl_s": 0.9989712499955203,
+    "coherent_s": 440.12442900000315,
     "locations": 801,
     "exact_gates": 10,
     "generators": 921,
     "twirl_peak_terms": 32
    },
    "twirl": {
-    "infidelity": 0.45714285714285713,
-    "acceptance": 0.0175,
+    "infidelity": 0.27586206896551724,
+    "acceptance": 0.029,
     "ess": 2000.0
    },
    "coherent": {
-    "infidelity": 0.27565533596992464,
-    "acceptance": 0.046974057940228575,
+    "infidelity": 0.27565533596992453,
+    "acceptance": 0.046974057940228554,
     "ess": 558.6670483148848
    }
   }

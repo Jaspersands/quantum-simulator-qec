@@ -10,6 +10,7 @@ import json
 import pathlib
 import sys
 
+import numpy as np
 import pytest
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -70,3 +71,20 @@ def test_surgery_program_points_reproduce(key):
     i, (_, _, text, corr, window) = next((i, p) for i, p in enumerate(surgery.program_points()) if p[0] == key)
     shots, counts, _ = surgery.program_point(text, 7_000_003 * (i + 1), corr, 2_000_000, 300.0, window)
     assert (shots, counts) == (rec["shots"], rec["failures"])
+
+
+@pytest.mark.parametrize("eps", ["0.01", "0.05"])
+def test_distillation_twirl_column_reproduces(eps):
+    # The twirl of Tsim's distillation circuit, whose R_X and T_DAG act on five qubits at once:
+    # the recording must be the twirl that keeps each such gate once.
+    clifford_t = tool("clifford_t")
+    doc = data("data/clifford_t/distill.json")
+    plain = clifford_t.ours_tsim.Circuit(clifford_t.distillation_text(p=0.0) + "\n" + "\n".join(f"OBSERVABLE_INCLUDE({k}) rec[{k - 5}]" for k in range(5)))
+    _, ref = plain.reference_detector_and_observable_signs()
+    ref = np.asarray(ref, dtype=bool)
+    d, o = clifford_t.over_rotate(plain, float(eps)).twirled().compile_stabilizer_rank_sampler(seed=0).sample(doc["shots"], separate_observables=True)
+    outcomes = o ^ ref[None, :]
+    accept = ~d.any(axis=1) & np.all(outcomes[:, 1:5] == np.array([True, False, True, True]), axis=1)
+    got = clifford_t.rates(d, outcomes, None, accept)
+    rec = doc["unencoded"][eps]["twirl"]
+    assert (got["observables"][0], got["acceptance"]) == (rec["infidelity"], rec["acceptance"])
