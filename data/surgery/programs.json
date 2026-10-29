@@ -567,14 +567,14 @@
    "matcher": "correlated",
    "shots": 16384,
    "failures": {
-    "any": 3433,
-    "L0": 1122,
-    "L1": 2779
+    "any": 3473,
+    "L0": 1116,
+    "L1": 2839
    },
-   "rate_any": 0.20953369140625,
+   "rate_any": 0.21197509765625,
    "interval_any": [
-    0.20337032294805069,
-    0.21583324074761012
+    0.20578465461698428,
+    0.2183005769610412
    ]
   },
   "cnot/d3/T4/p0.003/z/correlated": {
@@ -734,14 +734,14 @@
    "matcher": "correlated",
    "shots": 16384,
    "failures": {
-    "any": 2915,
-    "L0": 563,
-    "L1": 2595
+    "any": 2937,
+    "L0": 564,
+    "L1": 2620
    },
-   "rate_any": 0.17791748046875,
+   "rate_any": 0.17926025390625,
    "interval_any": [
-    0.1721370195063916,
-    0.18384894511264643
+    0.1734622311233307,
+    0.1852086508310079
    ]
   },
   "cnot/d5/T3/p0.003/z/correlated": {
@@ -968,64 +968,6 @@
     0.21435267689923934
    ]
   },
-  "windowed/cnot/d5/p0.003/z": {
-   "kind": "windowed",
-   "d": 5,
-   "merged": 5,
-   "p": 0.003,
-   "inputs": "z",
-   "matcher": "correlated",
-   "commit": 5,
-   "buffer": 5,
-   "shots": 16384,
-   "failures": {
-    "any": 1847,
-    "L0": 749,
-    "L1": 1348
-   },
-   "rate_any": 0.11273193359375,
-   "interval_any": [
-    0.10797962755162366,
-    0.11766580460827714
-   ],
-   "windowed_failures": {
-    "any": 1847
-   },
-   "windowed_rate_any": 0.11273193359375,
-   "windowed_interval_any": [
-    0.10797962755162366,
-    0.11766580460827714
-   ]
-  },
-  "windowed/cnot/d5/p0.003/x": {
-   "kind": "windowed",
-   "d": 5,
-   "merged": 5,
-   "p": 0.003,
-   "inputs": "x",
-   "matcher": "correlated",
-   "commit": 5,
-   "buffer": 5,
-   "shots": 16384,
-   "failures": {
-    "any": 2081,
-    "L0": 756,
-    "L1": 1611
-   },
-   "rate_any": 0.12701416015625,
-   "interval_any": [
-    0.1220025511074471,
-    0.13220063816428715
-   ],
-   "windowed_failures": {
-    "any": 2110
-   },
-   "windowed_rate_any": 0.1287841796875,
-   "windowed_interval_any": [
-    0.12374197322271845,
-    0.13400042526373018
-   ]
-  },
   "line/d3/n3/p0.003": {
    "kind": "line",
    "d": 3,
@@ -1091,13 +1033,73 @@
     0.04432306201539742,
     0.04803303346034355
    ]
+  },
+  "windowed/cnot/d5/p0.003/z": {
+   "kind": "windowed",
+   "d": 5,
+   "merged": 5,
+   "p": 0.003,
+   "inputs": "z",
+   "matcher": "correlated",
+   "commit": 5,
+   "buffer": 5,
+   "shots": 16384,
+   "failures": {
+    "any": 1847,
+    "L0": 749,
+    "L1": 1348
+   },
+   "rate_any": 0.11273193359375,
+   "interval_any": [
+    0.10797962755162366,
+    0.11766580460827714
+   ],
+   "windowed_failures": {
+    "any": 1847
+   },
+   "windowed_rate_any": 0.11273193359375,
+   "windowed_interval_any": [
+    0.10797962755162366,
+    0.11766580460827714
+   ]
+  },
+  "windowed/cnot/d5/p0.003/x": {
+   "kind": "windowed",
+   "d": 5,
+   "merged": 5,
+   "p": 0.003,
+   "inputs": "x",
+   "matcher": "correlated",
+   "commit": 5,
+   "buffer": 5,
+   "shots": 16384,
+   "failures": {
+    "any": 2081,
+    "L0": 756,
+    "L1": 1611
+   },
+   "rate_any": 0.12701416015625,
+   "interval_any": [
+    0.1220025511074471,
+    0.13220063816428715
+   ],
+   "windowed_failures": {
+    "any": 2110
+   },
+   "windowed_rate_any": 0.1287841796875,
+   "windowed_interval_any": [
+    0.12374197322271845,
+    0.13400042526373018
+   ]
   }
  },
- "engine_commit": "2a3d837",
+ "engine_commit": "0564235",
  "machine": {
   "cpu": "Apple M2 Pro",
   "cores": 10
  },
+ "version": "2.2.0",
+ "platform": "Darwin arm64",
  "note": "Lattice-surgery programs (src/surgery.rs), SD6, sampled by the batch sampler and decoded on the engine's own model; 'any' is a shot with any observable wrong",
- "generated": "2026-09-30"
+ "generated": "2026-10-29"
 }

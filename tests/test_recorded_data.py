@@ -30,8 +30,8 @@ def data(path):
     return json.loads((ROOT / path).read_text())
 
 
-# The rows whose search the 1.5.0 recording left blank (its search kept every set it visited and
-# gave up); the memory-budgeted search finds each in under a second.
+# The rows the memory-budgeted search settles in under a second, among them the five the 1.5.0
+# recording left blank (its search kept every set it visited and gave up).
 FAST_SEARCH_ROWS = [
     ("surface, rotated (Stim's)", 3), ("surface, rotated (Stim's)", 5), ("surface, unrotated (Stim's)", 5),
     ("colour code XYZ (Stim's)", 5), ("colour code XYZ (Stim's)", 7), ("surface, rotated, SD6", 5), ("surface, XZZX, SD6", 5),
@@ -49,3 +49,24 @@ def test_distance_table_search_column_is_the_search(memory, d):
     found = circuit.search_for_undetectable_logical_errors(**doc["search_limits"])
     assert row["search"] == len(found)
     assert row["search"] == row["exact"]
+
+
+@pytest.mark.parametrize("key", ["d3/T2/p0.003/correlated", "d3/T2/p0.003/plain", "d5/T2/p0.003/correlated", "d3/T2/p0.002/correlated", "d3/T3/p0.003/correlated"])
+def test_surgery_timing_points_reproduce(key):
+    pytest.importorskip("stim")
+    pytest.importorskip("pymatching")
+    surgery = tool("surgery")
+    rec = data("data/surgery/results.json")["points"][key]
+    shots, counts = surgery.run_point(rec["d"], rec["merged"], rec["p"], rec["matcher"] == "correlated", 2_000_000, 300.0)
+    assert (shots, counts) == (rec["shots"], rec["failures"])
+
+
+@pytest.mark.parametrize("key", ["cnot/d3/T2/p0.003/z/correlated", "cnot/d3/T3/p0.003/z/correlated"])
+def test_surgery_program_points_reproduce(key):
+    pytest.importorskip("stim")
+    pytest.importorskip("pymatching")
+    surgery = tool("surgery")
+    rec = data("data/surgery/programs.json")["points"][key]
+    i, (_, _, text, corr, window) = next((i, p) for i, p in enumerate(surgery.program_points()) if p[0] == key)
+    shots, counts, _ = surgery.program_point(text, 7_000_003 * (i + 1), corr, 2_000_000, 300.0, window)
+    assert (shots, counts) == (rec["shots"], rec["failures"])

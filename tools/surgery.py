@@ -18,6 +18,7 @@ import argparse
 import datetime
 import math
 import pathlib
+import platform
 import sys
 import time
 
@@ -26,6 +27,7 @@ import pymatching
 import stim
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import stabilizer_qec  # noqa: E402
 import stabilizer_qec._core as sq  # noqa: E402
 from realtime import engine_commit, load_json, machine, write_json  # noqa: E402
 from xcheck import graph, mechanisms, rel  # noqa: E402
@@ -34,6 +36,23 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "surgery"
 BATCH = 16_384
 TARGET = 1500
+
+
+def stamp():
+    """The package version and platform a recording ran on (tools/readme_tables.py --check
+    refuses one older than the package's major.minor)."""
+    return dict(version=stabilizer_qec.__version__, platform=f"{platform.system()} {platform.machine()}")
+
+
+def load_current(path):
+    """The recording at `path` to resume, or a fresh one if another version made it: a run
+    fills in only the points a file lacks, so points from an older engine must not be kept
+    under the new stamp."""
+    doc = load_json(path, dict(points={}))
+    if doc["points"] and doc.get("version") != stabilizer_qec.__version__:
+        print(f"{path.name} was recorded by {doc.get('version', 'an unstamped version')}: measuring every point again")
+        doc = dict(points={})
+    return doc
 
 
 def wilson(k, n, z=1.96):
@@ -116,8 +135,8 @@ def run_point(d, merged, p, correlated, shot_cap, time_cap):
 
 def cmd_run(args):
     out_path = OUT / "results.json"
-    doc = load_json(out_path, dict(points={}))
-    doc.update(engine_commit=engine_commit(), machine=machine(),
+    doc = load_current(out_path)
+    doc.update(engine_commit=engine_commit(), machine=machine(), **stamp(),
                note="Z-basis lattice surgery: pre = post = d rounds; L0 the merge outcome, L1/L2 each patch's Z; SD6")
     for p in args.ps:
         for d in (3, 5, 7):
@@ -202,8 +221,8 @@ def program_points():
 
 def cmd_programs(args):
     out_path = OUT / "programs.json"
-    doc = load_json(out_path, dict(points={}))
-    doc.update(engine_commit=engine_commit(), machine=machine(),
+    doc = load_current(out_path)
+    doc.update(engine_commit=engine_commit(), machine=machine(), **stamp(),
                note="Lattice-surgery programs (src/surgery.rs), SD6, sampled by the batch sampler and decoded on the engine's own model; "
                     "'any' is a shot with any observable wrong")
     for i, (key, meta, text, corr, window) in enumerate(program_points()):
