@@ -510,6 +510,35 @@ def test_one_round_syndrome_matches_flat_dem():
     assert c.error_rates == flat.error_rates
 
 
+def test_one_round_observable_rows_of_a_code_with_two_logicals_of_each_type():
+    # (Added.) The [[4,2,2]] code: rows 0..kz-1 of O are the Z logicals (flipped by X faults), rows
+    # kz + r the X logical r (flipped by Z faults), as dem_construction.cpp writes them; Y faults
+    # flip both. Columns: the X faults on qubits 0..3, then the Z faults, then the Y faults.
+    code = qec.CssCodes()
+    code.hx = np.array([[1, 1, 1, 1]], dtype=np.uint8)
+    code.hz = np.array([[1, 1, 1, 1]], dtype=np.uint8)
+    code.lx = np.array([[1, 1, 0, 0], [1, 0, 1, 0]], dtype=np.uint8)
+    code.lz = np.array([[1, 0, 1, 0], [1, 1, 0, 0]], dtype=np.uint8)
+    noise = qec.CssNoise()
+    noise.px, noise.pz, noise.py = 0.01, 0.02, 0.03
+    c = qec.extended_dem_from_css_matrices(code, noise)
+    zero = [0, 0, 0, 0]
+    want = np.array([
+        [1, 0, 1, 0] + zero + [1, 0, 1, 0],  # Z logical 0: X and Y faults on qubits 0, 2
+        [1, 1, 0, 0] + zero + [1, 1, 0, 0],  # Z logical 1: qubits 0, 1
+        zero + [1, 1, 0, 0] + [1, 1, 0, 0],  # X logical 0 (row kz + 0): Z and Y faults on qubits 0, 1
+        zero + [1, 0, 1, 0] + [1, 0, 1, 0],  # X logical 1 (row kz + 1): qubits 0, 2
+    ], dtype=np.uint8)
+    np.testing.assert_array_equal(c.O, want)
+    # (H: the Z check fires on X and Y faults, the X check on Z and Y faults; once per seam.)
+    syn = np.array([[1] * 4 + zero + [1] * 4, zero + [1] * 4 + [1] * 4], dtype=np.uint8)
+    np.testing.assert_array_equal(c.H, np.vstack([syn, syn]))
+    assert c.error_rates == [0.01] * 4 + [0.02] * 4 + [0.03] * 4
+    flat = qec.dem_from_css_matrices(code, noise)
+    np.testing.assert_array_equal(c.O, flat.observables_flips_matrix)
+    np.testing.assert_array_equal(qec.dem_close(c).detector_error_matrix, flat.detector_error_matrix)
+
+
 def test_one_round_tags():
     c = one_round()
     # (d=2 checks, 2 seams of 2 rows: 4 tags, sequential within each seam.)

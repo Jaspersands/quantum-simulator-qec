@@ -62,8 +62,67 @@ def test_lookup_table_options():
     assert obs.decode([0.0, 0.0, 1.0]).result.tolist() == [1.0]
     with pytest.raises(RuntimeError, match="lut_error_depth must be <= block_size"):
         qec.get_decoder("multi_error_lut", H, lut_error_depth=5)
-    with pytest.raises(RuntimeError, match="'O' is framework model data"):
-        qec.get_decoder("single_error_lut", "error(0.1) D0 L0\n", O=O)
+    # (A caller's O replaces the model text's, as CUDA-Q's make_pcm_decoder lets the caller's keys
+    # win; the LUT decodes to an error frame either way, as CUDA-Q's ignores O.)
+    lut = qec.get_decoder("single_error_lut", "error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D2\nerror(0.1) D1 D2\n", O=O)
+    assert lut.decode([0.0, 0.0, 1.0]).result.tolist() == [0.0, 0.0, 1.0, 0.0]
+    assert qec.get_decoder("single_error_lut", "error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D2\nerror(0.1) D1 D2\n", O=O, output="observables").decode([0.0, 1.0, 1.0]).result.tolist() == [1.0]
+
+
+PM_H = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+PM_O = np.array([[1, 0, 0]], dtype=np.uint8)
+PM_DEM = "error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1\n"
+
+
+def test_pymatching_decodes_to_observables_when_its_model_has_them():
+    # CUDA-Q 0.8.1's pymatching switches to decode_to_obs whenever its params hold O, which
+    # make_pcm_decoder injects from a model's text when the model has observables.
+    by_matrix = qec.get_decoder("pymatching", PM_H, O=PM_O, error_rate_vec=[0.1, 0.1, 0.1])
+    by_text = qec.get_decoder("pymatching", PM_DEM)
+    for dec in (by_matrix, by_text):
+        assert dec.decode([1.0, 0.0]).result.tolist() == [1.0]
+        assert dec.decode([1.0, 1.0]).result.tolist() == [0.0]
+        assert dec.decode_batch([[1.0, 0.0], [0.0, 1.0]]).result.shape == (2, 1)
+    # (The same width as nv-qldpc-decoder's on the same model.)
+    assert len(qec.get_decoder("nv-qldpc-decoder", PM_H, O=PM_O, error_rate_vec=[0.1, 0.1, 0.1]).decode([1.0, 0.0]).result) == 1
+    # Without observables, an error frame; output="errors" (this package's) asks for one anyway.
+    assert qec.get_decoder("pymatching", PM_H).decode([1.0, 0.0]).result.tolist() == [1.0, 0.0, 0.0]
+    assert qec.get_decoder("pymatching", "error(0.1) D0\nerror(0.1) D0 D1\nerror(0.1) D1\n").decode([1.0, 0.0]).result.tolist() == [1.0, 0.0, 0.0]
+    assert qec.get_decoder("pymatching", PM_DEM, output="errors").decode([1.0, 0.0]).result.tolist() == [1.0, 0.0, 0.0]
+    assert qec.get_decoder("pymatching", PM_H, O=PM_O, output="errors").decode([1.0, 0.0]).result.tolist() == [1.0, 0.0, 0.0]
+    with pytest.raises(RuntimeError, match="no observable mapping"):
+        qec.get_decoder("pymatching", PM_H, output="observables")
+
+
+def test_pymatching_merges_parallel_edges_when_decoding_to_observables():
+    # (CUDA-Q switches the merge strategy from DISALLOW to INDEPENDENT with O, unless asked.)
+    dem = "error(0.1) D0 D1\nerror(0.05) D0 D1 L0\nerror(0.1) D0\nerror(0.1) D1\n"
+    dec = qec.get_decoder("pymatching", dem)
+    assert dec.decode([1.0, 1.0]).result.tolist() == [0.0]
+    O = np.array([[0, 1, 0, 0]], dtype=np.uint8)
+    H = np.array([[1, 1, 1, 0], [1, 1, 0, 1]], dtype=np.uint8)
+    assert qec.get_decoder("pymatching", H, O=O).decode([1.0, 1.0]).result.tolist() == [0.0]
+    for given in (dict(merge_strategy="disallow"), dict(output="errors")):
+        with pytest.raises(RuntimeError, match="Parallel edges not permitted"):
+            qec.get_decoder("pymatching", dem, **given)
+
+
+def test_a_callers_o_and_rates_win_over_the_model_texts():
+    O = np.array([[0, 1, 0]], dtype=np.uint8)
+    # (Syndrome D0 D1 matches the D0-D1 edge: the caller's O says it flips L0, the text's not.)
+    assert qec.get_decoder("pymatching", PM_DEM).decode([1.0, 1.0]).result.tolist() == [0.0]
+    assert qec.get_decoder("pymatching", PM_DEM, O=O).decode([1.0, 1.0]).result.tolist() == [1.0]
+    # (Rates making the D0-D1 edge dearer than both boundary edges: D0 and D1 each to the boundary.)
+    rates = [0.4, 0.001, 0.4]
+    assert qec.get_decoder("pymatching", PM_DEM, error_rate_vec=rates).decode([1.0, 1.0]).result.tolist() == [1.0]
+    assert qec.get_decoder("pymatching", PM_DEM, error_rate_vec=rates, output="errors").decode([1.0, 1.0]).result.tolist() == [1.0, 0.0, 1.0]
+    # A caller's model data is checked as the decoder checks any.
+    with pytest.raises(RuntimeError, match=r"O must be of shape \(num_observables, block_size\); got second dimension 4, block_size 3"):
+        qec.get_decoder("pymatching", PM_DEM, O=np.zeros((1, 4), dtype=np.uint8))
+    with pytest.raises(RuntimeError, match="error_rate_vec must be of size block_size"):
+        qec.get_decoder("pymatching", PM_DEM, error_rate_vec=[0.1, 0.1])
+    with pytest.raises(RuntimeError, match=r"O must be of shape"):
+        qec.get_decoder("pymatching", PM_H, O=np.zeros((1, 4), dtype=np.uint8), output="errors")
 
 
 def test_pymatching_plugin_is_pymatching():

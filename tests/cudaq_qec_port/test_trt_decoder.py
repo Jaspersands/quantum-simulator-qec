@@ -24,6 +24,7 @@ import re
 import sys
 import types
 import warnings
+from fractions import Fraction
 
 import numpy as np
 import pytest
@@ -105,7 +106,10 @@ def _str(field, s):
 
 
 def value_info(name, elem, dims):
-    shape = b"".join(_len(1, _int(1, d) if isinstance(d, int) else _str(2, d)) for d in dims)
+    """A tensor's ValueInfoProto: dims numbers, names or None (unknown); dims None for no shape."""
+    if dims is None:
+        return _str(1, name) + _len(2, _len(1, _int(1, elem)))
+    shape = b"".join(_len(1, b"" if d is None else _int(1, d) if isinstance(d, int) else _str(2, d)) for d in dims)
     return _str(1, name) + _len(2, _len(1, _int(1, elem) + _len(2, shape)))
 
 
@@ -144,12 +148,38 @@ def matmul_model(tmp_path, batch, size, seed=0):
     return write(tmp_path, f"matmul_batch{batch}.onnx", data), W
 
 
+def _fma32_exact(a, b, c):
+    """a b + c for float32 a, b and c, rounded once to float32 (to nearest, ties to even), as a
+    fused multiply-add does: the exact rational value, then the nearer float32 neighbour."""
+    a, b, c = float(a), float(b), float(c)
+    if not all(map(np.isfinite, (a, b, c))):
+        return np.float32(a * b + c)
+    exact = Fraction(a) * Fraction(b) + Fraction(c)
+    near = np.float32(float(exact))  # (within one float32 step of the answer)
+    best = None
+    for f in (np.nextafter(near, np.float32(-np.inf)), near, np.nextafter(near, np.float32(np.inf))):
+        if not np.isfinite(f):
+            continue
+        d = abs(Fraction(float(f)) - exact)
+        if best is None or d < best[0] or (d == best[0] and int(np.array(f).view(np.int32)) % 2 == 0):
+            best = (d, f)
+    return np.float32(best[1])
+
+
+_fma32_exact_v = np.frompyfunc(_fma32_exact, 3, 1)
+
+
+def fma32(a, b, c):
+    """Elementwise _fma32_exact, broadcasting as numpy does."""
+    return np.asarray(_fma32_exact_v(a, b, c), dtype=np.float32)
+
+
 def mlas_matmul(x, W):
     """x @ W in float32 as onnxruntime's MLAS sums it (for fewer than 256 rows of W): each output
     by fused multiply-adds, in order."""
     acc = np.zeros((x.shape[0], W.shape[1]), dtype=np.float32)
     for k in range(x.shape[1]):
-        acc = (x[:, k : k + 1].astype(np.float64) * W[k].astype(np.float64) + acc).astype(np.float32)
+        acc = fma32(x[:, k : k + 1], W[k], acc)
     return acc
 
 
@@ -161,11 +191,11 @@ def mlas_blocks(x, W, block, alpha=1.0, y=None):
     for start in range(0, W.shape[0], block):
         acc = np.zeros((x.shape[0], W.shape[1]), dtype=np.float32)
         for k in range(start, min(W.shape[0], start + block)):
-            acc = (x[:, k : k + 1].astype(np.float64) * W[k].astype(np.float64) + acc).astype(np.float32)
+            acc = fma32(x[:, k : k + 1], W[k], acc)
         if y is None:
             y = acc if alpha == 1.0 else acc * a
         else:
-            y = (acc.astype(np.float64) * np.float64(a) + y).astype(np.float32)
+            y = fma32(acc, a, y)
     return y
 
 
@@ -260,6 +290,111 @@ def test_products_past_one_block_of_k():
             told_apart += not np.array_equal(product(x, other), want)
             k += 1
         assert k > 0 and told_apart == k, stem
+
+
+def test_matmul_add_is_fused_as_onnxruntime_fuses_it():
+    # onnxruntime's default optimizer makes a Gemm of a MatMul and the Add after it, folding each
+    # K block into the bias; unfused, the bias is added to the finished product. Past one block
+    # (K = 600 here) the recordings tell the two apart.
+    def init(stem, name):
+        return load_onnx(model_path(stem + ".onnx"))._inits[name][0]
+
+    W, b, b1, c = init("matmul_add_k600", "W"), init("matmul_add_k600", "b"), init("matmul_add_batch_k600", "b1"), init("matmul_add_unfused_k600", "c")
+    cases = {
+        "matmul_add_k600": (b, True),
+        "matmul_add_batch_k600": (b1, True),
+        "matmul_add_rank3_k600": (b, True),
+        "matmul_add_unfused_k600": (c, False),
+    }
+    for stem, (bias, fused) in cases.items():
+        assert bool(load_onnx(model_path(stem + ".onnx"))._fused) == fused, stem
+        k, told_apart = 0, 0
+        while f"{stem}__{k}__x" in RECORDED.files:
+            x, want = RECORDED[f"{stem}__{k}__x"], RECORDED[f"{stem}__{k}__y"]
+            x2 = x.reshape(-1, 600)
+            product = mlas_blocks(x2, W, 256)
+            as_gemm = mlas_blocks(x2, W, 256, 1.0, np.broadcast_to(bias, product.shape).astype(np.float32)).reshape(want.shape)
+            as_add = (product + bias).reshape(want.shape)
+            np.testing.assert_array_equal(as_gemm if fused else as_add, want, err_msg=f"{stem} case {k}")
+            told_apart += not np.array_equal(as_add if fused else as_gemm, want)
+            k += 1
+        assert k > 0 and told_apart == k, stem
+    # Of MatMuls into one Add, the first in onnxruntime's topological order fuses: m1 (with m0 as
+    # C), then m2 (with that Gemm as C); m0 stays a MatMul.
+    m = load_onnx(model_path("matmul_matmul_add_k600.onnx"))
+    assert m._fused == {2: (1, 0), 4: (3, 1)} and m._skipped == {1, 3}
+
+
+def _fusion_of(nodes, inputs, inits, outputs=None):
+    m = OnnxModel(onnx_model(nodes, inputs, outputs or [value_info("y", FLOAT, [2, 3])], inits))
+    return {m._nodes[a].op: m._nodes[k].op for a, (k, _c) in m._fused.items()}, m
+
+
+FUSED = {"Add": "MatMul"}
+
+
+@pytest.mark.parametrize("x_dims, bias_shape, fused", [
+    # (Shapes as probed against onnxruntime 1.31.0's optimized graphs.) A of rank 2: a bias [N],
+    # [1, N], [M, 1] or [M, N], M compared as ONNX dimensions compare.
+    ([2, 5], [3], True), ([2, 5], [1, 3], True), ([2, 5], [2, 1], True), ([2, 5], [2, 3], True),
+    (["batch", 5], [3], True), (["batch", 5], [1, 3], True), (["batch", 5], [2, 3], False), (["batch", 5], [2, 1], False),
+    ([None, 5], [3], True), (None, [3], False),
+    ([2, 5], [1], False), ([2, 5], [], False), ([2, 5], [1, 1, 3], False), ([2, 5], [1, 2, 3], False),
+    # Of another rank: every dimension a number, and a bias [N] (onnxruntime reshapes A).
+    ([5], [3], True), ([4, 2, 5], [3], True), ([2, 2, 2, 5], [3], True), ([4, 2, 5], [1, 3], False), ([4, 2, 5], [2, 3], False),
+    (["b", 2, 5], [3], False),
+])
+def test_matmul_add_fusion_follows_onnxruntimes_shape_rules(x_dims, bias_shape, fused):
+    W = np.ones((5, 3), np.float32)
+    bias = np.ones(bias_shape, np.float32)
+    nodes = [node("MatMul", ["x", "W"], ["m"]), node("Add", ["m", "b"], ["y"])]
+    got, _ = _fusion_of(nodes, [value_info("x", FLOAT, x_dims)], [tensor("W", W, FLOAT), tensor("b", bias, FLOAT)])
+    assert got == (FUSED if fused else {})
+
+
+def test_matmul_add_fusion_needs_the_add_as_only_consumer():
+    W, b = tensor("W", np.ones((5, 3), np.float32), FLOAT), tensor("b", np.ones(3, np.float32), FLOAT)
+    x = [value_info("x", FLOAT, [2, 5])]
+    mm = node("MatMul", ["x", "W"], ["m"])
+    # Identity nodes and float-to-float Casts between them are removed first, so they fuse.
+    assert _fusion_of([mm, node("Identity", ["m"], ["i"]), node("Cast", ["i"], ["j"], to=FLOAT), node("Add", ["b", "j"], ["y"])], x, [W, b])[0] == FUSED
+    # Not: a second consumer, the MatMul's output a graph output, the Add of it twice, a Relu between.
+    assert _fusion_of([mm, node("Add", ["m", "b"], ["a"]), node("Relu", ["m"], ["r"]), node("Add", ["a", "r"], ["y"])], x, [W, b])[0] == {}
+    assert _fusion_of([mm, node("Identity", ["m"], ["i"]), node("Add", ["i", "b"], ["a"]), node("Add", ["a", "m"], ["y"])], x, [W, b])[0] == {}
+    assert _fusion_of([mm, node("Add", ["m", "b"], ["y"])], x, [W, b], [value_info("y", FLOAT, [2, 3]), value_info("m", FLOAT, [2, 3])])[0] == {}
+    assert _fusion_of([mm, node("Add", ["m", "m"], ["y"])], x, [W])[0] == {}
+    assert _fusion_of([mm, node("Relu", ["m"], ["r"]), node("Add", ["r", "b"], ["y"])], x, [W, b])[0] == {}
+    # A of a known rank through the evaluator's operators fuses; through a Reshape by a computed
+    # shape (no rank known) it does not.
+    flat = [value_info("x", FLOAT, ["n", 1, 5])]
+    assert _fusion_of([node("Flatten", ["x"], ["f"]), node("MatMul", ["f", "W"], ["m"]), node("Add", ["m", "b"], ["y"])], flat, [W, b])[0] == FUSED
+    _, m = _fusion_of([node("Flatten", ["x"], ["f"]), node("MatMul", ["f", "W"], ["m"]), node("Add", ["m", "b"], ["y"])], flat, [W, b])
+    x3 = np.arange(10, dtype=np.float32).reshape(2, 1, 5)
+    np.testing.assert_array_equal(m.run(x3), x3.reshape(2, 5) @ np.ones((5, 3), np.float32) + 1)
+
+
+def test_float32_products_round_each_multiply_add_once(tmp_path):
+    # A fused multiply-add rounds a b + c once, as MLAS's does. Here the second one's exact value
+    # is 2^24 + 3 - 2^-40, whose float32 neighbours are 2^24 + 2 and 2^24 + 4: once rounded it
+    # is 2^24 + 2, which onnxruntime 1.31.0 (CPU, macOS arm64) gives for MatMul and Gemm at every
+    # optimization level; rounded to float64 first it is the midpoint 2^24 + 3, which ties to
+    # 2^24 + 4.
+    x = np.array([[2.0**24 + 2, 1 + 2.0**-20]], dtype=np.float32)
+    W = np.array([[1.0], [1 - 2.0**-20]], dtype=np.float32)
+    io = ([value_info("x", FLOAT, [1, 2])], [value_info("y", FLOAT, [1, 1])], [tensor("W", W, FLOAT)])
+    for op in ("MatMul", "Gemm"):
+        got = OnnxModel(onnx_model([node(op, ["x", "W"], ["y"])], *io)).run(x)
+        assert got.tolist() == [[16777218.0]], op
+    assert mlas_matmul(x, W).tolist() == [[16777218.0]]
+    # (The oracle against the arithmetic it stands for, near and at float32 ties.)
+    rng = np.random.default_rng(5)
+    a, b, c = (rng.standard_normal(4000) * 2.0 ** rng.integers(-30, 30, 4000)).astype(np.float32), rng.standard_normal(4000).astype(np.float32), rng.standard_normal(4000).astype(np.float32)
+    from stabilizer_qec.cudaq_qec._onnx import _fma32
+
+    np.testing.assert_array_equal(_fma32(a, b, c), fma32(a, b, c))
+    t = np.float32(2.0**24 + 2) + np.zeros(3, np.float32)
+    np.testing.assert_array_equal(_fma32(np.float32(1 + 2.0**-20), np.float32(1 - 2.0**-20) * np.ones(3, np.float32), t), [16777218.0] * 3)
+    np.testing.assert_array_equal(_fma32(np.float32(1), np.ones(2, np.float32), np.float32(2.0**24 + 2)), [2.0**24 + 4] * 2)  # (an exact tie: to even)
 
 
 def test_dequantizing_float8_takes_no_zero_point_but_zero():

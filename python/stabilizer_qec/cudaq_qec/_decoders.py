@@ -392,12 +392,26 @@ _MERGES = {"disallow": "disallow", "independent": "independent", "smallest_weigh
 
 class _PyMatchingPlugin(_NativeDecoder):
     """CUDA-Q's ``pymatching`` plugin: each column an edge (or boundary edge) of weight
-    ln((1 − p)/p) (1 without rates); an error frame from the matched edges' columns, or the
-    observables."""
+    ln((1 − p)/p) (1 without rates). As CUDA-Q's, it decodes to the observables whenever its
+    model has an observable matrix (an ``O`` given, or a detector error model's observables),
+    merging parallel edges as independent errors unless ``merge_strategy`` says otherwise, and
+    to an error frame from the matched edges' columns when it has none. ``output="errors"`` (this
+    package's, not CUDA-Q's) asks for the error frame even with an ``O``."""
 
-    def __init__(self, inputs: _Inputs, output: str, params: dict) -> None:
+    _raw_output = True
+
+    def __init__(self, inputs: _Inputs, output: Optional[str], params: dict) -> None:
         from .. import pymatching
 
+        # (CUDA-Q's switches on params holding "O", which make_pcm_decoder adds from a model's
+        # text only when it has observables; an O given as a matrix counts even with no rows.)
+        has_O = inputs.O is not None and (inputs.num_observables > 0 or inputs.obs_cols is not None)
+        if inputs.obs_cols is not None and inputs.obs_cols != inputs.num_cols:
+            raise RuntimeError(f"O must be of shape (num_observables, block_size); got second dimension {inputs.obs_cols}, block_size {inputs.num_cols}")
+        if output == "observables" and inputs.O is None:
+            raise RuntimeError("pymatching was constructed for observable output but its model supplies no observable mapping")
+        if output is None:
+            output = "observables" if has_O else "errors"
         super().__init__(inputs, output, params)
         rates = inputs.rates
         if rates:
@@ -651,9 +665,12 @@ def _no_cuda(params: dict) -> None:
 
 def _native(name: str, inputs: _Inputs, options: dict, typed: bool = False) -> _NativeDecoder:
     output = _output_of(options)
+    # (get_decoder takes O and error_rate_vec into the model before this; what reaches here is a
+    # nested decoder's parameters, such as sliding_window's inner_decoder_params, whose model the
+    # outer decoder supplies.)
     for reserved in ("H", "O", "D", "error_rate_vec"):
         if reserved in options:
-            raise RuntimeError(f"'{reserved}' is framework model data; provide it through decoder_init instead of decoder custom parameters")
+            raise RuntimeError(f"'{reserved}' describes the decoder's model, which get_decoder takes with H; it is not a decoder parameter here")
     # (``typed``: values already as a decoder's parameter schema types them, from a configuration.)
     params = dict(options) if typed else {k: _param(v) for k, v in options.items()}
     factory = _NATIVE.get(name)
@@ -674,8 +691,12 @@ def _native_dem(name: str, dem_text: str, options: dict, typed: bool = False) ->
 def get_decoder(name: str, H: Any, **options: Any) -> Any:
     """A decoder by name, for the check matrix ``H`` (a dense array or a scipy sparse matrix)
     or a Stim detector error model given as text. ``O`` (the observable matrix) and
-    ``error_rate_vec`` describe the model; ``output`` ("errors" or "observables") chooses what
-    a decode returns; the other keywords configure the decoder. For ``trt_decoder``, two-dimensional
+    ``error_rate_vec`` describe the model; with model text they replace the ones the text gives,
+    as CUDA-Q's ``make_pcm_decoder`` lets a caller's keys win. The other keywords configure the
+    decoder. What a decode returns is CUDA-Q's: ``pymatching`` and ``nv-qldpc-decoder`` return
+    the observable flips when the model has an observable matrix, the other decoders an error
+    frame. ``output`` ("errors" or "observables", this package's keyword, not CUDA-Q's)
+    overrides that where a decoder can do both. For ``trt_decoder``, two-dimensional
     numeric/bool O arrays of any memory order, nested lists and scipy sparse matrices use nonzero
     entries as observable support. These useful coercions exceed CUDA-Q's uint8 tensor binding;
     see ``ONNX_CONTRACT.md``."""
@@ -696,38 +717,53 @@ def _get_decoder(name: str, H: Any, options: dict, typed: bool = False) -> Any:
             return _PY_REGISTRY[name](dem.detector_error_matrix, **options)
         if name in _NATIVE_DEM:
             return _native_dem(name, H, dict(options), typed)
-        num_dets, num_obs, det_hits, obs_hits, rates = _parse_stim_dem(H, False)
-        O_rows: List[List[int]] = [[] for _ in range(num_obs)]
-        for e, hits in enumerate(obs_hits):
-            for o in hits:
-                O_rows[o].append(e)
-        return _native(name, _Inputs(num_dets, len(det_hits), [list(h) for h in det_hits], O_rows, num_obs, list(rates)), dict(options), typed)
+        # (make_pcm_decoder: the model's matrix, and its observables and rates for the keys the
+        # caller did not give; the caller's win, checked by the decoder as any other.)
+        num_dets, dem_obs, det_hits, obs_hits, dem_rates = _parse_stim_dem(H, False)
+        options = dict(options)
+        num_obs, O, o_cols, o_rank = _model_O(name, options)
+        if num_obs is None:
+            num_obs = dem_obs
+            O = [[] for _ in range(dem_obs)]
+            for e, hits in enumerate(obs_hits):
+                for o in hits:
+                    O[o].append(e)
+        rates = _model_rates(options)
+        if rates is None:
+            rates = list(dem_rates)
+        return _native(name, _Inputs(num_dets, len(det_hits), [list(h) for h in det_hits], O, num_obs, rates, o_cols, o_rank), options, typed)
     if name in _PY_REGISTRY:
         return _PY_REGISTRY[name](H, **options)
     m, n, cols = _columns(H)
     options = dict(options)
-    O = None
-    num_obs = 0
-    o_cols: Optional[int] = None
-    o_rank: Optional[int] = None
-    if "O" in options:
-        given = options.pop("O")
-        if name == "trt_decoder" and not hasattr(given, "tocsc") and _ndim(given) != 2:
-            # (trt_decoder refuses an O that is not a matrix itself, where CUDA-Q's does. CUDA-Q's
-            # binding passes an array of rank 2 or more as a tensor, which its rank check refuses
-            # past 2; anything else it passes as a vector, a number, a string or a map
-            # (kwargs_utils.h:41-128), which its read of O as a tensor refuses first: rank 0 here.
-            # Not mirrored: an equal-length list of lists, a vector of vectors to the binding, is
-            # taken as a matrix below, as for every decoder.)
-            o_rank = int(given.ndim) if isinstance(given, np.ndarray) and given.ndim > 2 else 0
-        else:
-            num_obs, o_cols, O = _rows_of(given)
-        if o_cols != n and name == "pymatching" and options.get("output") == "observables":
-            raise RuntimeError("Observable matrix column count must equal block_size")
-    rates: List[float] = []
-    if "error_rate_vec" in options:
-        rates = [float(x) for x in np.asarray(options.pop("error_rate_vec"), dtype=np.float64).reshape(-1)]
-    return _native(name, _Inputs(m, n, cols, O, num_obs, rates, o_cols, o_rank), options, typed)
+    num_obs, O, o_cols, o_rank = _model_O(name, options)
+    rates = _model_rates(options)
+    return _native(name, _Inputs(m, n, cols, O, num_obs or 0, rates or [], o_cols, o_rank), options, typed)
+
+
+def _model_O(name: str, options: dict) -> Tuple[Optional[int], Optional[List[List[int]]], Optional[int], Optional[int]]:
+    """A caller's ``O`` (popped from options): its row count, rows, column count and, for an O
+    trt_decoder refuses as no matrix, its rank (all None but that without an O)."""
+    if "O" not in options:
+        return None, None, None, None
+    given = options.pop("O")
+    if name == "trt_decoder" and not hasattr(given, "tocsc") and _ndim(given) != 2:
+        # (trt_decoder refuses an O that is not a matrix itself, where CUDA-Q's does. CUDA-Q's
+        # binding passes an array of rank 2 or more as a tensor, which its rank check refuses
+        # past 2; anything else it passes as a vector, a number, a string or a map
+        # (kwargs_utils.h:41-128), which its read of O as a tensor refuses first: rank 0 here.
+        # Not mirrored: an equal-length list of lists, a vector of vectors to the binding, is
+        # taken as a matrix below, as for every decoder.)
+        return 0, None, None, int(given.ndim) if isinstance(given, np.ndarray) and given.ndim > 2 else 0
+    num_obs, o_cols, O = _rows_of(given)
+    return num_obs, O, o_cols, None
+
+
+def _model_rates(options: dict) -> Optional[List[float]]:
+    """A caller's ``error_rate_vec`` (popped from options), or None without one."""
+    if "error_rate_vec" not in options:
+        return None
+    return [float(x) for x in np.asarray(options.pop("error_rate_vec"), dtype=np.float64).reshape(-1)]
 
 
 def _register_plugins() -> None:
