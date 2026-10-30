@@ -189,6 +189,12 @@ def test_qldpc_extra_has_qldpc_numpy_floor():
     assert "numpy>=1.24; python_version >= '3.11'" in toml_list(pyproject(), "qldpc")
 
 
+def test_scipy_importing_ports_have_an_extra_that_installs_scipy():
+    # beliefmatching and relay_bp.stim import scipy at module level, and the base install is numpy alone.
+    for extra in ("beliefmatching", "relay-bp"):
+        assert any(req.startswith("scipy") for req in toml_list(pyproject(), extra)), extra
+
+
 def test_qecsim_notice_says_where_config_is_read():
     qecsim = words(section("qecsim"))
     assert "$QECSIM_CFG" in qecsim and "~/.qecsim" in qecsim

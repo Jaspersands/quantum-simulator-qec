@@ -21,6 +21,8 @@ policy for its documented items.
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
 - The Fusion Blossom visualizer's `/data/` route answers 404 `File does not exist.` for a path with
   a NUL byte, as fusion_blossom does, where it answered 403 `Access denied.`.
+- The `beliefmatching` and `relay-bp` extras install scipy, which those modules import; before, no
+  extra provided it, so a base install failed with `ModuleNotFoundError` on import.
 
 ## 2.2.0 — 2026-10-30
 

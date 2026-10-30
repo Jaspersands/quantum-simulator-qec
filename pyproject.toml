@@ -42,6 +42,10 @@ sinter = ["matplotlib>=3.5"]
 ldpc = ["scipy>=1.7"]
 # stabilizer_qec.stimbposd (stimbposd 0.2.0) needs what stabilizer_qec.ldpc does.
 stimbposd = ["scipy>=1.7"]
+# stabilizer_qec.beliefmatching builds scipy sparse check matrices, and stabilizer_qec.relay_bp.stim
+# imports scipy too (the rest of relay_bp does not need it).
+beliefmatching = ["scipy>=1.7"]
+relay-bp = ["scipy>=1.7"]
 # stabilizer_qec.qldpc (qLDPC 0.4.1) needs what qLDPC needs beyond its QEC stack (NumPy at qLDPC's
 # own floor among them), and Python 3.11.
 qldpc = [
