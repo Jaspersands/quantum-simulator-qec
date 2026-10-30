@@ -716,7 +716,9 @@ class Circuit(_Base):
         far longer. A circuit without products or sweep bits does not build it, and one with an
         instruction the builders cannot read (a tag the core leaves inert, ``I[foo(x)] 0``) is the
         engine's matrix, as without products (Tsim's raises its parse error), unless a product
-        rotation names a qubit twice: without a graph that raises Tsim's parse error too. Where a
+        rotation names a qubit twice: without a graph that raises Tsim's parse error too. A circuit
+        with such an instruction and a measurement, detector, observable, later reset, feedback or
+        rotation past 2^20 radians is the ZX tensor, which raises that error. Where a
         product leaves a qubit out of Tsim's graph (an identity letter's, ``pauli=X_``, or one
         ``SPP X0*X0`` cancels on), the engine's matrix leaves it out too, and is Tsim's matrix of the
         circuit without that instruction up to the engine's global phase."""

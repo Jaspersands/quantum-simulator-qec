@@ -75,6 +75,14 @@ def test_measured_matrix_never_calls_unitary_engine(text, monkeypatch):
         assert np.array_equal(matrix, tsim.Circuit("M 0").to_matrix())
 
 
+@pytest.mark.parametrize("text", ["I[foo(x)] 0\nM 0", "H 0\nI[foo(x)] 0\nM 0", "I[foo(x)] 0\nR 0", "I[foo(x)] 0\nMPAD 0"])
+def test_measured_matrix_refuses_an_inert_tag_as_tsim_does(text):
+    # Without a measurement the engine gives the matrix of such a circuit; with one, the ZX tensor refuses it.
+    assert tsim.Circuit("I[foo(x)] 0").to_matrix().shape == (2, 2)
+    with pytest.raises(ValueError, match="Malformed parametric tag"):
+        tsim.Circuit(text).to_matrix()
+
+
 @pytest.mark.parametrize("k", [62, 63, 64])
 def test_lazy_correlated_probabilities_above_native_len(k):
     import sys
