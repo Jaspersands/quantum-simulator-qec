@@ -965,9 +965,10 @@ On Sycamore's data it was one of the two decoders that made d = 5 beat d = 3.
   - edge probabilities summed, clipped to [1e-14, 1 − 1e-14], and weighted −ln p.
 
 Checked against both packages, installed alongside:
-1. **Posteriors equal `ldpc`'s bit for bit.** On random parity-check matrices and on a d = 5 surface
-   code's hypergraph, by product-sum and by min-sum (scaled 1 and 0.625), after 1, 3 and 20
-   iterations, every posterior log-likelihood ratio equals `ldpc`'s: the largest difference is 0.0.
+1. **Posteriors equal `ldpc`'s bit for bit.** On random parity-check matrices, by product-sum and by
+   min-sum (scaled 1 and 0.625), after 1, 3 and 20 iterations; and on a d = 5 surface code's
+   hypergraph, by product-sum and by min-sum (unscaled), after 20 iterations. Every posterior
+   log-likelihood ratio equals `ldpc`'s: the largest difference is 0.0.
    Hard decisions, convergence and iteration counts agree too.
 2. **Belief-matching equals `beliefmatching`** on every shot of SD6 memories at d = 3, 5, 7: the same
    convergence and the same prediction.
