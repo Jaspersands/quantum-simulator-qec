@@ -387,21 +387,21 @@ edge has the same probability.
 
 | circuit | d | detectors | mechanisms, ours / Stim's | largest Δp/p | graph edges | graph |
 |---|---|---|---|---|---|---|
-| Stim's `rotated_memory_z` | 3 | 24 | 219 / 219 | 6.4e-16 | 78 | identical |
-| Stim's `rotated_memory_z` | 5 | 120 | 1,677 / 1,677 | 6.4e-16 | 502 | identical |
-| Stim's `rotated_memory_z` | 7 | 336 | 5,471 / 5,471 | 6.4e-16 | 1,558 | identical |
-| rotated, engine model | 3 | 36 | 223 / 223 | 0.0e+00 | 103 | identical |
-| rotated, engine model | 5 | 156 | 1,261 / 1,261 | 0.0e+00 | 581 | identical |
-| rotated, engine model | 7 | 408 | 3,739 / 3,739 | 0.0e+00 | 1,723 | identical |
-| rotated, SD6 | 3 | 24 | 219 / 219 | 1.1e-15 | 78 | identical |
-| rotated, SD6 | 5 | 120 | 1,677 / 1,677 | 1.1e-15 | 502 | identical |
-| rotated, SD6 | 7 | 336 | 5,471 / 5,471 | 1.1e-15 | 1,558 | identical |
-| XZZX, engine model | 3 | 36 | 223 / 223 | 0.0e+00 | 103 | identical |
-| XZZX, engine model | 5 | 156 | 1,261 / 1,261 | 0.0e+00 | 581 | identical |
-| XZZX, engine model | 7 | 408 | 3,739 / 3,739 | 0.0e+00 | 1,723 | identical |
-| XZZX, SD6 | 3 | 24 | 219 / 219 | 1.1e-15 | 78 | identical |
-| XZZX, SD6 | 5 | 120 | 1,677 / 1,677 | 1.1e-15 | 502 | identical |
-| XZZX, SD6 | 7 | 336 | 5,471 / 5,471 | 1.1e-15 | 1,558 | identical |
+| Stim's `rotated_memory_z` | 3 | 24 | 219 / 219 | 4.2e-16 | 78 | identical |
+| Stim's `rotated_memory_z` | 5 | 120 | 1,677 / 1,677 | 7.9e-16 | 502 | identical |
+| Stim's `rotated_memory_z` | 7 | 336 | 5,471 / 5,471 | 7.9e-16 | 1,558 | identical |
+| rotated, engine model | 3 | 36 | 223 / 223 | 2.2e-16 | 103 | identical |
+| rotated, engine model | 5 | 156 | 1,261 / 1,261 | 2.2e-16 | 581 | identical |
+| rotated, engine model | 7 | 408 | 3,739 / 3,739 | 2.2e-16 | 1,723 | identical |
+| rotated, SD6 | 3 | 24 | 219 / 219 | 1.0e-15 | 78 | identical |
+| rotated, SD6 | 5 | 120 | 1,677 / 1,677 | 6.5e-16 | 502 | identical |
+| rotated, SD6 | 7 | 336 | 5,471 / 5,471 | 6.5e-16 | 1,558 | identical |
+| XZZX, engine model | 3 | 36 | 223 / 223 | 2.9e-16 | 103 | identical |
+| XZZX, engine model | 5 | 156 | 1,261 / 1,261 | 2.9e-16 | 581 | identical |
+| XZZX, engine model | 7 | 408 | 3,739 / 3,739 | 2.9e-16 | 1,723 | identical |
+| XZZX, SD6 | 3 | 24 | 219 / 219 | 5.9e-16 | 78 | identical |
+| XZZX, SD6 | 5 | 120 | 1,677 / 1,677 | 7.2e-16 | 502 | identical |
+| XZZX, SD6 | 7 | 336 | 5,471 / 5,471 | 7.2e-16 | 1,558 | identical |
 
 Those two last columns did not match on the first attempt. What caught it was not a comparison with
 Stim at all; see *What the checks caught* below.
@@ -411,7 +411,7 @@ this engine's decoder (now the sparse matcher described in the next section) dec
 detection events. Two exact matchers can disagree only where two corrections tie in weight. There
 were 13 disagreements in 600,000 shots, and every one is a tie: the two
 matchings' weights differ by less than the discretisation noise measured on shots where the decoders
-agree (at most 1e-05).
+agree (at most 1.2e-05).
 
 **3. The samplers agree.** The same circuits were also sampled by this engine's frame sampler and
 decoded by its own decoder, and compared with Stim's sampler decoded by PyMatching:
