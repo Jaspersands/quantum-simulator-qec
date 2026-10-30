@@ -92,7 +92,7 @@ class E1(ErrorModel):
                     errset = errsets["q2"]
                 else:
                     errset = errsets["q1"]
-                fop = list(errset)[np.random.choice(len(errset))]
+                fop = sorted(errset)[np.random.choice(len(errset))]
                 yield loc, fop
 
 class E1_1(ErrorModel):
@@ -117,7 +117,7 @@ class E1_1(ErrorModel):
                     errset = errsets["q2"]
                 else:
                     errset = errsets["q1"]
-                fop = list(errset)[np.random.choice(len(errset))]
+                fop = sorted(errset)[np.random.choice(len(errset))]
                 yield loc, fop
 
 class E2(ErrorModel):
@@ -142,7 +142,7 @@ class E2(ErrorModel):
                     errset = errsets["q2"]
                 else:
                     errset = errsets["q1"]
-                fop = list(errset)[np.random.choice(len(errset))]
+                fop = sorted(errset)[np.random.choice(len(errset))]
                 yield loc, fop
 
 class E3(ErrorModel):
@@ -169,7 +169,7 @@ class E3(ErrorModel):
         
         for grp, locs in fgroups.items():
             for loc in locs:
-                fop = list(errsets[grp])[np.random.choice(len(errsets[grp]))]
+                fop = sorted(errsets[grp])[np.random.choice(len(errsets[grp]))]
                 yield loc, fop
 
 class E3_1(ErrorModel):
@@ -202,7 +202,7 @@ class E3_1(ErrorModel):
         
         for grp, locs in fgroups.items():
             for loc in locs:
-                fop = list(errsets[grp])[np.random.choice(len(errsets[grp]))]
+                fop = sorted(errsets[grp])[np.random.choice(len(errsets[grp]))]
                 yield loc, fop
 
 class InnsbruckTrap(ErrorModel):
@@ -304,7 +304,7 @@ class S4(ErrorModel):
 
         for grp, locs in fgroups.items():
             for loc in locs:
-                fop = list(errsets[grp])[np.random.choice(len(errsets[grp]))]
+                fop = sorted(errsets[grp])[np.random.choice(len(errsets[grp]))]
                 yield loc, fop
 
 class S1(ErrorModel):
@@ -330,7 +330,7 @@ class S1(ErrorModel):
                     errset = errsets["q2"]
                 else:
                     errset = errsets["q1"]
-                fop = list(errset)[np.random.choice(len(errset))]
+                fop = sorted(errset)[np.random.choice(len(errset))]
                 yield loc, fop
 
 class S2(ErrorModel):
@@ -354,5 +354,5 @@ class S2(ErrorModel):
                     errset = errsets["q2"]
                 else:
                     errset = errsets["q1"]
-                fop = list(errset)[np.random.choice(len(errset))]
+                fop = sorted(errset)[np.random.choice(len(errset))]
                 yield loc, fop

@@ -4,8 +4,10 @@ was, and subset probabilities stay finite for any number of fault locations."""
 
 from __future__ import annotations
 
+import json
 import os
 import pickle
+import subprocess
 import sys
 from fractions import Fraction
 import math
@@ -211,3 +213,21 @@ def test_subset_rates_runs_on_a_subset_sampler_with_failures():
         plt.close("all")
     assert rates.data
     assert all(np.isfinite(p) for pairs in rates.data.values() for _, p in pairs)
+
+
+# Reproducibility
+
+def test_a_seeded_run_repeats_in_another_process():
+    # the error models draw from sets of strings, whose order changes with PYTHONHASHSEED
+    code = ("import json, sys\n"
+            "import numpy as np\n"
+            "sys.path.insert(0, sys.argv[1])\n"
+            "from test_qsample_port import _direct_sampler\n"
+            "print(json.dumps([np.asarray(x).ravel().tolist() for x in _direct_sampler().stats()]))\n")
+    here = os.path.dirname(os.path.abspath(__file__))
+    outputs = []
+    for hash_seed in ("1", "2"):
+        env = dict(os.environ, PYTHONHASHSEED=hash_seed)
+        done = subprocess.run([sys.executable, "-c", code, here], env=env, capture_output=True, text=True, check=True)
+        outputs.append(json.loads(done.stdout.strip().splitlines()[-1]))
+    assert outputs[0] == outputs[1]

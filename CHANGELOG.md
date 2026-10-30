@@ -26,6 +26,8 @@ policy for its documented items.
   before this change still cannot run after loading.
 - `callbacks.PlotStats` and `callbacks.SubsetRates` run again on NumPy 2 and matplotlib 3.11: they called
   `np.product`, which NumPy 2.0 removed, and popped matplotlib's artist lists, which have no `pop`.
+- A seeded `qsample` run repeats in another process: the error models drew from a set of strings, whose
+  order changes with `PYTHONHASHSEED`, so the same `np.random.seed` picked different errors in each process.
 
 ## 2.2.0 — 2026-10-30
 
