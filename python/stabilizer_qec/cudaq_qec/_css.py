@@ -122,6 +122,14 @@ def _canonical(col: List[int]) -> List[int]:
     return out
 
 
+def _check_index_values(field: str, arr: np.ndarray) -> None:
+    if np.any(arr < 0):
+        raise RuntimeError(f"{field} contains a negative index")
+    if np.any(arr > _U32):
+        largest = int(arr.max())
+        raise RuntimeError(f"{field} exceeds sparse_binary_matrix index_type (uint32_t) range; got {largest}")
+
+
 def _from_python(value: Any) -> _Mat:
     """``sparse_binary_matrix_from_python``: a scipy sparse matrix (any format) or a dense array."""
     if hasattr(value, "tocsr"):
@@ -133,11 +141,7 @@ def _from_python(value: Any) -> _Mat:
             arr = np.asarray(getattr(csr, field))
             if arr.ndim != 1 or arr.dtype not in (np.dtype("int32"), np.dtype("int64"), np.dtype("uint32"), np.dtype("uint64")):
                 raise RuntimeError("scipy sparse matrix indptr/indices has unsupported dtype; expected int32, int64, uint32, or uint64.")
-            if np.any(arr < 0):
-                raise RuntimeError(f"{field} contains a negative index")
-            if np.any(arr > _U32):
-                largest = int(arr.max())
-                raise RuntimeError(f"{field} exceeds sparse_binary_matrix index_type (uint32_t) range; got {largest}")
+        _check_index_values("indptr", np.asarray(csr.indptr))
         indptr, indices = csr.indptr.tolist(), csr.indices.tolist()
         prefix = "sparse_binary_matrix::from_csr: "
         if len(indptr) != nrows + 1:
@@ -148,10 +152,13 @@ def _from_python(value: Any) -> _Mat:
             raise ValueError(prefix + "row_ptrs must be non-decreasing")
         if indptr[-1] != len(indices):
             raise ValueError(prefix + "last row_ptr must equal nnz (col_indices.size())")
-        if any(c >= ncols for c in indices):
-            raise ValueError(prefix + "column index out of range")
         if len(csr.data) != len(indices):
             raise ValueError(prefix + "data and col_indices must have equal size")
+        # Normalization drops explicit zeros, so only the indices of stored nonzero entries name columns.
+        stored = np.asarray(csr.indices)[np.asarray(csr.data) != 0]
+        _check_index_values("indices", stored)
+        if any(c >= ncols for c in stored.tolist()):
+            raise ValueError(prefix + "column index out of range")
         csr = csr.copy()
         csr.sum_duplicates()
         csr.eliminate_zeros()

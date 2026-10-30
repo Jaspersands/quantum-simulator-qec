@@ -283,6 +283,37 @@ def test_css_sparse_setters_reject_malformed_csr_safely(field, value, exc, messa
         np.testing.assert_array_equal(getattr(c, prop), np.eye(2, dtype=np.uint8))
 
 
+@pytest.mark.parametrize('column', [5, -1, 2**40])
+def test_css_sparse_explicit_zero_out_of_range_is_dropped_as_scipy_does(column):
+    sp = pytest.importorskip('scipy.sparse')
+    csr = sp.csr_matrix((np.array([1.0, 0.0, 1.0, 1.0]), np.array([0, column, 1, 2], np.int64), np.array([0, 2, 4])), shape=(2, 3))
+    ref = csr.copy()
+    ref.sum_duplicates()
+    ref.eliminate_zeros()
+    ref.sort_indices()
+    lz = np.array([[1, 0, 0]], dtype=np.uint8)
+    codes = qec.CssCodes()
+    codes.hz = csr
+    codes.lz = lz
+    ref_codes = qec.CssCodes()
+    ref_codes.hz = ref
+    ref_codes.lz = lz
+    np.testing.assert_array_equal(codes.hz, [[1, 0, 0], [0, 1, 1]])
+    noise = qec.CssNoise()
+    noise.px = 0.1
+    dem = qec.dem_from_css_matrices(codes, noise)
+    ref_dem = qec.dem_from_css_matrices(ref_codes, noise)
+    np.testing.assert_array_equal(dem.detector_error_matrix, ref_dem.detector_error_matrix)
+    np.testing.assert_array_equal(dem.observables_flips_matrix, ref_dem.observables_flips_matrix)
+    assert list(dem.error_rates) == list(ref_dem.error_rates)
+    syndromes = np.array([[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.uint8)
+    corrections = []
+    for d in (dem, ref_dem):
+        decoder = qec.get_decoder('pymatching', d.detector_error_matrix, O=d.observables_flips_matrix, error_rate_vec=d.error_rates, merge_strategy='independent')
+        corrections.append(np.asarray(decoder.decode_batch(syndromes).result, dtype=np.float64))
+    np.testing.assert_array_equal(corrections[0], corrections[1])
+
+
 @pytest.mark.parametrize('shape', [(0, 0), (0, 3), (3, 0), (2, 3)])
 def test_css_sparse_shapes_and_dense_coercions(shape):
     sp = pytest.importorskip('scipy.sparse')

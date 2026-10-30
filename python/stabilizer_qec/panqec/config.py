@@ -5,6 +5,7 @@ Settings from environmental variables and config files.
 :Author:
     Eric Huang
 """
+import getpass
 import os
 import tempfile
 from typing import Dict, Any
@@ -40,9 +41,19 @@ PANQEC_DARK_THEME = False
 if os.getenv('PANQEC_DARK_THEME'):
     PANQEC_DARK_THEME = bool(os.getenv('PANQEC_DARK_THEME'))
 
+def _default_panqec_dir():
+    """The fallback output directory: in the temp dir, named for the user, so two users on one host
+    do not share it. Without a known user name, it is the plain 'panqec' directory."""
+    try:
+        user = getpass.getuser()
+    except (KeyError, OSError):  # no login name in the environment or the password database
+        return os.path.join(tempfile.gettempdir(), 'panqec')
+    return os.path.join(tempfile.gettempdir(), f'panqec-{user}')
+
+
 # Fallback is to use a temp dir if PANQEC_DIR is not available (PanQEC's own is one beside the
 # package, which in stabilizer_qec would be inside the installed package).
-PANQEC_DIR = os.path.join(tempfile.gettempdir(), 'panqec')
+PANQEC_DIR = _default_panqec_dir()
 
 # Load the output directory from environmental variables.
 if os.getenv('PANQEC_DIR') is not None:

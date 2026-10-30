@@ -8,7 +8,7 @@ included). A few things are looser than ldpc 2's classes: positional ``error_rat
 integers where a float is typed, NumPy scalars, and sequences where a list is typed are taken where
 ldpc's Cython signatures refuse them. Three things are stricter, or decode differently, where ldpc
 decodes: a received vector on a non-square check matrix under BP+LSD and BP+OSD is refused;
-``BpFlipDecoder`` refuses a negative ``flip_iterations`` and ``pflip_frequency``, which ldpc takes;
+``BpFlipDecoder`` refuses a negative ``pflip_frequency``, which ldpc takes;
 and a syndrome entry other than 0 or 1 gives a correction that differs from ldpc's, the difference
 depending on the decoder. Its v1 classes (``bp_decoder``, ``bposd_decoder``) are held to ldpc's
 exact types and one positional argument. And ``BpOsdDecoder.decoding`` returns the OSD decoding
@@ -1036,7 +1036,7 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
 
 class BpFlipDecoder(BpDecoderBase):
     """Bit flipping, then BP on what it leaves, as ldpc's ``BpFlipDecoder``: Gallager's
-    flipping for ``flip_iterations`` passes (0: the block length), every ``pflip_frequency``-th
+    flipping for ``flip_iterations`` passes (0: the block length; a negative count: none, as in ldpc), every ``pflip_frequency``-th
     pass flipping tied bits at random (``pflip_seed``; 0 is the clock), then BP decodes the
     remaining syndrome. ``osd_method`` and ``osd_order`` are accepted and unused, as in ldpc."""
 
@@ -1064,7 +1064,10 @@ class BpFlipDecoder(BpDecoderBase):
         self._input = "syndrome"
         self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, _Default(False), [None], ())
         self.flip_iterations = flip_iterations
-        self._flip = call(_core.Flip, self.m, self._cols, int(flip_iterations), int(pflip_frequency), int(pflip_seed) & 0xFFFFFFFF)
+        # ldpc's pass count is an int, and a negative one runs no pass (0 is the block length), so
+        # a negative count skips the flipping. The flip is built either way, which checks pflip_frequency.
+        self._flip_passes = int(flip_iterations) >= 0
+        self._flip = call(_core.Flip, self.m, self._cols, int(flip_iterations) if self._flip_passes else 1, int(pflip_frequency), int(pflip_seed) & 0xFFFFFFFF)
         self._decoding = np.zeros(self.n, dtype=np.uint8)
 
     @_one_at_a_time
@@ -1075,8 +1078,10 @@ class BpFlipDecoder(BpDecoderBase):
         if not syndrome.any():
             self._converge = True
             return np.zeros(self.n, dtype=syndrome.dtype)
-        flipped, _, _ = call(self._flip.decode, [int(x != 0) for x in syndrome])
-        flipped = np.asarray(flipped, dtype=np.uint8)
+        flipped = np.zeros(self.n, dtype=np.uint8)
+        if self._flip_passes:
+            flipped, _, _ = call(self._flip.decode, [int(x != 0) for x in syndrome])
+            flipped = np.asarray(flipped, dtype=np.uint8)
         residual = [int(x != 0) ^ y for x, y in zip(syndrome, self._syndrome_of(flipped))]
         hard, llr, converged, iterations = call(self._x.decode, residual)
         self._converge, self._iter, self._llr = bool(converged), int(iterations), np.asarray(llr, dtype=float)
