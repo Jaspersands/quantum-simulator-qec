@@ -12,6 +12,10 @@ policy for its documented items.
 
 ### Fixed
 
+- `stabilizer-qec convert` reads and writes a shot file of measurements, detectors and observables
+  together, as Stim's command line does (it refused them), and with `--dem` its shots are the model's
+  detectors then observables whatever `--types` says, as Stim's (`--types M` and `--types L` were
+  refused). `write_shot_data_file` still refuses the mixed widths, with Stim's message.
 - `stabilizer-qec repl` runs a REPEAT block one iteration at a time, so each iteration prints its
   own measurements as Stim's does (they were fused across iterations), and a block with a line that
   does not parse runs the lines after that one, as Stim's does, instead of dropping the block.

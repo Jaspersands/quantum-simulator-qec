@@ -611,13 +611,14 @@ def _counts(a):
         if a.circuit:
             c = _circuit(_read_text(a.circuit))
             have = dict(M=c.num_measurements, D=c.num_detectors, L=c.num_observables)
+            types = a.types if a.types is not None else "M"
+            if set(types) - set("MDL"):
+                raise UsageError("--types must be letters of M, D and L")
+            m, d, o = (have["M"] if "M" in types else 0), (have["D"] if "D" in types else 0), (have["L"] if "L" in types else 0)
         else:
+            # As Stim's, a model's shots are its detectors then its observables, whatever --types says.
             dem = DetectorErrorModel(_read_text(a.dem))
-            have = dict(M=0, D=dem.num_detectors, L=dem.num_observables)
-        types = a.types if a.types is not None else ("M" if a.circuit else "DL")
-        if set(types) - set("MDL"):
-            raise UsageError("--types must be letters of M, D and L")
-        m, d, o = (have["M"] if "M" in types else 0), (have["D"] if "D" in types else 0), (have["L"] if "L" in types else 0)
+            m, d, o = 0, dem.num_detectors, dem.num_observables
     elif a.bits_per_shot is not None:
         m = a.bits_per_shot
     return m, d, o

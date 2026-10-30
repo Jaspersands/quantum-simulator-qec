@@ -32,10 +32,7 @@ def _format(format: str) -> str:
 
 
 def _width(num_measurements: int, num_detectors: int, num_observables: int) -> int:
-    m, d, o = count(num_measurements, "num_measurements"), count(num_detectors, "num_detectors"), count(num_observables, "num_observables")
-    if m and (d or o):
-        raise ValueError("a shot file holds measurements, or detectors and observables, not both (as in Stim)")
-    return m + d + o
+    return count(num_measurements, "num_measurements") + count(num_detectors, "num_detectors") + count(num_observables, "num_observables")
 
 
 def _names(num_measurements: int, num_detectors: int, num_observables: int) -> list:
@@ -166,6 +163,8 @@ def write_shot_data_file(
     (n = measurements + detectors + observables). Anything else raises ValueError with Stim's
     message, as Stim does: a uint8 array is always read as packed bits, so 0/1 uint8 rows, or
     packed rows of the wrong width, are refused rather than written as other shots."""
+    if num_measurements and (num_detectors or num_observables):
+        raise ValueError("num_measurements and (num_detectors or num_observables)")
     n = _width(num_measurements, num_detectors, num_observables)
     a = data
     if not isinstance(a, np.ndarray) or a.ndim != 2 or a.dtype not in (np.bool_, np.uint8):
