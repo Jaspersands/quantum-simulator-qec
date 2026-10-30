@@ -103,3 +103,21 @@ def test_without_tags_keeps_deltakits_instructions():
     a, b = dk.Circuit(text).without_tags(), ours.Circuit(text).without_tags()
     assert str(a) == str(b)
     assert str(a.detector_error_model()) == str(b.detector_error_model())
+
+
+def test_flip_simulator_refuses_deltakits_instructions_and_runs_stim_circuits():
+    # Deltakit's FlipSimulator reads the herald of a leaked qubit as 1 in every shot; this
+    # package's frames hold no leakage, so its FlipSimulator refuses the instructions (and a copy
+    # of it does too) rather than read the herald as 0. A plain Stim circuit runs as before.
+    text = "R 0\nLEAKAGE(1.0) 0\nHERALD_LEAKAGE_EVENT(0.0) 0\nM 0"
+    reference = dk.FlipSimulator(batch_size=4)
+    reference.do(dk.Circuit(text))
+    assert reference.get_measurement_flips()[0].all()
+    sim = ours.FlipSimulator(batch_size=4)
+    with pytest.raises(ValueError, match="does not run Deltakit's leakage instructions"):
+        sim.do(ours.Circuit(text))
+    with pytest.raises(ValueError, match="does not run Deltakit's leakage instructions"):
+        sim.copy().do(ours.Circuit(text))
+    plain = ours.FlipSimulator(batch_size=2)
+    plain.do(ours.Circuit("X_ERROR(1) 0\nM 0"))
+    assert plain.get_measurement_flips().tolist() == [[True, True]]

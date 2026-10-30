@@ -99,7 +99,7 @@ class FlipSimulator:
         ``copy_rng``, otherwise freshly seeded (from ``seed`` if given)."""
         if copy_rng and seed is not None:
             raise ValueError("seed and copy_rng are incompatible")
-        out = FlipSimulator.__new__(FlipSimulator)
+        out = type(self).__new__(type(self))
         out._s = self._s.copy(None if copy_rng else _stim._seed(seed))
         return out
 

@@ -12,7 +12,8 @@ does (``circuit[1].name == "LEAKAGE"``), and runs them as Deltakit's does: its s
 Deltakit's frame simulator's leakage model (a leaked qubit depolarizes its partner in those
 gates; a reset returns it), and its ``detector_error_model`` is Deltakit's, with the leakage
 its heralds read (each herald firing with its qubit depolarized, and with each transport
-gate's partner depolarized after the leakage came). Everything else is this package's Stim.
+gate's partner depolarized after the leakage came). Everything else is this package's Stim,
+except its ``FlipSimulator``, whose frames hold no leakage: it refuses Deltakit's instructions.
 
 The circuit holds Deltakit's instructions as tagged lines Stim reads (``I_ERROR[LEAKAGE(p=…)]``
 and the rest, see ``Circuit.to_deltakit_text``), so ``stabilizer_qec.Circuit(c)`` is the same
@@ -53,7 +54,7 @@ import numpy as np
 
 import stabilizer_qec as _sq
 
-from . import _circuit, _core, _stim
+from . import _circuit, _core, _flip_sim, _stim
 from ._util import b8_to_rows, call, count, seed_of
 
 __version__ = "0.2.7"
@@ -363,6 +364,22 @@ class Circuit(_circuit.Circuit):
         if _has_dialect(self._stim_exact_text()):
             return _LeakyMeasurementSampler(self, seed, skip_reference_sample, reference_sample)
         return super().compile_sampler(skip_reference_sample=skip_reference_sample, seed=seed, reference_sample=reference_sample)
+
+
+class FlipSimulator(_flip_sim.FlipSimulator):
+    """``FlipSimulator`` for Deltakit's Stim. Its frames hold no leakage, so it refuses
+    Deltakit's instructions rather than run them as identities (a herald would read unleaked,
+    where Deltakit's reads leaked); the samplers and the detector error model here are the
+    leaky ones."""
+
+    __slots__ = ()
+
+    def do(self, obj: Any) -> None:
+        if _has_dialect(_stim._stim_text_of(obj)):
+            raise ValueError(
+                "FlipSimulator does not run Deltakit's leakage instructions (LEAKAGE, RELAX, RL, HERALD_LEAKAGE_EVENT, or a transport gate's four arguments): its frames hold no leakage. Sample the circuit with compile_sampler or compile_detector_sampler."
+            )
+        super().do(obj)
 
 
 def _dialect_name(name: str, arg: Any) -> Optional[str]:
