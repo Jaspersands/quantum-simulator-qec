@@ -37,6 +37,8 @@ policy for its documented items.
   `CircuitErrorModel` follows Loom's.
 - `stabilizer-qec help mqt.qecc.cc-decoder` prints the cc decoder's own usage (distance, error rate and its
   flags), not a usage line with `--out` and no positionals.
+- `from stabilizer_qec.mwpf import *` exports MWPF's names and the helpers' own, and no longer rebinds the
+  caller's `stim`, `np`, `json`, `random` and `time` to this package's modules.
 
 ## 2.2.0 — 2026-10-30
 

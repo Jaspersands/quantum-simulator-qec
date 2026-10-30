@@ -355,6 +355,20 @@ def test_stims_own_objects():
     assert str(ref.ref_circuit.RefCircuit.of([a])) == str(mw.ref_circuit.RefCircuit.of([b]))
 
 
+def test_star_import_leaves_the_callers_stim_and_numpy_alone():
+    # The helpers import this package as stim; a star import must not rebind the caller's stim (MWPF's does not).
+    import subprocess
+
+    code = (
+        "import stim, numpy as np, json, random, time\n"
+        "from stabilizer_qec.mwpf import *\n"
+        "assert stim.__name__ == 'stim' and np.__name__ == 'numpy' and json.__name__ == 'json'\n"
+        "assert random.__name__ == 'random' and time.__name__ == 'time'\n"
+    )
+    proc = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    assert proc.returncode == 0, proc.stderr
+
+
 def test_random_solver_inputs():
     rng = random.Random(5)
     for trial in range(40):
