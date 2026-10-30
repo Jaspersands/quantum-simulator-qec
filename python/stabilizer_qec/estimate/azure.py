@@ -2899,14 +2899,21 @@ def _job_item(qubit_params, qec_scheme_spec, error_budget, constraints, distilla
     """`azure_estimate`'s arguments as one item of the QDK's job parameters, and the unit templates given as
     objects (each stands in the item under its name)."""
     item: Dict[str, Any] = {}
+    # An object whose as_dict() is empty leaves its section out, as the QDK's EstimatorParams does; a dict is kept as it is.
     if qec_scheme_spec is not None:
-        item["qecScheme"] = _scheme_item(qec_scheme_spec)
+        scheme = _scheme_item(qec_scheme_spec)
+        if scheme or isinstance(qec_scheme_spec, dict):
+            item["qecScheme"] = scheme
     if error_budget is not None:
         item["errorBudget"] = _budget_item(error_budget)
     if qubit_params is not None:
-        item["qubitParams"] = _qubit_item(qubit_params)
+        qubit = _qubit_item(qubit_params)
+        if qubit or isinstance(qubit_params, dict):
+            item["qubitParams"] = qubit
     if constraints is not None:
-        item["constraints"] = _constraints_item(constraints)
+        limits = _constraints_item(constraints)
+        if limits or isinstance(constraints, dict):
+            item["constraints"] = limits
     overrides: Dict[int, DistillationUnitTemplate] = {}
     if distillation_unit_specifications is not None:
         units = distillation_unit_specifications

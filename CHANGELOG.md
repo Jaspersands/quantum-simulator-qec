@@ -19,6 +19,9 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- `azure_estimate` and `azure_estimator` leave out an empty `EstimatorQubitParams`, `EstimatorQecScheme` or
+  `EstimatorConstraints` object, as the QDK's `EstimatorParams` does, instead of raising the QDK's
+  parse error for it; a plain empty dict is still refused.
 
 ## 2.2.0 — 2026-10-30
 
