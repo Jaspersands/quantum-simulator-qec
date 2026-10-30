@@ -982,6 +982,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 def _cli_main() -> int:
     """Executable boundary: prevent CPython retrying a failed stdout buffer at shutdown."""
+    # A standard stream closed before the program starts is None; its writes go nowhere, as the
+    # C++ streams' writes to a closed descriptor do.
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name) is None:
+            setattr(sys, name, open(os.devnull, "w"))
     status = 0
     try:
         status = main()

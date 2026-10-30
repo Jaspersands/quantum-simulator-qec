@@ -596,6 +596,17 @@ def test_cli_stats_out_is_utf8_under_an_ascii_locale(tmp_path):
     assert str(tmp_path / "\u00e9.dem").encode("utf-8") in (tmp_path / "stats.json").read_bytes()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="needs sh and a standard output that can be closed")
+def test_cli_with_stdout_closed_exits_0(tmp_path):
+    # With file descriptor 1 closed, the summary has nowhere to go (as C++ streams discard it): the
+    # run succeeds, and the module's shutdown raises nothing.
+    (tmp_path / "s.dem").write_text(SMALL_DEM)
+    (tmp_path / "s.01").write_text("1000\n0110\n")
+    command = f"exec 1>&-; exec {sys.executable} -m stabilizer_qec.tesseract_decoder --dem {tmp_path / 's.dem'} --in {tmp_path / 's.01'} --in-format 01 --in-includes-appended-observables"
+    r = subprocess.run(["sh", "-c", command], capture_output=True, timeout=60)
+    assert (r.returncode, r.stderr) == (0, b"")
+
+
 def test_cli_reads_models_with_non_utf8_comment_bytes(tmp_path, capsys):
     # Stim reads a model's or circuit's bytes and passes over those in a comment, so Tesseract's
     # program reads such a file; here a byte that is not UTF-8 is replaced, as the Chromobius
