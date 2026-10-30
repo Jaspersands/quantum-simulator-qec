@@ -2132,7 +2132,8 @@ whole circuit that flip an observable and set off no detector. It is measured th
 
 The graph-like search is Stim's own algorithm and returns Stim's own faults: its model text and
 its explained errors equal Stim's character for character (on Stim's generated codes, 300
-random models and 100 random circuits), in about a tenth of Stim's time. The breadth-first
+random models and 100 random circuits), in about a tenth of Stim's time once the model has been used; the first call builds the graph
+and takes two to four times Stim's. The breadth-first
 search gives the same number of faults as Stim's on every circuit compared (Stim's surface,
 repetition and colour codes, the Steane code and the [[72, 12, 6]] code). Each fault either
 returns is explained: the gate it comes from, its targets, and the Pauli product or measurement
