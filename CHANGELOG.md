@@ -23,6 +23,18 @@ policy for its documented items.
   a NUL byte, as fusion_blossom does, where it answered 403 `Access denied.`.
 - The `beliefmatching` and `relay-bp` extras install scipy, which those modules import; before, no
   extra provided it, so a base install failed with `ModuleNotFoundError` on import.
+- Loom's operations read an integral float or, for `n_cycles` and `logical_qubit`, a numeric string in
+  their int fields as Loom does, and refuse other values at construction (`n_cycles=2.0` built and then
+  failed in the interpreter). They also refuse a non-str block name, a bare str as a `LogicalMeasurement`'s
+  blocks, and a `SyndromeCircuit` with a Pauli letter other than X, Y or Z.
+- A finished Loom interpretation refuses its `*_MUT` methods with Loom's "Cannot change properties of the
+  final InterpretationStep" error, where it accepted changes.
+- Loom's keyword names replace the port's where they differed (`other_operator`, `input_circuit`,
+  `input_istep`, `rec_dict`, `measurement_offset`, `final_step`, `data_dict`), so Loom-style keyword calls work.
+- Loom's messages for an invalid `Direction`, `Orientation`, `ResourceState` or `FourBodySchedule` value, for a
+  non-square lattice in `RotatedSurfaceCode.create`, and for a block removed twice name the value or the block
+  label; a default `SyndromeCircuit` is named `SyndromeCircuit`, not lower-cased; `repr` of `Detector` and
+  `CircuitErrorModel` follows Loom's.
 
 ## 2.2.0 — 2026-10-30
 
