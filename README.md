@@ -1260,7 +1260,7 @@ colour and repetition codes, the surgery CNOT and a circuit with every channel, 
 heralds and nested loops. Min-sum BP runs the same way: `BpDecoder(device="cpu-f32")` in single
 precision on the CPU, `device="gpu"` on the GPU, bit for bit the same decisions. Shots per second
 (`tools/gpu_bench.py`, `data/gpu/bench.json`; Stim's generated memories at p = 0.1%, d rounds, a million
-shots; this machine's CPU and GPU are named in the file):
+shots; this machine's GPU is named in the file, and its CPU only by architecture):
 
 | memory | qubits | CPU, 1 thread | CPU, all cores | CPU lanes, all cores | GPU | GPU ÷ 1 thread | GPU = lanes |
 |---|---|---|---|---|---|---|---|
