@@ -1,3 +1,7 @@
+// Copyright 2023 Google LLC
+// Licensed under the Apache License, Version 2.0 (see THIRD_PARTY_NOTICES.md). Modified: ported
+// to Rust for this crate.
+
 //! Decoding one shot: the Möbius matching, its Euler tours, and each tour lifted back to the
 //! code by carrying colour charge around it (Chromobius's `decode/decoder.cc` and
 //! `graph/euler_tours.cc`).

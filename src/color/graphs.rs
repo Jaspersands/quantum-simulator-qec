@@ -1,3 +1,7 @@
+// Copyright 2023 Google LLC
+// Licensed under the Apache License, Version 2.0 (see THIRD_PARTY_NOTICES.md). Modified: ported
+// to Rust for this crate.
+
 //! The tables that lift a Möbius matching back to the code: each detector's representative
 //! basic fault (`choose_rgb_reps`), the charge graph (how pairs of faults move charge), and the
 //! drag graph (what dragging charge between neighbouring detectors flips). Chromobius's

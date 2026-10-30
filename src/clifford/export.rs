@@ -1,3 +1,7 @@
+// Copyright 2021 Google LLC
+// Licensed under the Apache License, Version 2.0 (see THIRD_PARTY_NOTICES.md). Modified: ported
+// to Rust for this crate.
+
 //! Stim's exports of a circuit: OpenQASM 2 and 3 (`export_qasm.cc`), a Quirk URL
 //! (`export_quirk_url.cc`), and its detecting regions (`circuit_to_detecting_regions.cc`). Each
 //! writes what Stim writes, character for character, quirks included.

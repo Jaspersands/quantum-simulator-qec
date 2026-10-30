@@ -1,3 +1,7 @@
+// Copyright 2021 Google LLC
+// Licensed under the Apache License, Version 2.0 (see THIRD_PARTY_NOTICES.md). Modified: ported
+// to Rust for this crate.
+
 //! Stim's `FlipSimulator`: an interactive Pauli-frame simulator over a batch of instances.
 //! Each qubit's X and Z flips, each measurement's, detector's and observable's flips are rows
 //! of bits, one bit per instance, packed 64 to a word. Every instruction of Stim's language
