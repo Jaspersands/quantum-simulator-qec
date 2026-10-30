@@ -325,8 +325,9 @@ Each benchmark times the same job here and in the reference, on the same machine
 thread, as a ratio: this package's time over Stim's (or PyMatching's, or the named decoder
 package's), below 1 faster. These
 are the latest runs recorded for each kind of machine (`tools/bench.py`; Linux on GitHub's
-runners, `.github/workflows/bench.yml`); every push is held to them, and the
-[benchmarks page](https://qcompiler.jaspersands.com/benchmarks/) plots every release's.
+runners, `.github/workflows/bench.yml`); CI holds each push's Linux runs to them, and the
+[benchmarks page](https://qcompiler.jaspersands.com/benchmarks/) tabulates the recorded runs,
+from 1.5.0 on and not for every release.
 
 | benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
 |---|---|---|---|
