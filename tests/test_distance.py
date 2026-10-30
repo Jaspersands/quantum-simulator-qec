@@ -85,13 +85,21 @@ def test_graphlike_random_models_and_circuits_are_stims():
                     sq.DetectorErrorModel(text).shortest_graphlike_error(ignore_ungraphlike_errors=ignore)
                 continue
             assert str(sq.DetectorErrorModel(text).shortest_graphlike_error(ignore_ungraphlike_errors=ignore)) == want, text
+    # Stim explains 56 of these 100 circuits with ungraphlike errors refused; it refuses the other 44,
+    # and so does this package. (The disjoint=False circuits are all refused by Stim.)
+    compared = 0
     for seed in range(100 if EXPLAINS_AS_STIM else 0):
-        text = random_case(seed, disjoint=False)
+        text = random_case(seed, disjoint=True, paulis=True)
         try:
-            want = [str(e) for e in stim.Circuit(text).shortest_graphlike_error()]
+            want = [str(e) for e in stim.Circuit(text).shortest_graphlike_error(ignore_ungraphlike_errors=False)]
         except ValueError:
+            with pytest.raises(ValueError):
+                sq.Circuit(text).shortest_graphlike_error(ignore_ungraphlike_errors=False)
             continue
-        assert [str(e).rstrip("\n") for e in sq.Circuit(text).shortest_graphlike_error()] == want, text
+        assert [str(e).rstrip("\n") for e in sq.Circuit(text).shortest_graphlike_error(ignore_ungraphlike_errors=False)] == want, text
+        compared += 1
+    if EXPLAINS_AS_STIM:
+        assert compared >= 50, compared
 
 
 @pytest.mark.parametrize("d", [3, 5, 7])
