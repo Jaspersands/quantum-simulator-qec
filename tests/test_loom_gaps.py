@@ -685,3 +685,26 @@ def test_a_noisy_repetition_chain_decodes(name):
     d, o = circuit.compile_detector_sampler(seed=5).sample(2000, separate_observables=True)
     predicted = sq.Matching.from_detector_error_model(dem).decode_batch(d)
     assert (predicted != o).any(axis=1).mean() < 0.03
+
+
+
+def test_int_fields_read_integral_floats_and_numeric_strings_as_loom_does():
+    assert loom.MeasureBlockSyndromes("a", n_cycles=2.0).n_cycles == 2
+    assert loom.MeasureBlockSyndromes("a", n_cycles="2").n_cycles == 2
+    assert loom.MeasureLogicalX("a", logical_qubit=1.0).logical_qubit == 1
+    assert loom.Grow("a", loom.Direction.LEFT, 2.0).length == 2
+    assert loom.Split("a", ("b", "c"), loom.Orientation.HORIZONTAL, 2.0).split_position == 2
+    with pytest.raises(ValueError):
+        loom.MeasureBlockSyndromes("a", n_cycles=2.5)
+    with pytest.raises(ValueError):
+        loom.MeasureBlockSyndromes("a", n_cycles="x")
+    with pytest.raises(ValueError):
+        loom.Grow("a", loom.Direction.LEFT, "2")
+
+
+def test_malformed_operations_and_circuits_are_refused_at_construction():
+    for make in (lambda: loom.MeasureLogicalX(None, 0), lambda: loom.LogicalX(input_block_name=5),
+                 lambda: loom.MeasureLogicalX("a", logical_qubit="x"), lambda: loom.LogicalMeasurement(blocks="ab", observable="ZZ"),
+                 lambda: loom.SyndromeCircuit("XQ")):
+        with pytest.raises(ValueError):
+            make()

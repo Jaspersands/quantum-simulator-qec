@@ -348,6 +348,9 @@ class SyndromeCircuit:
     def __post_init__(self) -> None:
         if not self.pauli:
             raise ValueError("A syndrome circuit needs a Pauli string.")
+        for p in self.pauli:
+            if p not in "XYZ":
+                raise ValueError(f"Invalid pauli: {p}. Must be one of ['X', 'Y', 'Z'].")
         if not self.name:
             raise ValueError("A syndrome circuit needs a name.")
         # Loom keeps circuit names in lower case (its applicators look them up as "xxxx",

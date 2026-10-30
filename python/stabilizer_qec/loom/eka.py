@@ -733,6 +733,8 @@ class LogicalMeasurement:
     observable: str
 
     def __post_init__(self) -> None:
+        if isinstance(self.blocks, str):
+            raise ValueError(f"blocks must be a sequence of block names, not the str {self.blocks!r}.")
         object.__setattr__(self, "blocks", tuple(self.blocks))
         if len(self.blocks) != len(self.observable):
             raise ValueError("One Pauli letter per block.")
@@ -809,6 +811,16 @@ class MeasureObservable(BaseOperation):
 class CodeOperation(Operation):
     """An operation on blocks; ``_inputs`` and ``_outputs`` name them."""
 
+    def __post_init__(self) -> None:
+        # Loom types block names as strings and the qubit and cycle counts as ints.
+        for name in ("input_block_name", "output_block_name"):
+            if hasattr(self, name) and not isinstance(getattr(self, name), str):
+                raise ValueError(f"{name} must be a block name (a str), not {getattr(self, name)!r}.")
+        if hasattr(self, "logical_qubit"):
+            object.__setattr__(self, "logical_qubit", _int_field("logical_qubit", self.logical_qubit))
+        if hasattr(self, "n_cycles"):
+            object.__setattr__(self, "n_cycles", _int_field("n_cycles", self.n_cycles))
+
     @property
     def _inputs(self) -> tuple[str, ...]:
         if hasattr(self, "input_block_name"):
@@ -824,6 +836,21 @@ class CodeOperation(Operation):
         if hasattr(self, "output_blocks_name"):
             return tuple(getattr(self, "output_blocks_name"))
         return self._inputs
+
+
+def _int_field(name: str, value, text: bool = True) -> int:
+    """Loom's int fields as pydantic's lax mode reads them: an integral float is its int and, unless
+    ``text`` is off, so is a numeric string; any other value must already be an int."""
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    elif text and isinstance(value, str):
+        try:
+            value = int(value)
+        except ValueError:
+            pass
+    if not isinstance(value, int):
+        raise ValueError(f"{name} must be an integer, not {value!r}.")
+    return value
 
 
 def _positive(name: str, value: int) -> None:
@@ -889,6 +916,7 @@ class ResetAllDataQubits(CodeOperation):
     state: SingleQubitPauliEigenstate = SingleQubitPauliEigenstate.ZERO
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "state", SingleQubitPauliEigenstate(self.state))
 
 
@@ -898,6 +926,7 @@ class ResetAllAncillaQubits(CodeOperation):
     state: SingleQubitPauliEigenstate = SingleQubitPauliEigenstate.ZERO
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "state", SingleQubitPauliEigenstate(self.state))
 
 
@@ -908,7 +937,9 @@ class Grow(CodeOperation):
     length: int
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "direction", Direction(self.direction))
+        object.__setattr__(self, "length", _int_field("length", self.length, text=False))
         _positive("length", self.length)
 
 
@@ -919,7 +950,9 @@ class Shrink(CodeOperation):
     length: int
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "direction", Direction(self.direction))
+        object.__setattr__(self, "length", _int_field("length", self.length, text=False))
         _positive("length", self.length)
 
 
@@ -930,6 +963,7 @@ class Merge(CodeOperation):
     orientation: Optional[Orientation] = None
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "input_blocks_name", _pair("input_blocks_name", self.input_blocks_name))
         if self.orientation is not None:
             object.__setattr__(self, "orientation", Orientation(self.orientation))
@@ -943,8 +977,10 @@ class Split(CodeOperation):
     split_position: int
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "output_blocks_name", _pair("output_blocks_name", self.output_blocks_name))
         object.__setattr__(self, "orientation", Orientation(self.orientation))
+        object.__setattr__(self, "split_position", _int_field("split_position", self.split_position, text=False))
         _positive("split_position", self.split_position)
 
 
@@ -954,6 +990,7 @@ class StateInjection(CodeOperation):
     resource_state: ResourceState
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "resource_state", ResourceState(self.resource_state))
 
 
@@ -984,6 +1021,7 @@ class AuxCNOT(CodeOperation):
     input_blocks_name: tuple[str, str]
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "input_blocks_name", _pair("input_blocks_name", self.input_blocks_name))
 
 
@@ -998,6 +1036,7 @@ class MoveBlock(CodeOperation):
     direction: Direction
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "direction", Direction(self.direction))
 
 
@@ -1007,6 +1046,7 @@ class LogicalPhaseViaYwall(CodeOperation):
     growth_direction: Direction
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "growth_direction", Direction(self.growth_direction))
 
 
@@ -1016,6 +1056,7 @@ class RotateBlock(CodeOperation):
     grow_direction: Direction
 
     def __post_init__(self) -> None:
+        super().__post_init__()
         object.__setattr__(self, "grow_direction", Direction(self.grow_direction))
 
 
