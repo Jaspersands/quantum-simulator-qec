@@ -171,9 +171,10 @@ jobs:
         # qldpc 0.4.1, which needs sinter 1.16, cannot install), and Tsim is left out; the live-references job below
         # builds and runs those, its installs fatal.
         run: |
-          # ldpc 2.4.1 needs Python 3.10: the 3.9 jobs take the newest ldpc that installs there.
-          if [ "${{ matrix.python }}" = "3.9" ]; then ldpc_pin=ldpc; else ldpc_pin=ldpc==2.4.1; fi
-          for p in stim==1.16.0 pymatching==2.4.0 $ldpc_pin beliefmatching scipy sinter matplotlib networkx qec-util galois sympy cvxpy diskcache platformdirs pyperclip tqdm mpmath click "qiskit[qasm3-import]" z3-solver numba multiprocess quits==1.2.0 panqec==0.1.7 pandas psutil python-dotenv flask deltakit-stim==0.2.7 deltakit-circuit==0.9.2 deltakit-core==0.9.2 deltakit-decode==0.9.2 deltakit-explorer==0.9.4 seaborn plotly dash==4.4.1 pathos uncertainties adjustText "gql[requests]" pytest-mock pytest-lazy-fixtures chromobius==1.1.1 fusion-blossom==0.2.13 "mwpf[stim]==0.2.12" tesseract-decoder==0.1.1.dev20261013012529 pyzx-param==0.9.3; do
+          # Stim 1.16 has no build for Python 3.9, where 1.15 is the last, and ldpc 2.4.1 needs Python 3.10:
+          # the 3.9 jobs name Stim 1.15.0 and take the newest ldpc that installs there.
+          if [ "${{ matrix.python }}" = "3.9" ]; then stim_pin=stim==1.15.0; ldpc_pin=ldpc; else stim_pin=stim==1.16.0; ldpc_pin=ldpc==2.4.1; fi
+          for p in $stim_pin pymatching==2.4.0 $ldpc_pin beliefmatching scipy sinter matplotlib networkx qec-util galois sympy cvxpy diskcache platformdirs pyperclip tqdm mpmath click "qiskit[qasm3-import]" z3-solver numba multiprocess quits==1.2.0 panqec==0.1.7 pandas psutil python-dotenv flask deltakit-stim==0.2.7 deltakit-circuit==0.9.2 deltakit-core==0.9.2 deltakit-decode==0.9.2 deltakit-explorer==0.9.4 seaborn plotly dash==4.4.1 pathos uncertainties adjustText "gql[requests]" pytest-mock pytest-lazy-fixtures chromobius==1.1.1 fusion-blossom==0.2.13 "mwpf[stim]==0.2.12" tesseract-decoder==0.1.1.dev20261013012529 pyzx-param==0.9.3; do
             python -m pip install --only-binary=:all: "$p" || echo "::notice::$p is not available for Python ${{ matrix.python }} on ${{ matrix.os }}"
           done
           # Quantumsim 0.2.0, the density matrix's reference, without the dependencies the test does not use.

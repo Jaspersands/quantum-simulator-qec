@@ -184,4 +184,14 @@ def test_ldpc_is_pinned_wherever_the_comparisons_install_it():
     loops = [c for job in jobs.values() for s in _steps(job) for c in _commands(s) if c.startswith("for p in ")]
     assert any("$ldpc_pin" in c.split() for c in loops), "the test matrix's install loop does not take the ldpc pin"
     text = CI.read_text()
-    assert "ldpc_pin=ldpc==2.4.1;" in text and 'then ldpc_pin=ldpc;' in text, "the ldpc pin is not set for Python 3.10 and up, and left open for 3.9"
+    assert "ldpc_pin=ldpc==2.4.1;" in text and " ldpc_pin=ldpc;" in text, "the ldpc pin is not set for Python 3.10 and up, and left open for 3.9"
+
+
+def test_python_39_names_stim_115_in_the_matrix_install():
+    """Stim 1.16 has no build for Python 3.9, where 1.15 is the last: the test matrix's install loop takes
+    stim_pin, which the 3.9 branch sets to stim==1.15.0 by name and the other Pythons set to stim==1.16.0."""
+    text = CI.read_text()
+    assert re.search(r'if \[ "\$\{\{ matrix\.python \}\}" = "3\.9" \]; then stim_pin=stim==1\.15\.0;', text), "Python 3.9 is not given Stim 1.15.0 by name"
+    assert "else stim_pin=stim==1.16.0;" in text
+    loops = [c for job in _jobs().values() for s in _steps(job) for c in _commands(s) if c.startswith("for p in ")]
+    assert any("$stim_pin" in c.split() for c in loops), "the test matrix's install loop does not take the Stim pin"
