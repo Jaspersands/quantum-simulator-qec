@@ -161,15 +161,15 @@ class css_code:
             assert not np.any((self.hz @ self.lx.T).data % 2)
         except AssertionError:
             valid_code = False
-            print(" -lx \in ker{hz} AND lz \in ker{hx}: Fail")
+            print(" -lx \\in ker{hz} AND lz \\in ker{hx}: Fail")
 
         try:
             assert not np.any((self.hx @ self.lz.T).data % 2)
             if show_tests:
-                print(" -lx \in ker{hz} AND lz \in ker{hx}: Pass")
+                print(" -lx \\in ker{hz} AND lz \\in ker{hx}: Pass")
         except AssertionError:
             valid_code = False
-            print(" -lx \in ker{hz} AND lz \in ker{hx}: Fail")
+            print(" -lx \\in ker{hz} AND lz \\in ker{hx}: Fail")
 
         # if show_tests and valid_code: print("\t-lx \in ker{hz} AND lz \in ker{hx}: Pass")
 

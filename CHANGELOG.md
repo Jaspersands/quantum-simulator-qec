@@ -19,6 +19,8 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- The bposd port's `css_code` and `stab_code` no longer compile with invalid-escape warnings
+  (`\in` in their printed logical-membership lines); the printed text is unchanged.
 
 ## 2.2.0 — 2026-10-30
 
