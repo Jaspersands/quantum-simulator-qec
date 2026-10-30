@@ -1,5 +1,5 @@
 # Ported from bposd 2.1 (quantumgizmos/bp_osd; Joschka Roffe, MIT; see THIRD_PARTY_NOTICES.md), modified for stabilizer_qec:
-# its ldpc is this package's.
+# its ldpc is this package's, and tqdm is optional (a no-op progress bar when it is missing).
 import numpy as np
 from stabilizer_qec.ldpc import mod2
 try:
