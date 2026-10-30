@@ -389,8 +389,10 @@ probabilities (Tsim's <code>channel_probs</code> entry, an array) are kept as th
 in Tsim's tagged form (<code>S[T] 0</code>).</li>
 <li><code>to_matrix</code> of a circuit with an instruction Tsim's graph builders cannot read (a tag the core
 leaves inert, <code>I[foo(x)] 0</code>, which <code>get_graph</code> refuses as Tsim does) is the unitary engine's
-matrix, where Tsim's <code>to_matrix</code> raises that error (and a refusal of a Pauli product after
-that instruction is not raised either), unless a product rotation names a qubit twice
+matrix when the circuit has no measurement, detector, observable, later reset, feedback or
+rotation past 2^20 radians; any other such circuit raises that error, as Tsim's <code>to_matrix</code>
+does (and a refusal of a Pauli product after that instruction is not raised either), unless a
+product rotation names a qubit twice
 (<code>TPP X0*Y0*X0</code>, whose sign the engine does not keep): then it raises that error, as Tsim's.
 Where a product leaves a qubit out of Tsim's graph (an identity letter's, <code>pauli=X_</code>, or one
 <code>SPP X0*X0</code> cancels on), that matrix is Tsim's of the circuit without the instruction up to
@@ -728,7 +730,8 @@ first gives its state, a 2^n × 1 column (up to 22 qubits), and one that resets 
 <code>TICK</code> are nothing. At most 2^22 entries (a unitary of 11 qubits).</p>
 
 <p>A circuit with a measurement, a detector or observable, a reset after a qubit's first
-operation, feedback or a product rotation naming a qubit twice (<code>TPP X0*Y0*X0</code>) is Tsim's
+operation, feedback, a rotation whose angle is over 2^20 radians (<code>R_Z(1000000000000.25)</code>, which the
+engine's float cannot hold to 1e-10) or a product rotation naming a qubit twice (<code>TPP X0*Y0*X0</code>) is Tsim's
 ZX tensor of it (<code>tsim.zx.tensorfy</code>), contracted in
 numpy with every measurement outcome and error bit read as 0: a measurement is the
 identity on its qubit times 1/sqrt(2) (<code>H 0</code> then <code>M 0</code> is [[.5, .5], [.5, -.5]]), a
@@ -749,7 +752,9 @@ the engine takes milliseconds for tens of thousands of instructions (<code>REPEA
 far longer. A circuit without products or sweep bits does not build it, and one with an
 instruction the builders cannot read (a tag the core leaves inert, <code>I[foo(x)] 0</code>) is the
 engine's matrix, as without products (Tsim's raises its parse error), unless a product
-rotation names a qubit twice: without a graph that raises Tsim's parse error too. Where a
+rotation names a qubit twice: without a graph that raises Tsim's parse error too. A circuit
+with such an instruction and a measurement, detector, observable, later reset, feedback or
+rotation past 2^20 radians is the ZX tensor, which raises that error. Where a
 product leaves a qubit out of Tsim's graph (an identity letter's, <code>pauli=X_</code>, or one
 <code>SPP X0*X0</code> cancels on), the engine's matrix leaves it out too, and is Tsim's matrix of the
 circuit without that instruction up to the engine's global phase.</p>
@@ -1589,7 +1594,8 @@ this package's; every other line as it is. A tag is read with Tsim's grammar: on
 <code>name(...)</code> with arguments Tsim refuses (<code>I[R_Z(theta=0.3*pi*pi)] 0</code>, <code>I[U3(theta=0.1*pi)] 0</code>)
 raises Tsim's error as this package's <code>ValueError</code> naming the line, and a half-turn rotation
 Tsim reads as no gate (<code>I[R_Z (theta=0.3*pi)] 0</code>, <code>I[ R_Z(theta=0.3*pi)] 0</code>,
-<code>I[R_Z(theta=0.3*pi)#x] 0</code>) is the identity <code>I 0</code> (its tag, inert in Tsim, is not kept).</p>
+<code>I[R_Z(theta=0.3*pi)#x] 0</code>) is the identity <code>I 0</code> (its tag, inert in Tsim, is not kept). A
+correlated error with a combiner (<code>E(0.1) X0*Z1</code>) raises Tsim's error for its targets.</p>
 </div>
 
 
