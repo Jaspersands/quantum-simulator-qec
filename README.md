@@ -1023,8 +1023,9 @@ some 18 hours. Every decoder below is scored on the same shots:
 | Google, Harmony (RL prior) | 0.731% | 0.387% | 0.204% | 1.89 [1.88, 1.91] |
 | Google, Libra (RL prior) | 0.713% | 0.350% | 0.170% | 2.05 [2.03, 2.06] |
 
-- **Belief-matching wins small and loses large.** At d = 3 it beats every matcher here, correlated
-  ones included (0.824% against 0.888% for ours and 0.835% for Google's). At d = 5 it ties
+- **Belief-matching wins small and loses large.** At d = 3 it beats every matcher here except
+  Google's Harmony and Libra (RL priors, 0.731% and 0.713%), and it beats correlated matching
+  (0.824% against 0.888% for ours and 0.835% for Google's). At d = 5 it ties
   correlated matching; at d = 7 it is worse (0.251% against 0.231%). So its Λ, 1.81, is lower than
   correlated matching's 1.96.
 - **BP rarely settles on these models.** It converges alone on 16% of Willow's shots. Elsewhere its
