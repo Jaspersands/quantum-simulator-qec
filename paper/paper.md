@@ -113,7 +113,8 @@ corrections equal `ldpc`'s except where tied corrections are chosen differently.
 identical to IBM's implementation, the search decoder finds Tesseract's faults, and colour-code
 matching weighs every Möbius matching as Chromobius does. Explained errors and the text timeline
 diagram match Stim's output character for character. The command line is byte-identical to Stim's wherever Stim's output is
-deterministic.
+deterministic, except that its help pages and messages name stabilizer-qec, and its top-level help
+lists more commands.
 
 *One engine, three targets.* Sampling, model building and decoding run in the same process, so
 the browser, Python and Rust users get the same shots and the same error model from a seed, on
@@ -121,9 +122,9 @@ any number of threads. Their decoders can differ only among equal-weight matchin
 Python's `Matching` makes PyMatching's choice, while the crate's `Matching` and the browser
 decode on the engine's own matcher, which can choose another. The sampler packs 64 shots into a machine word and runs `REPEAT` blocks
 without flattening them, taking 0.89 µs a shot at d = 7 against Stim's 1.44 µs on the recording
-machine (Apple silicon). There, the engine's own sparse blossom runs at 0.89 to 0.99 times PyMatching's
-single-threaded time, and correlated matching at 0.75 to 0.94 times PyMatching's; on Linux x86_64
-both take about 1.2 times. Error models are built in about half of Stim's time.
+machine (Apple silicon). There, the engine's own sparse blossom runs at 1.02 times PyMatching's single-threaded time, and
+correlated matching at 1.03 times (the 2.2.0 record; a 1.7 pass had reached 0.89 to 0.99 and 0.75
+to 0.94); on Linux x86_64 both took about 1.2 times in the 1.8.0 run. Error models are built in about half of Stim's time.
 
 *Real data, not only simulation.* The engine rebuilds the detection events of every published
 Willow and Sycamore surface-code experiment from Google's raw measurements, bit for bit (550

@@ -292,8 +292,9 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   those lines taken out. On older HTTP handlers, GET/HEAD `//index.js` returns 200 here
   while the live upstream returns 404; the port is compared with that live upstream's
   canonical `/index.js` response after checking that exact upstream 404. Windows upstream
-  website CRLF is compared as LF, with raw upstream body/length and installed LF resource checks. These are explicit
-  limits on raw live-response parity.
+  website CRLF is compared as LF, with raw upstream body/length and installed LF resource checks. A percent-encoded slash is a further limit: `GET /%2Fdata/x.txt`
+  returns 200 here, since the server decodes it to `//` and the port collapses that, while the live
+  upstream returns 404. These are explicit limits on raw live-response parity.
   The helper binds when run, uses the latest process-wide serve root and needs `server_close()`
   after shutdown to release its socket. The serve root (cwd and any symlinks in it) is resolved
   when `serve()` is called, so ETags use the resolved path and differ from fusion_blossom's for
@@ -448,8 +449,9 @@ decoded by its own decoder, and compared with Stim's sampler decoded by PyMatchi
 
 The last two columns are native decode time per shot.
 
-**4. Speed.** Single-threaded, this engine takes 0.89 to 0.99 times PyMatching's time per
-shot, and its correlated matching 0.75 to 0.94 times PyMatching's correlated mode. At d = 7, p = 0.6%
+**4. Speed.** Single-threaded, this engine took 0.89 to 0.99 times PyMatching's time per shot in the
+1.7 pass (1.02 in the 2.2.0 record), and its correlated matching 0.75 to 0.94 times PyMatching's
+correlated mode (1.03 in 2.2.0). At d = 7, p = 0.6%
 it takes 13.1 µs a shot, native, against PyMatching's 14.6 µs. The first version of this check used
 the dense matcher, which was 18 to 136 times slower and fell further behind as the patch grew. The
 sparse matcher closed most of that gap, and later passes (below) the rest. It also decodes shots
@@ -556,7 +558,7 @@ written for `stim` runs with `import stabilizer_qec as stim`. Two suites check i
 | `FlipSimulator` | bit-packed rows in Rust; flips identical to Stim's with randomization off, but for `broadcast_pauli_errors` at `p=0` (below) | examples, random circuits, noise statistics |
 | `Compiled*Sampler`, `CompiledMeasurementsToDetectionEventsConverter` | the same (aliases of the native samplers), every file format byte for byte | examples, file comparisons |
 | `ExplainedError` and its parts | the same objects, text and reprs | examples, generated codes |
-| `read_shot_data_file`, `write_shot_data_file`, `main` and the `stim` command line | the same flags, formats and help pages; `repl` byte for byte on standard output; shots streamed 1,024 at a time, so memory stays flat in `--shots` | examples, command-line comparisons |
+| `read_shot_data_file`, `write_shot_data_file`, `main` and the `stim` command line | the same flags, formats and help pages (which name stabilizer-qec); `repl` byte for byte on standard output; shots streamed 1,024 at a time, so memory stays flat in `--shots` | examples, command-line comparisons |
 
 Where Stim's output depends on its random number generator, results agree in distribution, not
 bit for bit. Four differences are deliberate and documented: products Stim parses but cannot
@@ -567,12 +569,12 @@ fault Stim would split into pieces of its channel whose observables do not add u
 left whole (Stim's split changes what the fault does to the observables: on ldpc's [[4,2,2]]
 memory in the X basis, 1.3e-4 of probability moves from `D1 D2 L0` to `D1 D2`, and so on); and
 a tag Stim reads as inert names a gate here. `I[T]`, `I[R_Z(…)]`, `I[U3(…)]` and the other
-rotations written on `I` or `II` are run as the gates they name by `compile_sampler` and
-`compile_detector_sampler` (the stabilizer-rank sampler, see
+rotations written on `I` or `II` are run as the gates they name by `compile_sampler`,
+`compile_detector_sampler`, `detector_error_model` and `to_matrix` (the stabilizer-rank sampler, see
 [Clifford+T circuits](#cliffordt-circuits-and-coherent-noise-on-every-gate)), and `inverse()`
 inverts them (`I[T]` to `I[T_DAG]`), where Stim runs and inverts an identity; `without_tags()`
-gives the circuit Stim runs. The error model, `to_tableau`, flows and `TableauSimulator.do` read
-them as Stim does. One known difference is not deliberate: `FlipSimulator.broadcast_pauli_errors`
+gives the circuit Stim runs. `to_tableau`, flows and `TableauSimulator.do` read
+them as Stim does, as identities. One known difference is not deliberate: `FlipSimulator.broadcast_pauli_errors`
 at `p=0` applies no flip, where Stim 1.16 applies the masked flips as at `p=1`. The SVG diagrams
 are this package's own drawings.
 
@@ -805,7 +807,7 @@ where PyMatching accepts them; proven no-op merges retain configuration. `src/sp
 | XZZX | 7 | 0.6% | 8.027% | 8.033% | 10.646% | 292 | 37.3 | 32.8 |
 
 100,000 shots per row, sampled by Stim, SD6 noise, T = d. The timing columns are single-threaded,
-correlated mode for both: ours takes 0.75 to 0.94 times as long as PyMatching's. Natively (the
+correlated mode for both: in the 1.7 pass ours took 0.75 to 0.94 times as long as PyMatching's. Natively (the
 table above), the second pass more than doubles the cost of a shot: at d = 9 and p = 0.6%, 35 µs plain
 and 86 µs correlated.
 
@@ -1507,7 +1509,7 @@ Beside each point, the memory of the same length:
   0.5% per merged cycle, against 0.008% per memory cycle. BP settles 78% of shots at twelve merged
   cycles, against 95% for the memory of the same 24 cycles.
 - **Fault distance, bounded above only.** An integer-programming search of each error model
-  (`tools/gross_ops.py fault`, two minutes per observable) finds undetectable logical faults of 10
+  (`tools/gross_ops.py fault --cap 120`, two minutes per observable) finds undetectable logical faults of 10
   faults in the merged circuits and 12 in the memory. So the fault distance is at most that; the
   search proves no lower bound, and it did not reach the memory's own bound of 10 that Bravyi et al.
   report. Before the flux checks closed their comparisons at the split, the same search found one
@@ -1550,8 +1552,8 @@ arithmetic in its order so that its answers can be held to theirs shot for shot:
   neighbour order), and the matching lifted back by carrying colour charge around its cycles.
   The detectors need Chromobius's colour annotation (`annotate_colors=True` on the colour-code
   circuits). The recorded weights agree bit for bit, and the lifting, handed PyMatching's edges
-  in PyMatching's order, agrees on every shot of the recorded 65,000-shot macOS sweep and on the 340,000
-  colour-case shots, and on 240,000 shots of an extended run that the repository does not keep. Other equal-weight liftings can select different observable
+  in PyMatching's order, agrees on every shot of the recorded 65,000-shot macOS sweep (and on 240,000 shots of an
+  extended run that is not kept in the repository) and on the 340,000 colour-case shots. Other equal-weight liftings can select different observable
   predictions on any platform, including macOS; no worse optimum is established. Some facade
   tests require 95% agreement; the sweep requires 99%. `python -m stabilizer_qec.chromobius
   predict|benchmark|describe_decoder|help` is Chromobius's command line, its outputs and
@@ -1731,7 +1733,8 @@ sum missed part of the interference. 2.2 contracts its class (width 3) and reads
 
 **Measured** (`tools/coherent.py`): the rotated surface code's X memory over d rounds, under circuit
 noise p = 0.2% and a coherent Z over-rotation by θ on every data qubit after every tick, against
-the same circuit twirled. The last column decodes the same shots on the merged model:
+the same circuit twirled. The second-to-last column (coherent, decoded knowing) decodes the same shots on the merged model;
+the last is the effective sample size kept:
 
 | d | θ | coherent | twirl | coherent ÷ twirl | coherent, decoded knowing | sample size kept |
 |---|---|---|---|---|---|---|
@@ -1845,7 +1848,8 @@ The 40 recorded graph circuits and 4,200 random comparisons are finite checks; I
 II_ERROR are absent from that 40-circuit corpus. `tsim.Circuit.tcount` now builds an unrolled
 Python graph, incurs graph memory/time and propagates its refusals (sweep targets, malformed
 tags, unsupported products and invalid lookbacks); 2.1 used the fast core count still available
-on `sq.Circuit`. Two repeated scans were removed, without a universal graph-cost bound. Lazy
+on `sq.Circuit`. Tsim's count also leaves out coherent errors (`I_ERROR` rotations), which
+`sq.Circuit.tcount` counts, so the two disagree on circuits with them. Two repeated scans were removed, without a universal graph-cost bound. Lazy
 correlated-chain integer indexing works beyond `sys.maxsize` outcomes, while Python `len`
 overflows and whole-array conversion/iteration is refused. T/T_DAG/TPP suffix metadata is not
 retained (`S[T:x] 0` prints `T 0`). Unknown tags left inert by the core remain inert in the
@@ -1987,9 +1991,10 @@ prepared in its basis.
   (`tools/surgery.py check`). Every disagreement with PyMatching is a tie.
 - **An independent geometry check.** The site's geometry module (`js/surgery-geometry.js`) shows
   that the new seam checks multiply to Z on exactly the two facing columns, Z₁Z₂.
-- **The physics of one round.** With a single merged round the error model is refused: one
-  measurement error on a seam check flips the outcome with nothing after it to notice. With three,
-  every single fault is corrected in both bases.
+- **The physics of one round.** With a single merged round the browser site and Rust's
+  `Dem::refuse_undetectable` refuse the error model, while the Python API builds it and `Matching`
+  accepts it. One measurement error on a seam check flips the outcome with nothing after it to
+  notice. With three rounds, every single fault is corrected in both bases.
 
 **The timing law** (`tools/surgery.py run`): how often the merge outcome is wrong, against merged
 rounds T, correlated matching.
@@ -2086,7 +2091,9 @@ it, three patches held as memories for the CNOT's 4d rounds:
 - **Correlated matching matters most here.** At d = 7, p = 0.3%, plain matching fails 11.5% against
   correlated's 5.6%.
 - **Window decoding loses almost nothing.** Decoded by parallel windows at d = 5, p = 0.3%, it fails
-  11.27% and 12.88% against 11.27% and 12.70% decoded whole.
+  11.27% and 12.88% against 11.27% and 12.70% decoded whole. The whole-decoded figures are that run's
+  own shots (`windowed/cnot/d5/p0.003` in `data/surgery/programs.json`), so they differ from the
+  table's run by sampling.
 
 **Merges in a row.** k Z⊗Z measurements on the same two patches, each over d merged rounds:
 
@@ -2150,13 +2157,15 @@ whole circuit that flip an observable and set off no detector. It is measured th
   takes 0.64 to 0.66 s of user time and a 144 to 148 MB peak footprint, against Stim's 4.25 to
   4.54 s and 530 MB;
 - `DetectorErrorModel.distance()`: an integer program over every fault that can happen
-  (probability above 0), which proves the distance exactly when it finishes (scipy's HiGHS). When it does not, the best solution it
-  found is still a real undetectable logical error, and so an upper bound.
+  (probability above 0), which proves the distance exactly when it finishes (scipy's HiGHS). When it does not, `distance()` raises `RuntimeError` with the weight of the best solution it
+  found in its message. That solution is a real undetectable logical error, so the weight is an
+  upper bound; `method="search"` returns one as a value.
 
 The graph-like search is Stim's own algorithm and returns Stim's own faults: its model text and
 its explained errors equal Stim's character for character (on Stim's generated codes, 300
 random models and the 56 of 100 random circuits that Stim explains with
-`ignore_ungraphlike_errors=False`), in about a tenth of Stim's time. The breadth-first
+`ignore_ungraphlike_errors=False`), in about a tenth of Stim's time once the model has been used; the first call builds the graph
+and takes two to four times Stim's. The breadth-first
 search gives the same number of faults as Stim's on every circuit compared (Stim's surface,
 repetition and colour codes, the Steane code and the [[72, 12, 6]] code). Each fault either
 returns is explained: the gate it comes from, its targets, and the Pauli product or measurement
@@ -2197,8 +2206,8 @@ bivariate bicycle memories 2; the search within a 1 GB memory budget):
   [[90, 8, 10]] and [[108, 8, 10]] the integer program found 9 faults that flip a logical qubit
   unnoticed, so these 2-round memories have circuit distance at most 9, below the codes' 10. Bravyi et al. (their
   Table 1) bound the circuit distance at 6, 8, 8 and 10 for [[72, 12, 6]], [[90, 8, 10]],
-  [[108, 8, 10]] and the gross code. Ours are 6, 9, 9 and 12, so at this time limit the
-  gross code's is loose and says nothing new. The graph-like search does not apply (their
+  [[108, 8, 10]] and the gross code. Ours are 6, 9, 9 and 12, so at this time limit the [[90, 8, 10]],
+  [[108, 8, 10]] and gross-code bounds are looser and say nothing new. The graph-like search does not apply (their
   faults are not graph-like), and the search through hyperedges (limits 6 and 6, a 1 GB
   memory budget) finds the [[72, 12, 6]] code's 6 but runs out of memory on the other three
   after 12.7 to 14.3 million states (sets of detectors), as it does on the rotated d = 7
@@ -2794,6 +2803,8 @@ src/gates.rs          Stim's other Clifford gates as exact H/S/CX sequences (too
 src/dem.rs            detector error models: built backwards from any circuit, decomposed as
                       Stim decomposes, read and written in Stim's .dem format, compared
 src/dem_decoder.rs    probability-weighted exact matching over any detector error model
+src/distance.rs       circuit distance: the shortest graph-like fault, and the bounded search for undetectable
+                      logical errors within a memory budget
 src/frame_sampler.rs  Pauli-frame sampling of any circuit, independent of the model
 src/batch_sampler.rs  the same, 64 shots per word, REPEAT without flattening
 src/shots.rs          Stim's 01 and b8 detection-event formats
@@ -2906,7 +2917,7 @@ tools/bb_check.py       the bivariate bicycle codes and BP+OSD against Bravyi et
 tools/decoder_check.py  BP+LSD, Relay-BP, colour-code matching and the search decoder against
                         ldpc, relay_bp, Chromobius and Tesseract, shot for shot
 tools/lsd_merge_capture.py  ldpc's BP+LSD answers that vary with its merge order, for the tests
-tools/*_fixtures.py, *_reference.py, search_corpus.py, cudaq_trt_models.py
+tools/*_fixture*.py, *_reference.py, search_corpus.py, cudaq_trt_models.py
                         the ports' references, recorded from the originals for the tests
 tools/gross.py          the gross code's logical error per cycle, and the surface code beside it
 tools/gross_ops.py      the gross code's automorphisms, gauging distances and logical measurement
@@ -2941,10 +2952,12 @@ data/gpu/               sampling and BP on the GPU against the CPU
 data/predecoder/        the CNN pre-decoder's training record
 data/bench/             the decoder benchmarks, every recorded run
 data/distances.json     the circuit distance of every memory the package builds
+data/fingerprints.json  a sha256 of every result the package computes (tools/fingerprints.py)
 
 tools/smoke.py          an installed wheel checked end to end against Stim and PyMatching
 tools/wasm-smoke.mjs    the WASM engine driven in Node through the page's wrappers
 tools/site-tests.mjs    Node tests for the site's pure modules
+tools/coherent-tests.mjs  Node checks of the coherent section's provenance and UI wiring
 tools/contrast.mjs      WCAG contrast for every text-on-wash pairing the page draws
 tools/report.py         the technical report: values, tables and figures from data/, then HTML and PDF
 report/                 the report's source, template, figures, and the built HTML and PDF
@@ -2982,10 +2995,12 @@ python3 -m http.server 8080
 
 Then open `http://localhost:8080`.
 
-The site's pure modules have Node tests, and the palette has a contrast check:
+The site's pure modules and the coherent section's wiring have Node tests, and the palette has a
+contrast check:
 
 ```bash
 node tools/site-tests.mjs
+node tools/coherent-tests.mjs
 node tools/contrast.mjs
 ```
 
