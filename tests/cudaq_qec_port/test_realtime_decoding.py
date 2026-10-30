@@ -194,6 +194,7 @@ def test_real_time_complete_flow_matches_offline_decoding(typ, args):
     ctx, circuit = repetition(rounds)
     dem, m2d, m2o = ctx.full_component()
     if typ == "nv-qldpc-decoder":
+        pytest.importorskip("scipy")  # (built on the ldpc port, which needs it)
         args = dict(args, error_rate_vec=list(dem.error_rates))
     assert qec.configure_decoders_from_str(multi(flat_config(dem, m2d, typ, args)).to_yaml_str(200)) == 0
     O = np.asarray(dem.observables_flips_matrix)

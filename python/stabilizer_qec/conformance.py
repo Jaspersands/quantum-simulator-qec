@@ -570,9 +570,12 @@ class _Run:
 
     def decoder(self, inst: Instance, prop: str) -> Optional[Callable]:
         """The subject built on ``inst``, its answers' exceptions caught; None, counted as
-        refused under ``prop``, if it will not build (refusing is not misdecoding)."""
+        refused under ``prop``, if it will not build (refusing is not misdecoding). A missing
+        module is raised: it says nothing of the instance (the ldpc port needs scipy)."""
         try:
             dec = self.s.build(inst.model())
+        except ImportError:
+            raise
         except Exception as e:  # noqa: BLE001 - any refusal is recorded, not raised
             self.r._count(self.s.name, prop, "refused")
             self.r._find(Finding(self.s.name, inst.name, prop, "build", (), f"refused: {type(e).__name__}: {e}"), False)
@@ -964,6 +967,14 @@ def _checks(model: DetectorErrorModel) -> tuple:
     return h, [p for _, _, p in inst.faults]
 
 
+def _ldpc(name: str) -> Any:
+    """A decoder class from the ldpc port, imported when a decoder is built: the port needs
+    scipy, which the other subjects do not."""
+    from . import ldpc
+
+    return getattr(ldpc, name)
+
+
 def _pcm(make: Callable) -> Callable:
     def build(model: DetectorErrorModel) -> Callable:
         h, p = _checks(model)
@@ -1008,9 +1019,7 @@ def _tesseract(model: DetectorErrorModel) -> Callable:
 
 
 def _random_serial(h: np.ndarray, p: list) -> Any:
-    from .ldpc import BpOsdDecoder
-
-    dec = BpOsdDecoder(h, error_channel=p, max_iter=h.shape[1], bp_method="product_sum", osd_method="osd0", schedule="serial")
+    dec = _ldpc("BpOsdDecoder")(h, error_channel=p, max_iter=h.shape[1], bp_method="product_sum", osd_method="osd0", schedule="serial")
     dec.random_schedule_seed = 1  # (ldpc's switch to a random serial order, drawn afresh each decode)
     return dec
 
@@ -1024,15 +1033,13 @@ def panel() -> dict:
     correlations) and fusion-blossom (``fb``) declare minimum weight; ldpc's BP+OSD-0 (``ldpc``,
     and ``ldpc-r`` with a random serial schedule), MWPF's three solvers (``mwpf-j``, ``mwpf-s``,
     ``mwpf-u``) and Tesseract (``tess``) are silent on every capability."""
-    from .ldpc import BpOsdDecoder
-
     mw = Declaration(min_weight=YES, source=_AUDIT)
     silent = Declaration(source=_AUDIT)
     return {
         "pm": Subject("pm", _matching(False), mw, True, "pymatching 2.4.0 (this package's Matching), sparse blossom"),
         "pmc": Subject("pmc", _matching(True), silent, True, "pymatching 2.4.0, correlations enabled"),
         "fb": Subject("fb", _fusion, mw, False, "fusion-blossom 0.2.13 (stabilizer_qec.fusion_blossom)"),
-        "ldpc": Subject("ldpc", _pcm(lambda h, p: BpOsdDecoder(h, error_channel=p, max_iter=h.shape[1], bp_method="product_sum", osd_method="osd0")), silent, False, "ldpc 2.4.1, BP with OSD-0"),
+        "ldpc": Subject("ldpc", _pcm(lambda h, p: _ldpc("BpOsdDecoder")(h, error_channel=p, max_iter=h.shape[1], bp_method="product_sum", osd_method="osd0")), silent, False, "ldpc 2.4.1, BP with OSD-0"),
         "ldpc-r": Subject("ldpc-r", _pcm(_random_serial), Declaration(randomised=YES, source=_AUDIT), False, "ldpc 2.4.1, randomised serial schedule"),
         "mwpf-j": Subject("mwpf-j", _mwpf("SolverSerialJointSingleHair"), silent, False, "mwpf 0.2.12, serial joint single-hair"),
         "mwpf-s": Subject("mwpf-s", _mwpf("SolverSerialSingleHair"), silent, False, "mwpf 0.2.12, serial single-hair"),
@@ -1055,7 +1062,6 @@ def subjects() -> dict:
     Relay-BP) decline minimum weight; all are deterministic but Relay-BP, whose memory strengths
     come from one seeded stream across its decodes (randomised)."""
     from ._decoders import RelayBpDecoder
-    from .ldpc import BeliefFindDecoder, BpLsdDecoder, BpOsdDecoder, UnionFindDecoder
 
     exact = dict(bounded_distance=NO, min_weight=YES, max_likelihood=NO, deterministic=YES, randomised=NO, source=_OURS)
     approx = dict(bounded_distance=NO, min_weight=NO, max_likelihood=NO, deterministic=YES, randomised=NO, int_weights=NO, source=_OURS)
@@ -1065,10 +1071,10 @@ def subjects() -> dict:
         "search_exact": Subject("search_exact", _search(beam=None, pqlimit=None, no_revisit_dets=False, num_det_orders=1), Declaration(int_weights=NO, **exact), False, "SearchDecoder, exact"),
         "search": Subject("search", _search(), Declaration(**approx), False, "SearchDecoder, Tesseract's defaults"),
         "fusion_blossom": Subject("fusion_blossom", _fusion, Declaration(int_weights=YES, weight_quantum=1 / _Q, **exact), False, "stabilizer_qec.fusion_blossom, serial"),
-        "bposd": Subject("bposd", _pcm(lambda h, p: BpOsdDecoder(h, error_channel=p, max_iter=30, bp_method="product_sum", osd_method="osd_cs", osd_order=4)), Declaration(**approx), False, "BpOsdDecoder, BP+OSD-CS(4)"),
-        "bplsd": Subject("bplsd", _pcm(lambda h, p: BpLsdDecoder(h, error_channel=p, max_iter=30, bp_method="product_sum", lsd_order=4)), Declaration(**approx), False, "BpLsdDecoder, BP+LSD-4"),
-        "union_find": Subject("union_find", _pcm(lambda h, p: UnionFindDecoder(h, uf_method="peeling")), Declaration(**approx), False, "UnionFindDecoder, peeling"),
-        "belief_find": Subject("belief_find", _pcm(lambda h, p: BeliefFindDecoder(h, error_channel=p, max_iter=30, bp_method="product_sum")), Declaration(**approx), False, "BeliefFindDecoder"),
+        "bposd": Subject("bposd", _pcm(lambda h, p: _ldpc("BpOsdDecoder")(h, error_channel=p, max_iter=30, bp_method="product_sum", osd_method="osd_cs", osd_order=4)), Declaration(**approx), False, "BpOsdDecoder, BP+OSD-CS(4)"),
+        "bplsd": Subject("bplsd", _pcm(lambda h, p: _ldpc("BpLsdDecoder")(h, error_channel=p, max_iter=30, bp_method="product_sum", lsd_order=4)), Declaration(**approx), False, "BpLsdDecoder, BP+LSD-4"),
+        "union_find": Subject("union_find", _pcm(lambda h, p: _ldpc("UnionFindDecoder")(h, uf_method="peeling")), Declaration(**approx), False, "UnionFindDecoder, peeling"),
+        "belief_find": Subject("belief_find", _pcm(lambda h, p: _ldpc("BeliefFindDecoder")(h, error_channel=p, max_iter=30, bp_method="product_sum")), Declaration(**approx), False, "BeliefFindDecoder"),
         "relay_bp": Subject("relay_bp", _pcm(lambda h, p: RelayBpDecoder(h, error_channel=p, seed=1)), Declaration(**{**approx, "deterministic": NO, "randomised": YES}), False, "RelayBpDecoder, seeded"),
     }
 

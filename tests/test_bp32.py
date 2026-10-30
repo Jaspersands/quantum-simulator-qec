@@ -20,6 +20,7 @@ needs_gpu = pytest.mark.skipif(not _gpu(), reason="no gpu build or device")
 @pytest.fixture(scope="module")
 def problem():
     """A d = 5 memory's undecomposed model as a check matrix, with 4,000 sampled syndromes."""
+    pytest.importorskip("scipy")  # beliefmatching's check matrices come from the ldpc port, which needs it
     from stabilizer_qec.beliefmatching import detector_error_model_to_check_matrices
 
     c = sq.memory_circuit(distance=5, rounds=5, p=0.004)

@@ -8,6 +8,18 @@ release removes it; behaviour changes in a minor release only to correct it, and
 is named under **Changed** or **Fixed**. The Rust crate is versioned on its own, under the same
 policy for its documented items.
 
+## Unreleased
+
+### Fixed
+
+- `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
+  it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
+  scipy, is imported when one of its decoders is built, not whenever the subjects are listed.
+  A missing module is now raised instead of counted as the subject refusing every instance.
+- With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
+  BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
+  instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+
 ## 2.2.0 — 2026-10-30
 
 The coherent sampler sums the selected completed kernel in floating-point arithmetic when

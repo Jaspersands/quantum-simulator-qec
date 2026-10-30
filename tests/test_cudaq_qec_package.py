@@ -6,6 +6,7 @@ and the matrix tools against CUDA-Q's definitions."""
 
 from __future__ import annotations
 
+import importlib.util
 import itertools
 
 import numpy as np
@@ -83,8 +84,10 @@ def test_pymatching_decodes_to_observables_when_its_model_has_them():
         assert dec.decode([1.0, 0.0]).result.tolist() == [1.0]
         assert dec.decode([1.0, 1.0]).result.tolist() == [0.0]
         assert dec.decode_batch([[1.0, 0.0], [0.0, 1.0]]).result.shape == (2, 1)
-    # (The same width as nv-qldpc-decoder's on the same model.)
-    assert len(qec.get_decoder("nv-qldpc-decoder", PM_H, O=PM_O, error_rate_vec=[0.1, 0.1, 0.1]).decode([1.0, 0.0]).result) == 1
+    # (The same width as nv-qldpc-decoder's on the same model, which is built on the ldpc port and so
+    # needs scipy.)
+    if importlib.util.find_spec("scipy"):
+        assert len(qec.get_decoder("nv-qldpc-decoder", PM_H, O=PM_O, error_rate_vec=[0.1, 0.1, 0.1]).decode([1.0, 0.0]).result) == 1
     # Without observables, an error frame; output="errors" (this package's) asks for one anyway.
     assert qec.get_decoder("pymatching", PM_H).decode([1.0, 0.0]).result.tolist() == [1.0, 0.0, 0.0]
     assert qec.get_decoder("pymatching", "error(0.1) D0\nerror(0.1) D0 D1\nerror(0.1) D1\n").decode([1.0, 0.0]).result.tolist() == [1.0, 0.0, 0.0]

@@ -27,6 +27,7 @@ def _shots(H, p, count, seed):
 
 
 def test_documented_bp_methods():
+    pytest.importorskip("scipy")  # (nv-qldpc-decoder is built on the ldpc port, which needs it)
     # The demonstrate_bp_methods() configurations of CUDA-Q's example all build and decode.
     configs = [
         dict(bp_method=0, max_iterations=30),
@@ -146,6 +147,7 @@ def test_relay_explicit_gammas_one_row_per_leg():
 
 
 def test_sliding_window_inner_nv_qldpc():
+    pytest.importorskip("scipy")  # (nv-qldpc-decoder is built on the ldpc port, which needs it)
     code = qec.get_code("repetition", distance=5)
     noise = qec.NoiseModel()
     noise.add_all_qubit_channel("x", qec.Depolarization2(0.01), 1)
@@ -198,6 +200,7 @@ def test_refusals(kw, match):
 
 
 def test_accepted_performance_options():
+    pytest.importorskip("scipy")  # (nv-qldpc-decoder is built on the ldpc port, which needs it)
     # GPU kernel and batching choices change nothing here.
     base = qec.get_decoder("nv-qldpc-decoder", H7, use_osd=True)
     tuned = qec.get_decoder("nv-qldpc-decoder", H7, use_osd=True, use_sparsity=True, n_threads=128, bp_batch_size=1000, osd_batch_size=8, iter_per_check=1, clip_value=0.0, repeatable=False, gamma_ensemble_size=1, proc_float="fp64", opt_results={"bp_llr_history": 0, "relay_solutions": False})
@@ -206,6 +209,7 @@ def test_accepted_performance_options():
 
 
 def test_from_dem_text_decodes_to_observables():
+    pytest.importorskip("scipy")  # (nv-qldpc-decoder is built on the ldpc port, which needs it)
     dem = "error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.1) D1\n"
     decoder = qec.get_decoder("nv-qldpc-decoder", dem, use_osd=True)
     assert decoder.decode([1.0, 0.0]).result.tolist() == [1.0]

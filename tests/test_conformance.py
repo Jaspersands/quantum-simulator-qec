@@ -221,6 +221,7 @@ def test_models_sampled_syndromes_and_errors():
 
 
 def test_audit_report():
+    pytest.importorskip("scipy")  # (ldpc and bposd are the ldpc port's, which needs it)
     rep = cf.audit(["pm", "ldpc", "bposd"], POP[:3])
     text = str(rep)
     assert "pm" in text and "exact optimality" in text and "conformance failures" in text

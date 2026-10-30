@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import doctest
 import importlib
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -57,8 +58,19 @@ def _published() -> list:
 _PUBLISHED = _published()
 
 
+# Examples that need scipy, as their docstrings say: without it they are not run.
+_NEEDS_SCIPY = {"stabilizer_qec._circuit.DetectorErrorModel.distance"}
+
+
 def _run(module) -> doctest.TestResults:
-    return doctest.testmod(module, optionflags=doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE)
+    flags = doctest.ELLIPSIS | doctest.NORMALIZE_WHITESPACE
+    if importlib.util.find_spec("scipy"):
+        return doctest.testmod(module, optionflags=flags)
+    runner = doctest.DocTestRunner(optionflags=flags)
+    for test in doctest.DocTestFinder().find(module):
+        if test.name not in _NEEDS_SCIPY:
+            runner.run(test)
+    return runner.summarize(verbose=False)
 
 
 @pytest.mark.parametrize("module", _GUIDE, ids=lambda m: m.__name__)
