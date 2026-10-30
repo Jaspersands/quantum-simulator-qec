@@ -1,10 +1,12 @@
 """The QDK's report of an estimate as `stabilizer_qec.estimate.azure.EstimatorResult` draws it, against
 tests/estimate_port/qdk_reports.json.gz (recorded by tools/qdk_report_fixtures.py from qdk 1.33.1 and
 qsharp_widgets 1.33.1): for forty results (25 recorded estimates, a failed one, batches with failed, frontier
-and differing items) the HTML of ``_repr_html_()``, ``summary``, ``[:]`` and other slices and the diagrams, with
-what the QDK prints and the exceptions it raises, without markdown and with markdown and python-markdown-math;
-and the qsharp_widgets charts (the SpaceChart donut, the estimates overview's scatter chart, their colors, axis
-ticks and numbers as JavaScript writes them) against the widgets' own drawing, element by element."""
+and differing items) the HTML of ``_repr_html_()``, ``summary``, ``[:]`` and other slices, with what the QDK
+prints and the exceptions it raises, without markdown and with markdown and python-markdown-math. The diagrams'
+HTML is not compared with the recording, since it changes their attribute serialization; their JSON is checked
+against the original inputs instead. The qsharp_widgets charts (the SpaceChart donut, the estimates overview's
+scatter chart, their colors, axis ticks and numbers as JavaScript writes them) are compared with the widgets' own
+drawing, element by element."""
 
 from __future__ import annotations
 
