@@ -45,8 +45,8 @@ policy for its documented items.
   original's.
 - `integer_ticks` and `time_ticks` return for a range of one value near 1.6e19 (they scanned forever); the
   ticks they draw for every other range are unchanged.
-- A formula's call names the undefined name the QDK names: the call's arguments are evaluated before the call is
-  refused, so `foo(bar)` reports `bar`, as `EstimatorParams` estimates do.
+- A cycle-time formula that calls an unknown function reports an undefined name in the call's arguments first,
+  as the QDK does: `foo(bar)` reports `bar`, not `foo`.
 
 ## 2.2.0 — 2026-10-30
 
