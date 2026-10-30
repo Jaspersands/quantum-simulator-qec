@@ -958,6 +958,44 @@ dem_chunks:
     assert config.syndrome_size == 4 and config.block_size == 6
 
 
+def test_a_seam_spec_keeps_its_observables_through_text():
+    # A seam entry's O_sparse is read and written with the rest of the seam, and survives a round trip.
+    yaml = """
+id: 0
+type: single_error_lut
+dem_chunks:
+  seam: {from: next_round, to: prev_round}
+  connections: [{from: init, to: final}]
+  phases:
+    - name: init
+      spec:
+        num_faults: 3
+        seam_specs:
+          - name: prev_round
+            spec:
+              H_sparse: [0, 1, -1, 1, 2, -1]
+              O_sparse: [0, -1]
+          - name: next_round
+            spec:
+              H_sparse: [0, 1, -1, 1, 2, -1]
+        O_sparse: [0, -1]
+        error_rates: [0.1, 0.1, 0.1]
+    - name: final
+      spec:
+        num_faults: 3
+        H_sparse: [0, 1, -1, 1, 2, -1]
+        O_sparse: [0, -1]
+        error_rates: [0.1, 0.1, 0.1]
+"""
+    config = qec.decoder_config.from_yaml_str(yaml)
+    seams = config.dem_chunks.phases[0].spec.seam_specs
+    assert seams[0].spec.O_sparse == [0, -1] and seams[1].spec.O_sparse == []
+    text = config.to_yaml_str()
+    back = qec.decoder_config.from_yaml_str(text)
+    assert back.dem_chunks.phases[0].spec.seam_specs[0].spec.O_sparse == [0, -1]
+    assert back.to_yaml_str() == text
+
+
 def test_equality_and_copies_include_dem_chunks():
     a = qec.decoder_config.from_yaml_str(chunk_form_yaml(5))
     b = qec.decoder_config.from_yaml_str(chunk_form_yaml(5))
