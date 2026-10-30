@@ -18,13 +18,8 @@ from . import decoder
 from .comparison import tn_decoder
 
 
-def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
-    """Run the CC decoder as cli.
-
-    (stabilizer_qec: ``argv`` (default ``sys.argv[1:]``) and ``prog`` (default from ``sys.argv[0]``)
-    let ``stabilizer-qec mqt.qecc.cc-decoder`` and ``python -m stabilizer_qec.mqt_qecc.cc_decoder``
-    run it, as MQT QECC's ``mqt.qecc.cc-decoder`` script does.)
-    """
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
+    """The command line's parser (``prog`` names it in its usage line)."""
     parser = argparse.ArgumentParser(prog=prog)
     parser.add_argument("distance", type=int, help="the distance of the code")
     parser.add_argument("error_rate", type=float, help="the error rate")
@@ -59,8 +54,17 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         default="z3",
         help="maxsat solver to use (path to a executable). Default: z3",
     )
+    return parser
 
-    args = parser.parse_args(argv)
+
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
+    """Run the CC decoder as cli.
+
+    (stabilizer_qec: ``argv`` (default ``sys.argv[1:]``) and ``prog`` (default from ``sys.argv[0]``)
+    let ``stabilizer-qec mqt.qecc.cc-decoder`` and ``python -m stabilizer_qec.mqt_qecc.cc_decoder``
+    run it, as MQT QECC's ``mqt.qecc.cc-decoder`` script does.)
+    """
+    args = build_parser(prog).parse_args(argv)
 
     if args.decoder == "maxsat":
         decoder.run(

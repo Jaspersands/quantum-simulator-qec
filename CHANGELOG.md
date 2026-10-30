@@ -35,6 +35,8 @@ policy for its documented items.
   non-square lattice in `RotatedSurfaceCode.create`, and for a block removed twice name the value or the block
   label; a default `SyndromeCircuit` is named `SyndromeCircuit`, not lower-cased; `repr` of `Detector` and
   `CircuitErrorModel` follows Loom's.
+- `stabilizer-qec help mqt.qecc.cc-decoder` prints the cc decoder's own usage (distance, error rate and its
+  flags), not a usage line with `--out` and no positionals.
 
 ## 2.2.0 — 2026-10-30
 

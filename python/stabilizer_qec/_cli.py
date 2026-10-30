@@ -910,6 +910,10 @@ def _command_help(command: str) -> str:
         return _port_cli_help(command)
     if command == "animate":
         return _ANIMATE_HELP
+    if command == "mqt.qecc.cc-decoder":
+        from .mqt_qecc.cc_decoder.cli import build_parser
+
+        return build_parser(prog=f"stabilizer-qec {command}").format_help()
     return _as_ours(pages[command]) if command in pages else _parser(command).format_help()
 
 
