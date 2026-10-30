@@ -1697,7 +1697,9 @@ references, their scripts in the session's scratchpad; fixed before tagging):
   longer. A Rust build without the feature solves them with this crate's simplex, which perturbs
   its ratio test so that degenerate programs cannot make it cycle. QEC-Playground's
   codes (MWPF's `QECPlaygroundCode`, on the qecp crate) are not included. The serde_json parser
-  shared with the Fusion Blossom port now reports serde_json's errors at serde_json's positions.
+  shared with the Fusion Blossom port now reports serde_json's syntax errors at serde_json's line
+  and column; the errors of a typed read (such as a syndrome read from a file line) carry no
+  position.
 - **`stabilizer_qec.conformance`** (Shen and Zhong, arXiv 2609.07035): what can be checked about
   a decoder's answers without knowing the right ones. Each correction must explain its syndrome
   in the caller's indices, with any observables and weight returned being its own; and the same
