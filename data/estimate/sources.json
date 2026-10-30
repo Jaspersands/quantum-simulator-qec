@@ -14,9 +14,10 @@
     "factories": 6,
     "p": 0.001,
     "cycle_us": 1,
-    "reaction_us": 10
+    "reaction_us": 10,
+    "budget": 0.067
    },
-   "cite": "Gidney, How to factor 2048 bit RSA integers with less than a million noisy qubits, arXiv:2505.15917: 1,409 logical qubits at most (Table 4: m = 1,280 in cold storage, the rest hot); 6.5e9 Toffolis (Table 5, n = 2048); 897,864 physical qubits and 12.07 hours per shot (cost section)."
+   "cite": "Gidney, How to factor 2048 bit RSA integers with less than a million noisy qubits, arXiv:2505.15917: 1,409 logical qubits at most (Table 4: m = 1,280 in cold storage, the rest hot); 6.5e9 Toffolis (Table 5, n = 2048); 897,864 physical qubits and 12.07 hours per shot (cost section); shots succeed with 93.3%, so the failure budget per shot is 6.7% (run-time section; transcribed in docs/superpowers/notes/2026-09-30-full-estimate-sources.md)."
   },
   "femoco_reiher": {
    "label": "FeMoco, Reiher Hamiltonian (Lee et al. 2021)",
