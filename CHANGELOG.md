@@ -19,6 +19,9 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- The PECOS `DensityMatrix` and `ProcessMatrix` simulators raise `ValueError` for a NaN or infinite
+  angle on `PhaseRot`, `CRZ`, `CRX` and `CRY`, as they already did for `RX`, `RZ` and `RZZ`, instead
+  of returning a NaN state.
 
 ## 2.2.0 — 2026-10-30
 

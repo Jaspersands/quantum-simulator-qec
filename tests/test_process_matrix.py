@@ -274,6 +274,18 @@ def test_pecos_density_matrix_checks_its_arguments():
     assert runs[0] == runs[1]
 
 
+def test_pecos_rotations_refuse_a_non_finite_angle():
+    # The matrix-built rotations refuse a NaN or infinite angle as the Circuit-built ones do, and leave the state usable.
+    for cls in (pc.simulators.DensityMatrix, pc.simulators.ProcessMatrix):
+        for sym, loc in [("PhaseRot", {0}), ("CRZ", {(0, 1)}), ("CRX", {(0, 1)}), ("CRY", {(0, 1)}), ("RX", {0}), ("RZZ", {(0, 1)})]:
+            for angle in (math.nan, math.inf, -math.inf):
+                s = cls(2)
+                with pytest.raises(ValueError, match="must be finite"):
+                    s.run_gate(sym, loc, angle=angle)
+                s.run_gate("H", {0})
+                assert np.isfinite(s.choi() if cls is pc.simulators.ProcessMatrix else s.density_matrix()).all()
+
+
 def test_pecos_logical_signs_agree_with_the_density_matrix():
     import random
 
