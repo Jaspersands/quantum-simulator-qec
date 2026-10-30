@@ -34,6 +34,21 @@ policy for its documented items.
 - `BeliefMatching`'s matching path takes the last piece's observables on a shared edge, as
   `beliefmatching` does, where it took the first's; predictions change only where pieces on one
   edge disagree.
+- A node index of 2^64 − 1 given to `Matching.add_edge`, `add_boundary_edge` or `set_boundary_nodes`
+  is refused with a `ValueError`, where it was an internal error.
+- `decode_batch` on a graph with more than 64 fault ids writes every fault id its output holds, as
+  `decode` does, where a fault id past the count the decoder was built with was dropped.
+- The deprecated 2.1 `UserDecoder` methods (`decode`, `decode_to_edges`, `decode_to_matched_pairs`,
+  `decode_packed`) cancel repeated detection events in pairs again, as 2.1 did, where 2.2 refused
+  them.
+- A copied or pickled `Matching` keeps its fault-id count and its all-probabilities flag after a
+  merge set fault ids past the count, as the original does.
+- A model with more than 64 observables loads with `enable_correlations=True`: plain decoding works,
+  and only correlated decoding is refused, with the 64-observable limit as its message.
+- A `Visualizer` with an empty filepath keeps its JSON in memory up to 256 MB and then in a
+  temporary file, as MWPF does, where it kept all of it in memory.
+- The visualizer's JSON writes a float from 1e-5 up to 1e-4 as a plain decimal, as serde_json does,
+  where it wrote an exponent.
 
 ## 2.2.0 — 2026-10-30
 
@@ -1697,7 +1712,9 @@ references, their scripts in the session's scratchpad; fixed before tagging):
   longer. A Rust build without the feature solves them with this crate's simplex, which perturbs
   its ratio test so that degenerate programs cannot make it cycle. QEC-Playground's
   codes (MWPF's `QECPlaygroundCode`, on the qecp crate) are not included. The serde_json parser
-  shared with the Fusion Blossom port now reports serde_json's errors at serde_json's positions.
+  shared with the Fusion Blossom port now reports serde_json's syntax errors at serde_json's line
+  and column; the errors of a typed read (such as a syndrome read from a file line) carry no
+  position.
 - **`stabilizer_qec.conformance`** (Shen and Zhong, arXiv 2609.07035): what can be checked about
   a decoder's answers without knowing the right ones. Each correction must explain its syndrome
   in the caller's indices, with any observables and weight returned being its own; and the same

@@ -212,6 +212,12 @@ fn bernoulli_xor(p1: f64, p2: f64) -> f64 {
     p1 * (1.0 - p2) + p2 * (1.0 - p1)
 }
 
+/// The number of nodes that holds node `n` (its index plus one), or an error for the largest
+/// index, which no count of nodes reaches.
+pub(crate) fn node_count(n: usize) -> Result<usize, String> {
+    n.checked_add(1).ok_or_else(|| format!("node index {n} is too large: no graph has that many nodes"))
+}
+
 impl UserGraph {
     pub fn new(num_nodes: usize, num_fault_ids: usize) -> UserGraph {
         UserGraph { adjacency: vec![Vec::new(); num_nodes], edges: Vec::new(), boundary: BTreeSet::new(), num_fault_ids, all_have_probabilities: true, implied: Vec::new() }
@@ -346,7 +352,7 @@ impl UserGraph {
     }
 
     pub(crate) fn add_edge_changed(&mut self, node1: usize, node2: usize, fault_ids: &[usize], weight: f64, p: f64, how: Merge) -> Result<bool, String> {
-        self.ensure_nodes(node1.max(node2) + 1);
+        self.ensure_nodes(node_count(node1.max(node2))?);
         match self.find(node1, Some(node2)) {
             Some(e) => self.merge(e, fault_ids, weight, p, how),
             None => {
@@ -368,7 +374,7 @@ impl UserGraph {
     }
 
     pub(crate) fn add_boundary_edge_changed(&mut self, node: usize, fault_ids: &[usize], weight: f64, p: f64, how: Merge) -> Result<bool, String> {
-        self.ensure_nodes(node + 1);
+        self.ensure_nodes(node_count(node)?);
         match self.find(node, None) {
             Some(e) => self.merge(e, fault_ids, weight, p, how),
             None => {
@@ -542,6 +548,18 @@ impl UserGraph {
     }
 }
 
+/// The events 2.1's deprecated methods decoded: each node that occurs an odd number of times,
+/// once, in order (repeated events cancel in pairs, as 2.1's defects did).
+fn cancel_repeats(events: &[u64]) -> Vec<u64> {
+    let mut on = BTreeSet::new();
+    for &d in events {
+        if !on.remove(&d) {
+            on.insert(d);
+        }
+    }
+    on.into_iter().collect()
+}
+
 impl UserDecoder {
     /// PyMatching's matching graph, as the crate's own Python bindings read it: a type of the
     /// hidden `pm_exact` module, so not part of the documented API.
@@ -612,11 +630,14 @@ impl UserDecoder {
             }
             Ok(w as f64 / g.normalising_constant)
         } else {
+            // As wide as the caller's output, so that every fault id it holds is written, as the
+            // single-shot decode writes them when its count is the same.
+            let len = g.num_observables.max(out.len() * 8);
             let mut bytes = Vec::new();
-            bytes.try_reserve_exact(g.num_observables).map_err(|e| format!("cannot allocate observable output: {e}"))?;
-            bytes.resize(g.num_observables, 0u8);
+            bytes.try_reserve_exact(len).map_err(|e| format!("cannot allocate observable output: {e}"))?;
+            bytes.resize(len, 0u8);
             let w = mwpm.decode_into(events, &mut bytes)?;
-            for (k, &b) in bytes.iter().enumerate() {
+            for (k, &b) in bytes.iter().enumerate().take(out.len() * 8) {
                 out[k / 8] |= (b & 1) << (k % 8);
             }
             Ok(w as f64 / g.normalising_constant)
@@ -648,7 +669,7 @@ impl UserDecoder {
     #[deprecated(since = "2.2.0", note = "use `decode_packed_with` on a workspace from `mwpm()`")]
     pub fn decode_packed(&self, scratch: &mut Scratch, sorted_events: &[u32], buf: &mut Vec<u32>, out: &mut [u8]) -> Result<f64, String> {
         let _ = buf;
-        let events: Vec<u64> = sorted_events.iter().map(|&e| u64::from(e)).collect();
+        let events = cancel_repeats(&sorted_events.iter().map(|&e| u64::from(e)).collect::<Vec<u64>>());
         let w = self.decode_packed_with(self.mwpm_in(scratch), &events, out)?;
         let nf = self.num_fault_ids();
         if !nf.is_multiple_of(8) && nf / 8 < out.len() {
@@ -661,7 +682,7 @@ impl UserDecoder {
     #[deprecated(since = "2.2.0", note = "use `decode_with` on a workspace from `mwpm()`")]
     #[allow(deprecated)]
     pub fn decode(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Decoded, String> {
-        let (faults, weight) = self.mwpm_in(scratch).try_decode(events)?;
+        let (faults, weight) = self.mwpm_in(scratch).try_decode(&cancel_repeats(events))?;
         Ok(Decoded { faults: faults.into_iter().map(|f| f != 0).collect(), weight })
     }
 
@@ -669,14 +690,14 @@ impl UserDecoder {
     /// edges included, in PyMatching's order (its `decode_to_edges_array`).
     #[deprecated(since = "2.2.0", note = "use `decode_to_edges_with` on a workspace from `mwpm()`")]
     pub fn decode_to_edges(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Vec<(i64, i64)>, String> {
-        self.mwpm_in(scratch).try_decode_to_edges(events)
+        self.mwpm_in(scratch).try_decode_to_edges(&cancel_repeats(events))
     }
 
     /// The matched pairs of detection events (-1: the boundary), in PyMatching's order (its
     /// `decode_to_matched_dets_array`). Refused for graphs with negative weights, as PyMatching.
     #[deprecated(since = "2.2.0", note = "use `decode_to_matched_pairs_with` on a workspace from `mwpm()`")]
     pub fn decode_to_matched_pairs(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Vec<(i64, i64)>, String> {
-        self.mwpm_in(scratch).try_decode_to_match_edges(events)
+        self.mwpm_in(scratch).try_decode_to_match_edges(&cancel_repeats(events))
     }
 }
 
@@ -844,6 +865,17 @@ mod tests {
     }
 
     #[test]
+    fn the_largest_node_index_is_refused_without_growing_the_graph() {
+        let mut g = UserGraph::new(0, 0);
+        assert!(g.add_edge(usize::MAX, 0, &[], 1.0, -1.0, Merge::Disallow).is_err());
+        assert!(g.add_edge(0, usize::MAX, &[], 1.0, -1.0, Merge::Disallow).is_err());
+        assert!(g.add_boundary_edge(usize::MAX, &[], 1.0, -1.0, Merge::Disallow).is_err());
+        assert_eq!((g.num_nodes(), g.num_edges()), (0, 0));
+        assert_eq!(node_count(usize::MAX - 1), Ok(usize::MAX));
+        assert!(node_count(usize::MAX).is_err());
+    }
+
+    #[test]
     #[allow(deprecated)]
     fn the_2_1_methods_still_decode() {
         let g = line(5);
@@ -870,6 +902,21 @@ mod tests {
         assert_eq!(d.decode(&mut s, &[0, 1]).unwrap(), Decoded { faults: vec![true, false], weight: -2.0 });
         assert_eq!(d.decode_to_edges(&mut s, &[0, 1]).unwrap(), vec![(0, 1)]);
         assert!(d.decode_to_matched_pairs(&mut s, &[0, 1]).is_err());
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn the_2_1_methods_cancel_repeated_events() {
+        let g = line(5);
+        let d = g.decoder().unwrap();
+        let mut s = d.scratch();
+        assert_eq!(d.decode(&mut s, &[1, 1, 3]).unwrap(), d.decode(&mut s, &[3]).unwrap());
+        assert_eq!(d.decode(&mut s, &[1, 1]).unwrap(), Decoded { faults: vec![false; 5], weight: 0.0 });
+        assert_eq!(d.decode_to_edges(&mut s, &[1, 1]).unwrap(), Vec::<(i64, i64)>::new());
+        assert_eq!(d.decode_to_matched_pairs(&mut s, &[1, 1]).unwrap(), Vec::<(i64, i64)>::new());
+        let (mut buf, mut out) = (Vec::new(), [0xffu8]);
+        assert_eq!(d.decode_packed(&mut s, &[1, 1], &mut buf, &mut out).unwrap(), 0.0);
+        assert_eq!(out, [0]);
     }
 
     /// A rare correlated error whose implied weight is the heaviest in the graph.

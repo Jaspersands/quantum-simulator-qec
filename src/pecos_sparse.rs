@@ -1,3 +1,8 @@
+// Copyright 2018 National Technology & Engineering Solutions of Sandia, LLC (NTESS). Under the terms
+// of Contract DE-NA0003525 with NTESS, the U.S. Government retains certain rights in this software.
+// Licensed under the Apache License, Version 2.0 (see LICENSES/Apache-2.0.txt).
+// Modified for stabilizer_qec: a Rust translation of PECOS's sparsesim.cpp.
+
 //! PECOS's sparse stabilizer simulator (`SparseSim`, its C++ `sparsesim.cpp` that Cython wraps as
 //! `cySparseSim`), in Rust.
 //!

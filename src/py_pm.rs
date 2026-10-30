@@ -10,7 +10,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crate::pm_exact::Mwpm;
-use crate::user_graph::{DecoderCache, Engine, ImpliedWeight, Merge, UserGraph};
+use crate::user_graph::{node_count, DecoderCache, Engine, ImpliedWeight, Merge, UserGraph};
 
 fn err(e: String) -> PyErr {
     if e.contains("cannot allocate observable output") || e.starts_with("cannot allocate decoding workers") {
@@ -100,9 +100,13 @@ impl PyUserGraph {
         Ok(changed)
     }
 
-    fn set_boundary(&mut self, nodes: Vec<usize>) {
+    fn set_boundary(&mut self, nodes: Vec<usize>) -> PyResult<()> {
+        if let Some(&last) = nodes.iter().max() {
+            node_count(last).map_err(err)?;
+        }
         self.g.set_boundary(nodes.into_iter().collect());
         self.changed();
+        Ok(())
     }
 
     /// PyMatching's `set_min_num_observables`, which does not set `_mwpm_needs_updating`: a kept

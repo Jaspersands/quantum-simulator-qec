@@ -7,7 +7,9 @@ partitions, the example codes with their random errors, the visualizer and its w
 
 Weights are 64-bit (fusion_blossom's wheels use 32-bit ones), and where
 fusion_blossom would call the Blossom V library, which its wheels leave out, this package's own
-exact matcher runs. The helper and unchanged embedded Bottle live below this package rather than
+exact matcher runs. Error messages can differ from fusion_blossom's wording, and some exception
+types too: a misused ``PyMut`` raises ``AssertionError`` here where fusion_blossom raises
+``PanicException``. The helper and unchanged embedded Bottle live below this package rather than
 registering top-level modules. Its server binds when run, uses the latest process-wide data folder,
 and checks resolved data-path containment and malformed UTF-8; see ``helper`` for lifecycle,
 MIME, logging and filesystem-race limits."""

@@ -507,6 +507,22 @@ def test_ensure_num_fault_ids_keeps_the_built_decoder_as_pymatching(load, steps)
     assert got == want, (load, steps)
 
 
+def test_a_batch_on_a_wider_graph_writes_the_fault_ids_a_decode_writes():
+    # A decoder built at 70 fault ids, then widened to 100, with a fault id (80) that a replace set
+    # past the built count: the single decode and the batch both write it.
+    m = sq.Matching()
+    m.ensure_num_fault_ids(70)
+    m.add_edge(0, 1, fault_ids={0}, weight=5.0, error_probability=0.1)
+    m.add_edge(0, 1, fault_ids={80}, weight=1.0, error_probability=0.1, merge_strategy="replace")
+    s = np.array([1, 1], dtype=np.uint8)
+    m.decode(s)
+    m.ensure_num_fault_ids(100)
+    single = m.decode(s)
+    batch = m.decode_batch(np.array([[1, 1]], dtype=np.uint8))
+    assert np.flatnonzero(single).tolist() == [80]
+    assert np.flatnonzero(batch[0]).tolist() == [80]
+
+
 def test_ensure_num_fault_ids_cases_are_not_vacuous():
     # The kept decoder answers otherwise than a fresh one: the sequences above see it.
     s = np.array([1, 0, 1, 0], dtype=np.uint8)

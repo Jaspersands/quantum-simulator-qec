@@ -63,6 +63,19 @@ def test_noop_preserves_correlations(how, boundary):
         restored.decode(syndrome, enable_correlations=True)
 
 
+def test_copies_keep_the_fault_id_count_and_probability_flag_after_a_merge_past_the_count():
+    m = sq.Matching()
+    m.add_edge(0, 1, fault_ids={0}, weight=5.0)
+    m.add_edge(0, 1, fault_ids={99}, weight=1.0, error_probability=0.1, merge_strategy="replace")
+    assert m.num_fault_ids == 1 and m.add_noise() is None
+    syndrome = np.array([1, 1], dtype=np.uint8)
+    for copy_of in (copy.deepcopy(m), pickle.loads(pickle.dumps(m))):
+        assert copy_of.num_fault_ids == 1
+        assert copy_of.add_noise() is None
+        assert np.array_equal(copy_of.decode(syndrome), m.decode(syndrome))
+        assert copy_of.decode(syndrome).shape == (1,)
+
+
 @pytest.mark.parametrize("built", [False, True])
 def test_capacity_error_is_catchable_and_object_remains_usable(built):
     m = square()
@@ -161,13 +174,22 @@ def test_empty_graph_and_initial_wide_build():
     assert m.decode_batch(np.zeros((0, 4))).shape == (0, 70)
 
 
-def test_correlated_padding_keeps_bit63_and_refuses_real_wide_model():
+def test_correlated_padding_keeps_bit63_and_refuses_real_wide_decoding():
     m = sq.Matching("error(0.1) D0 L63", enable_correlations=True)
     m.ensure_num_fault_ids(70)
     out = m.decode_batch([[1]], enable_correlations=True, bit_packed_predictions=True)
     assert out.tolist() == [[0] * 7 + [128, 0]]
-    with pytest.raises(ValueError, match="64"):
-        sq.Matching("error(0.1) D0 L64", enable_correlations=True)
+
+
+def test_wide_model_loads_with_correlations_plain_decodes_and_correlated_decodes_refuse():
+    wide = sq.Matching("error(0.1) D0 L64", enable_correlations=True)
+    assert wide.num_observables == 65
+    assert wide.decode([1]).tolist() == [0] * 64 + [1]
+    assert wide.decode_batch([[1]]).tolist() == [[0] * 64 + [1]]
+    with pytest.raises(ValueError, match="at most 64 observables"):
+        wide.decode([1], enable_correlations=True)
+    with pytest.raises(ValueError, match="at most 64 observables"):
+        wide.decode_batch([[1]], enable_correlations=True)
 
 
 def test_core_batch_checked_products_and_zero_width_capacity():
@@ -179,3 +201,18 @@ def test_core_batch_checked_products_and_zero_width_capacity():
         g.decode_batch(b"", 2**63, 0, 1)
     assert g.decode_batch(b"", 0, 0, 1) == (b"", b"")
     assert g.decode([]) == (b"", 0)
+
+
+def test_largest_node_index_is_a_value_error_not_an_internal_one():
+    m = sq.Matching()
+    big = 2**64 - 1
+    with pytest.raises(ValueError, match="too large"):
+        m.add_edge(big, 0)
+    with pytest.raises(ValueError, match="too large"):
+        m.add_edge(0, big)
+    with pytest.raises(ValueError, match="too large"):
+        m.add_boundary_edge(big)
+    with pytest.raises(ValueError, match="too large"):
+        m.set_boundary_nodes({big})
+    assert m.num_nodes == 0 and m.num_edges == 0
+
