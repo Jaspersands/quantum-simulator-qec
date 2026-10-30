@@ -41,6 +41,8 @@ policy for its documented items.
 - `FlipSimulator.broadcast_pauli_errors` and `generate_bernoulli_samples` refuse a probability outside
   [0, 1] or NaN with `ValueError`; they used to accept it (p = 1.5 gave all-True samples, p = -0.5
   all-False).
+- `PauliStringIterator` and `TableauIterator` iterate again, as Stim's do: a second pass over one
+  yielded nothing, and `copy.copy` of one shared its position.
 
 ## 2.2.0 — 2026-10-30
 

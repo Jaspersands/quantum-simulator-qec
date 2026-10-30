@@ -413,3 +413,22 @@ def test_flip_probabilities_outside_zero_to_one_are_refused(p):
         f.generate_bernoulli_samples(4, p=p)
     f.broadcast_pauli_errors(pauli="X", mask=mask, p=0.0)  # (p = 0 is in range; it applies nothing)
     assert f.generate_bernoulli_samples(4, p=0.0).tolist() == [False] * 4
+
+
+
+def test_pauli_and_tableau_iterators_iterate_again_and_copy_apart():
+    """Each pass over a Pauli string or tableau iterator yields the whole sequence, as Stim's do,
+    and a copy of a partly consumed iterator goes on from the same place without advancing the
+    original."""
+    from stabilizer_qec import _stim
+
+    a = _stim.PauliStringIterator(3, 1, 2)  # 3 * 3 weight-1 strings, and 3 * 9 of weight 2
+    first = [str(x) for x in a]
+    assert len(first) == 36 and [str(x) for x in a] == first
+    t = _stim.TableauIterator(1)
+    assert len(list(t)) == 24 and len(list(t)) == 24
+    p = _stim.PauliStringIterator(2, 0, 1)
+    assert str(next(p)) == "+__"
+    q = copy.copy(p)
+    rest = [str(x) for x in q]
+    assert len(rest) == 6 and [str(x) for x in p] == rest

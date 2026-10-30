@@ -426,8 +426,18 @@ class PauliStringIterator:
                         v[q] = "_XYZ".index(p)
                     yield PauliString._wrap(_core.PauliStringCore.from_paulis(v, 0))
 
+    def _fork(self) -> "PauliStringIterator":
+        """An independent iterator at this one's position: iterating it does not advance this one."""
+        new = object.__new__(type(self))
+        new.__dict__.update(self.__dict__)
+        self._gen, new._gen = itertools.tee(self._gen)
+        return new
+
     def __iter__(self) -> "PauliStringIterator":
-        return self
+        return self._fork()
+
+    def __copy__(self) -> "PauliStringIterator":
+        return self._fork()
 
     def __next__(self) -> PauliString:
         return next(self._gen)
@@ -722,8 +732,18 @@ class TableauIterator:
         self._unsigned = bool(unsigned)
         self._gen = self._generate()
 
+    def _fork(self) -> "TableauIterator":
+        """An independent iterator at this one's position: iterating it does not advance this one."""
+        new = object.__new__(type(self))
+        new.__dict__.update(self.__dict__)
+        self._gen, new._gen = itertools.tee(self._gen)
+        return new
+
     def __iter__(self) -> "TableauIterator":
-        return self
+        return self._fork()
+
+    def __copy__(self) -> "TableauIterator":
+        return self._fork()
 
     def __next__(self) -> Tableau:
         return next(self._gen)
