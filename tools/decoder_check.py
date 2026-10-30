@@ -31,10 +31,12 @@ Sections (each skipped, and said so, when its reference is not installed):
   color   ColorMatching against chromobius on annotated colour-code memories (d = 3 to 9, both
           bases, two noise strengths) and Chromobius's own colour repetition code: the Möbius
           matching's weight equal on every shot (PyMatching's, as float32, bit for bit: a check
-          of the whole Möbius graph), and on macOS the predictions equal on every shot (the
-          Möbius matching is PyMatching 2.2.2's, edge for edge and in its order). Elsewhere
-          Chromobius walks some tables in another C++ library's std::unordered_map order, so a
-          shot may be lifted another way at the same weight; those are counted as ties.
+          of the whole Möbius graph), and on macOS the predictions equal on every shot checked
+          here (the Möbius matching is PyMatching 2.2.2's, edge for edge and in its order; a tie
+          in the predictions fails the check there). Other equal-weight liftings can differ on
+          any platform: elsewhere Chromobius walks some tables in another C++ library's
+          std::unordered_map order, so a shot may be lifted another way at the same weight;
+          those are counted as ties.
 
   search  SearchDecoder against tesseract_decoder (Tesseract's defaults: 20 index orders; two
           literal orders; beam 8 with beam climbing) on surface, colour and gross-code models:
