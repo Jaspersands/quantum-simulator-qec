@@ -19,6 +19,10 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- `stabilizer_qec.fusion_blossom` has fusion_blossom 0.2.13's `__all__`, so a star import no longer
+  exports the compiled module's name; `fb.PyMut` raises RuntimeError on a second enter or an exit
+  without an enter (it used an assert, which `python -O` removed, and an exit without an enter
+  wrote None into the field).
 
 ## 2.2.0 — 2026-10-30
 
