@@ -22,18 +22,19 @@ from conftest import REFERENCE_VERSIONS
 
 ROOT = pathlib.Path(__file__).parents[1]
 CI = ROOT / ".github" / "workflows" / "ci.yml"
+WHEELS = ROOT / ".github" / "workflows" / "wheels.yml"
 if not CI.exists():
     pytest.skip("needs the repository's .github/workflows/ci.yml", allow_module_level=True)
 
 TSIM = json.loads(gzip.decompress((ROOT / "tests" / "tsim_port" / "zx_graphs.json.gz").read_bytes()))
 
 
-def _jobs() -> dict:
+def _jobs(path: pathlib.Path = CI) -> dict:
     """Each job's lines, by its id (the two-space keys under ``jobs:``)."""
     jobs: dict = {}
     current = None
     inside = False
-    for line in CI.read_text().splitlines():
+    for line in path.read_text().splitlines():
         if line.startswith("jobs:"):
             inside = True
             continue
@@ -47,6 +48,12 @@ def _jobs() -> dict:
         if current is not None:
             current.append(line)
     return jobs
+
+
+def _needs(job: list) -> list:
+    """The ids in a job's ``needs:`` list."""
+    m = re.search(r"^    needs: \[(.*)\]\s*$", "\n".join(job), re.M)
+    return [n.strip() for n in m.group(1).split(",")] if m else []
 
 
 def _steps(job: list) -> list:
@@ -170,6 +177,19 @@ def test_a_job_runs_panqecs_slow_tests():
     # tests/conftest.py leaves tests/panqec_port uncollected (not skipped) without the panqec extra.
     for module in ("scipy", "pandas", "matplotlib", "click", "psutil", "tqdm"):
         assert any(re.search(r"import [^\n]*\b" + module + r"\b", "\n".join(jobs[n])) for n in good), f"the job does not check that {module} imports"
+
+
+def test_publish_waits_for_a_smoke_test_of_every_built_wheel():
+    """The wheels publish job waits for a smoke job; that job waits for every build job and runs tools/smoke.py
+    on each kind of wheel they make, Windows ARM64's on a Windows ARM64 runner."""
+    jobs = _jobs(WHEELS)
+    assert "smoke" in _needs(jobs["publish"]), "publish does not wait for the smoke job"
+    assert {"linux", "macos", "windows", "free-threaded"} <= set(_needs(jobs["smoke"])), "the smoke job does not wait for every build job"
+    smoke = "\n".join(jobs["smoke"])
+    assert any("tools/smoke.py" in s for s in _steps(jobs["smoke"])), "the smoke job does not run tools/smoke.py"
+    for prefix in ("wheels-linux-", "wheels-macos", "wheels-windows-", "wheels-free-threaded-"):
+        assert prefix in smoke, f"the smoke job tests no {prefix} wheel"
+    assert "wheels-windows-aarch64" in smoke and "windows-11-arm" in smoke, "Windows ARM64's wheel is not smoke-tested on its own runner"
 
 
 def test_ldpc_is_pinned_wherever_the_comparisons_install_it():
