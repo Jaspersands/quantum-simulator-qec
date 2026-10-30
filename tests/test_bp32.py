@@ -3,6 +3,8 @@ the f64 decoder, and the GPU against the CPU bit for bit when the build has it."
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -147,5 +149,13 @@ def test_f32_device_defaults_and_scale_validation(problem):
         d.ms_scaling_factor = bad
         with pytest.raises(ValueError, match="single-precision"):
             d.decode_batch(np.ones((1, H.shape[0]), dtype=np.uint8))
+    # The overflow of a too-large scale in numpy's float32 cast is not a warning the caller sees:
+    # with RuntimeWarning an error, the refusal is still the ValueError.
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        for bad in (1e39, -1e39, 3.5e38):
+            d.ms_scaling_factor = bad
+            with pytest.raises(ValueError, match="single-precision"):
+                d.decode_batch(np.ones((1, H.shape[0]), dtype=np.uint8))
     d.ms_scaling_factor = 0.625
     assert d.decode_batch(np.ones((1, H.shape[0]), dtype=np.uint8)).shape == (1, H.shape[1])

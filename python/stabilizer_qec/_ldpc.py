@@ -529,7 +529,8 @@ class BpDecoder(BpDecoderBase):
 
     def _f32_scale(self) -> float:
         scale = float(self._scale)
-        as_f32 = float(np.float32(scale))
+        with np.errstate(over="ignore"):
+            as_f32 = float(np.float32(scale))
         if not np.isfinite(as_f32) or (as_f32 == 0.0) != (scale == 0.0):
             raise ValueError(f"ms_scaling_factor {scale!r} is not a single-precision number (0 means adaptive scaling): the {self.device!r} device cannot use it")
         return scale

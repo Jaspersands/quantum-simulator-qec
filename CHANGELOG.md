@@ -21,6 +21,8 @@ policy for its documented items.
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
 - The bposd port's `css_code` and `stab_code` no longer compile with invalid-escape warnings
   (`\in` in their printed logical-membership lines); the printed text is unchanged.
+- A single-precision BP decoder refuses a `ms_scaling_factor` too large for float32 with its
+  `ValueError` alone, without numpy's overflow `RuntimeWarning` first.
 
 ## 2.2.0 — 2026-10-30
 
