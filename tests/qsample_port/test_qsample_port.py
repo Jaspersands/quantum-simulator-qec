@@ -178,3 +178,36 @@ def test_subset_sampler_takes_a_group_of_over_1029_fault_locations(ncnot):
     sampler.run(50)
     p_L, std, p_up, std_up = (np.asarray(x, dtype=float) for x in sampler.stats())
     assert np.all(np.isfinite(p_L)) and np.all(np.isfinite(p_up)) and np.all(p_L <= p_up)
+
+
+# Plots and rates
+
+def test_plot_stats_draws_with_one_and_with_two_error_groups():
+    pytest.importorskip("matplotlib")
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    try:
+        np.random.seed(5)
+        one = qs.DirectSampler(protocol=ghz_protocol(), simulator=qs.StabilizerSimulator, err_model=qs.E1, err_params={"q": [0.05]})
+        one.run(200, callbacks=[qs.callbacks.PlotStats()])
+        two = qs.DirectSampler(protocol=ghz_protocol(), simulator=qs.StabilizerSimulator, err_model=qs.E2, err_params={"q1": [0.05], "q2": [0.1]})
+        two.run(200, callbacks=[qs.callbacks.PlotStats()])
+    finally:
+        plt.close("all")
+
+
+def test_subset_rates_runs_on_a_subset_sampler_with_failures():
+    pytest.importorskip("matplotlib")  # SubsetRates draws its rates when the run ends
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    rates = qs.callbacks.SubsetRates()
+    try:
+        np.random.seed(5)
+        sampler = qs.SubsetSampler(protocol=ghz_protocol(), simulator=qs.StabilizerSimulator, p_max={"q": 0.1}, err_model=qs.E1, err_params={"q": [1e-3, 1e-2]}, L=2)
+        sampler.run(100, callbacks=[rates])
+    finally:
+        plt.close("all")
+    assert rates.data
+    assert all(np.isfinite(p) for pairs in rates.data.values() for _, p in pairs)

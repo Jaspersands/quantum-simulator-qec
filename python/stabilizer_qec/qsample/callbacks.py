@@ -182,8 +182,8 @@ class PlotStats(Callback):
             """
             n_lines = int(stats_len/2)
             for _ in range(n_lines):
-                ax.collections.pop()
-                ax.lines.pop()
+                ax.collections[-1].remove()
+                ax.lines[-1].remove()
 
         def plot(ax, x, stats, i, drawn):
             """Plot 2 or 4 plots (depending on return value of `sampler.stats()`,
@@ -463,7 +463,7 @@ class SubsetRates(Callback):
             if not leaf.is_root and leaf in sampler.tree.marked:
                 name = ":".join([f'{n.name}' for n in leaf.path]) 
                 prev_data = self.data.get(name, [])
-                prod = np.product([sampler.tree.value(node) for node in leaf.path[1:]])
+                prod = np.prod([sampler.tree.value(node) for node in leaf.path[1:]])
                 self.data[name] = prev_data + [(leaf.rate, prod)]
         self.n_calls += 1
 

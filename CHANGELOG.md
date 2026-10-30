@@ -24,6 +24,8 @@ policy for its documented items.
 - A sampler loaded with `utils.load` runs again: `Circuit.id` hashes the circuit's text instead of its
   object address, so the ids a sampler keys its circuits by survive a pickle round trip. A sampler saved
   before this change still cannot run after loading.
+- `callbacks.PlotStats` and `callbacks.SubsetRates` run again on NumPy 2 and matplotlib 3.11: they called
+  `np.product`, which NumPy 2.0 removed, and popped matplotlib's artist lists, which have no `pop`.
 
 ## 2.2.0 — 2026-10-30
 
