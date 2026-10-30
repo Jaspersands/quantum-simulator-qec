@@ -113,6 +113,9 @@ def mwpm_ids(edges):
     n_edges = len(edges)
     # unzip edges
     nodes_a, nodes_b, weights = zip(*edges) if n_edges else ([], [], [])
+    # weights must already be integers: truncating a float would change which matching is minimum
+    if any(w != int(w) for w in weights):
+        raise TypeError('Edge weights must be integers; scale float weights with weight_to_int_fn first.')
     if not _have_libpypm():
         return _mwpm_ids_standin(n_nodes, list(edges))
     # prepare array types

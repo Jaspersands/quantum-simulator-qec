@@ -19,6 +19,8 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- `qecsim.graphtools.blossom5.mwpm_ids` raises `TypeError` for a non-integer edge weight instead of
+  truncating it, which could return a heavier matching.
 
 ## 2.2.0 — 2026-10-30
 
