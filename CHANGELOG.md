@@ -21,6 +21,9 @@ policy for its documented items.
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
 - `qecsim.graphtools.blossom5.mwpm_ids` raises `TypeError` for a non-integer edge weight instead of
   truncating it, which could return a heavier matching.
+- A sampler loaded with `utils.load` runs again: `Circuit.id` hashes the circuit's text instead of its
+  object address, so the ids a sampler keys its circuits by survive a pickle round trip. A sampler saved
+  before this change still cannot run after loading.
 
 ## 2.2.0 — 2026-10-30
 

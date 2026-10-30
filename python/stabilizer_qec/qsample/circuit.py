@@ -173,7 +173,7 @@ class Circuit(MutableSequence):
     @property
     def id(self):
         """Unique circuit identifier"""
-        return sha1((repr(self)).encode('UTF-8')).hexdigest()[:5]
+        return sha1((str(self)).encode('UTF-8')).hexdigest()[:5]
 
     def draw(self, path=None, scale=2):
         """Draw the circuit"""

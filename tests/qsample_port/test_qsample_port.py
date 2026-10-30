@@ -102,6 +102,7 @@ def test_samplers_with_lambda_check_functions_save_with_dill(tmp_path, which):
         assert np.allclose(np.asarray(a, dtype=float), np.asarray(b, dtype=float), rtol=1e-12, atol=0)
     check = loaded.protocol.check_functions["logErr"]
     assert (check(0), check(0b1111), check(0b0100)) == (False, False, True)
+    loaded.run(50)  # the loaded circuits keep the ids the protocol keys them by
     assert _leftovers(tmp_path, f"{which}.pkl") == []
 
 
