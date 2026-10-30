@@ -353,6 +353,9 @@ impl fmt::Display for PauliString {
     }
 }
 
+/// The largest qubit index a Pauli shorthand may name: Stim's, which circuits share (2**24 - 1).
+const MAX_SHORTHAND_INDEX: u64 = (1 << 24) - 1;
+
 /// The qubit count a sparse string (`X2*Y6`) names, or 0 when the text has no digits (dense).
 fn sparse_size(text: &str) -> Result<usize, ()> {
     let mut n = 0usize;
@@ -361,14 +364,14 @@ fn sparse_size(text: &str) -> Result<usize, ()> {
         if let Some(d) = c.to_digit(10) {
             cur = Some(cur.unwrap_or(0).saturating_mul(10).saturating_add(d as u64));
         } else if let Some(v) = cur.take() {
-            if v >= (usize::MAX as u64) {
+            if v > MAX_SHORTHAND_INDEX {
                 return Err(());
             }
             n = n.max(v as usize + 1);
         }
     }
     if let Some(v) = cur {
-        if v >= (usize::MAX as u64) {
+        if v > MAX_SHORTHAND_INDEX {
             return Err(());
         }
         n = n.max(v as usize + 1);
