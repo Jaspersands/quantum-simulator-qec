@@ -2173,8 +2173,8 @@ bivariate bicycle memories 2; the search within a 1 GB memory budget):
   [[90, 8, 10]] and [[108, 8, 10]] the integer program found 9 faults that flip a logical qubit
   unnoticed, so these 2-round memories have circuit distance at most 9, below the codes' 10. Bravyi et al. (their
   Table 1) bound the circuit distance at 6, 8, 8 and 10 for [[72, 12, 6]], [[90, 8, 10]],
-  [[108, 8, 10]] and the gross code. Ours are 6, 9, 9 and 12, so at this time limit the
-  gross code's is loose and says nothing new. The graph-like search does not apply (their
+  [[108, 8, 10]] and the gross code. Ours are 6, 9, 9 and 12, so at this time limit the [[90, 8, 10]],
+  [[108, 8, 10]] and gross-code bounds are looser and say nothing new. The graph-like search does not apply (their
   faults are not graph-like), and the search through hyperedges (limits 6 and 6, a 1 GB
   memory budget) finds the [[72, 12, 6]] code's 6 but runs out of memory on the other three
   after 12.7 to 14.3 million states (sets of detectors), as it does on the rotated d = 7
