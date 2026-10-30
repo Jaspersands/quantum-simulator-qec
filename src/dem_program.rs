@@ -623,7 +623,15 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
         };
         out.push(match name.as_str() {
             "ERROR" => {
-                if args.len() != 1 || !(0.0..=1.0).contains(&args[0]) {
+                // Empty parentheses read as probability 0, as Stim reads `error() D0`; a bare
+                // `error D0` is refused, as Stim refuses it.
+                let parenthesised = line.find('(').is_some_and(|open| !line[..open].split('[').next().unwrap_or("").contains(char::is_whitespace));
+                let prob = match args.as_slice() {
+                    [p] => *p,
+                    [] if parenthesised => 0.0,
+                    _ => return Err(format!("line {lineno}: error takes one probability")),
+                };
+                if !(0.0..=1.0).contains(&prob) {
                     return Err(format!("line {lineno}: error takes one probability"));
                 }
                 // Stim's rules for separators.
@@ -645,7 +653,7 @@ fn parse_block(lines: &[&str], pos: &mut usize, nested: bool) -> Result<Vec<DemI
                         return Err(bad(t));
                     }
                 }
-                DemInstr::Error { p: args[0], pieces, tag }
+                DemInstr::Error { p: prob, pieces, tag }
             }
             "DETECTOR" | "LOGICAL_OBSERVABLE" if tokens.len() != 1 => {
                 return Err(format!("line {lineno}: '{}' instruction takes 1 target but got {} arguments.", name.to_ascii_lowercase(), tokens.len()));
