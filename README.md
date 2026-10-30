@@ -1348,7 +1348,7 @@ adaptive scaling for up to 10,000 iterations. BP+OSD-0 runs on the same shots.
 | [[72, 12, 6]] | 0.6% | 2,048 | 565 | 5.2 × 10⁻² [4.8 × 10⁻², 5.7 × 10⁻²] | 5.7 × 10⁻² | 73.2% |
 
 - **Below 12 unprotected qubits everywhere measured.** At p = 0.6% the gross code fails 3.3% of
-  cycles, where 12 bare qubits would fail 6.9%.
+  cycles, where 12 bare qubits would fail 7.0%.
 - **OSD-CS earns its cost.** Against OSD-0 it cuts the gross code's failures 2.7 times at p = 0.2%
   and 2 times at 0.3%, where most shots never reach OSD at all.
 - **The gross code falls steeply.** From 0.3% to 0.2% its error per cycle falls twentyfold.
