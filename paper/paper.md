@@ -26,7 +26,7 @@ occurred. Studying a code means three steps: simulating its circuits under noise
 circuit into a detector error model (the list of independent faults and the checks each one
 flips), and decoding the sampled syndromes. `stabilizer-qec` does all three in one Rust engine.
 The same engine is a Rust crate, a typed Python package with one abi3 wheel for every CPython
-from 3.9 on, and a WebAssembly module that drives an interactive explainer in the browser
+from 3.9 on and a free-threaded CPython 3.14 wheel, and a WebAssembly module that drives an interactive explainer in the browser
 (<https://qcompiler.jaspersands.com>).
 
 It reads and writes Stim's circuit and error-model formats [@gidney2021stim], so circuits move
