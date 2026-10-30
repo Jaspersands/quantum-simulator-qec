@@ -369,6 +369,23 @@ def test_star_import_leaves_the_callers_stim_and_numpy_alone():
     assert proc.returncode == 0, proc.stderr
 
 
+def test_vendored_frozendict_and_frozenlist_match_upstream():
+    # The values frozendict 2.4 and frozenlist 1.8 give for these calls.
+    from stabilizer_qec.mwpf._frozendict import FrozenList, frozendict
+
+    d = frozendict({"a": 1})
+    d.__init__({"z": 9})
+    assert dict(d) == {"a": 1}
+    keys = frozendict.fromkeys(["a", "b"], 1)
+    assert type(keys) is frozendict and dict(keys) == {"a": 1, "b": 1}
+    original = frozendict({"a": 1})
+    original |= {"b": 2}
+    assert type(original) is frozendict and dict(original) == {"a": 1, "b": 2}
+    with pytest.raises(ValueError, match=re.escape("9 is not in list")):
+        FrozenList([1, 2]).index(9)
+    assert FrozenList([1, 2]).index(2) == 1
+
+
 def test_random_solver_inputs():
     rng = random.Random(5)
     for trial in range(40):

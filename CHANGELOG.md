@@ -39,6 +39,9 @@ policy for its documented items.
   flags), not a usage line with `--out` and no positionals.
 - `from stabilizer_qec.mwpf import *` exports MWPF's names and the helpers' own, and no longer rebinds the
   caller's `stim`, `np`, `json`, `random` and `time` to this package's modules.
+- The `frozendict` and `FrozenList` that `stabilizer_qec.mwpf` vendors match frozendict 2.4 and frozenlist 1.8:
+  `frozendict.fromkeys` returns a `frozendict`, `|=` returns a new one, a second `__init__` changes nothing,
+  and `FrozenList.index` raises `ValueError` naming the missing item.
 
 ## 2.2.0 — 2026-10-30
 
