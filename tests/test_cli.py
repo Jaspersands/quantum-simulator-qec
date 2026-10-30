@@ -149,6 +149,14 @@ def test_repl_matches_stims():
 
 
 @needs_stim
+def test_repl_runs_repeat_iterations_apart_and_recovers_from_bad_lines():
+    both("repl", stdin=b"REPEAT 3 {\nM 0\nM 1\n}\n")
+    both("repl", stdin=b"REPEAT 2 {\nM 0\nBOGUS 0\nM 1\n}\n")
+    both("repl", stdin=b"M 0\nREPEAT 2 {\nX 0\nBOGUS 0\nM 0\n}\nM 0\n")
+    both("repl", stdin=b"REPEAT 2 {\nX 0\nM 0 Q\nM 0\n}\nM 0\n")
+
+
+@needs_stim
 def test_legacy_modes_and_deprecated_flags(files):
     det = files / "det.stim"
     det.write_text("X_ERROR(1) 0\nX 2\nM 0 1 2\nDETECTOR rec[-3]\nDETECTOR rec[-2]\nOBSERVABLE_INCLUDE(0) rec[-3]\nOBSERVABLE_INCLUDE(1) rec[-1]\n")

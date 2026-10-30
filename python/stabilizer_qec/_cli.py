@@ -964,18 +964,70 @@ def cmd_help(a) -> None:
     _write(None, msg)
 
 
+def _repl_bad_line(chunk: List[str]) -> int:
+    """The index of the first line of a REPL chunk that does not parse by itself (0 if none
+    does). Lines with braces are the block's own, and are not probed."""
+    from ._circuit import Circuit
+
+    for k, line in enumerate(chunk):
+        if "{" in line or "}" in line or not line.split("#", 1)[0].strip():
+            continue
+        try:
+            Circuit(line)
+        except ValueError:
+            return k
+    return 0
+
+
+def _repl_run(sim, circuit, out) -> bool:
+    """Runs a REPL input's instructions on ``sim``, a REPEAT block one iteration at a time (its
+    measurements are not fused across iterations), printing the results of each instruction that
+    measures. False when one fails (it is reported, and the rest of the input is skipped)."""
+    from ._stim import CircuitRepeatBlock
+
+    for op in circuit:
+        if isinstance(op, CircuitRepeatBlock):
+            body = op.body_copy()
+            for _ in range(op.repeat_count):
+                if not _repl_run(sim, body, out):
+                    return False
+            continue
+        before = len(sim.current_measurement_record())
+        try:
+            sim.do(op)
+        except ValueError as ex:
+            print(f"\033[31m{ex}\033[0m", file=sys.stderr)
+            return False
+        record = sim.current_measurement_record()
+        if len(record) > before:
+            out.write(("".join("1" if b else "0" for b in record[before:]) + "\n").encode())
+            out.flush()
+    return True
+
+
 def cmd_repl(a) -> None:
     """Stim's REPL: each instruction (a REPEAT block once it closes) runs as soon as it's read,
     on a tableau simulator; each instruction that measures prints its results as 0s and 1s
-    and a newline. An instruction that fails is reported (in red) and skipped."""
+    and a newline. An instruction that fails is reported (in red) and skipped. A block with a
+    line that does not parse drops the block's lines up to that one, and reads the rest again."""
+    from collections import deque
+
     from ._circuit import Circuit
     from ._stim import TableauSimulator
 
     sim = TableauSimulator()
     out = sys.stdout.buffer  # bare \n on every platform, as Stim writes it
+    source = iter(sys.stdin)
+    reread: deque = deque()
     pending: List[str] = []
     depth = 0
-    for line in sys.stdin:
+    while True:
+        if reread:
+            line = reread.popleft()
+        else:
+            line = next(source, None)
+            if line is None:
+                break
         body = line.split("#", 1)[0]
         depth += body.count("{") - body.count("}")
         pending.append(line)
@@ -983,23 +1035,14 @@ def cmd_repl(a) -> None:
             if depth <= 0:
                 pending = []
             continue
-        text, pending, depth = "".join(pending), [], 0
+        chunk, pending, depth = pending, [], 0
         try:
-            ops = list(Circuit(text).flattened())
+            circuit = Circuit("".join(chunk))
         except ValueError as ex:
             print(f"\033[31m{ex}\033[0m", file=sys.stderr)
+            reread.extendleft(reversed(chunk[_repl_bad_line(chunk) + 1 :]))
             continue
-        for op in ops:
-            before = len(sim.current_measurement_record())
-            try:
-                sim.do(op)
-            except ValueError as ex:
-                print(f"\033[31m{ex}\033[0m", file=sys.stderr)
-                break
-            record = sim.current_measurement_record()
-            if len(record) > before:
-                out.write(("".join("1" if b else "0" for b in record[before:]) + "\n").encode())
-                out.flush()
+        _repl_run(sim, circuit, out)
     out.write(b"\n")
     out.flush()
 
