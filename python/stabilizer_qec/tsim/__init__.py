@@ -63,7 +63,8 @@
 Where it differs from Tsim:
 
 - Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
-  JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.
+  JAX's); deterministic values, models and noiseless probabilities are Tsim's, and so are matrices up to
+  a global phase (a Clifford gate's phase is its decomposition's here, not Tsim's).
 - An angle appended as an int prints as a float (``R_Z(1.0)``, Tsim ``R_Z(1)``); a tag on an
   appended ``T``, ``T_DAG``, ``TPP`` or ``TPP_DAG`` is not kept. The suffix of a tagged input
   such as ``S[T:x] 0`` is also dropped (prints ``T 0``, inverse ``T_DAG 0``, where Tsim

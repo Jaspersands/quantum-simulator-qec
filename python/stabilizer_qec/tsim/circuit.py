@@ -657,7 +657,7 @@ class Circuit(_Base):
         return CompiledDetectorSampler(self, seed=seed, strategy=strategy)
 
     def to_matrix(self, *, endian: str = "big") -> np.ndarray:
-        """Convert circuit to matrix representation, as Tsim's ``to_matrix``: the map the
+        """Convert circuit to matrix representation, as Tsim's ``to_matrix`` up to a global phase: the map the
         circuit's gates apply to the qubits Tsim's ZX graph has a lane for, those its instructions
         name, noise, identities and coordinates among them (a qubit no instruction names is dropped,
         so ``R_ZZ(0.5) 0 2`` is 4 × 4, and so is one that only a product that cancels on it names,
