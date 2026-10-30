@@ -54,6 +54,17 @@ def _index(value: Any, name: str) -> int:
     return int(value)
 
 
+def _edit(fn: Any, *args: Any) -> Any:
+    """A graph edit, through ``call``. While another thread decodes the graph, the extension
+    refuses the edit with a borrow error that does not say why, so that one is restated."""
+    try:
+        return call(fn, *args)
+    except RuntimeError as e:
+        if "Already borrowed" in str(e):
+            raise RuntimeError("this Matching is being decoded on another thread, and its graph cannot change until that decode returns") from None
+        raise
+
+
 def _fault_set(fault_ids: Any) -> Set[int]:
     """A fault id or a set of them, as PyMatching takes them: -1 is no fault, and a list or a
     negative id is refused."""
@@ -402,7 +413,7 @@ class Matching:
         if _too_heavy(weight, node1, node2, 3):
             return
         p = -1.0 if error_probability is None else float(error_probability)
-        if call(self._g.add_edge, node1, node2, sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
+        if _edit(self._g.add_edge, node1, node2, sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
             self._corr = None
 
     def add_boundary_edge(self, node: int, fault_ids: Any = None, weight: float = 1.0, error_probability: Optional[float] = None, *, merge_strategy: str = "disallow", **kwargs: Any) -> None:
@@ -413,7 +424,7 @@ class Matching:
         if _too_heavy(weight, node, None, 3):
             return
         p = -1.0 if error_probability is None else float(error_probability)
-        if call(self._g.add_boundary_edge, node, sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
+        if _edit(self._g.add_boundary_edge, node, sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
             self._corr = None
 
     def set_boundary_nodes(self, nodes: Set[int]) -> None:
@@ -421,11 +432,11 @@ class Matching:
         boundary = sorted(_index(n, "boundary node") for n in nodes)
         if boundary and boundary[0] < 0:
             raise TypeError(f"boundary nodes must be non-negative, not {boundary[0]}")
-        call(self._g.set_boundary, boundary)
+        _edit(self._g.set_boundary, boundary)
         self._corr = None
 
     def ensure_num_fault_ids(self, min_num_fault_ids: int) -> None:
-        call(self._g.ensure_num_fault_ids, _index(min_num_fault_ids, "min_num_fault_ids"))
+        _edit(self._g.ensure_num_fault_ids, _index(min_num_fault_ids, "min_num_fault_ids"))
 
     @property
     def boundary(self) -> Set[int]:

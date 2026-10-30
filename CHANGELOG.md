@@ -34,6 +34,8 @@ policy for its documented items.
 - `Matching` refuses a float node index or count, a list of fault ids, and a negative fault id or boundary
   node with `TypeError`, as PyMatching does. A float used to be truncated to another node or count,
   and a negative id raised `OverflowError`.
+- An edit to a `Matching` while another thread decodes it raises `RuntimeError` that says so, instead of
+  PyO3's `Already borrowed`.
 
 ## 2.2.0 — 2026-10-30
 

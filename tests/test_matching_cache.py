@@ -191,3 +191,24 @@ def test_check_matrix_entries_that_read_as_ones_are_accepted(value):
 def test_check_matrix_entries_that_read_as_other_values_are_refused(value, message):
     with pytest.raises(ValueError, match=message):
         sq.Matching.from_check_matrix(np.array([[value], [1.0]]))
+
+
+def test_an_edit_while_another_thread_decodes_says_so():
+    # The extension refuses an edit while a decode on another thread holds the graph; the refusal
+    # has to say why, not only that the graph is borrowed.
+    class Borrowed:
+        def add_edge(self, *args):
+            raise RuntimeError("Already borrowed")
+
+        add_boundary_edge = set_boundary = ensure_num_fault_ids = add_edge
+
+    m = square()
+    m._g = Borrowed()
+    for edit in (
+        lambda: m.add_edge(0, 2, fault_ids={0}),
+        lambda: m.add_boundary_edge(0, fault_ids={1}),
+        lambda: m.set_boundary_nodes({0}),
+        lambda: m.ensure_num_fault_ids(70),
+    ):
+        with pytest.raises(RuntimeError, match="decoded on another thread"):
+            edit()
