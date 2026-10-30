@@ -1583,7 +1583,10 @@ cluster's faults in `ldpc`'s order; Relay-BP on the gross code with explicit str
 strengths and no memory, correction, convergence and iteration count; colour-code matching on
 annotated colour codes (d = 3 to 9) and Chromobius's own test code, the Möbius matching's
 weight on every shot and the predictions; the search on surface, colour and gross-code models
-with Tesseract's defaults, literal orders and beam climbing, the faults found. All four decoder sections below were re-recorded with the actual final 2.2.0 wheel.
+with Tesseract's defaults, literal orders and beam climbing, the faults found. The four decoder sections below are recorded in `data/decoders/check.json` (version 2.2.0) at commit
+`011b01c` (2026-10-23), which records no machine or wheel. Decoder sources changed after that commit,
+so the table is not from the final sources and is not re-recorded here; re-recording is pending for the
+next release.
 A BP+LSD difference counts as a tie only when the reference's correction is among the actual
 merge-order outcomes searched by `tools/decoder_check.py`; it is not a blanket tie waiver.
 The table reports the finite recorded corpus and its actual installed reference versions:
@@ -1595,8 +1598,8 @@ The table reports the finite recorded corpus and its actual installed reference 
 | Colour-code matching | Chromobius 1.1.1 | 17 | 340,000 | 340,000 | 0 | 0 | 0.72 |
 | Search decoder | Tesseract 0.1.1.dev20261013012529 | 12 | 30,000 | 30,000 | 0 | 0 | 1.04 |
 
-The time is this package's over the reference's on the same shots, one thread, Apple M2 Pro,
-both decoders built beforehand. Tutorial 04 runs every decoder on a colour code and the gross
+The time is this package's over the reference's on the same shots, one thread, on an Apple M2 Pro
+(the machine is not recorded in `check.json`), both decoders built beforehand. Tutorial 04 runs every decoder on a colour code and the gross
 code. On the gross code BP+LSD fails more often than BP+OSD, as `ldpc`'s own pair does on the
 same matrix.
 
