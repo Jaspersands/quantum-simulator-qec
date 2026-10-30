@@ -608,7 +608,10 @@ class SoftInfoBpDecoder(BpDecoderBase):
             pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, kwargs.get("schedule", 0), kwargs.get("omp_thread_count", 1), kwargs.get("random_schedule_seed", 0),
             kwargs.get("serial_schedule_order"), kwargs.get("random_serial_schedule", False), kwargs.get("channel_probs", [None]), (),
         )
+        _typed(cutoff, "float", "cutoff")
         self.cutoff = cutoff
+        if not hasattr(sigma, "__float__"):
+            raise TypeError(f"must be real number, not {type(sigma).__name__}")
         if not isinstance(sigma, (float, int)) or isinstance(sigma, bool) or sigma <= 0:
             raise ValueError("The sigma value must be a float greater than 0.")
         self.sigma = float(sigma)
@@ -886,6 +889,8 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
         **kwargs: Any,
     ) -> None:
         self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, bits_per_step=bits_per_step, lsd_order=lsd_order, lsd_method=lsd_method, always_run_lsd=always_run_lsd, **kwargs))
+        if not _is_matrix(pcm):
+            raise TypeError(f"The input matrix is of an invalid type. Please input{_S12}a np.ndarray or scipy.sparse.spmatrix object, not {type(pcm)}")
         lsd_method = kwargs.pop("osd_method", lsd_method)
         lsd_order = kwargs.pop("osd_order", lsd_order)
         method, order = _lsd_ctor(lsd_method, lsd_order)

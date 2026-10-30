@@ -184,6 +184,32 @@ def test_lsd_order_of_another_type_is_ldpcs_error(order):
     assert str(got.value) == str(want.value)
 
 
+def test_wrong_types_are_refused_with_ldpcs_errors():
+    # ldpc checks each argument's type before its value, and refuses a list as a matrix.
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    cases = [
+        (lambda m: m.BpLsdDecoder([[1, 1, 0], [0, 1, 1]], error_rate=0.1, bits_per_step=0), TypeError),
+        (lambda m: m.BpLsdDecoder([[1, 1, 0], [0, 1, 1]], error_rate=0.1, bits_per_step=1), TypeError),
+        (lambda m: m.BpLsdDecoder("ab", error_rate=0.1, bits_per_step=1), TypeError),
+        (lambda m: m.SoftInfoBpDecoder(pcm, error_rate=0.1, sigma="a"), TypeError),
+        (lambda m: m.SoftInfoBpDecoder(pcm, error_rate=0.1, cutoff="a"), TypeError),
+    ]
+    for make, error in cases:
+        with pytest.raises(error) as want:
+            make(ldpc)
+        with pytest.raises(error) as got:
+            make(ours)
+        assert str(got.value) == str(want.value)
+    import ldpc.mod2 as upstream_mod2
+
+    for matrix in ([[1, 0], [0, 1]], "ab"):
+        with pytest.raises(TypeError) as want:
+            upstream_mod2.rank(matrix)
+        with pytest.raises(TypeError) as got:
+            om.rank(matrix)
+        assert str(got.value) == str(want.value)
+
+
 def test_every_module_imports():
     failed = []
     for m in pkgutil.walk_packages(ours.__path__, "stabilizer_qec.ldpc."):
