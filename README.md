@@ -1290,9 +1290,8 @@ shots; this machine's CPU and GPU are named in the file):
   graph, so on the gross code (144 variables) the GPU decodes 14 times faster than the f64
   decoder shot by shot and two fifths as fast as the f32 decoder on every core; on a d = 11 memory's
   24,483-variable graph it is slower than either. The f32 decoder itself is the find: on every core, eight
-  to thirty-six times the f64 decoder decoding shot by shot on one thread (per thread, about
-  1.6× on the d = 11 graph and 20× on the gross code), the same decision on over 98% of syndromes with the
-  damped min-sum (`ms_scaling_factor=0.625`); undamped (1.0) or adaptive (0) min-sum grows its
+  to thirty-six times the f64 decoder decoding shot by shot on one thread, the same decision on
+  over 98% of syndromes with the damped min-sum (`ms_scaling_factor=0.625`); undamped (1.0) or adaptive (0) min-sum grows its
   messages past single precision on the shots that do not converge, where the two decoders
   part while their logical error rates agree.
 
