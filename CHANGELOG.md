@@ -28,6 +28,41 @@ policy for its documented items.
   restarted them from `pflip_seed`, so its later decodes could differ from the original's.
 - BP+LSD's merge-order search (`_merge_order_outcomes`) releases the GIL, so other threads run
   while it does. It runs on a copy of the decoder.
+- `stabilizer-qec convert` reads and writes a shot file of measurements, detectors and observables
+  together, as Stim's command line does (it refused them), and with `--dem` its shots are the model's
+  detectors then observables whatever `--types` says, as Stim's (`--types M` and `--types L` were
+  refused). `write_shot_data_file` still refuses the mixed widths, with Stim's message.
+- `stabilizer-qec repl` runs a REPEAT block one iteration at a time, so each iteration prints its
+  own measurements as Stim's does (they were fused across iterations), and a block with a line that
+  does not parse runs the lines after that one, as Stim's does, instead of dropping the block.
+- The `hits` and `dets` shot readers take only ASCII digits: `1_0`, `+3`, ` 4` and Unicode digits are
+  refused as Stim refuses them (they were read as indices).
+- A number too big for the core's integers (`gen --distance 2**40`, `diagram --tick` past 2**64) is reported as an error with exit code 1, not a traceback.
+- The legacy `--gen=CODE` (or `--gen CODE`) invocation runs `gen --code CODE`, as Stim's; it failed for the missing `--code`.
+- The command line takes no abbreviated flags (`--dist` is an unrecognized argument, not `--distance`),
+  and with no command it prints the help after "No mode was given." and exits 1, as Stim's (it exited 0).
+- The command line's commands that print (`help`, `sample`, `repl`, ...) write to a standard output with no
+  buffer, such as a notebook's or a redirect's, instead of raising `AttributeError`.
+- `tesseract_decoder`'s `--dem-out` reports a failed write or close as the output's error (`tesseract: ...`,
+  exit 1), not as `Failed to open`.
+- `tesseract_decoder`'s `--stats-out` file is written as UTF-8 whatever the locale: a non-ASCII path or tag
+  aborted under an ASCII locale.
+- `python -m stabilizer_qec.tesseract_decoder` exits 0 when its standard output is closed before it starts,
+  as Tesseract's program does (it exited 1 with an AttributeError at the final summary).
+- A `--detector-orders` file nested too deeply for Python's JSON reader is reported as not valid JSON (exit
+  134), not as a runtime error.
+- `tsim.Circuit` refuses a Unicode space between an instruction and its targets, as Stim and Tsim do (it read
+  them as separators).
+- `tsim.Circuit` reads a rotation with no targets (`R_Z(0.3)`) as Tsim does, a no-op that prints as written, instead of
+  raising `ValueError`.
+- `tsim.Circuit` errors name the program's own line after a CCZ or CCX, not a line of its decomposition (`line 14`
+  for a bad tag on line 2).
+- `tsim.Circuit.append('SPP', stim.PauliString(...))` appends the Pauli product, as Stim's and Tsim's append do
+  (it raised `ValueError` for a bare Pauli string, as it does not for a list of one).
+- `copy.copy` of a `TesseractDecoder` raises `TypeError`, as pickle and deepcopy do: a copy shared the native search,
+  so reconfiguring one changed the other's decodes.
+- `TesseractDecoder` and `SimplexDecoder` answer each thread with its own syndrome's result when threads share one
+  decoder; a decode's errors were stored on the decoder, and another thread's could be read.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.

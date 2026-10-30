@@ -41,7 +41,7 @@ def test_bad_input(tmp_path):
         sq.write_shot_data_file(data=np.zeros((1, 1), bool), path=tmp_path / "x", format="csv", num_detectors=1)
     with pytest.raises(ValueError):
         sq.write_shot_data_file(data=np.zeros((1, 3), bool), path=tmp_path / "x", format="01", num_detectors=2)
-    with pytest.raises(ValueError, match="not both"):
+    with pytest.raises(ValueError, match="num_measurements and"):
         sq.write_shot_data_file(data=np.zeros((1, 3), bool), path=tmp_path / "x", format="01", num_measurements=1, num_detectors=2)
     (tmp_path / "bad").write_bytes(b"0102\n")
     with pytest.raises(ValueError):
@@ -49,3 +49,7 @@ def test_bad_input(tmp_path):
     (tmp_path / "bad").write_bytes(b"shot D9\n")
     with pytest.raises(ValueError):
         sq.read_shot_data_file(path=tmp_path / "bad", format="dets", num_detectors=4)
+    for text, fmt in (("1_0\n", "hits"), ("+3\n", "hits"), (" 4\n", "hits"), ("shot M\u0663\n", "dets")):
+        (tmp_path / "bad").write_bytes(text.encode())
+        with pytest.raises(ValueError):
+            sq.read_shot_data_file(path=tmp_path / "bad", format=fmt, num_measurements=12)

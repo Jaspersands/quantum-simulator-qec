@@ -7,6 +7,7 @@ Tesseract's answers (the same errors, costs, low-confidence flags and visualizer
 from __future__ import annotations
 
 import copy
+import threading
 from typing import Any, List, Optional, Sequence
 
 import numpy as np
@@ -253,7 +254,18 @@ class _Decoder:
         self.num_detectors = flat.num_detectors
         self.num_observables = flat.num_observables
         self.predicted_errors_buffer: List[int] = []
+        # A decode stores its errors on the decoder, so a decoder's calls take turns (threads may share one).
+        self._lock = threading.RLock()
         return flat
+
+    def __getstate__(self) -> dict:
+        state = self.__dict__.copy()
+        state.pop("_lock", None)  # a lock is not copied or pickled; a copy gets its own
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+        self._lock = threading.RLock()
 
     def _retained(self, dem_error: Any) -> int:
         dem_error = _size_t(dem_error, "predicted_errors")
@@ -300,16 +312,16 @@ class _Decoder:
 
     def decode(self, syndrome: Any) -> np.ndarray:
         """Which observables one shot's syndrome (a bool per detector) flips."""
-        with _redirected():
+        with self._lock, _redirected():
             self._decode(self._syndrome(syndrome))
-        return self._observables()
+            return self._observables()
 
     def decode_from_detection_events(self, detections: Sequence[int]) -> np.ndarray:
         """The same, from the indices of the detectors that fired."""
         events = [_size_t(d, "detections") for d in detections]
-        with _redirected():
+        with self._lock, _redirected():
             self._decode(events)
-        return self._observables()
+            return self._observables()
 
     def decode_batch(self, syndromes: Any) -> np.ndarray:
         """Each row's observables."""
@@ -319,9 +331,10 @@ class _Decoder:
         if rows.shape[1] != self.num_detectors:
             raise ValueError(f"The number of detectors in the input array ({rows.shape[1]}) does not match the number of detectors in the decoder ({self.num_detectors}).")
         out = np.zeros((rows.shape[0], self.num_observables), dtype=bool)
-        for i, row in enumerate(rows):
-            self._decode(np.flatnonzero(row).tolist())
-            out[i] = self._observables()
+        with self._lock:
+            for i, row in enumerate(rows):
+                self._decode(np.flatnonzero(row).tolist())
+                out[i] = self._observables()
         return out
 
     def decode_to_errors(self, syndrome: Any, det_order: Any = None, det_beam: Any = None) -> List[int]:
@@ -330,9 +343,9 @@ class _Decoder:
         if (det_order is None) != (det_beam is None):
             raise TypeError("decode_to_errors takes both det_order and det_beam, or neither.")
         args = () if det_order is None else (det_order, det_beam)
-        with _redirected():
+        with self._lock, _redirected():
             self._decode(self._syndrome(syndrome), *args)
-        return list(self.predicted_errors_buffer)
+            return list(self.predicted_errors_buffer)
 
     def _decode(self, detections: List[int], *args: Any) -> None:  # pragma: no cover - overridden
         raise NotImplementedError
@@ -416,6 +429,11 @@ class TesseractDecoder(_Decoder):
             call(self._x.reconfigure, *self._search_args())
             self._built = (changed, verbose, viz)
 
+    def __copy__(self) -> "TesseractDecoder":
+        # The search is native and would be shared by a copy, so a change to one's configuration
+        # would change the other's decodes; as pickle and deepcopy refuse it, so does copy.
+        raise TypeError("cannot copy a TesseractDecoder: its native search is not copied (compile another decoder from its config)")
+
     @property
     def config(self) -> TesseractConfig:
         """The decoder's configuration (its own: changes to it apply from the next decode)."""
@@ -432,23 +450,24 @@ class TesseractDecoder(_Decoder):
         """Tesseract's ``decode_result``, with some errors' probabilities (by index in the
         flattened model) changed for this decode only: (observables flipped, errors found,
         whether every search gave up, their cost under the changed probabilities)."""
-        if not updates:
-            self._decode(detections)
-            return self._flipped(self.predicted_errors_buffer), list(self.predicted_errors_buffer), self.low_confidence_flag, self.cost_from_errors(self.predicted_errors_buffer)
-        # The search's model is the retained one, so each update's index in the flattened
-        # model goes through the map to the retained error it went into.
-        retained = []
-        for i, p in updates:
-            i, n = int(i), len(self._dem_to_error)
-            if i < 0 or i >= n:
-                raise ValueError(f"DEM error index {i} is out of range for {n} DEM errors.")
-            if self._dem_to_error[i] == _MAX:
-                raise ValueError(f"DEM error index {i} was removed from the decoder.")
-            retained.append((self._dem_to_error[i], float(p)))
-        self._sync()
-        faults, low, cost = call(self._x.decode_with_probabilities, detections, retained)
-        self._finish(faults, low)
-        return self._flipped(self.predicted_errors_buffer), list(self.predicted_errors_buffer), self.low_confidence_flag, cost
+        with self._lock:
+            if not updates:
+                self._decode(detections)
+                return self._flipped(self.predicted_errors_buffer), list(self.predicted_errors_buffer), self.low_confidence_flag, self.cost_from_errors(self.predicted_errors_buffer)
+            # The search's model is the retained one, so each update's index in the flattened
+            # model goes through the map to the retained error it went into.
+            retained = []
+            for i, p in updates:
+                i, n = int(i), len(self._dem_to_error)
+                if i < 0 or i >= n:
+                    raise ValueError(f"DEM error index {i} is out of range for {n} DEM errors.")
+                if self._dem_to_error[i] == _MAX:
+                    raise ValueError(f"DEM error index {i} was removed from the decoder.")
+                retained.append((self._dem_to_error[i], float(p)))
+            self._sync()
+            faults, low, cost = call(self._x.decode_with_probabilities, detections, retained)
+            self._finish(faults, low)
+            return self._flipped(self.predicted_errors_buffer), list(self.predicted_errors_buffer), self.low_confidence_flag, cost
 
     def _decode(self, detections: List[int], *args: Any) -> None:
         self._sync()

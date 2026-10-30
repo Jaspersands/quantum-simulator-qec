@@ -153,6 +153,16 @@ def test_append_writes_tsims_gates():
         tsim.Circuit("R_X 0")
 
 
+def test_append_takes_a_bare_pauli_string_as_one_product():
+    # Stim's and Tsim's append take a Pauli string as one product target, as a list of one does.
+    stim = pytest.importorskip("stim")
+    want = str(stim.Circuit("SPP X0*Z1"))
+    for targets in (stim.PauliString("XZ"), [stim.PauliString("XZ")]):
+        c = tsim.Circuit()
+        c.append("SPP", targets)
+        assert str(c) == want
+
+
 def test_append_matches_tsim(real):
     stim = pytest.importorskip("stim")
     pauli = [
@@ -608,6 +618,37 @@ def test_malformed_parametric_tags_raise_tsims_error_naming_the_line(text):
     instruction = text.split("\n")[-1]
     with pytest.raises(ValueError, match=f"^line {line}: Could not parse instruction {re.escape(repr(instruction))}\\. {re.escape(MALFORMED_TAGS[text])}$"):
         tsim.Circuit(text)
+
+
+def test_unicode_spaces_are_not_separators():
+    # Stim and Tsim refuse a Unicode space between targets; a tab separates, and a comment may hold anything.
+    for text in ("H\u00a00", "H 0\u20031", "H 0\u3000"):
+        with pytest.raises(ValueError, match="Targets must be separated by spacing"):
+            tsim.Circuit(text)
+    assert str(tsim.Circuit("H 0\t1")) == "H 0 1"
+    assert str(tsim.Circuit("H 0 # caf\u00e9\u00a0x")) == "H 0"
+
+
+def test_zero_target_rotation_is_a_no_op_as_tsim_reads_it(real):
+    # Tsim reads a rotation with no targets as a no-op and prints it as written; so does this package.
+    assert str(tsim.Circuit("R_Z(0.3)")) == "R_Z(0.3)"
+    assert str(tsim.Circuit("I[R_Z(theta=0.3*pi)]")) == "R_Z(0.3)"
+    for text in ("R_Z(0.3)", "R_X(0.25)", "H 0\nR_Y(-0.5)", "U3(0.3, 0.24, 0.49)", "R_Z(0.3)\nM 0"):
+        assert str(tsim.Circuit(text)) == str(real.Circuit(text)), text
+    assert tsim.Circuit("R_Z(0.3)").num_qubits == 0
+
+
+def test_errors_name_the_source_line_after_a_controlled_gate():
+    # A CCZ or CCX line is decomposed into many lines; an error names the line the program has.
+    with pytest.raises(ValueError, match=r"^line 2: Could not parse instruction 'I\[R_Z\(theta=0\.3\*pi\*pi\)\] 0'"):
+        tsim.Circuit("CCZ 0 1 2\nI[R_Z(theta=0.3*pi*pi)] 0")
+    with pytest.raises(ValueError, match=r"^line 3: Could not parse instruction"):
+        tsim.Circuit("H 0\nCCX 0 1 2\nI[R_Z(theta=0.3*pi*pi)] 0")
+    with pytest.raises(ValueError, match=r"^line 2: Gate not found: 'FOO'"):
+        tsim.Circuit("CCZ 0 1 2\nFOO 0")
+    c = tsim.Circuit()
+    with pytest.raises(ValueError, match=r"^line 2: Gate not found: 'FOO'"):
+        c.append_from_stim_program_text("CCZ 0 1 2\nFOO 0")
 
 
 def test_malformed_parametric_tags_are_tsims_errors(real):

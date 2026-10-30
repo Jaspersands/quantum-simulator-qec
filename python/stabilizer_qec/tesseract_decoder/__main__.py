@@ -534,7 +534,7 @@ def _load_orders(path: str, num_detectors: int) -> List[List[int]]:
         if text.startswith("﻿"):
             text = text[1:]
         orders = json.loads(text, parse_int=_json_int, parse_constant=_no_constant)
-    except ValueError:
+    except (ValueError, RecursionError):  # (json nests as deep as the interpreter's stack allows)
         raise _Abort("Detector orders file is not valid JSON: " + path) from None
     if not isinstance(orders, list) or not orders:
         raise _Abort("Detector orders file must contain at least one order.")
@@ -895,10 +895,11 @@ def _decode(a: _Args, dem: Any, sources: Any, dets: np.ndarray, obs: np.ndarray,
         # (With no shot to count from, every estimate is 0/0: Tesseract writes error(nan).)
         estimate = _dem_from_counts_text(original, error_use, shots - state["errors"] if has_obs else shots)
         try:
-            with open(a.dem_out_fname, "w", encoding="utf-8") as f:
-                f.write(estimate + "\n")
+            f = open(a.dem_out_fname, "w", encoding="utf-8")
         except OSError:
             raise _Abort("Failed to open " + a.dem_out_fname) from None
+        with f:  # (a failed write or close is an error of the output, reported as one)
+            f.write(estimate + "\n")
     final = True
     if a.stats_out_fname:
         stats = {
@@ -918,7 +919,7 @@ def _decode(a: _Args, dem: Any, sources: Any, dets: np.ndarray, obs: np.ndarray,
         else:
             # (As Tesseract's ofstream, a file that cannot be opened is left unwritten.)
             try:
-                with open(a.stats_out_fname, "w") as f:
+                with open(a.stats_out_fname, "w", encoding="utf-8") as f:
                     f.write(text)
             except OSError:
                 pass
@@ -981,6 +982,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 def _cli_main() -> int:
     """Executable boundary: prevent CPython retrying a failed stdout buffer at shutdown."""
+    # A standard stream closed before the program starts is None; its writes go nowhere, as the
+    # C++ streams' writes to a closed descriptor do.
+    for name in ("stdout", "stderr"):
+        if getattr(sys, name) is None:
+            setattr(sys, name, open(os.devnull, "w"))
     status = 0
     try:
         status = main()

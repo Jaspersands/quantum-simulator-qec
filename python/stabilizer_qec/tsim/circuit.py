@@ -16,8 +16,9 @@ import numpy as np
 
 from stabilizer_qec import _circuit, _core, _stim
 from stabilizer_qec._util import call, open_file
-from stabilizer_qec.tsim._native import canonical_gate, tsim_to_native
+from stabilizer_qec.tsim._native import _native_lines, _source_error, canonical_gate, tsim_to_native
 from stabilizer_qec.tsim.utils.program_text import (
+    _shorthand_to_stim_lines,
     _NATIVE_LINE,
     _NATIVE_TAG,
     _is_daggered_pair,
@@ -25,7 +26,6 @@ from stabilizer_qec.tsim.utils.program_text import (
     _native_args,
     controlled_gate_decomposition_lines,
     enriched_stim_error,
-    shorthand_to_stim,
     stim_to_shorthand,
 )
 
@@ -325,11 +325,12 @@ class Circuit(_Base):
         if text is not None:  # this package's keyword
             stim_program_text = text
         if isinstance(stim_program_text, str):
-            converted = shorthand_to_stim(stim_program_text)
+            converted, source = _shorthand_to_stim_lines(stim_program_text)
+            native, owner = _native_lines(converted, source)
             try:
-                self._c = call(_core.Circuit, tsim_to_native(converted))
+                self._c = call(_core.Circuit, native)
             except ValueError as exc:
-                raise enriched_stim_error(exc, converted) from None
+                raise _source_error(enriched_stim_error(exc, converted), owner) from None
         elif isinstance(stim_program_text, Circuit):
             self._c = stim_program_text._c.copy()
         elif isinstance(stim_program_text, _Base) or _is_stim_circuit(stim_program_text):
@@ -444,11 +445,12 @@ class Circuit(_Base):
             stim_program_text = text
         if not isinstance(stim_program_text, str):
             raise TypeError(f"stim_program_text must be a str, not {type(stim_program_text).__name__}")
-        converted = shorthand_to_stim(stim_program_text)
+        converted, source = _shorthand_to_stim_lines(stim_program_text)
+        native, owner = _native_lines(converted, source)
         try:
-            call(self._c.append_text, tsim_to_native(converted))
+            call(self._c.append_text, native)
         except ValueError as exc:
-            raise enriched_stim_error(exc, converted) from None
+            raise _source_error(enriched_stim_error(exc, converted), owner) from None
 
     def _append_tsim(self, stim_name: str, tsim_tag: str, targets: Any, arg: Any) -> None:
         """Append ``stim_name[tsim_tag] targets`` as Tsim's tagged Stim, read as this package's
@@ -499,6 +501,8 @@ class Circuit(_Base):
                 call(self._c.append_text, native)
             return
         name = canonical_gate(name)
+        if type(targets).__name__ == "PauliString":  # a Pauli product is one target, as in a list of one
+            targets = [targets]
         if not isinstance(tag, str):
             raise TypeError(f"tag must be a str, not {type(tag).__name__}")
         if name in ("CCZ", "CCX"):
@@ -657,7 +661,7 @@ class Circuit(_Base):
         return CompiledDetectorSampler(self, seed=seed, strategy=strategy)
 
     def to_matrix(self, *, endian: str = "big") -> np.ndarray:
-        """Convert circuit to matrix representation, as Tsim's ``to_matrix``: the map the
+        """Convert circuit to matrix representation, as Tsim's ``to_matrix`` up to a global phase: the map the
         circuit's gates apply to the qubits Tsim's ZX graph has a lane for, those its instructions
         name, noise, identities and coordinates among them (a qubit no instruction names is dropped,
         so ``R_ZZ(0.5) 0 2`` is 4 × 4, and so is one that only a product that cancels on it names,

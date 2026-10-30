@@ -17,11 +17,11 @@ from __future__ import annotations
 
 import math
 import re
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from stabilizer_qec.tsim.utils.program_text import _product_rotation, _stored_radians
 
-_LINE = re.compile(r"^(\s*)(S|S_DAG|SPP|SPP_DAG|I)\[([^\]\n]*)\]\s+(.*?)\s*$")
+_LINE = re.compile(r"^(\s*)(S|S_DAG|SPP|SPP_DAG|I)\[([^\]\n]*)\](?:\s+(.*?))?\s*$")
 _GATE = re.compile(r"^(\s*)([A-Za-z][A-Za-z0-9_]*)(?=[\s\[(]|$)")
 # Tsim's grammar of a parametric tag (``tsim.core.parse.parse_parametric_tag``): the whole tag a name
 # and its parentheses, no space around either, each argument (spaces around it stripped) a key and a
@@ -175,9 +175,24 @@ def tsim_to_native(text: str) -> str:
     raises Tsim's error as this package's ``ValueError`` naming the line, and a half-turn rotation
     Tsim reads as no gate (``I[R_Z (theta=0.3*pi)] 0``, ``I[ R_Z(theta=0.3*pi)] 0``,
     ``I[R_Z(theta=0.3*pi)#x] 0``) is the identity ``I 0`` (its tag, inert in Tsim, is not kept)."""
-    lines = []
-    for number, line in enumerate(text.splitlines(), 1):
+    return _native_lines(text)[0]
+
+
+def _native_lines(text: str, source: Optional[List[int]] = None) -> Tuple[str, List[int]]:
+    """``tsim_to_native``'s text, and for each of its lines the number of the line it came from:
+    ``source`` gives the number of each of ``text``'s lines in the program the user wrote (the line
+    numbers in the errors are those), and by default they are ``text``'s own."""
+    numbers = list(range(1, len(text.splitlines()) + 1)) if source is None or len(source) != len(text.splitlines()) else source
+    lines: List[str] = []
+    owner: List[int] = []
+    previous = 0
+    for index, line in enumerate(text.splitlines()):
+        owner.extend([previous] * (len(lines) - len(owner)))  # the lines the previous line made
+        previous = numbers[index]
+        number = previous
         body, sep, comment = _split_comment(line)
+        if any(ch.isspace() and ch not in " \t" for ch in body):  # Unicode spaces are no separators (Stim refuses them)
+            raise ValueError(f"line {number}: Targets must be separated by spacing.")
         gate_match = _GATE.match(body)
         if gate_match:
             name = canonical_gate(gate_match.group(2))
@@ -188,16 +203,17 @@ def tsim_to_native(text: str) -> str:
             lines.append(line)
             continue
         indent, gate, tag, targets = m.groups()
+        targets = targets or ""  # a rotation with no targets is a no-op, as Tsim reads it
         instruction = body.strip()
         parsed = _tsim_parameters(tag, instruction, number) if gate in ("I", "SPP", "SPP_DAG") and ("*pi" in tag or gate != "I") else None
         name, turns = parsed if parsed is not None else (None, None)
         if gate in ("S", "S_DAG") and _is_t(tag):
             lines.append(f"{indent}I[{'T' if gate == 'S' else 'T_DAG'}] {targets}")
         elif gate == "I" and name in ("R_X", "R_Y", "R_Z"):
-            lines.append(f"{indent}I[{name}(theta={_stored_radians(turns['theta'], 0.5)})] {targets}")
+            lines.append(f"{indent}I[{name}(theta={_stored_radians(turns['theta'], 0.5)})]" + (f" {targets}" if targets else ""))
         elif gate == "I" and name == "U3":
             a = {k: _stored_radians(v, 1.0) for k, v in turns.items()}
-            lines.append(f"{indent}I[U3(theta={a['theta']}, phi={a['phi']}, lambda={a['lambda']})] {targets}")
+            lines.append(f"{indent}I[U3(theta={a['theta']}, phi={a['phi']}, lambda={a['lambda']})]" + (f" {targets}" if targets else ""))
         elif gate == "I" and parsed is None and "*pi" in tag and tag.split("(", 1)[0].strip() in _CORE_ROTATIONS and not _TSIM_TAG.match(tag):
             lines.append(f"{indent}I {targets}")
         elif gate in ("SPP", "SPP_DAG") and (_is_t(tag) or name == "R_PAULI") and _products(targets) is not None:
@@ -215,4 +231,14 @@ def tsim_to_native(text: str) -> str:
             continue
         if sep:
             lines[-1] += f" {sep}{comment}"
-    return "\n".join(lines)
+    owner.extend([previous] * (len(lines) - len(owner)))
+    return "\n".join(lines), owner
+
+
+def _source_error(exc: ValueError, owner: List[int]) -> ValueError:
+    """``exc`` with the line number its message gives (``line N: ...``) as the program the user
+    wrote numbers that line, through ``owner`` (the source line of each line of the text it parsed)."""
+    m = re.match(r"line (\d+): ", str(exc))
+    if not m or not 1 <= int(m.group(1)) <= len(owner):
+        return exc
+    return ValueError(f"line {owner[int(m.group(1)) - 1]}: " + str(exc)[m.end():])

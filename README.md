@@ -541,7 +541,7 @@ written for `stim` runs with `import stabilizer_qec as stim`. Two suites check i
 | `FlipSimulator` | bit-packed rows in Rust; flips identical to Stim's with randomization off, but for `broadcast_pauli_errors` at `p=0` (below) | examples, random circuits, noise statistics |
 | `Compiled*Sampler`, `CompiledMeasurementsToDetectionEventsConverter` | the same (aliases of the native samplers), every file format byte for byte | examples, file comparisons |
 | `ExplainedError` and its parts | the same objects, text and reprs | examples, generated codes |
-| `read_shot_data_file`, `write_shot_data_file`, `main` and the `stim` command line | the same flags, formats and help pages; `repl` byte for byte; shots streamed 1,024 at a time, so memory stays flat in `--shots` | examples, command-line comparisons |
+| `read_shot_data_file`, `write_shot_data_file`, `main` and the `stim` command line | the same flags, formats and help pages; `repl` byte for byte on standard output; shots streamed 1,024 at a time, so memory stays flat in `--shots` | examples, command-line comparisons |
 
 Where Stim's output depends on its random number generator, results agree in distribution, not
 bit for bit. Four differences are deliberate and documented: products Stim parses but cannot

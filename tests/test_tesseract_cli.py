@@ -374,7 +374,7 @@ def test_cli_flag_errors(tmp_path, capsys):
     assert [str(w.message) for w in caught if issubclass(w.category, ResourceWarning)] == []
     # Detector-order files: JSON arrays of arrays of nonnegative integers, each a permutation.
     for text, message in [
-        ("[[0, 1", "Detector orders file is not valid JSON: {}"), ("NaN", "Detector orders file is not valid JSON: {}"), ("[]", "Detector orders file must contain at least one order."),
+        ("[[0, 1", "Detector orders file is not valid JSON: {}"), ("NaN", "Detector orders file is not valid JSON: {}"), ("[" * 100000 + "]" * 100000, "Detector orders file is not valid JSON: {}"), ("[]", "Detector orders file must contain at least one order."),
         ("{}", "Detector orders file must contain at least one order."), ("[3]", "Each detector order must be an array."),
         ("[[0, -1]]", "Detector IDs must be nonnegative integers."), ("[[0, 1.0]]", "Detector IDs must be nonnegative integers."),
         ("[[0, 1]]", f"Detector order has size 2, but the detector error model has {nd} detectors."),
@@ -543,6 +543,68 @@ def test_cli_dem_out_without_usable_shots(shots, tmp_path, capsys):
     (tmp_path / "ok.01").write_text("0000\n")
     code, out, err = run(["--dem", tmp_path / "s.dem", "--in", tmp_path / "ok.01", "--in-format", "01", "--in-includes-appended-observables", "--dem-out", tmp_path / "o3.dem"], capsys)
     assert (code, err) == (0, "") and (tmp_path / "o3.dem").read_text() == "error(0) D0 L0\nerror[t](0) D0 D1\nerror(0) D1 L1\ndetector(0, 0) D0\ndetector(1, 0) D1\n"
+
+
+def test_cli_dem_out_write_failure_is_an_output_error(tmp_path, capsys, monkeypatch):
+    # A write that fails after the model file opened is reported as the output's error (exit 1),
+    # not as a failure to open it.
+    from stabilizer_qec.tesseract_decoder import __main__ as cli
+
+    (tmp_path / "s.dem").write_text(SMALL_DEM)
+    (tmp_path / "s.01").write_text("1000\n0110\n")
+    real_open = open
+
+    class Full:
+        def __init__(self, f):
+            self.f = f
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.f.close()
+            return False
+
+        def write(self, text):
+            raise OSError(errno.ENOSPC, os.strerror(errno.ENOSPC))
+
+    def fake_open(path, *args, **kwargs):
+        f = real_open(path, *args, **kwargs)
+        return Full(f) if os.path.basename(str(path)) == "o.dem" else f
+
+    monkeypatch.setattr(cli, "open", fake_open, raising=False)
+    code, out, err = run(["--dem", tmp_path / "s.dem", "--in", tmp_path / "s.01", "--in-format", "01", "--in-includes-appended-observables", "--dem-out", tmp_path / "o.dem"], capsys)
+    assert (code, err) == (1, f"tesseract: {OSError(errno.ENOSPC, os.strerror(errno.ENOSPC))}\n")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the C locale is POSIX's")
+def test_cli_stats_out_is_utf8_under_an_ascii_locale(tmp_path):
+    # A non-ASCII path is written to the stats file as UTF-8 whatever the locale's encoding is.
+    import codecs
+
+    env = {**os.environ, "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONUTF8": "0"}
+    probe = subprocess.run([sys.executable, "-c", "import locale, sys; sys.stdout.write(locale.getpreferredencoding(False))"], env=env, capture_output=True, text=True)
+    assert codecs.lookup(probe.stdout).name == "ascii", probe.stdout
+    (tmp_path / "\u00e9.dem").write_text(SMALL_DEM, encoding="utf-8")
+    (tmp_path / "s.01").write_text("1000\n0110\n")
+    r = subprocess.run(
+        [sys.executable, "-m", "stabilizer_qec.tesseract_decoder", "--dem", str(tmp_path / "\u00e9.dem"), "--in", str(tmp_path / "s.01"), "--in-format", "01",
+         "--in-includes-appended-observables", "--stats-out", str(tmp_path / "stats.json")],
+        env=env, capture_output=True,
+    )
+    assert (r.returncode, r.stderr) == (0, b"")
+    assert str(tmp_path / "\u00e9.dem").encode("utf-8") in (tmp_path / "stats.json").read_bytes()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="needs sh and a standard output that can be closed")
+def test_cli_with_stdout_closed_exits_0(tmp_path):
+    # With file descriptor 1 closed, the summary has nowhere to go (as C++ streams discard it): the
+    # run succeeds, and the module's shutdown raises nothing.
+    (tmp_path / "s.dem").write_text(SMALL_DEM)
+    (tmp_path / "s.01").write_text("1000\n0110\n")
+    command = f"exec 1>&-; exec {sys.executable} -m stabilizer_qec.tesseract_decoder --dem {tmp_path / 's.dem'} --in {tmp_path / 's.01'} --in-format 01 --in-includes-appended-observables"
+    r = subprocess.run(["sh", "-c", command], capture_output=True, timeout=60)
+    assert (r.returncode, r.stderr) == (0, b"")
 
 
 def test_cli_reads_models_with_non_utf8_comment_bytes(tmp_path, capsys):

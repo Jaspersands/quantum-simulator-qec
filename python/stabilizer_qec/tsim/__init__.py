@@ -64,7 +64,8 @@
 Where it differs from Tsim:
 
 - Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
-  JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.
+  JAX's); deterministic values, models and noiseless probabilities are Tsim's, and so are matrices up to
+  a global phase (a Clifford gate's phase is its decomposition's here, not Tsim's).
 - ``is_clifford`` and ``stim_circuit``'s expansion of rotations take an angle within 1e-9 (in
   units of π/4) of a multiple of π/4 as that Clifford angle, so ``R_Z(0.5000000001)`` is Clifford
   here and ``stim_circuit`` writes it as ``SPP Z0``. Tsim reads the literal's exact half-turn

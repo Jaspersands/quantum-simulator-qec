@@ -70,13 +70,17 @@ def controlled_gate_decomposition_lines(
     return [f"{tagged('H')} {c}", *ccz_lines, f"{tagged('H')} {c}"]
 
 
-def _expand_controlled_gates(text: str) -> str:
+def _expand_controlled_gates(text: str) -> tuple[str, list[int]]:
+    """The text with each CCZ and CCX line decomposed, and for each line of the result, the number
+    of the line of ``text`` it came from."""
     lines: list[str] = []
-    for line in text.splitlines():
+    owner: list[int] = []
+    for number, line in enumerate(text.splitlines(), 1):
         body, sep, comment = line.partition("#")
         match = re.match(r"^(\s*)(CCZ|CCX)(?:\[([^\]\n]*)\])?\s+(.+?)\s*$", body)
         if not match:
             lines.append(line)
+            owner.append(number)
             continue
 
         indent, gate, tag, targets_text = match.groups()
@@ -88,14 +92,17 @@ def _expand_controlled_gates(text: str) -> str:
 
         if sep:
             lines.append(f"{indent}{sep}{comment}")
+            owner.append(number)
         for i in range(0, len(targets), 3):
-            lines.extend(
+            decomposed = [
                 f"{indent}{decomp_line}"
                 for decomp_line in controlled_gate_decomposition_lines(
                     gate, targets[i], targets[i + 1], targets[i + 2], tag=tag or ""
                 )
-            )
-    return "\n".join(lines)
+            ]
+            lines.extend(decomposed)
+            owner.extend([number] * len(decomposed))
+    return "\n".join(lines), owner
 
 
 def _replace_t_family(stim_gate: str) -> Callable[[re.Match[str]], str]:
@@ -131,27 +138,10 @@ def enriched_stim_error(exc: ValueError, converted_text: str) -> ValueError:
     return ValueError(f"Could not parse '{usage.group()}' in program text.")
 
 
-def shorthand_to_stim(text: str) -> str:
-    """Convert tsim shorthand syntax to valid stim instructions.
-
-    Converts:
-        CCZ 0 1 2           → Clifford+T decomposition of CCZ
-        CCX 0 1 2           → Clifford+T decomposition of CCX/Toffoli
-        T 0 1               → S[T] 0 1
-        T_DAG 0 1           → S_DAG[T] 0 1
-        TPP X0*Y1           → SPP[T] X0*Y1
-        TPP_DAG X0*Y1       → SPP_DAG[T] X0*Y1
-        R_Z(0.3) 0          → I[R_Z(theta=0.3*pi)] 0
-        R_X(0.25) 0         → I[R_X(theta=0.25*pi)] 0
-        R_Y(-0.5) 0         → I[R_Y(theta=-0.5*pi)] 0
-        R_XX(0.5) 0 1       → SPP[R_PAULI(theta=0.5*pi)] X0*X1
-        R_YY(0.5) 0 1       → SPP[R_PAULI(theta=0.5*pi)] Y0*Y1
-        R_ZZ(0.5) 0 1       → SPP[R_PAULI(theta=0.5*pi)] Z0*Z1
-        R_PAULI(0.3) X0*Y1  → SPP[R_PAULI(theta=0.3*pi)] X0*Y1
-        U3(0.3, 0.24, 0.49) 0 → I[U3(theta=0.3*pi, phi=0.24*pi, lambda=0.49*pi)] 0
-
-    """
-    text = _expand_controlled_gates(text)
+def _shorthand_to_stim_lines(text: str) -> tuple[str, list[int]]:
+    """``shorthand_to_stim``'s text, and for each of its lines the number of the line of ``text`` it
+    came from (a CCZ or CCX line's decomposition is all from that line)."""
+    text, owner = _expand_controlled_gates(text)
 
     # TPP_DAG/TPP must come before T_DAG/T to avoid partial matches
     # (?<!\[) ensures we don't match T inside [T]
@@ -228,8 +218,33 @@ def shorthand_to_stim(text: str) -> str:
         _canonicalize_param,
         text,
     )
+    lines = len(text.splitlines())
+    if len(owner) != lines:  # a rewrite merged or split lines: numbered as the text now is
+        owner = list(range(1, lines + 1))
+    return text, owner
 
-    return text
+
+def shorthand_to_stim(text: str) -> str:
+    """Convert tsim shorthand syntax to valid stim instructions.
+
+    Converts:
+        CCZ 0 1 2           → Clifford+T decomposition of CCZ
+        CCX 0 1 2           → Clifford+T decomposition of CCX/Toffoli
+        T 0 1               → S[T] 0 1
+        T_DAG 0 1           → S_DAG[T] 0 1
+        TPP X0*Y1           → SPP[T] X0*Y1
+        TPP_DAG X0*Y1       → SPP_DAG[T] X0*Y1
+        R_Z(0.3) 0          → I[R_Z(theta=0.3*pi)] 0
+        R_X(0.25) 0         → I[R_X(theta=0.25*pi)] 0
+        R_Y(-0.5) 0         → I[R_Y(theta=-0.5*pi)] 0
+        R_XX(0.5) 0 1       → SPP[R_PAULI(theta=0.5*pi)] X0*X1
+        R_YY(0.5) 0 1       → SPP[R_PAULI(theta=0.5*pi)] Y0*Y1
+        R_ZZ(0.5) 0 1       → SPP[R_PAULI(theta=0.5*pi)] Z0*Z1
+        R_PAULI(0.3) X0*Y1  → SPP[R_PAULI(theta=0.3*pi)] X0*Y1
+        U3(0.3, 0.24, 0.49) 0 → I[U3(theta=0.3*pi, phi=0.24*pi, lambda=0.49*pi)] 0
+
+    """
+    return _shorthand_to_stim_lines(text)[0]
 
 
 _NATIVE_LINE = re.compile(r"^(\s*)(I|II)\[([^\]\n]*)\](.*)$")
@@ -433,14 +448,15 @@ def _native_to_shorthand_line(line: str) -> str | None:
     if gate == "I" and _no_args(body) and name in ("T", "T_DAG") and targets:
         return f"{indent}{name} {' '.join(targets)}"
     args = _native_args(body) if body else None
-    if args is None or not targets:
+    rotation = gate == "I" and name in ("R_X", "R_Y", "R_Z", "U3")  # a rotation with no targets is a no-op, as Tsim reads it
+    if args is None or (not targets and not rotation):
         return None
     try:
         if gate == "I" and name in ("R_X", "R_Y", "R_Z") and set(args) == {"theta"}:
-            return f"{indent}{name}({_read_turns(args['theta'], 0.5)}) {' '.join(targets)}"
+            return f"{indent}{name}({_read_turns(args['theta'], 0.5)})" + (f" {' '.join(targets)}" if targets else "")
         if gate == "I" and name == "U3" and set(args) == {"theta", "phi", "lambda"}:
             a, b, c = (_read_turns(args[k], 1.0) for k in ("theta", "phi", "lambda"))
-            return f"{indent}U3({a}, {b}, {c}) {' '.join(targets)}"
+            return f"{indent}U3({a}, {b}, {c})" + (f" {' '.join(targets)}" if targets else "")
         found = _pair_rotation(name, body, args, targets) if gate == "II" else None
         if found is not None:
             dagger, angle, products = found
