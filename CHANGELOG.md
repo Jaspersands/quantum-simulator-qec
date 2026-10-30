@@ -19,6 +19,8 @@ policy for its documented items.
 - `stabilizer-qec repl` runs a REPEAT block one iteration at a time, so each iteration prints its
   own measurements as Stim's does (they were fused across iterations), and a block with a line that
   does not parse runs the lines after that one, as Stim's does, instead of dropping the block.
+- The command line's commands that print (`help`, `sample`, `repl`, ...) write to a standard output with no
+  buffer, such as a notebook's or a redirect's, instead of raising `AttributeError`.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.

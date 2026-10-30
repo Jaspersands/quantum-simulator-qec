@@ -111,13 +111,34 @@ def _read_text(path: Optional[str]) -> str:
     return raw.decode("utf-8", "replace").replace("\r\n", "\n").replace("\r", "\n")
 
 
+class _TextBytes:
+    """Bytes written to a text stream, decoded as the stream's encoding (for a stream with no
+    buffer: a notebook's, or a redirect's ``io.StringIO``)."""
+
+    def __init__(self, stream) -> None:
+        self.stream = stream
+
+    def write(self, raw: bytes) -> None:
+        self.stream.write(raw.decode(getattr(self.stream, "encoding", None) or "utf-8", "replace"))
+
+    def flush(self) -> None:
+        self.stream.flush()
+
+
+def _stdout():
+    """Standard output as a bytes sink: its buffer, or a text stream's bytes where it has none."""
+    buffer = getattr(sys.stdout, "buffer", None)
+    return buffer if buffer is not None else _TextBytes(sys.stdout)
+
+
 def _write(path: Optional[str], data) -> None:
     # Text (circuits, models, explanations, diagrams) ends its lines as the platform does, as
     # Stim's text-mode output does (\r\n on Windows); shot data is written as it is.
     raw = data.replace("\n", os.linesep).encode() if isinstance(data, str) else data
     if path is None:
-        sys.stdout.buffer.write(raw)
-        sys.stdout.buffer.flush()
+        out = _stdout()
+        out.write(raw)
+        out.flush()
     else:
         with open(path, "wb") as f:
             f.write(raw)
@@ -140,7 +161,7 @@ class _Output:
 
     def _open(self):
         if self.f is None:
-            self.f = sys.stdout.buffer if self.path is None else open(self.path, "wb")
+            self.f = _stdout() if self.path is None else open(self.path, "wb")
         return self.f
 
     def write(self, raw: bytes) -> None:
@@ -1017,7 +1038,7 @@ def cmd_repl(a) -> None:
     from ._stim import TableauSimulator
 
     sim = TableauSimulator()
-    out = sys.stdout.buffer  # bare \n on every platform, as Stim writes it
+    out = _stdout()  # bare \n on every platform, as Stim writes it
     source = iter(sys.stdin)
     reread: deque = deque()
     pending: List[str] = []

@@ -235,6 +235,31 @@ def test_main_returns_exit_codes(tmp_path, capsys):
     assert sq.main(command_line_args=["sample", "--help"]) == 0
 
 
+def test_commands_print_to_a_stream_without_a_buffer(tmp_path, monkeypatch):
+    """Where standard output is a text stream with no buffer (a notebook's, or a redirect's),
+    the commands that print still print."""
+    import contextlib
+    import io
+
+    from stabilizer_qec import _cli
+
+    text = io.StringIO()
+    with contextlib.redirect_stdout(text):
+        assert sq.main(command_line_args=["help", "gen"]) == 0
+    assert text.getvalue() == _cli.help_for("gen")
+    circuit = tmp_path / "x.stim"
+    circuit.write_text("X 0\nM 0\n")
+    text = io.StringIO()
+    with contextlib.redirect_stdout(text):
+        assert sq.main(command_line_args=["sample", "--in", str(circuit), "--shots", "2"]) == 0
+    assert text.getvalue() == "1\n1\n"
+    text = io.StringIO()
+    monkeypatch.setattr(sys, "stdin", io.StringIO("X 0\nM 0\n"))
+    with contextlib.redirect_stdout(text):
+        assert sq.main(command_line_args=["repl"]) == 0
+    assert text.getvalue() == "1\n\n"
+
+
 def test_panqec_and_qecsim_command_lines(tmp_path, capsys):
     """`stabilizer-qec panqec ...` and `stabilizer-qec qecsim ...` are PanQEC's `panqec ...` and
     qecsim's `qecsim ...`: the same arguments, outputs and exit codes."""
