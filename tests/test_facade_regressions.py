@@ -432,3 +432,22 @@ def test_pauli_and_tableau_iterators_iterate_again_and_copy_apart():
     q = copy.copy(p)
     rest = [str(x) for x in q]
     assert len(rest) == 6 and [str(x) for x in p] == rest
+
+
+def test_shot_files_refuse_malformed_numbers(tmp_path):
+    """Hits and dets files take plain decimal indices: int() would read '1_0', '+3' and ' 4' as
+    numbers, and isdigit() admits Unicode digits. Stim refuses all of these."""
+    hits = tmp_path / "hits.01"
+    hits.write_bytes(b"1_0\n")
+    with pytest.raises(ValueError):
+        sq.read_shot_data_file(path=hits, format="hits", num_measurements=12)
+    for text in (b"+3\n", b" 4\n"):
+        hits.write_bytes(text)
+        with pytest.raises(ValueError):
+            sq.read_shot_data_file(path=hits, format="hits", num_measurements=12)
+    dets = tmp_path / "dets.dets"
+    dets.write_bytes("shot M\u0663\n".encode())
+    with pytest.raises(ValueError):
+        sq.read_shot_data_file(path=dets, format="dets", num_measurements=5)
+    dets.write_bytes(b"shot M3\n")
+    assert sq.read_shot_data_file(path=dets, format="dets", num_measurements=5).nonzero()[1].tolist() == [3]

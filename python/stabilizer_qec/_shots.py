@@ -15,6 +15,7 @@ observables (``num_detectors``, ``num_observables``).
 
 from __future__ import annotations
 
+import re
 from os import PathLike
 from typing import Any, Union
 
@@ -134,6 +135,8 @@ def decode_shots(raw: bytes, format: str, num_measurements: int = 0, num_detecto
         for line in lines:
             row = np.zeros(n, dtype=bool)
             for t in filter(None, line.split(",")):
+                if not re.fullmatch(r"[0-9]+", t):  # (int() would also take signs, underscores and spaces)
+                    raise ValueError(f"hit {t!r} is not a bit index")
                 k = int(t)
                 if not 0 <= k < n:
                     raise ValueError(f"hit {k} is out of range for {n} bits")
@@ -150,7 +153,7 @@ def decode_shots(raw: bytes, format: str, num_measurements: int = 0, num_detecto
         row = np.zeros(n, dtype=bool)
         for w in words[1:]:
             start, size = offsets.get(w[:1], (0, -1))
-            k = int(w[1:]) if w[1:].isdigit() else -1
+            k = int(w[1:]) if re.fullmatch(r"[0-9]+", w[1:]) else -1  # (ASCII digits only)
             if not 0 <= k < size:
                 raise ValueError(f"{w!r} is out of range")
             row[start + k] = True

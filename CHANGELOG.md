@@ -43,6 +43,8 @@ policy for its documented items.
   all-False).
 - `PauliStringIterator` and `TableauIterator` iterate again, as Stim's do: a second pass over one
   yielded nothing, and `copy.copy` of one shared its position.
+- Hits and dets shot files take only ASCII decimal indices: `1_0`, `+3`, ` 4` and Unicode digits raise
+  `ValueError` (they were read as bit numbers).
 
 ## 2.2.0 — 2026-10-30
 
