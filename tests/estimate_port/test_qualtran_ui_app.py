@@ -474,7 +474,9 @@ def test_serve_fallback_refusals(served):
     assert served.request("layout.json", list(GIDNEY))[0] == 405 and served.request("update")[0] == 405
     status, _, body = served.request("update", list(GIDNEY[:4]) + ["NoSuchScheme"] + list(GIDNEY[5:]))
     assert status == 500 and b"NoSuchScheme" not in body
-    assert "KeyError: 'NoSuchScheme'" in served.stderr_path.read_text()
+    log = served.stderr_path.read_text()
+    assert "KeyError: 'NoSuchScheme'" in log and "Exception on /update [POST]" in log
+    assert any(line.startswith("Traceback (most recent call last):") for line in log.splitlines())
     assert served.request("update", list(GIDNEY))[0] == 200  # the server still runs
 
 
@@ -499,6 +501,7 @@ def test_serve_fallback_unencodable_answer(tmp_path):
         assert server.request("update", list(GIDNEY[:6]) + [2] + list(GIDNEY[7:])) == (500, "text/plain; charset=utf-8", b"500 Internal Server Error\n")
         log = server.stderr_path.read_text()
         assert "Exception on /update [POST]" in log and "TypeError: Object of type object is not JSON serializable" in log
+        assert any(line.startswith("Traceback (most recent call last):") for line in log.splitlines())
         status, kind, body = server.request("update", list(GIDNEY))
         assert (status, kind) == (200, "application/json") and json.loads(body) == _as_json(ui.update(*GIDNEY))
     finally:

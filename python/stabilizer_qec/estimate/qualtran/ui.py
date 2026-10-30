@@ -745,7 +745,9 @@ def _page_server(host: str, port: int):
                 self._send(204)
                 return
             except Exception:
-                self.log_error("Exception on /update [POST]\n%s", traceback.format_exc())
+                self.log_error("Exception on /update [POST]")
+                # log_message escapes the newlines of its message, so the traceback is written as it is
+                print(traceback.format_exc(), end="", file=sys.stderr, flush=True)
                 self._refuse(500)
                 return
             self._send(200, body, "application/json")

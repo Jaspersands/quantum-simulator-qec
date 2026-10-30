@@ -24,6 +24,8 @@ policy for its documented items.
   parse error for it; a plain empty dict is still refused.
 - `AlgorithmSummary.from_bloq` raises the `ValueError` its docstring names for a symbolic qubit count, as
   it already does for a symbolic gate count, instead of Python's `TypeError`.
+- The standard-library page server's `update` error traceback is written to stderr with its line breaks,
+  not as one line with the newlines escaped as `\x0a`.
 
 ## 2.2.0 — 2026-10-30
 
