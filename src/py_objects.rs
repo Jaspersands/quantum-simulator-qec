@@ -2484,19 +2484,25 @@ impl PyBpLsd {
     /// statistics are left as they were.
     #[pyo3(signature = (syndrome, max_paths, target=None))]
     #[allow(clippy::type_complexity)]
-    fn merge_order_outcomes(&mut self, syndrome: Vec<u8>, max_paths: usize, target: Option<Vec<u8>>) -> PyResult<(Vec<Vec<u32>>, usize, usize, bool)> {
-        checked_syndrome(&syndrome, self.num_checks)?;
-        if let Some(t) = &target {
-            if t.len() != self.dec.bp.num_vars {
-                return Err(err(format!("{} target bits for {} bits", t.len(), self.dec.bp.num_vars)));
+    fn merge_order_outcomes(slf: &Bound<'_, Self>, py: Python<'_>, syndrome: Vec<u8>, max_paths: usize, target: Option<Vec<u8>>) -> PyResult<(Vec<Vec<u32>>, usize, usize, bool)> {
+        // The search runs on copies of the decoder and its scratch, so no borrow of this object
+        // is held while the GIL is released. The copy's statistics are not kept, and the
+        // serial schedule is left as it was.
+        let (dec, mut work) = {
+            let me = slf.try_borrow()?;
+            checked_syndrome(&syndrome, me.num_checks)?;
+            if let Some(t) = &target {
+                if t.len() != me.dec.bp.num_vars {
+                    return Err(err(format!("{} target bits for {} bits", t.len(), me.dec.bp.num_vars)));
+                }
             }
-        }
-        let stats = std::mem::take(&mut self.work.stats);
-        let do_stats = std::mem::replace(&mut self.work.do_stats, false);
-        self.work.record = false;
-        let found = self.dec.merge_order_outcomes(&syndrome, max_paths, target.as_deref(), &mut self.work);
-        self.work.stats = stats;
-        self.work.do_stats = do_stats;
+            (me.dec.clone(), me.work.clone())
+        };
+        work.stats = Default::default();
+        work.do_stats = false;
+        work.record = false;
+        let found = py.detach(move || dec.merge_order_outcomes(&syndrome, max_paths, target.as_deref(), &mut work));
+        slf.try_borrow_mut()?.work.record = false;
         Ok((found.corrections.iter().map(|c| bits(c)).collect(), found.paths, found.departures, found.complete))
     }
 }

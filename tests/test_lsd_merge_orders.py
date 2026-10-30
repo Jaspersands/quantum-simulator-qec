@@ -219,3 +219,28 @@ def test_the_search_after_a_decode_is_that_decodes(schedule, extra, error):
             not_next += first != np.asarray(ahead.decode(other), dtype=np.uint8).tobytes()
     assert (missing, not_next) == (0, 0)
     assert moved > 0 or schedule in ("parallel", "serial") and not extra
+
+
+def test_merge_search_leaves_the_gil_to_other_threads():
+    """The search runs without the GIL, so another thread runs while it does."""
+    import threading
+
+    matrices = [_matrix(m) for m in CAPTURED["matrices"]]
+    w = CAPTURED["windows"][0]
+    H = matrices[w["matrix"]]
+    dec = BpLsdDecoder(H, **w["kw"])
+    s = np.frombuffer(_dense(w["syndrome"], H.shape[0]), dtype=np.uint8)
+    dec.decode(s)
+    done = threading.Event()
+
+    def search():
+        dec._merge_order_outcomes(s, max_leaves=4096)
+        done.set()
+
+    worker = threading.Thread(target=search)
+    worker.start()
+    ticks = 0
+    while not done.is_set():
+        ticks += 1
+    worker.join()
+    assert ticks > 1000

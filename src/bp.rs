@@ -54,6 +54,7 @@ pub struct Bp {
 }
 
 /// One decode's messages and results; one per thread.
+#[derive(Clone)]
 pub struct BpWork {
     b2c: Vec<f64>,
     c2b: Vec<f64>,

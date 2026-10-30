@@ -26,6 +26,8 @@ policy for its documented items.
   64; correlated matching still does.
 - A copied `BpFlipDecoder` carries on the random tie flips of the original. Its pickled copy
   restarted them from `pflip_seed`, so its later decodes could differ from the original's.
+- BP+LSD's merge-order search (`_merge_order_outcomes`) releases the GIL, so other threads run
+  while it does. It runs on a copy of the decoder.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.

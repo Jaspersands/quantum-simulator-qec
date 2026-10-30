@@ -473,6 +473,7 @@ pub struct BpLsd {
 }
 
 /// One decode's state; one per thread.
+#[derive(Clone)]
 pub struct BpLsdWork {
     pub bp: BpWork,
     /// The serial schedule's order and generator, kept from decode to decode.
