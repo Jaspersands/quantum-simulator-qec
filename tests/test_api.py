@@ -13,6 +13,14 @@ def test_public_names_resolve():
     assert sq.__version__.count(".") >= 2
 
 
+def test_tsim_and_tqec_report_the_upstream_versions():
+    import stabilizer_qec.tqec as tqec
+    import stabilizer_qec.tsim as tsim
+
+    assert tsim.__version__ == "0.1.5"
+    assert tqec.__version__ == "0.2.0"
+
+
 @pytest.mark.parametrize("name", sorted(sq._REMOVED))
 def test_removed_names_say_what_replaced_them(name):
     with pytest.raises(AttributeError, match="removed in 1.0; use"):

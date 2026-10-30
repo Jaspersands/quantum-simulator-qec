@@ -155,6 +155,8 @@ Where it differs from Tsim:
   for, as every ``to_matrix`` is.
 """
 
+__version__ = "0.1.5"  # the tsim release this follows
+
 from . import sampler, zx
 from ._native import tsim_to_native
 from .circuit import Circuit

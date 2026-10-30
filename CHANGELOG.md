@@ -25,6 +25,7 @@ policy for its documented items.
   gate is named as written (`Gate not found: 'hh'`).
 - `tsim.Circuit` refuses a `*` in an `E` or `ELSE_CORRELATED_ERROR` target with Tsim's
   `Invalid target: stim.GateTarget.combiner()`, where it read the product as separate targets.
+- `stabilizer_qec.tsim` and `stabilizer_qec.tqec` have a `__version__`, as the other ports do (0.1.5 and 0.2.0, Tsim's and tqec's).
 
 ## 2.2.0 — 2026-10-30
 
