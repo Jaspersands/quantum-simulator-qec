@@ -167,6 +167,8 @@ def test_instruction_tools(seed):
     instr = rng.choice(errors)
     pair = [instr, stim.DemInstruction("error", [0.2], instr.targets_copy())]
     assert norm(qec_util.dem_instrs.merge_instrs(*pair)) == norm(ours.dem_instrs.merge_instrs(*(sq.DemInstruction(*_args(i)) for i in pair)))
+    # Stim's own instructions, as qec-util takes them
+    assert norm(ours.dem_instrs.merge_instrs(*pair)) == norm(qec_util.dem_instrs.merge_instrs(*pair))
     probs = [rng.random() * 0.4 for _ in range(4)]
     assert ours.dem_instrs.xor_probs(*probs) == qec_util.dem_instrs.xor_probs(*probs)
     assert ours.dem_instrs.xor_lists([1, 2, 3], [2, 5]) == qec_util.dem_instrs.xor_lists([1, 2, 3], [2, 5])

@@ -38,6 +38,8 @@ policy for its documented items.
   `np.random.seed` makes its intervals repeat; they were unseeded before.
 - `load_fit_information` returns float arrays for a fit file written without pyyaml. PyYAML read
   its exponent numbers with no decimal point (`1e-06`) as strings, which made the arrays strings.
+- `dem_instrs.merge_instrs` takes Stim's `DemInstruction` objects, as the 2.1.0 notes say the
+  qec-util ports do; it raised `TypeError` for them.
 
 ## 2.2.0 — 2026-10-30
 
