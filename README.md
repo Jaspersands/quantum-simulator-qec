@@ -66,7 +66,8 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   utilities, p_ij matrices, syndromes and defects, decay and threshold fits, exact circuit
   distances) and deltakit's analysis (Λ and logical-error-per-round fits with asymmetric
   intervals, quops prediction, models from p_ij, error budgets, defect and Λ plots), checked
-  against both and needing only numpy. Subset sampling gives a circuit's logical error rate at
+  against both and needing numpy, with scipy for exact circuit distances, xarray for defect
+  probabilities and pyyaml for reading YAML fit files. Subset sampling gives a circuit's logical error rate at
   every noise scale, with its error and bounds, from one run
   (`analysis.subset_sampling.SubsetSampler`), and `stabilizer_qec.qsample` is qsample's
   protocol-level dynamical subset sampling. Not ported from qsample: its non-Clifford gates and
@@ -175,7 +176,7 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   Stim's: timelines, detector slices (the same as Stim's at every tick of its generated codes)
   and matching graphs, as text or SVG. Stim's generated memory circuits (`Circuit.generated`),
   character for character.
-- **Stim's whole Clifford language**: H, S and CX natively; the other 46 one- and two-qubit
+- **Stim's whole Clifford language**: H, X, Y, Z, I, S, CX and CZ natively; the other 38 one- and two-qubit
   gates as the shortest H/S/CX sequences whose tableaus equal Stim's, signs included
   (`tools/gen_gates.py` finds and checks them); measurements and resets in all three bases,
   inverted targets, `MPP`, `MXX`/`MYY`/`MZZ`, `SPP`, correlated and heralded errors,
@@ -188,7 +189,8 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   matching; Λ fitted the way Google fits it, for ours and for every decoder Google published.
 - **Belief propagation and belief-matching**: BP whose posteriors equal the `ldpc` library's bit for
   bit, and belief-matching that equals the authors' own package shot for shot. Run on all of
-  Google's Sycamore and Willow data, where it makes Sycamore's d = 5 beat d = 3 as Google's does.
+  Google's Sycamore data and on the first 10,000 shots of each Willow experiment, where it makes
+  Sycamore's d = 5 beat d = 3 as Google's does.
 - **Real-time decoding**: sliding and parallel window decoders, plain and correlated, checked
   against global decoding on Google's data, with latency measured against Willow's 1.1 µs cycle and
   a million-round stream that keeps up on 4 cores at d = 5. Decoding as a service: `decode_async`
@@ -250,10 +252,11 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   T and S state injection, transversal Hadamard and the auxiliary CNOT; the repetition chain, Shor,
   Steane and five-qubit codes) interpreted to circuits gate for gate as Loom writes them, with
   Loom's validator on this package's tableau simulator, its circuit error models, and exporters to
-  Stim, OpenQASM 3, PennyLane, CUDA-Q, Mimiq and Guppy. Loom's if/else circuits are not ported: the
-  one file that defines them carries a notice that prohibits its use, distribution and reproduction
-  without Entropica Labs' consent.
-- **The other estimators, to the bit**: Qualtran's surface-code cost models
+  Stim, OpenQASM 3, PennyLane, CUDA-Q, Mimiq and Guppy. Loom's if/else circuits are not ported:
+  `IfElseCircuit` is defined in the one file that carries a notice prohibiting its use,
+  distribution and reproduction without Entropica Labs' consent, and its `BoolOp` conditions are
+  in Apache-2.0 `src/loom/eka/utilities/enums.py`.
+- **The other estimators, to double-precision rounding**: Qualtran's surface-code cost models
   (`stabilizer_qec.estimate`: Gidney–Fowler's and Beverland et al.'s schemes, the CCZ-to-2T and
   15-to-1 factories with Litinski's density-matrix error model, Litinski's data blocks, rotation
   cost models, the grid search) and Azure's Resource Estimator (`azure_estimate`: the QDK's six
@@ -261,8 +264,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   split, its exhaustive search over distillation rounds and code distances for the T factory, its
   constraints, its Pareto frontier), each returning the number its original returns — Qualtran's
   pinned values and the QDK's results on 55 configurations, physical qubits to runtime to the
-  factory's output error rate. With them, the QDK's parameter classes (`EstimatorParams` and its
-  sections) and its report (`summary`, `diagram`, the space and scatter charts as static SVG,
+  factory's output error rate. Qualtran's FifteenToOne `p_out` agrees with its original to
+  double-precision rounding: most points to better than 1e-9 relative, and the largest gap, about
+  3%, only at p_out near 1e-14, where the absolute gap is below 1e-15. With them, the QDK's
+  parameter classes (`EstimatorParams` and its sections) and its report (`summary`, `diagram`, the space and scatter charts as static SVG,
   not the QDK's live widgets), and Qualtran's Dash app (`stabilizer_qec.estimate.qualtran.ui`,
   on Dash where it is installed and on the standard library's HTTP server otherwise).
 - **Noise beyond Pauli channels, exactly**: a density-matrix simulator (equal to Quantumsim's)
@@ -331,8 +336,9 @@ Each benchmark times the same job here and in the reference, on the same machine
 thread, as a ratio: this package's time over Stim's (or PyMatching's, or the named decoder
 package's), below 1 faster. These
 are the latest runs recorded for each kind of machine (`tools/bench.py`; Linux on GitHub's
-runners, `.github/workflows/bench.yml`); every push is held to them, and the
-[benchmarks page](https://qcompiler.jaspersands.com/benchmarks/) plots every release's.
+runners, `.github/workflows/bench.yml`); CI holds each push's Linux runs to them, and the
+[benchmarks page](https://qcompiler.jaspersands.com/benchmarks/) tabulates the recorded runs,
+from 1.5.0 on and not for every release.
 
 | benchmark | Apple silicon | Linux x86_64 | Linux arm64 |
 |---|---|---|---|
@@ -383,7 +389,7 @@ both tools on every check below, down to floating-point rounding.
     2021): a two-qubit depolarizing channel after every CNOT, single-qubit depolarizing after every
     single-qubit gate and on every idle qubit, and flips on every reset and measurement.
 
-The old per-code paths are untouched, and every other number in this file still comes from them.
+The old per-code paths are untouched.
 
 **1. The error models are identical.** The comparison covers 15 circuits: Stim's own generated
 rotated memory experiment, and ours for both codes under both noise models, each at d = 3, 5 and 7
@@ -487,8 +493,8 @@ How much is not measured here: those thresholds were not rerun with the weighted
 path too: every mechanism of every model, decoded alone, predicts its own logical flip. That covers
 the rotated and XZZX codes, both bases and both noise models:
 
-- 446, 2,522 and 7,478 mechanisms at d = 3, 5 and 7 under the engine's model;
-- 568, 3,888 and 12,152 under SD6;
+- 892, 5,044 and 14,956 mechanisms at d = 3, 5 and 7 under the engine's model;
+- 1,170, 7,862 and 24,450 under SD6;
 - no failures.
 
 **What the checks caught.** The first decomposition kept any fault with at most two detectors whole,
@@ -506,7 +512,9 @@ the d = 3 memory-X circuit under SD6 decoded into logical errors, and one under 
   noise channel can express, not by the fault's own halves, and it keeps faults that share a
   symptom but split differently apart.
 
-The decomposition now reproduces Stim's error analyzer. Each composite channel's combinations are
+The decomposition now reproduces Stim's error analyzer on every model in check 1b, save one
+deliberate difference: a fault whose split would not add up to its own observables is kept whole
+(see [Stim's Python API](#stims-python-api)). Each composite channel's combinations are
 split using that channel's own single-detector and irreducible two-detector combinations, and
 anything left over goes through Stim's global pass. Check 1b is the result. None of this reached
 the site: the bug lived only in the new code, and the exhaustive single-fault check caught it on
@@ -522,7 +530,9 @@ cargo test --release --no-default-features equivalence -- --include-ignored --no
 cargo test --release --no-default-features every_single_fault -- --include-ignored
 ```
 
-The recorded run is `data/xcheck/report.txt`. Figure 8 on the site repeats the error-model
+The recorded run is `data/xcheck/reference.json`, which holds the checks' counts and the decode
+timings. `data/xcheck/report.txt` is the text report of an earlier run (2026-09-26), and its
+timings are stale. Figure 8 on the site repeats the error-model
 comparison live, in the reader's browser.
 
 ## Stim's Python API
@@ -615,7 +625,7 @@ loaders through them), the `stabilizer-qec` commands (`predict` and `count_mista
 them), and Tesseract's and Chromobius's programs; they are not preserved byte for byte, and
 `animate` passes over them in comments and tags, as Stim does. Chromobius's sinter decoder
 still refuses such a file in `decode_via_files` (a `UnicodeDecodeError`), where Stim's parser,
-and so Chromobius's, reads it. CLI abort text is pinned libc++abi wording on every host. Decimal precision follows the local
+and so Chromobius's, reads it. Chromobius's CLI abort text is pinned libc++abi wording on every host; Tesseract's is libc++'s on macOS and libstdc++'s elsewhere. Decimal precision follows the local
 architecture policy (16 digits macOS arm64/Windows, 19 non-Windows x86-64, 34 other ARM64);
 exact recorded text is checked only on macOS arm64. API lifting failures use the port's
 shot-indexed message and allow later valid calls, without copying native damaged state.
@@ -723,19 +733,20 @@ the same flooder, alternating trees and blossom cycles, arenas that reuse the mo
 freed slot first, and the same extraction and path search. `Matching`, PyMatching's class here,
 uses it for plain decoding; Chromobius uses the 2.2.2 neighbour order (see
 [More decoders](#more-decoders) for its separate lifting ties). Checked
-shot by shot against PyMatching 2.4.0 on 950,000 shots of 19 models (surface codes d = 3 to 7
-at p = 0.001 to 0.02, colour-code Möbius graphs, repetition codes, unit and negative weights)
-and 600,000 of 3,000 hand-built graphs (merges, boundaries, zero and negative weights, more
-than 64 fault ids): 0 differences. One departure from the line-for-line copy is deliberate: a
-region's radius offset is 64-bit, where
+shot by shot against PyMatching 2.4.0 on 18 models (surface codes d = 3 to 7
+at p = 0.001 to 0.02, colour-code Möbius graphs, repetition codes, unit and negative weights) at
+20,000 shots each, and on 400 hand-built graphs at 100 shots each (merges, boundaries, zero and
+negative weights, more than 64 fault ids): 0 differences. One departure from the line-for-line
+copy is deliberate: a region's radius offset is 64-bit, where
 PyMatching 2.4.0's `compute_wrapped_radius` returns `int32_t`, so on a uniform chain of 131 or
 more nodes at a non-integer weight (1.5, or 16,777,214.5), where a region's scaled radius passes
 what 32 bits hold, PyMatching's decoder never finishes and this one decodes the path
 (`tests/test_matching_radius.py`). Plain routes built on `Matching` use it too. Correlated matching, `BeliefMatching`,
 `WindowMatching`, `stream_memory`, `LeakageAwareDecoder`, `ArgumentReweighting` and
 `PreDecoder` (unless `reweight=False`) with matching, the Rust crate's `Matching` and
-`BeliefMatching`, and the extension's `decode_b8` family keep `src/sparse/`, timed above (the
-whole list is under [Stim's Python API](#stims-python-api)).
+`BeliefMatching`, and the extension's `decode_b8` family keep `src/sparse/`, timed above; so do
+the site's WebAssembly decoders (`src/wasm_rt.rs`, `src/wasm_ls.rs`, `src/wasm_hw.rs`), and the
+Python routes are listed under [Stim's Python API](#stims-python-api).
 
 ## Correlated matching
 
@@ -986,8 +997,8 @@ Checked against both packages, installed alongside:
    is corrected. Matching on the model's own weights through the new per-shot weight path is plain
    matching, weight for weight.
 
-Single-threaded it runs at about half the reference's time per shot: 0.9 ms against 1.7 ms at
-d = 5 (the reference rebuilds a PyMatching graph for every shot).
+Single-threaded it runs at about half the reference's time per shot: 0.9 ms against 1.9 ms at
+d = 5 and p = 0.4% (the reference rebuilds a PyMatching graph for every shot).
 
 **Sycamore, against Google's own belief-matching.** Every experiment, all 6.5 million shots, is
 decoded with the data-fitted pij priors, cross-fitted as Google used them, and with the circuit's own
@@ -1012,8 +1023,8 @@ model:
   only 77.8%.
 
 **Willow**, on the first 10,000 shots of each of the 420 experiments, with Google's SI1000 prior.
-BP costs about 25 ms a shot on ten cores at d = 7 and 250 rounds, so the full 50,000 would take
-some 18 hours. Every decoder below is scored on the same shots:
+BP costs about 27 ms a shot on ten cores at d = 7 and 250 rounds, so the full 50,000 shots of all
+420 experiments would take some 21 hours. Every decoder below is scored on the same shots:
 
 | decoder, same 10,000 shots each | ε, d = 3 | ε, d = 5 | ε, d = 7 | Λ [95%] |
 |---|---|---|---|---|
@@ -1024,8 +1035,9 @@ some 18 hours. Every decoder below is scored on the same shots:
 | Google, Harmony (RL prior) | 0.731% | 0.387% | 0.204% | 1.89 [1.88, 1.91] |
 | Google, Libra (RL prior) | 0.713% | 0.350% | 0.170% | 2.05 [2.03, 2.06] |
 
-- **Belief-matching wins small and loses large.** At d = 3 it beats every matcher here, correlated
-  ones included (0.824% against 0.888% for ours and 0.835% for Google's). At d = 5 it ties
+- **Belief-matching wins small and loses large.** At d = 3 it beats every matcher here except
+  Google's Harmony and Libra (RL priors, 0.731% and 0.713%), and it beats correlated matching
+  (0.824% against 0.888% for ours and 0.835% for Google's). At d = 5 it ties
   correlated matching; at d = 7 it is worse (0.251% against 0.231%). So its Λ, 1.81, is lower than
   correlated matching's 1.96.
 - **BP rarely settles on these models.** It converges alone on 16% of Willow's shots. Elsewhere its
@@ -1147,8 +1159,9 @@ It is checked four ways:
    (sliding) or 1 (parallel) to 3, in both schedules and with both matchers, the committed edges
    explain the shot's defects exactly. This caught a real hole: parallel windows with no buffer
    have no gaps for layer B, and leave corrections nowhere to land. They are now refused.
-3. **Accuracy on Google's data.** Every Willow experiment is decoded with C = B = d, beside the
-   global decoder (see the table below).
+3. **Accuracy on Google's data.** Every Willow experiment with more than one round is decoded with C = B = d
+   (392 of 420; the 28 single-round ones have nothing to window), beside the global decoder (see
+   the table below).
 4. **A template is the full model.** The million-round stream never builds a million-round model.
    Each window takes the graph of the window in the same position in a short template: the ends
    from the template's ends, the bulk from its middle. On a 60-round stream this decodes all 64
@@ -1176,8 +1189,8 @@ It is checked four ways:
 | Willow d = 5 | parallel, correlated | 17 µs | 4 cores | 34 µs | 83 µs |
 | Willow d = 7 | parallel, plain | 31 µs | 4 cores | 58 µs | 122 µs |
 | Willow d = 7 | parallel, correlated | 65 µs | 8 cores | 114 µs | 236 µs |
-| SD6 d = 5, 10⁶ rounds | parallel, plain | 7.7 µs | 1 core (4 for 18 µs) | 34 µs (18 µs on 4) | 129 µs (40 µs on 4) |
-| SD6 d = 5, 10⁶ rounds | parallel, correlated | 16 µs | 2 cores (8 for 32 µs) | 82 µs (32 µs on 8) | 318 µs (72 µs on 8) |
+| SD6 d = 5, 10⁶ rounds | parallel, plain | 7.7 µs | 1 core (2 for 18 µs) | 34 µs (18 µs on 2) | 129 µs (40 µs on 2) |
+| SD6 d = 5, 10⁶ rounds | parallel, correlated | 16 µs | 2 cores (4 for 32 µs) | 82 µs (32 µs on 4) | 318 µs (72 µs on 4) |
 
 - **Sliding windows** keep up only at d = 3, with either matcher. Everywhere else one core is too
   slow, which is exactly why parallel windows exist.
@@ -1212,7 +1225,8 @@ It is checked four ways:
   ones, which have nothing to window), 50,000 shots each, parallel windows with correlated matching
   give the same Λ as global correlated matching. ε rises by under 1% of itself.
 - **The buffer matters, and d is enough.** At d = 5 the study also ran buffers of d/2 and 2d. A buffer
-  of 3 rounds raises ε₅ to 0.694% plain and 0.460% correlated, about 2.5% worse. A buffer of 10 gives
+  of 3 rounds raises ε₅ to 0.694% plain (about 1.3% worse than the d = 5 buffer)
+  and 0.460% correlated (about 1.8% worse). A buffer of 10 gives
   0.684% and 0.451%, the same as d = 5.
 - **Simulated SD6 agrees.** At p = 0.3% and 0.5%, d = 3, 5, 7, 50 rounds and 20,000 shots, every
   windowed decoder's failures are within 1.6% of the global decoder's on the same shots
@@ -1258,7 +1272,7 @@ colour and repetition codes, the surgery CNOT and a circuit with every channel, 
 heralds and nested loops. Min-sum BP runs the same way: `BpDecoder(device="cpu-f32")` in single
 precision on the CPU, `device="gpu"` on the GPU, bit for bit the same decisions. Shots per second
 (`tools/gpu_bench.py`, `data/gpu/bench.json`; Stim's generated memories at p = 0.1%, d rounds, a million
-shots; this machine's CPU and GPU are named in the file):
+shots; this machine's GPU is named in the file, and its CPU only by architecture):
 
 | memory | qubits | CPU, 1 thread | CPU, all cores | CPU lanes, all cores | GPU | GPU ÷ 1 thread | GPU = lanes |
 |---|---|---|---|---|---|---|---|
@@ -1289,9 +1303,8 @@ shots; this machine's CPU and GPU are named in the file):
   graph, so on the gross code (144 variables) the GPU decodes 14 times faster than the f64
   decoder shot by shot and two fifths as fast as the f32 decoder on every core; on a d = 11 memory's
   24,483-variable graph it is slower than either. The f32 decoder itself is the find: on every core, eight
-  to thirty-six times the f64 decoder decoding shot by shot on one thread (per thread, about
-  1.6× on the d = 11 graph and 20× on the gross code), the same decision on over 98% of syndromes with the
-  damped min-sum (`ms_scaling_factor=0.625`); undamped (1.0) or adaptive (0) min-sum grows its
+  to thirty-six times the f64 decoder decoding shot by shot on one thread, the same decision on
+  over 98% of syndromes with the damped min-sum (`ms_scaling_factor=0.625`); undamped (1.0) or adaptive (0) min-sum grows its
   messages past single precision on the shots that do not converge, where the two decoders
   part while their logical error rates agree.
 
@@ -1347,7 +1360,7 @@ adaptive scaling for up to 10,000 iterations. BP+OSD-0 runs on the same shots.
 | [[72, 12, 6]] | 0.6% | 2,048 | 565 | 5.2 × 10⁻² [4.8 × 10⁻², 5.7 × 10⁻²] | 5.7 × 10⁻² | 73.2% |
 
 - **Below 12 unprotected qubits everywhere measured.** At p = 0.6% the gross code fails 3.3% of
-  cycles, where 12 bare qubits would fail 6.9%.
+  cycles, where 12 bare qubits would fail 7.0%.
 - **OSD-CS earns its cost.** Against OSD-0 it cuts the gross code's failures 2.7 times at p = 0.2%
   and 2 times at 0.3%, where most shots never reach OSD at all.
 - **The gross code falls steeply.** From 0.3% to 0.2% its error per cycle falls twentyfold.
@@ -1435,7 +1448,7 @@ with it. The same program finds the gross code's own distance, 12 in both types.
 report 103 ancilla qubits for one system that measures eight operators, with fault distance 12
 from a schedule they optimise; each system here measures one operator.
 
-**Checked** (`tools/gross_ops.py check`, in CI):
+**Checked** (`tools/gross_ops.py check`; CI runs `--quick`: X(f, 0) with 64 shots):
 - Without noise every detector and observable is deterministic, in both bases, for all three
   operators and both systems, reading out after memory cycles or right at the split.
 - A check whose whole support is read in its own basis closes its comparison with that reading:
@@ -1537,8 +1550,8 @@ arithmetic in its order so that its answers can be held to theirs shot for shot:
   neighbour order), and the matching lifted back by carrying colour charge around its cycles.
   The detectors need Chromobius's colour annotation (`annotate_colors=True` on the colour-code
   circuits). The recorded weights agree bit for bit, and the lifting, handed PyMatching's edges
-  in PyMatching's order, agrees on the recorded macOS corpora (65,000/240,000 sweep shots
-  and 340,000 colour-case shots). Other equal-weight liftings can select different observable
+  in PyMatching's order, agrees on every shot of the recorded 65,000-shot macOS sweep and on the 340,000
+  colour-case shots, and on 240,000 shots of an extended run that the repository does not keep. Other equal-weight liftings can select different observable
   predictions on any platform, including macOS; no worse optimum is established. Some facade
   tests require 95% agreement; the sweep requires 99%. `python -m stabilizer_qec.chromobius
   predict|benchmark|describe_decoder|help` is Chromobius's command line, its outputs and
@@ -1773,7 +1786,9 @@ row. This stopping rule uses the weighted rate variance; it is not a threshold o
   non-Clifford gate) gets the joint sampler of the next section; amplitude damping and feedback
   go to the state vector.
 - Leakage-aware decoding here is herald-driven reweighting (`LeakageAwareDecoder`, see the
-  lattice-surgery leakage results); deltakit-stim's Local Clustering Decoder is not ported.
+  lattice-surgery leakage results); the Local Clustering Decoder of Ziad et al. is implemented here
+  as `LocalClustering`, whose leakage map is `LocalClustering.from_circuit`. deltakit-stim, which
+  cites that decoder, ships none.
 
 Tutorial 05 runs all of it.
 
