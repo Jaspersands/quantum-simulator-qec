@@ -483,6 +483,39 @@ def test_serve_fallback_refusals(served):
     assert served.request("update", list(GIDNEY))[0] == 200  # the server still runs
 
 
+def test_serve_fallback_request_guards(served):
+    """The page server's other guards: a POST body that is not JSON (415), a Content-Length of more than 20 characters
+    (400), OPTIONS answered with the methods a path takes, a method no handler has (405), and a request target that
+    does not parse (400)."""
+    host, port = urllib.parse.urlsplit(served.url).netloc.rsplit(":", 1)
+
+    def raw(method, target, headers=None):
+        conn = http.client.HTTPConnection(host, int(port), timeout=60)
+        try:
+            conn.putrequest(method, target, skip_accept_encoding=True)
+            for name, value in (headers or {}).items():
+                conn.putheader(name, value)
+            conn.endheaders()
+            response = conn.getresponse()
+            return response.status, response.getheader("Allow"), response.read()
+        finally:
+            conn.close()
+
+    assert raw("POST", "/update", {"Content-Type": "text/plain", "Content-Length": "5"})[0] == 415
+    assert raw("POST", "/update", {"Content-Type": "application/json", "Content-Length": "0" * 20 + "5"}) == (400, None, b"400 Bad Request: the Content-Length is too long\n")
+    assert raw("OPTIONS", "/update") == (200, "POST, OPTIONS", b"")
+    assert raw("OPTIONS", "/layout.json") == (200, "GET, HEAD, OPTIONS", b"")
+    assert raw("PUT", "/update", {"Content-Length": "0"})[:2] == (405, "POST, OPTIONS")
+    assert raw("DELETE", "/update")[:2] == (405, "POST, OPTIONS")
+    # http.client parses an absolute target itself, so a malformed one is sent as bytes.
+    with socket.create_connection((host, int(port)), timeout=60) as sock:
+        sock.sendall(b"GET http://[ HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+        reply = b""
+        while chunk := sock.recv(4096):
+            reply += chunk
+    assert reply.split(b"\r\n", 1)[0].split()[1:2] == [b"400"]
+
+
 def test_serve_fallback_a_dropped_client_is_not_reported(served):
     """A client that resets its connection before the answer to its POST is written is not an error for the
     server to report (Dash's server reports none): no traceback on stderr, and the server still answers."""
