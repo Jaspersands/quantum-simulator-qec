@@ -156,6 +156,35 @@ def test_predict_equals_python_api(tmp_path):
             assert out == encode_shots(obs, fout, num_observables=no), (fin, fout)
 
 
+def test_r8_run_of_255_bits_is_a_continuation(tmp_path, monkeypatch):
+    """An r8 byte of 255 skips 255 bits and the record goes on: a hit 290 bits in is read as
+    one, where the recorded r8 inputs (gaps below 255) never reach that byte. The record's
+    hits are d3's shot 2 (predicting observable 0) and an ignored detector 290 bits in; the
+    prediction is the Python API's, and a record misread at the 255 byte is refused."""
+    d3 = FILES["d3.dem"].decode().rstrip("\n")
+    nd, n = sq.DetectorErrorModel(d3).num_detectors, 300
+    (tmp_path / "m.dem").write_text(d3 + "\n" + "".join(f"detector(0,0,0,-1) D{i}\n" for i in range(nd, n)))
+    hits = [4, 7, 10, 290]
+    r8, pos = bytearray(), 0
+    for h in hits:
+        gap = h - pos
+        while gap >= 255:
+            r8.append(255)
+            gap -= 255
+        r8.append(gap)
+        pos = h + 1
+    r8.append(n - pos)
+    assert 255 in r8
+    (tmp_path / "shot.r8").write_bytes(bytes(r8))
+    row = np.zeros((1, (n + 7) // 8), dtype=np.uint8)
+    for h in hits:
+        row[0, h // 8] |= 1 << (h % 8)
+    want = chromobius.compile_decoder_for_dem(sq.DetectorErrorModel(FILES["d3.dem"].decode().rstrip("\n") + "\n" + "".join(f"detector(0,0,0,-1) D{i}\n" for i in range(nd, n)))).predict_obs_flips_from_dets_bit_packed(row)
+    monkeypatch.chdir(tmp_path)
+    assert cli.main(["chromobius", "predict", "--dem", "m.dem", "--in", "shot.r8", "--in_format", "r8", "--out", "pred.01"]) == 0
+    assert (tmp_path / "pred.01").read_bytes() == f"{int(want[0, 0])}\n".encode() == b"1\n"
+
+
 TIMING = ("setup_seconds", "decoding_seconds", "decoding_microseconds_per_shot", "decoding_microseconds_per_detection_event")
 
 
