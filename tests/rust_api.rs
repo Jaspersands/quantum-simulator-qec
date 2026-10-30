@@ -382,9 +382,26 @@ fn a_user_graph_decodes_through_documented_methods() {
     let mut packed = [0u8; 1];
     assert_eq!(decoder.decode_packed_with(&mut workspace, &[0, 2], &mut packed).unwrap(), 2.0);
     assert_eq!(packed, [0b11]);
+    // A packed output must hold every observable's bit: a shorter buffer is refused, not decoded into.
+    assert!(decoder.decode_packed_with(&mut workspace, &[0, 2], &mut []).unwrap_err().contains("1 bytes"));
     // A workspace of another decoder's graph is refused, not decoded on the wrong graph.
     let mut other = UserGraph::new(1, 0).decoder().unwrap().mwpm();
     assert!(decoder.decode_with(&mut other, &[0]).unwrap_err().contains("another decoder"));
+}
+
+#[test]
+fn a_packed_output_shorter_than_the_observables_is_refused_past_64_observables_too() {
+    use stabilizer_qec::user_graph::{Merge, UserGraph};
+    let mut g = UserGraph::new(2, 70);
+    g.add_edge(0, 1, &[69], 1.0, 0.1, Merge::Disallow).unwrap();
+    g.add_boundary_edge(0, &[0], 1.0, 0.1, Merge::Disallow).unwrap();
+    let decoder = g.decoder().unwrap();
+    let mut workspace = decoder.mwpm();
+    let mut out = [0u8; 8];
+    assert!(decoder.decode_packed_with(&mut workspace, &[0, 1], &mut out).unwrap_err().contains("9 bytes"));
+    let mut out = [0u8; 9];
+    assert_eq!(decoder.decode_packed_with(&mut workspace, &[0, 1], &mut out).unwrap(), 1.0);
+    assert_eq!(out[8], 0b10_0000);
 }
 
 #[test]
