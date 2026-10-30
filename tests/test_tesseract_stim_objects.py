@@ -23,7 +23,7 @@ def kinds(theirs, ours):
 
 def test_configurations_keep_the_kind_of_model():
     dem = CIRCUIT.detector_error_model()
-    mine = sq.DetectorErrorModel(str(dem))
+    mine = sq.DetectorErrorModel(dem)
     for make in (O.tesseract.TesseractConfig, O.simplex.SimplexConfig):
         a, b = make(dem), make(mine)
         kinds(a.dem, b.dem)
@@ -37,7 +37,7 @@ def test_configurations_keep_the_kind_of_model():
 
 def test_model_helpers_keep_the_kind_of_model():
     dem = CIRCUIT.detector_error_model()
-    mine = sq.DetectorErrorModel(str(dem))
+    mine = sq.DetectorErrorModel(dem)
     for helper in (O.common.merge_indistinguishable_errors, O.common.remove_zero_probability_errors):
         kinds(helper(dem), helper(mine))
     counts = list(range(dem.num_errors))
@@ -50,7 +50,7 @@ def test_model_helpers_keep_the_kind_of_model():
 def test_demutil_keeps_the_kind_of_model():
     d = O.demutil
     dem = CIRCUIT.detector_error_model()
-    mine = sq.DetectorErrorModel(str(dem))
+    mine = sq.DetectorErrorModel(dem)
     classifier = d.stim_surface_code_detector_basis_classifier
     kinds(d.decompose_errors(dem), d.decompose_errors(mine))
     kinds(d.decompose_errors(dem=dem), d.decompose_errors(dem=mine))
@@ -58,7 +58,7 @@ def test_demutil_keeps_the_kind_of_model():
     kinds(d.annotate_detector_bases(dem, detector_basis_classifier=classifier), d.annotate_detector_bases(mine, detector_basis_classifier=classifier))
     assert d.classify_detector_bases(dem, detector_basis_classifier=classifier) == d.classify_detector_bases(mine, detector_basis_classifier=classifier)
     flat = dem.flattened()
-    kinds(d.regeneralize_spatial_dem([flat], flat), d.regeneralize_spatial_dem([sq.DetectorErrorModel(str(flat))], sq.DetectorErrorModel(str(flat))))
+    kinds(d.regeneralize_spatial_dem([flat], flat), d.regeneralize_spatial_dem([sq.DetectorErrorModel(flat)], sq.DetectorErrorModel(flat)))
 
 
 def test_decoder_config_is_read_at_every_decode():

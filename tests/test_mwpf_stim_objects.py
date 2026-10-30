@@ -56,7 +56,7 @@ def test_sinter_decoder_takes_stims_model():
         assert np.array_equal(theirs, ours)
         assert (theirs != obs).any(axis=1).sum() < obs.any(axis=1).sum() / 2
     model = mw.ref_circuit.RefDetectorErrorModel.of(dem=dem)
-    assert model.hyperedges == mw.ref_circuit.RefDetectorErrorModel.of(dem=sq.DetectorErrorModel(str(dem))).hyperedges
+    assert model.hyperedges == mw.ref_circuit.RefDetectorErrorModel.of(dem=sq.DetectorErrorModel(dem)).hyperedges
     assert any(e.observables for e in model.hyperedges)
 
 
