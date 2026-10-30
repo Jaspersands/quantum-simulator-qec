@@ -28,8 +28,8 @@
 //! neighbours in `std::unordered_map` order, which differs between C++ libraries, when it
 //! looks for the shortest way to drag charge between two places; where two such ways flip
 //! different observables the table entry is marked ambiguous, and a shot whose lifting uses one
-//! is flagged as tied (no colour-code shot checked has needed one; small hand-made models with
-//! faults above 1/2 have).
+//! is flagged as tied. Five saved macOS shots of a model with ignored detectors are all flagged
+//! as tied: their weights equal Chromobius's, and their predictions differ from it.
 
 mod decode;
 mod graphs;
@@ -612,6 +612,11 @@ impl Lifted {
         // (Exactly, a negative zero's sign kept, so the model prints it as Stim does: "-0".)
         let exact = |c: f64| if c == 0.0 && c.is_sign_negative() { "-0".to_string() } else { crate::dem_program::fmt_exact(c) };
         for (coords, n) in &self.mobius_decls {
+            // A shift past the float range leaves an infinite coordinate; it names the detector
+            // (its Möbius copies are 2k and 2k + 1) rather than reach the model's parser as "inf".
+            if coords.iter().any(|c| !c.is_finite()) {
+                return Err(format!("detector D{}: accumulated coordinate overflow", n / 2));
+            }
             let list: Vec<String> = coords.iter().map(|&c| exact(c)).collect();
             let _ = writeln!(text, "detector({}) D{n}", list.join(", "));
         }

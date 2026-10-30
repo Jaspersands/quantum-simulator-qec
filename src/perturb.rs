@@ -59,7 +59,13 @@ fn faults_of(step: &Step) -> Option<Vec<(f64, Vec<(usize, u8)>, bool)>> {
 /// its detectors and observables deterministic.
 pub fn sites(circuit: &Circuit) -> Result<Sites, String> {
     // Observables as records, any number of them.
-    let program = Program::with_layout_for(circuit, false, usize::MAX, crate::statevec::Outcomes::Records)?;
+    let program = Program::with_layout_for(circuit, false, usize::MAX, crate::statevec::Outcomes::Records).map_err(|e| {
+        if e == crate::statevec::PAULI_OBSERVABLE_REFUSAL {
+            "the perturbative expansion does not take observables of Pauli targets".to_string()
+        } else {
+            e
+        }
+    })?;
     // Each chain of correlated errors one site, as the density matrix groups them.
     let steps = crate::density::grouped(&program.steps, "the perturbative expansion")?;
     for step in &steps {

@@ -450,11 +450,11 @@ impl JointSampler {
     /// trajectory's probability in their norm), from a re-run with the shot's draws replayed
     /// and the member's errors inserted. Zero (empty) where the shot's outcomes are impossible
     /// for it.
-    fn member(&self, base: &Run, fired: &[bool], memo: &mut Memo) -> HashMap<Key, C> {
+    fn member(&self, base: &Run, fired: &[bool], memo: &mut Memo) -> BTreeMap<Key, C> {
         let mut src = Replay::new(&base.trace, fired);
         let run = self.program.run_full(&mut src, memo);
         if run.dead {
-            return HashMap::new();
+            return BTreeMap::new();
         }
         self.program.in_frame(&run, &base.frame)
     }

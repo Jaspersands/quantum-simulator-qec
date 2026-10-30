@@ -825,7 +825,7 @@ mod tests {
                         let want: Vec<u32> =
                             shot.detectors.iter().enumerate().filter(|x| *x.1).map(|x| x.0 as u32).collect();
                         let batch = BatchSampler::new(&c).unwrap().sample(&mut rng);
-                        for lane in [0, 17, 63] {
+                        for lane in 0..64 {
                             assert_eq!(batch.lane_defects(lane), want, "{kind:?} {basis:?} d = {d}");
                             assert_eq!(batch.lane_observables(lane), shot.observables);
                         }

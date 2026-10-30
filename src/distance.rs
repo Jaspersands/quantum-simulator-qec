@@ -19,8 +19,11 @@ use crate::dem::Dem;
 pub type Fault = (Vec<u32>, u64);
 
 /// The smallest set of the model's graph-like faults that flips an observable and no detector,
-/// found as Stim's `shortest_graphlike_error` finds it, so that it is Stim's own answer, fault
-/// for fault (`stim/search/graphlike/algo.cc`):
+/// found as Stim's `shortest_graphlike_error` finds it (`stim/search/graphlike/algo.cc`). For a
+/// model whose errors name each detector at most once it is Stim's own answer, fault for fault.
+/// A repeated target cancels when the model is read, where Stim's graph keeps it as a self-loop,
+/// so there the answer can differ: `error(0.1) D0 D0 L0` alone has no graph-like logical error
+/// in Stim, and this finds the fault `L0`.
 ///
 /// - Each fault of nonzero probability with at most two detectors is an edge between them (or
 ///   from its one detector to the boundary, which is not a node), each node's edges kept in the
@@ -196,11 +199,12 @@ impl Hasher for Mix {
     }
 }
 
-/// Stim's `search_for_undetectable_logical_errors`, step for step as Stim takes it, so that it
-/// is Stim's own answer, fault for fault (`stim/search/hyper/{graph,algo}.cc`):
+/// Stim's `search_for_undetectable_logical_errors`, step for step as Stim takes it
+/// (`stim/search/hyper/{graph,algo}.cc`), so that for a model whose errors name each detector at
+/// most once it is Stim's own answer, fault for fault:
 ///
 /// - Limits of two and two are the graph-like search's (`shortest_graphlike` ignoring larger
-///   faults), as in Stim.
+///   faults), as in Stim, and differ from it on a repeated target in the same way.
 /// - Each fault of nonzero probability with at most `max_degree` detectors is an edge at each of
 ///   its detectors, in the model's order (repeats left out: they reach no new set). One with no
 ///   detector and an observable flipped is a logical error by itself (the last such, as Stim).

@@ -75,7 +75,25 @@ impl BeliefMatching {
     /// matching on this engine's own model of a circuit can split a shared
     /// symptom differently from `beliefmatching` on Stim's model of it.
     pub fn from_dem(dem: &Dem, method: Method, max_iter: usize) -> Result<BeliefMatching, String> {
-        let (edges, _) = merged_edges(dem)?;
+        let (mut edges, _) = merged_edges(dem)?;
+        // Each edge's observables are the last piece's on it, as in `beliefmatching` (the
+        // first piece's, which `merged_edges` keeps for Matching, would be taken otherwise).
+        let mut last: HashMap<(u32, u32), u64> = HashMap::new();
+        for m in &dem.mechanisms {
+            for piece in &m.pieces {
+                let key = match piece.detectors.as_slice() {
+                    [a] => (*a, dem.num_detectors as u32),
+                    [a, b] => (*a.min(b), *a.max(b)),
+                    _ => continue,
+                };
+                last.insert(key, piece.observables);
+            }
+        }
+        for e in edges.iter_mut() {
+            if let Some(&o) = last.get(&(e.0, e.1)) {
+                e.3 = o;
+            }
+        }
         let graph = SparseGraph::from_edges(dem.num_detectors, &edges);
         let boundary = dem.num_detectors as u32;
         let mut ids: HashMap<Vec<u32>, usize> = HashMap::new();

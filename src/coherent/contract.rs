@@ -138,7 +138,7 @@ pub enum Refusal {
     /// order's, which the couplings can only rarely raise.
     Budget(usize),
     /// Its tables would hold more than `MAX_ENTRIES` entries in all (a table spanning 32
-    /// variables or more holds 2^33 entries alone): no budget plans it.
+    /// variables or more holds 2^32 entries alone): no budget plans it.
     Width,
     /// Its generators' products are not what a kernel's are: a product of two did not carry
     /// through the circuit, or their phases are not a quadratic form. Neither can happen to a

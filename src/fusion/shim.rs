@@ -300,18 +300,26 @@ pub mod rayon {
             }
             let workers = self.threads.max(1).min(tasks.len());
             let queue: Mutex<VecDeque<Task<'scope>>> = Mutex::new(tasks.into());
+            // The first task's panic payload, re-raised once the workers have stopped: a scoped
+            // thread's own panic would otherwise replace it with a generic message.
+            let panicked: Mutex<Option<Box<dyn std::any::Any + Send>>> = Mutex::new(None);
             std::thread::scope(|s| {
                 for index in 0..workers {
-                    let queue = &queue;
+                    let (queue, panicked) = (&queue, &panicked);
                     s.spawn(move || {
                         THREAD_INDEX.with(|i| i.set(Some(index)));
                         loop {
                             let task = queue.lock().unwrap().pop_front();
                             match task {
                                 Some(task) => {
-                                    let inner = ScopeFifo { tasks: RefCell::new(Vec::new()) };
-                                    task(&inner);
-                                    assert!(inner.tasks.into_inner().is_empty(), "a fusion task spawns no tasks");
+                                    let run = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                        let inner = ScopeFifo { tasks: RefCell::new(Vec::new()) };
+                                        task(&inner);
+                                        assert!(inner.tasks.into_inner().is_empty(), "a fusion task spawns no tasks");
+                                    }));
+                                    if let Err(payload) = run {
+                                        panicked.lock().unwrap().get_or_insert(payload);
+                                    }
                                 }
                                 None => break,
                             }
@@ -319,6 +327,9 @@ pub mod rayon {
                     });
                 }
             });
+            if let Some(payload) = panicked.into_inner().unwrap() {
+                std::panic::resume_unwind(payload);
+            }
             out
         }
     }
@@ -1626,4 +1637,22 @@ macro_rules! nz {
     ($e:expr) => {
         ::std::num::NonZeroUsize::new($e as usize).expect("nonzero")
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::rayon::ThreadPoolBuilder;
+
+    #[test]
+    fn scope_fifo_rethrows_the_task_panic() {
+        let pool = ThreadPoolBuilder::new().num_threads(2).build().unwrap();
+        let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            pool.scope_fifo(|s| {
+                s.spawn_fifo(|_| {});
+                s.spawn_fifo(|_| panic!("the task failed"));
+            });
+        }));
+        let payload = caught.expect_err("a panicking task panics the scope");
+        assert_eq!(payload.downcast_ref::<&str>().copied(), Some("the task failed"));
+    }
 }

@@ -533,10 +533,18 @@ def test_describe_coordinate_shift_overflow_is_controlled(tmp_path, monkeypatch,
     monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="utf-8"))
     assert cli.main(["chromobius", "describe_decoder", "--in", str(path)]) == 1
     err = capsys.readouterr().err
-    assert "bad argument 'inf'" in err and "Traceback" not in err
+    assert err == "detector D0: accumulated coordinate overflow\n" and "Traceback" not in err
 
 
 def test_model_tag_invalid_utf8_retains_replacement_behavior():
     # _model explicitly uses UTF-8 replacement; no claim of fresh native byte parity.
     dem = cli._model(b"error[tag\xff](0.1) D0\ndetector(0,0,0,0) D0\n")
     assert "tag\ufffd" in str(dem)
+
+
+def test_error_with_empty_parentheses_is_probability_zero_as_stim_reads_it():
+    # Stim reads `error() D0` as `error(0) D0`, and refuses a bare `error D0`; so does the model reader.
+    assert str(cli._model(b"error() D0\ndetector(0,0,0,0) D0\n")) == str(cli._model(b"error(0) D0\ndetector(0,0,0,0) D0\n"))
+    assert "error(0) D0" in str(cli._model(b"error() D0\ndetector(0,0,0,0) D0\n"))
+    with pytest.raises(cli._Fail, match="error takes one probability"):
+        cli._model(b"error D0\ndetector(0,0,0,0) D0\n")

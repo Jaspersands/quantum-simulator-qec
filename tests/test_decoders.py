@@ -87,6 +87,14 @@ def test_belief_matching_agrees_with_beliefmatching(d3):
     assert conv.dtype == np.bool_ and conv.shape == (400,)
 
 
+def test_belief_matching_matches_on_the_last_observables_of_a_shared_edge():
+    # Two faults share the edge D0 D1 with different observables. beliefmatching keeps the last
+    # one's (L0), so with BP stopped at once the shot [1, 1] is matched across that edge, flipping L0.
+    bm = sq.BeliefMatching("error(0.1) D0 D1\nerror(0.1) D0 D1 L0", max_bp_iters=0)
+    assert bm.decode(np.array([1, 1], dtype=np.uint8)).tolist() == [1]
+    assert bm.decode(np.array([0, 0], dtype=np.uint8)).tolist() == [0]
+
+
 def test_bposd_on_a_model(d3):
     dem = d3.detector_error_model()
     dets, obs = shots_of(d3, 2000, seed=4)

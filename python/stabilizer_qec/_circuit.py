@@ -1038,7 +1038,9 @@ class Circuit:
         with the stabilizer-rank sampler's engine; ``"coherent"`` sums the joint coherent
         sampler's weighted twirl over every branch with the whole interference kernel (the
         proof of its identity: it equals the state vector's). For small circuits; more than
-        ``max_branches`` branches is an error."""
+        ``max_branches`` branches is an error. An observable of Pauli targets
+        (``OBSERVABLE_INCLUDE(0) X0``) is refused by these engines, which read measurement
+        records; the detector sampler and the detector error model read it."""
         runs = {"state_vector": self._c.exact_distribution, "density_matrix": self._c.density_distribution, "stabilizer_rank": self._c.stabilizer_rank_distribution, "coherent": self._c.joint_distribution}
         if method not in runs:
             raise ValueError(f"method must be 'state_vector', 'density_matrix', 'stabilizer_rank' or 'coherent', got {method!r}")

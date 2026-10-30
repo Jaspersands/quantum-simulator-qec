@@ -19,6 +19,21 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- `error() D0` in a detector error model is read with probability 0, as Stim reads it, instead of
+  being refused; `error D0` with no parentheses is still refused.
+- The coherent sampler's weights for a seed are bitwise reproducible across compiles: its
+  stabilizer-rank term sums run in key order, not in a hash map's order, which had changed the
+  last bits.
+- The density-matrix and perturbative exact engines name themselves when they refuse an
+  `OBSERVABLE_INCLUDE` with Pauli targets, where they reported the state vector's refusal;
+  `exact_distribution` says which engines refuse such observables.
+- A panic in a Fusion Blossom parallel task reaches Python with the task's own message, where it
+  was replaced by "a scoped thread panicked".
+- `chromobius describe_decoder` names the detector when a coordinate shift overflows ("detector
+  D<k>: accumulated coordinate overflow"), where it printed an internal `inf` argument.
+- `BeliefMatching`'s matching path takes the last piece's observables on a shared edge, as
+  `beliefmatching` does, where it took the first's; predictions change only where pieces on one
+  edge disagree.
 
 ## 2.2.0 — 2026-10-30
 
