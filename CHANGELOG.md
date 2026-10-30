@@ -316,6 +316,8 @@ policy for its documented items.
   instead of an `AttributeError` partway through a run: the samplers here compute no ERV values.
 - A `CssCodes` matrix set from a scipy sparse matrix with an explicit zero at a negative or out-of-range
   column is accepted, as scipy drops that entry. The setter rejected the matrix before normalising it.
+- A `BpFlipDecoder` with a negative `flip_iterations` runs no flipping pass, as ldpc's does, and decodes
+  as plain BP. It raised `OverflowError`. A negative `pflip_frequency` is still refused.
 
 ### Not ported
 

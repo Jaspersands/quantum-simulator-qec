@@ -97,6 +97,38 @@ def test_bp_flip_copy_carries_on_its_random_flips():
         assert np.array_equal(copy.decode(s), flip.decode(s))
 
 
+@pytest.mark.parametrize("flip_iterations", [-1, -4])
+def test_bp_flip_negative_flip_iterations_runs_no_flip_pass(flip_iterations):
+    from ldpc.bp_flip import BpFlipDecoder as Theirs
+
+    for rng, pcm in codes(19, 12):
+        kw = dict(error_rate=0.05, max_iter=int(rng.integers(1, 6)), flip_iterations=flip_iterations)
+        ours, theirs = sq.BpFlipDecoder(pcm, **kw), Theirs(pcm, **kw)
+        for _ in range(6):
+            syndrome = (pcm @ (rng.random(pcm.shape[1]) < 0.15) % 2).astype(np.uint8)
+            assert np.array_equal(ours.decode(syndrome), theirs.decode(syndrome))
+            assert ours.converge == theirs.converge
+    # A syndrome the flips cannot clear: a pass count larger than the block length would not end here.
+    pcm = np.array([[1, 1], [1, 1]], dtype=np.uint8)
+    syndrome = np.array([1, 0], dtype=np.uint8)
+    kw = dict(error_rate=0.1, flip_iterations=flip_iterations)
+    assert np.array_equal(sq.BpFlipDecoder(pcm, **kw).decode(syndrome), Theirs(pcm, **kw).decode(syndrome))
+
+
+@pytest.mark.parametrize("bits", [-1, -5])
+def test_negative_bits_per_step_takes_all_bits_as_ldpc(bits):
+    from ldpc.bplsd_decoder import BpLsdDecoder as TheirsBpLsd
+    from ldpc.lsd_decoder import LsdDecoder as TheirsLsd
+
+    for rng, pcm in codes(23, 10, m=(8, 30), n=(12, 50), density=0.15):
+        syndrome = (pcm @ (rng.random(pcm.shape[1]) < 0.1) % 2).astype(np.uint8)
+        weights = rng.integers(0, 3, pcm.shape[1]).astype(float)
+        a = sq.BpLsdDecoder(pcm, error_rate=0.05, bits_per_step=bits).decode(syndrome)
+        assert np.array_equal(a, TheirsBpLsd(pcm, error_rate=0.05, bits_per_step=bits).decode(syndrome))
+        a = sq.LsdDecoder(pcm, bits_per_step=bits).decode(syndrome, weights)
+        assert np.array_equal(a, TheirsLsd(pcm, bits_per_step=bits).decode(syndrome, weights))
+
+
 def graphs(seed: int, count: int):
     """Matching-like matrices: each column has one check (the boundary) or two."""
     rng = np.random.default_rng(seed)
