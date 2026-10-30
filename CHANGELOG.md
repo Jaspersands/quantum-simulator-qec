@@ -27,6 +27,21 @@ policy for its documented items.
 - `Matching.set_boundary_nodes` with the boundary nodes a matching already has keeps correlated
   decoding, as PyMatching does; it used to refuse `enable_correlations=True` until the matching
   was reloaded. Naming a different set still refuses it.
+- `chromobius`'s facade raises its no-perfect-matching error with PyMatching's message alone, as
+  Chromobius's does, instead of prefixed with `shot N: `. The native `ColorMatching` API keeps the
+  prefix.
+- `chromobius`'s sinter decoder refuses bit-packed data whose rows are not adjacent bytes (a strided
+  view, a column-major array, zero rows) with Chromobius's `strides(1) != 1` message, where it
+  decoded them.
+- `stabilizer_qec.deltakit_stim.FlipSimulator` refuses Deltakit's leakage instructions (`LEAKAGE`,
+  `RELAX`, `RL`, `HERALD_LEAKAGE_EVENT` and a transport gate's four arguments), where it ran them
+  as identities and read a leaked herald as 0 (Deltakit reads 1). Sample such circuits with
+  `compile_sampler` or `compile_detector_sampler`.
+- `gate_data` reports `is_symmetric_gate` True for `LEAKAGE`, `RELAX`, `RL` and
+  `HERALD_LEAKAGE_EVENT`, as deltakit_stim does.
+- Importing `stabilizer_qec.deltakit` on Python 3.9 or 3.10 raises an `ImportError` naming Python
+  3.11, the version it needs; its subpackages used to fail inside Deltakit's code with a typing or
+  `|` error.
 
 ## 2.2.0 — 2026-10-30
 
