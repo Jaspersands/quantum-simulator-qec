@@ -520,7 +520,9 @@ cargo test --release --no-default-features equivalence -- --include-ignored --no
 cargo test --release --no-default-features every_single_fault -- --include-ignored
 ```
 
-The recorded run is `data/xcheck/report.txt`. Figure 8 on the site repeats the error-model
+The recorded run is `data/xcheck/reference.json`, which holds the checks' counts and the decode
+timings. `data/xcheck/report.txt` is the text report of an earlier run (2026-09-26), and its
+timings are stale. Figure 8 on the site repeats the error-model
 comparison live, in the reader's browser.
 
 ## Stim's Python API
