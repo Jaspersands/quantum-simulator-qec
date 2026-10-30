@@ -170,3 +170,18 @@ def test_a_job_runs_panqecs_slow_tests():
     # tests/conftest.py leaves tests/panqec_port uncollected (not skipped) without the panqec extra.
     for module in ("scipy", "pandas", "matplotlib", "click", "psutil", "tqdm"):
         assert any(re.search(r"import [^\n]*\b" + module + r"\b", "\n".join(jobs[n])) for n in good), f"the job does not check that {module} imports"
+
+
+def test_ldpc_is_pinned_wherever_the_comparisons_install_it():
+    """ldpc 2.4.1 is the version the BP and BP+LSD comparisons were recorded with, so no install of ldpc in
+    the workflow leaves its version open: the bp_check step pins it, and the test matrix's loop takes the
+    pin on every Python but 3.9, where 2.4.1 (which needs 3.10) cannot install."""
+    jobs = _jobs()
+    installs = [c for job in jobs.values() for s in _steps(job) for c in _commands(s) if "pip install" in c]
+    assert not [c for c in installs if "ldpc" in c.split()], "an install takes ldpc at no version"
+    bp_check = [s for job in jobs.values() for s in _steps(job) if "tools/bp_check.py" in s]
+    assert any("ldpc==2.4.1" in c.split() for s in bp_check for c in _commands(s)), "the bp_check step does not pin ldpc 2.4.1"
+    loops = [c for job in jobs.values() for s in _steps(job) for c in _commands(s) if c.startswith("for p in ")]
+    assert any("$ldpc_pin" in c.split() for c in loops), "the test matrix's install loop does not take the ldpc pin"
+    text = CI.read_text()
+    assert "ldpc_pin=ldpc==2.4.1;" in text and 'then ldpc_pin=ldpc;' in text, "the ldpc pin is not set for Python 3.10 and up, and left open for 3.9"
