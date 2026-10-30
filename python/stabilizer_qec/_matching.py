@@ -439,9 +439,11 @@ class Matching:
     def set_boundary_nodes(self, nodes: Set[int]) -> None:
         """The boundary nodes: decoding treats an edge to one as an edge to the boundary. Naming
         the nodes it already has changes nothing, and keeps correlated decoding, as PyMatching does."""
-        nodes = sorted(int(n) for n in nodes)
-        changed = set(nodes) != self.boundary
-        self._g.set_boundary(nodes)
+        boundary = sorted(_index(n, "boundary node") for n in nodes)
+        if boundary and boundary[0] < 0:
+            raise TypeError(f"boundary nodes must be non-negative, not {boundary[0]}")
+        changed = set(boundary) != self.boundary
+        _edit(self._g.set_boundary, boundary)
         if changed:
             self._corr = None
 
@@ -449,16 +451,6 @@ class Matching:
         """Reserve room for at least this many fault ids. A decode whose output cannot be
         allocated, as with a count near 2**63, raises MemoryError; PyMatching's from_networkx
         given the same min_num_fault_ids builds, and its decode raises ValueError."""
-        self._g.ensure_num_fault_ids(int(min_num_fault_ids))
-
-        """The boundary nodes: decoding treats an edge to one as an edge to the boundary."""
-        boundary = sorted(_index(n, "boundary node") for n in nodes)
-        if boundary and boundary[0] < 0:
-            raise TypeError(f"boundary nodes must be non-negative, not {boundary[0]}")
-        _edit(self._g.set_boundary, boundary)
-        self._corr = None
-
-    def ensure_num_fault_ids(self, min_num_fault_ids: int) -> None:
         _edit(self._g.ensure_num_fault_ids, _index(min_num_fault_ids, "min_num_fault_ids"))
 
     @property
