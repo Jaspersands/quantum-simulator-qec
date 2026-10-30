@@ -138,7 +138,7 @@ continuous integration, which fails a change that doubles a speed ratio.
 
 # Research impact statement
 
-The package is published on PyPI and crates.io under the MIT licence. It plugs into sinter's
+The package is published on PyPI and crates.io under the MIT and Apache-2.0 licences (MIT for the code written here; the parts ported from other projects keep their own licences, listed in THIRD_PARTY_NOTICES.md). It plugs into sinter's
 threshold sweeps as a set of custom decoders. Its results are reproducible: a technical report
 in the repository fills every number from committed data, which the scripts in `tools/`
 regenerate. The report contains findings of its own:
