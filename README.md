@@ -716,9 +716,8 @@ uses it for plain decoding; Chromobius uses the 2.2.2 neighbour order (see
 shot by shot against PyMatching 2.4.0 on 950,000 shots of 19 models (surface codes d = 3 to 7
 at p = 0.001 to 0.02, colour-code Möbius graphs, repetition codes, unit and negative weights)
 and 600,000 of 3,000 hand-built graphs (merges, boundaries, zero and negative weights, more
-than 64 fault ids): 0 differences. It takes 1.00 to 1.04 times PyMatching's time
-(`decode_batch` with weights, d = 5 memory over 5 rounds, 100,000 shots, one thread). One
-departure from the line-for-line copy is deliberate: a region's radius offset is 64-bit, where
+than 64 fault ids): 0 differences. One departure from the line-for-line copy is deliberate: a
+region's radius offset is 64-bit, where
 PyMatching 2.4.0's `compute_wrapped_radius` returns `int32_t`, so on a uniform chain of 131 or
 more nodes at a non-integer weight (1.5, or 16,777,214.5), where a region's scaled radius passes
 what 32 bits hold, PyMatching's decoder never finishes and this one decodes the path
