@@ -942,6 +942,10 @@ def test_azure_formulas_read_as_fasteval_reads_them():
     with pytest.raises(az.EstimatorError, match=r"""cannot evaluate expression: 'Undefined\("d"\)'""") as e:
         ev("2 * d", d)
     assert e.value.code == "Qdk.Qsc.Estimates.EvaluationError.CannotEvaluateExpression"
+    # A call's arguments evaluate first, so the undefined name the QDK reports is the one inside them.
+    for call, name in [("foo(bar)", "bar"), ("foo(1, bar)", "bar"), ("foo(bar, baz)", "bar"), ("foo(baz(qux))", "qux"), ("codeDistance(bar)", "bar"), ("foo", "foo")]:
+        with pytest.raises(az.EstimatorError, match=rf"""cannot evaluate expression: 'Undefined\("{name}"\)'"""):
+            ev(call, d)
     with pytest.raises(az.EstimatorError, match="TooLong"):
         ev("1" + "+1" * 3000, {})
     assert ev("1" + "+1" * 2000, {}) == 2001.0 and ev("z" + "+z" * 1000, {"z": 1.0}) == 1001.0 and ev("z" + "^z" * 1000, {"z": 1.0}) == 1.0  # long chains need no deep recursion
