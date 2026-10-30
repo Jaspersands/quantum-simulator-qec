@@ -1960,9 +1960,10 @@ prepared in its basis.
   (`tools/surgery.py check`). Every disagreement with PyMatching is a tie.
 - **An independent geometry check.** The site's geometry module (`js/surgery-geometry.js`) shows
   that the new seam checks multiply to Z on exactly the two facing columns, Z₁Z₂.
-- **The physics of one round.** With a single merged round the error model is refused: one
-  measurement error on a seam check flips the outcome with nothing after it to notice. With three,
-  every single fault is corrected in both bases.
+- **The physics of one round.** With a single merged round the browser site and Rust's
+  `Dem::refuse_undetectable` refuse the error model, while the Python API builds it and `Matching`
+  accepts it. One measurement error on a seam check flips the outcome with nothing after it to
+  notice. With three rounds, every single fault is corrected in both bases.
 
 **The timing law** (`tools/surgery.py run`): how often the merge outcome is wrong, against merged
 rounds T, correlated matching.
