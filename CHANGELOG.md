@@ -23,6 +23,9 @@ policy for its documented items.
   is refused with a `ValueError`, where it was an internal error.
 - `decode_batch` on a graph with more than 64 fault ids writes every fault id its output holds, as
   `decode` does, where a fault id past the count the decoder was built with was dropped.
+- The deprecated 2.1 `UserDecoder` methods (`decode`, `decode_to_edges`, `decode_to_matched_pairs`,
+  `decode_packed`) cancel repeated detection events in pairs again, as 2.1 did, where 2.2 refused
+  them.
 
 ## 2.2.0 — 2026-10-30
 

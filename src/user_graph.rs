@@ -548,6 +548,18 @@ impl UserGraph {
     }
 }
 
+/// The events 2.1's deprecated methods decoded: each node that occurs an odd number of times,
+/// once, in order (repeated events cancel in pairs, as 2.1's defects did).
+fn cancel_repeats(events: &[u64]) -> Vec<u64> {
+    let mut on = BTreeSet::new();
+    for &d in events {
+        if !on.remove(&d) {
+            on.insert(d);
+        }
+    }
+    on.into_iter().collect()
+}
+
 impl UserDecoder {
     /// PyMatching's matching graph, as the crate's own Python bindings read it: a type of the
     /// hidden `pm_exact` module, so not part of the documented API.
@@ -657,7 +669,7 @@ impl UserDecoder {
     #[deprecated(since = "2.2.0", note = "use `decode_packed_with` on a workspace from `mwpm()`")]
     pub fn decode_packed(&self, scratch: &mut Scratch, sorted_events: &[u32], buf: &mut Vec<u32>, out: &mut [u8]) -> Result<f64, String> {
         let _ = buf;
-        let events: Vec<u64> = sorted_events.iter().map(|&e| u64::from(e)).collect();
+        let events = cancel_repeats(&sorted_events.iter().map(|&e| u64::from(e)).collect::<Vec<u64>>());
         let w = self.decode_packed_with(self.mwpm_in(scratch), &events, out)?;
         let nf = self.num_fault_ids();
         if !nf.is_multiple_of(8) && nf / 8 < out.len() {
@@ -670,7 +682,7 @@ impl UserDecoder {
     #[deprecated(since = "2.2.0", note = "use `decode_with` on a workspace from `mwpm()`")]
     #[allow(deprecated)]
     pub fn decode(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Decoded, String> {
-        let (faults, weight) = self.mwpm_in(scratch).try_decode(events)?;
+        let (faults, weight) = self.mwpm_in(scratch).try_decode(&cancel_repeats(events))?;
         Ok(Decoded { faults: faults.into_iter().map(|f| f != 0).collect(), weight })
     }
 
@@ -678,14 +690,14 @@ impl UserDecoder {
     /// edges included, in PyMatching's order (its `decode_to_edges_array`).
     #[deprecated(since = "2.2.0", note = "use `decode_to_edges_with` on a workspace from `mwpm()`")]
     pub fn decode_to_edges(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Vec<(i64, i64)>, String> {
-        self.mwpm_in(scratch).try_decode_to_edges(events)
+        self.mwpm_in(scratch).try_decode_to_edges(&cancel_repeats(events))
     }
 
     /// The matched pairs of detection events (-1: the boundary), in PyMatching's order (its
     /// `decode_to_matched_dets_array`). Refused for graphs with negative weights, as PyMatching.
     #[deprecated(since = "2.2.0", note = "use `decode_to_matched_pairs_with` on a workspace from `mwpm()`")]
     pub fn decode_to_matched_pairs(&self, scratch: &mut Scratch, events: &[u64]) -> Result<Vec<(i64, i64)>, String> {
-        self.mwpm_in(scratch).try_decode_to_match_edges(events)
+        self.mwpm_in(scratch).try_decode_to_match_edges(&cancel_repeats(events))
     }
 }
 
@@ -890,6 +902,21 @@ mod tests {
         assert_eq!(d.decode(&mut s, &[0, 1]).unwrap(), Decoded { faults: vec![true, false], weight: -2.0 });
         assert_eq!(d.decode_to_edges(&mut s, &[0, 1]).unwrap(), vec![(0, 1)]);
         assert!(d.decode_to_matched_pairs(&mut s, &[0, 1]).is_err());
+    }
+
+    #[test]
+    #[allow(deprecated)]
+    fn the_2_1_methods_cancel_repeated_events() {
+        let g = line(5);
+        let d = g.decoder().unwrap();
+        let mut s = d.scratch();
+        assert_eq!(d.decode(&mut s, &[1, 1, 3]).unwrap(), d.decode(&mut s, &[3]).unwrap());
+        assert_eq!(d.decode(&mut s, &[1, 1]).unwrap(), Decoded { faults: vec![false; 5], weight: 0.0 });
+        assert_eq!(d.decode_to_edges(&mut s, &[1, 1]).unwrap(), Vec::<(i64, i64)>::new());
+        assert_eq!(d.decode_to_matched_pairs(&mut s, &[1, 1]).unwrap(), Vec::<(i64, i64)>::new());
+        let (mut buf, mut out) = (Vec::new(), [0xffu8]);
+        assert_eq!(d.decode_packed(&mut s, &[1, 1], &mut buf, &mut out).unwrap(), 0.0);
+        assert_eq!(out, [0]);
     }
 
     /// A rare correlated error whose implied weight is the heaviest in the graph.
