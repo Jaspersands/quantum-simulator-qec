@@ -678,6 +678,15 @@ def test_close_all_matches_close_of_stitch_all_and_monolithic(T):
     assert same_dem(via_close_all, qec.dem_from_css_matrices(rep3(), px_only(0.01), T))
 
 
+def test_close_all_refuses_chunks_with_other_observable_counts():
+    two = rep3()
+    two.lz = np.array([[1, 0, 0], [0, 0, 1]], dtype=np.uint8)
+    chunks = [one_round(), qec.extended_dem_from_css_matrices(two, px_only(0.01))]
+    assert [c.num_observables() for c in chunks] == [1, 2]
+    with pytest.raises(ValueError, match="dem_close_all: observable count mismatch at chunk 1"):
+        qec.dem_close_all(chunks)
+
+
 def test_close_all_empty_throws():
     with pytest.raises(ValueError, match="dem_close_all: dem_chunks must be non-empty"):
         qec.dem_close_all([])

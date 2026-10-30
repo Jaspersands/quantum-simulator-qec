@@ -106,6 +106,14 @@ def test_a_leading_byte_order_mark_is_not_content():
     assert qec.decoder_config.from_yaml_str("\ufeff\n" + flat).type == "single_error_lut"
 
 
+def test_phases_must_agree_on_the_observable_count_at_close():
+    # The first phase reads two observables and the bulk one, so the chunks cannot close.
+    text = chunk_form_yaml(5).replace("O_sparse: [ 0, -1 ]", "O_sparse: [ 0, -1, 1, -1 ]", 1)
+    config = qec.decoder_config.from_yaml_str(text)
+    with pytest.raises(RuntimeError, match=re.escape("Cannot close dem_chunks for decoder 0: dem_close_all: observable count mismatch at chunk 1")):
+        qec.expand_dem_chunks(config)
+
+
 def test_expand_dem_chunks_fills_the_flat_fields():
     config = qec.decoder_config.from_yaml_str(chunk_form_yaml(5))
     closed = qec.qecrt.config.expand_dem_chunks(config)
