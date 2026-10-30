@@ -27,6 +27,8 @@ policy for its documented items.
 - The density-matrix and perturbative exact engines name themselves when they refuse an
   `OBSERVABLE_INCLUDE` with Pauli targets, where they reported the state vector's refusal;
   `exact_distribution` says which engines refuse such observables.
+- A panic in a Fusion Blossom parallel task reaches Python with the task's own message, where it
+  was replaced by "a scoped thread panicked".
 
 ## 2.2.0 — 2026-10-30
 
