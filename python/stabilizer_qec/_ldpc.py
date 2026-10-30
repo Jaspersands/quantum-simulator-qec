@@ -913,7 +913,7 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
 
     def _decode_syndrome(self, syndrome: np.ndarray) -> np.ndarray:
         """The correction. ``last_tied`` says whether this decode made a choice ldpc might
-        make otherwise (equal keys in a long sort, or a merge of many clusters at once)."""
+        make otherwise (a cluster met while merging, or several clusters merged at once)."""
         syndrome = np.asarray(syndrome)
         if not len(syndrome) == self.m:
             raise ValueError(f"The syndrome must have length {self.m}. Not {len(syndrome)}.")
