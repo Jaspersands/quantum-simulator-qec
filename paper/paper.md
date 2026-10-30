@@ -71,8 +71,8 @@ rate is quietly wrong, and nothing flags it.
 `stabilizer-qec` is for researchers and students who want that whole pipeline in one place,
 with every stage checked against the reference implementation of that stage. It is also for
 readers who learn by running code: the website's figures execute the same engine in the
-reader's browser, and three tutorials take a circuit through to a threshold plot, real-time
-decoding, and codes beyond the surface code.
+reader's browser, and nine tutorials, three of which take a circuit through to a threshold plot,
+real-time decoding, and codes beyond the surface code.
 
 # State of the field
 
