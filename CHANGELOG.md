@@ -23,6 +23,10 @@ policy for its documented items.
   exports the compiled module's name; `fb.PyMut` raises RuntimeError on a second enter or an exit
   without an enter (it used an assert, which `python -O` removed, and an exit without an enter
   wrote None into the field).
+- The visualizer's server answers only requests whose Host is localhost, 127.0.0.1, `::1` or its
+  bound host (403 otherwise), so a page reached by DNS rebinding cannot read the data folder. It
+  serves each request on its own thread, so an idle connection no longer blocks the shutdown in
+  `open_visualizer`.
 
 ## 2.2.0 — 2026-10-30
 

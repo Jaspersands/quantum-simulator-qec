@@ -285,7 +285,12 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   website CRLF is compared as LF, with raw upstream body/length and installed LF resource checks. These are explicit
   limits on raw live-response parity.
   The helper binds when run, uses the latest process-wide serve root and needs `server_close()`
-  after shutdown to release its socket. It validates UTF-8 and stable-filesystem containment
+  after shutdown to release its socket. The serve root (cwd and any symlinks in it) is resolved
+  when `serve()` is called, so ETags use the resolved path and differ from fusion_blossom's for
+  a symlinked folder. It answers only requests whose Host names localhost, 127.0.0.1, `::1` or the
+  bound host, and refuses others with 403, so a DNS-rebinding page cannot read the folder. It
+  serves each request on its own thread, so an idle connection does not block shutdown. It
+  validates UTF-8 and stable-filesystem containment
   of Bottle's strip+abspath candidate while preserving original stripped component spelling
   in both static-file calls; filesystem replacement races remain outside that check. JSON MIME
   is application/json, extensionless defaults to HTML, and quiet suppresses request logs rather
