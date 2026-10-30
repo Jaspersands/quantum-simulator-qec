@@ -190,12 +190,13 @@ def test_found_by_these_checks():
 
 def test_observable_width_across_machine_words():
     rep = cf.Report()
-    for k in (1, 31, 32, 33, 63, 64, 65):
+    for k in (1, 31, 32, 33, 63, 64, 65, 100):
         cf._width(cf.subjects()["matching"], cf.width_family(k), rep)
         cf._width(cf.subjects()["matching_correlated"], cf.width_family(k), rep)
-    assert rep.counts["matching", "observable width"] == {"pass": 14}
-    # Correlated matching takes at most 64 observables, and says so: refused, not misdecoded.
-    assert rep.counts["matching_correlated", "observable width"] == {"pass": 12, "refused": 1}
+    # Plain matching takes any number of observables; correlated matching takes at most 64, and
+    # says so: refused, not misdecoded.
+    assert rep.counts["matching", "observable width"] == {"pass": 16}
+    assert rep.counts["matching_correlated", "observable width"] == {"pass": 12, "refused": 2}
 
 
 def test_models_sampled_syndromes_and_errors():

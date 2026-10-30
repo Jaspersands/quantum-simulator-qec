@@ -110,7 +110,7 @@ fn search_decoder_takes_at_most_64_observables() {
     // The flat model's refusal, for the decoders that take at most 64, names the Python one.
     let e = BpOsd::new(&wide, BpOptions::new(10, BpMethod::ProductSum), OsdMethod::Osd0).err().unwrap();
     assert!(e.message().starts_with("the model has 65 observables; this engine's matching, BP, clustering and window decoders"), "{}", e.message());
-    assert!(e.message().ends_with("take at most 64 (the Python search decoder, the text, counts, circuit sampling and measurement conversion take any number)"), "{}", e.message());
+    assert!(e.message().ends_with("take at most 64 (the Python search decoder, the Python matching decoder without correlations, the text, counts, circuit sampling and measurement conversion take any number)"), "{}", e.message());
     // A model past detector 2²⁴ − 1 is refused for that first, as the flat model refuses it.
     let far = DetectorErrorModel::parse("shift_detectors 16777216\nerror(0.1) D0 L64").unwrap();
     assert!(SearchDecoder::new(&far, SearchOptions::new()).err().unwrap().message().starts_with("the model names detector 16777216"));

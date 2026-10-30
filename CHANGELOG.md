@@ -21,6 +21,9 @@ policy for its documented items.
   build and then raise from `str`, `len`, indexing and pickling; a model with one built silently.
 - A fresh `BpLsdDecoder` reports `lsd_method` 0 in its statistics, as ldpc's does, where it reported 3
   until its first decode.
+- The refusal of a model past 64 observables now says that the Python matching decoder without
+  correlations takes any number. 2.2.0's note listed matching among the decoders that take at most
+  64; correlated matching still does.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.
