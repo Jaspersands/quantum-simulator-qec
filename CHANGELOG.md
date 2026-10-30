@@ -44,6 +44,8 @@ policy for its documented items.
   and `FrozenList.index` raises `ValueError` naming the missing item.
 - `pySparseSim`'s `measure Z` with `collapse=False` and the default `forced_outcome=-1` draws the outcome of a
   random measurement, as `collapse=True` and `cySparseSim` do, where it raised.
+- `MWPM2D.decode` raises `TypeError` for a plain dict keyed by time (a `StdOutput`'s own dict), where it returned
+  an empty recovery because the time keys were read as syndromes.
 
 ## 2.2.0 — 2026-10-30
 

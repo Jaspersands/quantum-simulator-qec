@@ -15,6 +15,8 @@
 #   limitations under the License.
 # modified for stabilizer_qec: pecos is stabilizer_qec.pecos.
 
+import pytest
+
 from stabilizer_qec import pecos as pc
 
 
@@ -53,3 +55,14 @@ def test_surface():
     recovery = mwpm2d.decode(output2)
 
     sim.run(state, recovery)
+
+
+def test_decode_refuses_a_plain_time_keyed_dict():
+    # A StdOutput's dict is keyed by time with dict values; read as syndromes, it would decode to nothing.
+    surface = pc.qeccs.Surface4444(distance=3)
+    mwpm2d = pc.decoders.MWPM2D(surface)
+    logic = pc.circuits.LogicalCircuit(suppress_warning=True)
+    logic.append(surface.gate('I', num_syn_extract=1))
+    output, _ = pc.circuit_runners.Standard().run(pc.simulators.pySparseSim(surface.num_qudits), logic)
+    with pytest.raises(TypeError):
+        mwpm2d.decode(dict(output))
