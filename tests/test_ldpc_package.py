@@ -210,6 +210,22 @@ def test_wrong_types_are_refused_with_ldpcs_errors():
         assert str(got.value) == str(want.value)
 
 
+def test_legacy_bposd_max_iter_is_a_c_int_as_ldpcs():
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    import warnings
+
+    import stabilizer_qec.ldpc as ldpc_port
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(OverflowError) as want:
+            ldpc.bposd_decoder(pcm, error_rate=0.1, max_iter=2**40)
+        with pytest.raises(OverflowError) as got:
+            ldpc_port.bposd_decoder(pcm, error_rate=0.1, max_iter=2**40)
+        assert str(got.value) == str(want.value)
+        assert ldpc_port.bposd_decoder(pcm, error_rate=0.1, max_iter=2**31 - 1).max_iter == 2**31 - 1
+
+
 def test_every_module_imports():
     failed = []
     for m in pkgutil.walk_packages(ours.__path__, "stabilizer_qec.ldpc."):

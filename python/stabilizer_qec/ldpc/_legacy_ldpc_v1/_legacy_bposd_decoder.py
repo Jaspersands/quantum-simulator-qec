@@ -42,6 +42,9 @@ class bposd_decoder(BpOsdDecoder):
         # exactly one positional argument, the matrix), then this class's __init__.
         if len(args) != 1:
             raise TypeError(f"__cinit__() takes exactly 1 positional argument ({len(args)} given)")
+        # The v1 signature's max_iter is a C int: a larger Python int is Cython's OverflowError.
+        if type(kwargs.get("max_iter", 0)) is int and kwargs.get("max_iter", 0) > 2**31 - 1:
+            raise OverflowError("value too large to convert to int")
         self = super().__new__(cls)
         BpOsdDecoder.__init__(self, *args, **kwargs)
         self._made_from = (args, kwargs)
