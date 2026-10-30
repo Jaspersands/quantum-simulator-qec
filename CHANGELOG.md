@@ -12,6 +12,10 @@ policy for its documented items.
 
 ### Fixed
 
+- A circuit's or detector error model's `explain`, `shortest_graphlike`, `search_undetectable` and
+  sampler or distribution methods no longer hold the circuit borrowed while they run without the
+  GIL: an `append_text` or `append_circuit` on another thread raised "Already borrowed" for as
+  long as one ran, and now waits for it. Each method takes a copy of the circuit or model.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.

@@ -57,3 +57,35 @@ def test_huge_and_odd_numbers_are_value_or_type_errors():
         sq.memory_circuit(distance=3, rounds=3, p="0.001")
     with pytest.raises(ValueError):
         sq.BpDecoder([[1, 1]], error_rate=1.5)
+
+
+def test_circuit_and_model_reads_do_not_block_edits_on_another_thread():
+    import threading
+
+    from stabilizer_qec import _core
+
+    circuit = _core.Circuit("X_ERROR(0.1) 0\nM 0\nOBSERVABLE_INCLUDE(0) rec[-1]\n")
+    model = _core.Dem("error(0.1) D0 L0\nerror(0.1) D0 D1\nerror(0.2) D1")
+    reads = [lambda: circuit.reference_sample(), lambda: circuit.shortest_graphlike(True, False), lambda: model.shortest_graphlike(True)]
+    for read in reads:
+        stop = threading.Event()
+        errors = []
+
+        def loop(read=read):
+            while not stop.is_set():
+                try:
+                    read()
+                except Exception as e:
+                    errors.append(e)
+                    return
+
+        worker = threading.Thread(target=loop)
+        worker.start()
+        try:
+            for _ in range(200):
+                circuit.append_text("X 0")
+                model.append_text("error(0.1) D0 L0")
+        finally:
+            stop.set()
+            worker.join()
+        assert errors == []
