@@ -646,8 +646,8 @@ def test_every_data_row_says_what_measured_it():
     """Each row of data/coherent/ has the version of the core that measured it and whether its
     weights were the whole class's (coherent.exact; validate's own exact is the exact answer).
     Past twelve generators only 2.2's contraction is exact; 2.1 listed the span of twelve or
-    fewer (validate's repetition rows, stamped 2.0.0, the version its development core
-    reported); 1.9's sampler (1.8.0) never summed the whole class."""
+    fewer; 1.9's sampler (1.8.0) never summed the whole class (its rows are in crosstalk.json
+    and sweep.json, and validate's are all 2.2.0)."""
     tool = coherent_tool()
     release = lambda v: tuple(int(x) for x in v.split("."))  # noqa: E731
     for name in tool.SECTIONS:
