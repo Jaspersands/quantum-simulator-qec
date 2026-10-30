@@ -171,7 +171,7 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   Stim's: timelines, detector slices (the same as Stim's at every tick of its generated codes)
   and matching graphs, as text or SVG. Stim's generated memory circuits (`Circuit.generated`),
   character for character.
-- **Stim's whole Clifford language**: H, S and CX natively; the other 46 one- and two-qubit
+- **Stim's whole Clifford language**: H, X, Y, Z, I, S, CX and CZ natively; the other 38 one- and two-qubit
   gates as the shortest H/S/CX sequences whose tableaus equal Stim's, signs included
   (`tools/gen_gates.py` finds and checks them); measurements and resets in all three bases,
   inverted targets, `MPP`, `MXX`/`MYY`/`MZZ`, `SPP`, correlated and heralded errors,
