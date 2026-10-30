@@ -22,6 +22,8 @@ policy for its documented items.
 - `azure_estimate` and `azure_estimator` leave out an empty `EstimatorQubitParams`, `EstimatorQecScheme` or
   `EstimatorConstraints` object, as the QDK's `EstimatorParams` does, instead of raising the QDK's
   parse error for it; a plain empty dict is still refused.
+- `AlgorithmSummary.from_bloq` raises the `ValueError` its docstring names for a symbolic qubit count, as
+  it already does for a symbolic gate count, instead of Python's `TypeError`.
 
 ## 2.2.0 — 2026-10-30
 

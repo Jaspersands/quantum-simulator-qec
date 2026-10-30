@@ -160,7 +160,7 @@ class AlgorithmSummary:
         except ImportError as ex:
             raise ImportError("AlgorithmSummary.from_bloq counts the Bloq with Qualtran's resource counting, which needs Qualtran: pip install qualtran") from ex
         counts = get_cost_value(bloq, QECGatesCost())
-        qubits = int(get_cost_value(bloq, QubitCount()))
+        qubits = _plain_count("qubits", get_cost_value(bloq, QubitCount()))
         gates = _as_gate_counts(counts)
         return AlgorithmSummary(n_algo_qubits=qubits, n_logical_gates=gates)
 

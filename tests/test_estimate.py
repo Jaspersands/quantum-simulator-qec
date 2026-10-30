@@ -1197,6 +1197,17 @@ def test_qualtran_summary_from_bloq():
         assert (theirs.n_algo_qubits, theirs.n_logical_gates.asdict()) == (ours.n_algo_qubits, ours.n_logical_gates.asdict())
 
 
+@needs_qualtran
+def test_qualtran_summary_from_bloq_refuses_a_symbolic_qubit_count():
+    """A symbolic qubit count is the ValueError the docstring promises, as a symbolic gate count is."""
+    import sympy
+    from qualtran.bloqs import rotations
+
+    bloq = rotations.phase_gradient.PhaseGradientUnitary(bitsize=sympy.Symbol("n"), exponent=1, is_controlled=False, eps=1e-10)
+    with pytest.raises(ValueError, match="the qubits count .* is symbolic"):
+        AlgorithmSummary.from_bloq(bloq)
+
+
 def test_qualtran_summary_from_bloq_needs_qualtran(monkeypatch):
     from stabilizer_qec.estimate import qualtran as qt
 
