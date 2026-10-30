@@ -166,6 +166,24 @@ def test_ms_scaling_factor_reads_back_as_a_float(value):
     assert got.ms_scaling_factor == want.ms_scaling_factor
 
 
+@pytest.mark.parametrize("order", [1.0, 1.5, np.float64(1.0), True])
+def test_lsd_order_as_a_number_is_truncated_as_ldpc(order):
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    got = ours.BpLsdDecoder(pcm, error_rate=0.1, lsd_order=order, lsd_method=1)
+    want = ldpc.BpLsdDecoder(pcm, error_rate=0.1, lsd_order=order, lsd_method=1)
+    assert got.lsd_order == want.lsd_order
+
+
+@pytest.mark.parametrize("order", ["a", None])
+def test_lsd_order_of_another_type_is_ldpcs_error(order):
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    with pytest.raises(TypeError) as want:
+        ldpc.BpLsdDecoder(pcm, error_rate=0.1, lsd_order=order, lsd_method=1)
+    with pytest.raises(TypeError) as got:
+        ours.BpLsdDecoder(pcm, error_rate=0.1, lsd_order=order, lsd_method=1)
+    assert str(got.value) == str(want.value)
+
+
 def test_every_module_imports():
     failed = []
     for m in pkgutil.walk_packages(ours.__path__, "stabilizer_qec.ldpc."):

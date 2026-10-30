@@ -796,10 +796,18 @@ def _lsd_setter_name(method: Any) -> str:
     raise ValueError(f"ERROR: OSD method '{method}' invalid. Please choose from the following methods:{_S16}'LSD_0', 'LSD_E' or 'LSD_CS'.")
 
 
+def _lsd_order_arg(order: Any) -> int:
+    """``lsd_order`` as ldpc's int argument: any number, truncated; anything else is Cython's TypeError."""
+    if not isinstance(order, (int, float, np.integer, np.floating)):
+        raise _type_error("lsd_order", "int", order)
+    return int(order)
+
+
 def _lsd_ctor(lsd_method: Any, lsd_order: Any) -> tuple:
     """(method, order) as ldpc's LSD constructors read them: their own checks, then the
     ``lsd_method`` setter, which refuses some spellings the checks let through (``2``,
     ``"osde"``, ``"osdcs"``, ``"lsdcs"``) and sets the order to 0 for LSD-0."""
+    lsd_order = _lsd_order_arg(lsd_order)
     if lsd_order < 0:
         raise ValueError(f"lsd_order must be greater than or equal to 0. Not {lsd_order}.")
     if isinstance(lsd_method, str):

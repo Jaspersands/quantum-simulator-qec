@@ -32,6 +32,8 @@ policy for its documented items.
 - The ldpc port's decoders take an error rate outside [0, 1], or NaN, as ldpc does, where they raised
   `ValueError`; the posteriors are then NaN.
 - The ldpc port's `ms_scaling_factor` reads back as a Python `float`, as ldpc's does, whatever number it was set to.
+- The ldpc port's `BpLsdDecoder` takes `lsd_order` as a number, truncated as ldpc does, and raises ldpc's `TypeError`
+  for another type (a str was a comparison's `TypeError`).
 - `stabilizer_qec.tsim` and `stabilizer_qec.tqec` have a `__version__`, as the other ports do (0.1.5 and 0.2.0, Tsim's and tqec's).
 
 ## 2.2.0 — 2026-10-30
