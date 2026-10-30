@@ -534,7 +534,7 @@ def _load_orders(path: str, num_detectors: int) -> List[List[int]]:
         if text.startswith("﻿"):
             text = text[1:]
         orders = json.loads(text, parse_int=_json_int, parse_constant=_no_constant)
-    except ValueError:
+    except (ValueError, RecursionError):  # (json nests as deep as the interpreter's stack allows)
         raise _Abort("Detector orders file is not valid JSON: " + path) from None
     if not isinstance(orders, list) or not orders:
         raise _Abort("Detector orders file must contain at least one order.")

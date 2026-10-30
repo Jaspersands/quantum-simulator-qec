@@ -374,7 +374,7 @@ def test_cli_flag_errors(tmp_path, capsys):
     assert [str(w.message) for w in caught if issubclass(w.category, ResourceWarning)] == []
     # Detector-order files: JSON arrays of arrays of nonnegative integers, each a permutation.
     for text, message in [
-        ("[[0, 1", "Detector orders file is not valid JSON: {}"), ("NaN", "Detector orders file is not valid JSON: {}"), ("[]", "Detector orders file must contain at least one order."),
+        ("[[0, 1", "Detector orders file is not valid JSON: {}"), ("NaN", "Detector orders file is not valid JSON: {}"), ("[" * 100000 + "]" * 100000, "Detector orders file is not valid JSON: {}"), ("[]", "Detector orders file must contain at least one order."),
         ("{}", "Detector orders file must contain at least one order."), ("[3]", "Each detector order must be an array."),
         ("[[0, -1]]", "Detector IDs must be nonnegative integers."), ("[[0, 1.0]]", "Detector IDs must be nonnegative integers."),
         ("[[0, 1]]", f"Detector order has size 2, but the detector error model has {nd} detectors."),
