@@ -90,6 +90,27 @@ _OUTPUT_QUBIT_GATES = frozenset({"MPP", "MXX", "MYY", "MZZ", "MPAD", "HERALDED_E
 # dispatch), as opposed to their refusals of products and sweep bits.
 _UNREAD_BY_TSIMS_BUILDERS = ("Could not parse instruction ", "Unknown gate: ")
 
+# The largest angle, in radians as the native tags write it, that the unitary engine's matrix keeps to
+# about 1e-10: its cos and sin of a larger angle lose the digits a float cannot hold, where the ZX tensor is exact.
+_ENGINE_ANGLE_LIMIT = 2.0**20
+
+
+def _large_angle(tag: Any) -> bool:
+    """Whether a native tag's rotation angle (``theta``, ``phi`` or ``lambda``) is beyond ``_ENGINE_ANGLE_LIMIT``.
+    A tag the core leaves inert keeps its text, and an angle that is not a number is no rotation's."""
+    if not tag:
+        return False
+    t = _NATIVE_TAG.match(tag)
+    args = _native_args(t.group(2)) if t and t.group(2) else None
+    for key in ("theta", "phi", "lambda"):
+        try:
+            if args and key in args and abs(float(args[key])) > _ENGINE_ANGLE_LIMIT:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 # A rotation's tag renamed so that the core's inverse leaves it alone (an unknown tag on I is inert),
 # the inverse's tag written by ``_rotations_inverted`` instead.
 _AS_INVERTED = "~stabilizer_qec_inverted"
@@ -212,7 +233,7 @@ def _lane_scan(circuit: Any) -> tuple:
     whether it has what Tsim's graph builders can refuse where the engine does not, and whether a
     product rotation names a qubit twice.
 
-    It needs the ZX tensor for any measurement or record target, or when a reset follows the first instruction that names a qubit and that
+    It needs the ZX tensor for any measurement or record target, for a rotation whose angle is beyond ``_ENGINE_ANGLE_LIMIT``, or when a reset follows the first instruction that names a qubit and that
     instruction is not a reset (an operation, noise, an identity or coordinates: Tsim's graph gives the
     qubit an input, where the engine counts only an operation as one), when there is a ``DETECTOR``
     or an ``OBSERVABLE_INCLUDE`` (an X spider of Tsim's graph, standing alone when it XORs no
@@ -223,7 +244,8 @@ def _lane_scan(circuit: Any) -> tuple:
     ``TPP Z0*Z0`` none) and a product rotation's identity letters name none (``pauli=X_``, ``I`` or
     ``_``), an ``MPAD``'s targets are bits, and -2 is the output qubit. What the builders can refuse
     is read from the instructions: a Pauli product (``SPP``, ``SPP_DAG``, ``MPP``, a product rotation
-    ``I[R_PAULI(...)]`` or ``II[R_PAULI(...)]``, a pair rotation ``II[R_ZZ(...)]``) or a sweep bit; a
+    ``I[R_PAULI(...)]`` or ``II[R_PAULI(...)]``, a pair rotation ``II[R_ZZ(...)]``), an
+    ``OBSERVABLE_INCLUDE`` of Pauli targets or a sweep bit; a
     tag that only names one (``H[SPP]``, the coherent error ``I_ERROR[R_PAULI(...)]``) is not one. A
     loop's body is read twice (its second pass shows a reset after the first pass's operations)."""
     first_is_reset: dict = {}
@@ -240,7 +262,11 @@ def _lane_scan(circuit: Any) -> tuple:
             name, tag, targets = item[1], item[2], item[4]
             if name in ("DETECTOR", "OBSERVABLE_INCLUDE"):
                 found[0] = True
+                if name == "OBSERVABLE_INCLUDE" and not all(_stim.GateTarget._raw(v).is_measurement_record_target for v in targets):
+                    found[1] = True  # Tsim's graph refuses an OBSERVABLE_INCLUDE of Pauli targets
                 continue
+            if _large_angle(tag):
+                found[0] = True
             named = None  # the instruction's lanes, when they are not the qubits it targets
             if name in _PRODUCT_GATES:
                 found[1] = True
@@ -376,7 +402,8 @@ class Circuit(_Base):
             raise TypeError("from_file() missing 1 required argument: 'filename'")
         if hasattr(source, "read"):
             return cls(source.read())
-        with open_file(source, encoding="utf-8") as f:
+        # Tsim's own open: a missing path is FileNotFoundError and a directory IsADirectoryError, not Stim's ValueError.
+        with open(source, encoding="utf-8") as f:
             return cls(f.read())
 
     def to_file(self, file: Any) -> None:
@@ -674,7 +701,8 @@ class Circuit(_Base):
         ``TICK`` are nothing. At most 2^22 entries (a unitary of 11 qubits).
 
         A circuit with a measurement, a detector or observable, a reset after a qubit's first
-        operation, feedback or a product rotation naming a qubit twice (``TPP X0*Y0*X0``) is Tsim's
+        operation, feedback, a rotation whose angle is over 2^20 radians (``R_Z(1000000000000.25)``, which the
+        engine's float cannot hold to 1e-10) or a product rotation naming a qubit twice (``TPP X0*Y0*X0``) is Tsim's
         ZX tensor of it (``tsim.zx.tensorfy``), contracted in
         numpy with every measurement outcome and error bit read as 0: a measurement is the
         identity on its qubit times 1/sqrt(2) (``H 0`` then ``M 0`` is [[.5, .5], [.5, -.5]]), a
@@ -695,7 +723,9 @@ class Circuit(_Base):
         far longer. A circuit without products or sweep bits does not build it, and one with an
         instruction the builders cannot read (a tag the core leaves inert, ``I[foo(x)] 0``) is the
         engine's matrix, as without products (Tsim's raises its parse error), unless a product
-        rotation names a qubit twice: without a graph that raises Tsim's parse error too. Where a
+        rotation names a qubit twice: without a graph that raises Tsim's parse error too. A circuit
+        with such an instruction and a measurement, detector, observable, later reset, feedback or
+        rotation past 2^20 radians is the ZX tensor, which raises that error. Where a
         product leaves a qubit out of Tsim's graph (an identity letter's, ``pauli=X_``, or one
         ``SPP X0*X0`` cancels on), the engine's matrix leaves it out too, and is Tsim's matrix of the
         circuit without that instruction up to the engine's global phase."""

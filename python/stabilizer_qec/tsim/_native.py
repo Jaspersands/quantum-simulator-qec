@@ -19,7 +19,7 @@ import math
 import re
 from typing import List, Optional, Tuple
 
-from stabilizer_qec.tsim.utils.program_text import _product_rotation, _stored_radians
+from stabilizer_qec.tsim.utils.program_text import _TSIM_GATES, _product_rotation, _stored_radians
 
 _LINE = re.compile(r"^(\s*)(S|S_DAG|SPP|SPP_DAG|I)\[([^\]\n]*)\](?:\s+(.*?))?\s*$")
 _GATE = re.compile(r"^(\s*)([A-Za-z][A-Za-z0-9_]*)(?=[\s\[(]|$)")
@@ -42,6 +42,16 @@ def canonical_gate(name: str) -> str:
         return gate_data(name).name
     except IndexError:
         return name
+
+
+def _is_stim_gate(name: str) -> bool:
+    from stabilizer_qec._stim import gate_data
+
+    try:
+        gate_data(name)
+    except IndexError:
+        return False
+    return True
 
 
 def _tsim_parameters(tag: str, instruction: str, number: int) -> Optional[tuple]:
@@ -174,7 +184,8 @@ def tsim_to_native(text: str) -> str:
     ``name(...)`` with arguments Tsim refuses (``I[R_Z(theta=0.3*pi*pi)] 0``, ``I[U3(theta=0.1*pi)] 0``)
     raises Tsim's error as this package's ``ValueError`` naming the line, and a half-turn rotation
     Tsim reads as no gate (``I[R_Z (theta=0.3*pi)] 0``, ``I[ R_Z(theta=0.3*pi)] 0``,
-    ``I[R_Z(theta=0.3*pi)#x] 0``) is the identity ``I 0`` (its tag, inert in Tsim, is not kept)."""
+    ``I[R_Z(theta=0.3*pi)#x] 0``) is the identity ``I 0`` (its tag, inert in Tsim, is not kept). A
+    correlated error with a combiner (``E(0.1) X0*Z1``) raises Tsim's error for its targets."""
     return _native_lines(text)[0]
 
 
@@ -195,9 +206,16 @@ def _native_lines(text: str, source: Optional[List[int]] = None) -> Tuple[str, L
             raise ValueError(f"line {number}: Targets must be separated by spacing.")
         gate_match = _GATE.match(body)
         if gate_match:
-            name = canonical_gate(gate_match.group(2))
+            written = gate_match.group(2)
+            name = canonical_gate(written)
+            # An unknown gate is named as written, as Tsim names it (the core would upper-case it).
+            if name == written and written not in _TSIM_GATES and not _is_stim_gate(written):
+                raise ValueError(f"line {number}: Gate not found: {written!r} (an unsupported instruction)")
             body = body[:gate_match.start(2)] + name + body[gate_match.end(2):]
             line = body + (sep + comment if sep else "")
+            # Tsim keeps a combiner in a correlated error's targets, and its graph builder refuses it.
+            if name in ("E", "ELSE_CORRELATED_ERROR") and "*" in re.sub(r"\[[^\]\n]*\]|\([^()\n]*\)", "", body[gate_match.start(2) + len(name):]):
+                raise ValueError("Invalid target: stim.GateTarget.combiner()")
         m = _LINE.match(body)
         if not m:
             lines.append(line)

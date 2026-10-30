@@ -150,14 +150,18 @@ Where it differs from Tsim:
   in Tsim's tagged form (``S[T] 0``).
 - ``to_matrix`` of a circuit with an instruction Tsim's graph builders cannot read (a tag the core
   leaves inert, ``I[foo(x)] 0``, which ``get_graph`` refuses as Tsim does) is the unitary engine's
-  matrix, where Tsim's ``to_matrix`` raises that error (and a refusal of a Pauli product after
-  that instruction is not raised either), unless a product rotation names a qubit twice
+  matrix when the circuit has no measurement, detector, observable, later reset, feedback or
+  rotation past 2^20 radians; any other such circuit raises that error, as Tsim's ``to_matrix``
+  does (and a refusal of a Pauli product after that instruction is not raised either), unless a
+  product rotation names a qubit twice
   (``TPP X0*Y0*X0``, whose sign the engine does not keep): then it raises that error, as Tsim's.
   Where a product leaves a qubit out of Tsim's graph (an identity letter's, ``pauli=X_``, or one
   ``SPP X0*X0`` cancels on), that matrix is Tsim's of the circuit without the instruction up to
   a global phase, as the engine's: its qubits are those Tsim's graph of that circuit has lanes
   for, as every ``to_matrix`` is.
 """
+
+__version__ = "0.1.5"  # the tsim release this follows
 
 from . import sampler, zx
 from ._native import tsim_to_native

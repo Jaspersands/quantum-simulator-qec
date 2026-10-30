@@ -1,6 +1,7 @@
 # Ported from ldpc 2.4.1 (Copyright (c) 2022 Joschka Roffe, MIT License; see THIRD_PARTY_NOTICES.md),
 # modified for stabilizer_qec: imports are this package's; the v2 base is constructed first, as Cython does, in __new__ (ldpc is stabilizer_qec.ldpc).
 from stabilizer_qec.ldpc.bposd_decoder import BpOsdDecoder
+import inspect
 import numpy as np
 import warnings
 
@@ -42,6 +43,9 @@ class bposd_decoder(BpOsdDecoder):
         # exactly one positional argument, the matrix), then this class's __init__.
         if len(args) != 1:
             raise TypeError(f"__cinit__() takes exactly 1 positional argument ({len(args)} given)")
+        # The v1 signature's max_iter is a C int: a larger Python int is Cython's OverflowError.
+        if type(kwargs.get("max_iter", 0)) is int and kwargs.get("max_iter", 0) > 2**31 - 1:
+            raise OverflowError("value too large to convert to int")
         self = super().__new__(cls)
         BpOsdDecoder.__init__(self, *args, **kwargs)
         self._made_from = (args, kwargs)
@@ -154,3 +158,8 @@ class bposd_decoder(BpOsdDecoder):
         NoneType
         """
         self.error_channel = channel
+
+
+# inspect and help show the parameters of __init__ (ldpc's v1 signature), not the (*args, **kwargs) of __new__.
+_init_signature = inspect.signature(bposd_decoder.__init__)
+bposd_decoder.__signature__ = _init_signature.replace(parameters=list(_init_signature.parameters.values())[1:])

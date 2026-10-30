@@ -563,6 +563,15 @@ def test_to_matrix_of_annotations_without_measurements():
             tsim.Circuit(text).to_matrix()
 
 
+@pytest.mark.parametrize("text", ["H 0\nM 0\nOBSERVABLE_INCLUDE(0) X0", "T 0\nM 0\nOBSERVABLE_INCLUDE(0) X0", "T 0\nOBSERVABLE_INCLUDE(0) X0"])
+def test_samplers_refuse_an_observable_of_pauli_targets_as_tsim(text):
+    # Every sampler builds Tsim's graph first, so the refusal is the same with or without a T gate.
+    c = tsim.Circuit(text)
+    for make in (c.compile_sampler, c.compile_detector_sampler):
+        with pytest.raises(ValueError, match="OBSERVABLE_INCLUDE with Pauli targets is not supported in Tsim"):
+            make(seed=1)
+
+
 @pytest.mark.parametrize("text", ANNOTATED_UNMEASURED)
 def test_to_matrix_of_annotations_equals_tsim(text):
     real = pytest.importorskip("tsim")

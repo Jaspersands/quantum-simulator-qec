@@ -28,6 +28,8 @@ lattice-surgery engine (its own patch layout, its detectors, the same observable
 (256, 2)
 """
 
+__version__ = "0.2.0"  # the tqec release this follows
+
 from . import gallery
 from ._errors import TQECError, TQECWarning
 from .block_graph import BlockGraph, BlockKind, block_kind_from_str

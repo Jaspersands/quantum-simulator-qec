@@ -16,6 +16,14 @@ def test_public_names_resolve():
     assert sq.__version__.count(".") >= 2
 
 
+def test_tsim_and_tqec_report_the_upstream_versions():
+    import stabilizer_qec.tqec as tqec
+    import stabilizer_qec.tsim as tsim
+
+    assert tsim.__version__ == "0.1.5"
+    assert tqec.__version__ == "0.2.0"
+
+
 @pytest.mark.parametrize("name", sorted(sq._REMOVED))
 def test_removed_names_say_what_replaced_them(name):
     with pytest.raises(AttributeError, match="removed in 1.0; use"):
@@ -58,8 +66,8 @@ def test_huge_and_odd_numbers_are_value_or_type_errors():
         sq.memory_circuit(distance=3, rounds=3, p=0.001, noise="current", eta=10**400)
     with pytest.raises(TypeError):
         sq.memory_circuit(distance=3, rounds=3, p="0.001")
-    with pytest.raises(ValueError):
-        sq.BpDecoder([[1, 1]], error_rate=1.5)
+    # ldpc takes an error rate outside [0, 1]: its posteriors are NaN, and it decodes as usual.
+    assert sq.BpDecoder([[1, 1]], error_rate=1.5).decode([1]).shape == (2,)
 
 
 def test_circuit_and_model_reads_do_not_block_edits_on_another_thread():

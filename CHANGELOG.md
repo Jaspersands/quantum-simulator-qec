@@ -251,6 +251,28 @@ policy for its documented items.
   a usage error (exit 1) rather than a traceback.
 - `serve` and `repl` no longer take `--out`, which they ignored (their output is stdout); passing it
   is a usage error (exit 1).
+- Tsim's `Circuit.to_matrix` takes the exact ZX tensor for a rotation over 2^20 radians, where the engine's
+  float angle lost up to 1e-5 in an entry (`R_Z(1000000000000.25)`).
+- `tsim.Circuit.from_file` raises the `OSError` of a missing path or a directory, as Tsim does, and an unknown
+  gate is named as written (`Gate not found: 'hh'`).
+- `tsim.Circuit` refuses a `*` in an `E` or `ELSE_CORRELATED_ERROR` target with Tsim's
+  `Invalid target: stim.GateTarget.combiner()`, where it read the product as separate targets.
+- The `tsim` samplers refuse an `OBSERVABLE_INCLUDE` of Pauli targets with Tsim's message, as `to_matrix` does; they
+  ran it before, and with a `T` gate they raised the engine's own message.
+- `tsim.Circuit.detector_error_model` merges equal-target errors whatever their tags, as Tsim's model does
+  (two `X_ERROR[a](0.1) 0` and `X_ERROR[b](0.1) 0` give `error(0.18) D0`, not two lines).
+- The ldpc port's decoders take an error rate outside [0, 1], or NaN, as ldpc does, where they raised
+  `ValueError`; the posteriors are then NaN.
+- The ldpc port's `ms_scaling_factor` reads back as a Python `float`, as ldpc's does, whatever number it was set to.
+- The ldpc port's `BpLsdDecoder` takes `lsd_order` as a number, truncated as ldpc does, and raises ldpc's `TypeError`
+  for another type (a str was a comparison's `TypeError`).
+- Four ldpc-port inputs raise ldpc's exception where they raised another: a list matrix to `BpLsdDecoder`
+  (a `TypeError`, where an `AttributeError` or an accepted matrix was), a list or str to `mod2.rank`, and
+  a str `sigma` or `cutoff` to `SoftInfoBpDecoder` (a `TypeError` each, where a `ValueError` or none was).
+- The v1 `bposd_decoder` refuses a `max_iter` above the C int's range with ldpc's `OverflowError`, as ldpc does.
+- `inspect.signature` and `help` of the v1 `bposd_decoder` show ldpc's parameters, where they showed `(*args, **kwargs)`.
+- `BpLsdDecoder` and `LsdDecoder` take a negative `bits_per_step` as ldpc does (all the syndrome in one step), where they raised `OverflowError`.
+- `stabilizer_qec.tsim` and `stabilizer_qec.tqec` have a `__version__`, as the other ports do (0.1.5 and 0.2.0, Tsim's and tqec's).
 
 ## 2.2.0 — 2026-10-30
 

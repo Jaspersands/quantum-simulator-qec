@@ -5,10 +5,20 @@
 
 from __future__ import annotations
 
+import re
 from collections import defaultdict
 from typing import Any
 
 import stabilizer_qec as sq
+
+# An instruction's tag, from the start of its line (``X_ERROR[a](0.1) 0``).
+_TAG = re.compile(r"^([ \t]*[A-Za-z_][A-Za-z0-9_]*)\[[^\]\n]*\]", re.MULTILINE)
+
+
+def _untagged(text: str) -> str:
+    """``text`` with each instruction's tag removed: Stim keeps apart the errors of different tags,
+    which Tsim's model does not."""
+    return _TAG.sub(r"\1", text)
 
 
 def get_detector_error_model(
@@ -52,8 +62,8 @@ def get_detector_error_model(
 
     if isinstance(circuit, TsimCircuit):
         # Tsim's model is Stim's of its tagged circuit: T read as S, a rotation as I, a
-        # Pauli-product rotation as SPP.
-        circuit = sq.Circuit(stim_reading(circuit._stim_exact_text()))
+        # Pauli-product rotation as SPP. Its errors with equal targets merge whatever their tags.
+        circuit = sq.Circuit(_untagged(stim_reading(circuit._stim_exact_text())))
     circuit = circuit if isinstance(circuit, sq.Circuit) else sq.Circuit(circuit)
     if not allow_non_deterministic_observables:
         # Stim's model (a tsim.Circuit's own method is this one's).

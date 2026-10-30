@@ -316,6 +316,8 @@ def _csr_of(dense: np.ndarray) -> scipy.sparse.csr_matrix:
 
 def rank(pcm: Union[scipy.sparse.spmatrix, np.ndarray], method: str = "dense") -> int:
     """The rank of a binary matrix over GF(2) ("dense": gf2dense's PLU; "sparse": RowReduce)."""
+    if not isinstance(pcm, (np.ndarray, scipy.sparse.spmatrix)):
+        raise TypeError(f"Input must be a binary numpy array or scipy sparse matrix, not {type(pcm)}")
     if method == "dense":
         return _plu(pcm.shape[0], pcm.shape[1], _csc_lists(pcm))[0]
     elif method == "sparse":

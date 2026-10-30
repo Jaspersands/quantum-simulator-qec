@@ -3,10 +3,14 @@
 every BP schedule (parallel, serial, serial-relative, random serial) and input type (a syndrome
 or a received vector), bit for bit.
 
-Errors are ldpc's, type and message (its messages' runs of spaces included). A few things are
-looser than ldpc 2's classes: positional ``error_rate``/``error_channel``, integers where a float
-is typed, NumPy scalars, and sequences where a list is typed are taken where ldpc's Cython
-signatures refuse them. Its v1 classes (``bp_decoder``, ``bposd_decoder``) are held to ldpc's
+Where both refuse an input, the error is ldpc's, type and message (its messages' runs of spaces
+included). A few things are looser than ldpc 2's classes: positional ``error_rate``/``error_channel``,
+integers where a float is typed, NumPy scalars, and sequences where a list is typed are taken where
+ldpc's Cython signatures refuse them. Three things are stricter, or decode differently, where ldpc
+decodes: a received vector on a non-square check matrix under BP+LSD and BP+OSD is refused;
+``BpFlipDecoder`` refuses a negative ``flip_iterations`` and ``pflip_frequency``, which ldpc takes;
+and a syndrome entry other than 0 or 1 gives a correction that differs from ldpc's, the difference
+depending on the decoder. Its v1 classes (``bp_decoder``, ``bposd_decoder``) are held to ldpc's
 exact types and one positional argument. And ``BpOsdDecoder.decoding`` returns the OSD decoding
 (in ldpc it raises ``AttributeError``)."""
 
@@ -118,13 +122,10 @@ def _osd_order_arg(order: Any) -> None:
 
 
 def _probability(p: Any) -> float:
-    # ldpc takes any number; one outside [0, 1] only makes its posteriors NaN.
+    # ldpc takes any number; one outside [0, 1] (or NaN) only makes its posteriors NaN.
     if isinstance(p, (str, bytes)) or p is None:
         raise TypeError(f"must be real number, not {type(p).__name__}")
-    p = float(p)
-    if not 0.0 <= p <= 1.0:
-        raise ValueError(f"an error probability is between 0 and 1, not {p}")
-    return p
+    return float(p)
 
 
 # Fewer shots than this go to the cpu-f32 path on the gpu device (the bits are the same; a GPU
@@ -343,8 +344,8 @@ class BpDecoderBase:
         # never reached).
         if isinstance(value, (str, bytes)) or not hasattr(value, "__float__"):
             raise TypeError(f"must be real number, not {type(value).__name__}")
-        self._scale = value
-        call(self._x.set_method, self._method, float(value))
+        self._scale = float(value)
+        call(self._x.set_method, self._method, self._scale)
 
     @property
     def omp_thread_count(self) -> int:
@@ -611,7 +612,10 @@ class SoftInfoBpDecoder(BpDecoderBase):
             pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, kwargs.get("schedule", 0), kwargs.get("omp_thread_count", 1), kwargs.get("random_schedule_seed", 0),
             kwargs.get("serial_schedule_order"), kwargs.get("random_serial_schedule", False), kwargs.get("channel_probs", [None]), (),
         )
+        _typed(cutoff, "float", "cutoff")
         self.cutoff = cutoff
+        if not hasattr(sigma, "__float__"):
+            raise TypeError(f"must be real number, not {type(sigma).__name__}")
         if not isinstance(sigma, (float, int)) or isinstance(sigma, bool) or sigma <= 0:
             raise ValueError("The sigma value must be a float greater than 0.")
         self.sigma = float(sigma)
@@ -799,10 +803,18 @@ def _lsd_setter_name(method: Any) -> str:
     raise ValueError(f"ERROR: OSD method '{method}' invalid. Please choose from the following methods:{_S16}'LSD_0', 'LSD_E' or 'LSD_CS'.")
 
 
+def _lsd_order_arg(order: Any) -> int:
+    """``lsd_order`` as ldpc's int argument: any number, truncated; anything else is Cython's TypeError."""
+    if not isinstance(order, (int, float, np.integer, np.floating)):
+        raise _type_error("lsd_order", "int", order)
+    return int(order)
+
+
 def _lsd_ctor(lsd_method: Any, lsd_order: Any) -> tuple:
     """(method, order) as ldpc's LSD constructors read them: their own checks, then the
     ``lsd_method`` setter, which refuses some spellings the checks let through (``2``,
     ``"osde"``, ``"osdcs"``, ``"lsdcs"``) and sets the order to 0 for LSD-0."""
+    lsd_order = _lsd_order_arg(lsd_order)
     if lsd_order < 0:
         raise ValueError(f"lsd_order must be greater than or equal to 0. Not {lsd_order}.")
     if isinstance(lsd_method, str):
@@ -881,10 +893,12 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
         **kwargs: Any,
     ) -> None:
         self._made_from = ((pcm, error_rate, error_channel), dict(max_iter=max_iter, bp_method=bp_method, ms_scaling_factor=ms_scaling_factor, schedule=schedule, omp_thread_count=omp_thread_count, random_schedule_seed=random_schedule_seed, serial_schedule_order=serial_schedule_order, bits_per_step=bits_per_step, lsd_order=lsd_order, lsd_method=lsd_method, always_run_lsd=always_run_lsd, **kwargs))
+        if not _is_matrix(pcm):
+            raise TypeError(f"The input matrix is of an invalid type. Please input{_S12}a np.ndarray or scipy.sparse.spmatrix object, not {type(pcm)}")
         lsd_method = kwargs.pop("osd_method", lsd_method)
         lsd_order = kwargs.pop("osd_order", lsd_order)
         method, order = _lsd_ctor(lsd_method, lsd_order)
-        bits = pcm.shape[1] if bits_per_step == 0 else int(bits_per_step)
+        bits = pcm.shape[1] if bits_per_step == 0 else _per_step(bits_per_step, pcm.shape[1])
         self._input = "syndrome"
         self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, kwargs.get("random_serial_schedule", _Default(False)), kwargs.get("channel_probs", [None]), (method, order, bits, bool(always_run_lsd)))
         _cinit_args(self._strict, bp_method=bp_method, schedule=schedule, serial_schedule_order=serial_schedule_order, input_vector_type=input_vector_type)
@@ -916,7 +930,7 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
 
     def _decode_syndrome(self, syndrome: np.ndarray) -> np.ndarray:
         """The correction. ``last_tied`` says whether this decode made a choice ldpc might
-        make otherwise (equal keys in a long sort, or a merge of many clusters at once)."""
+        make otherwise (a cluster met while merging, or several clusters merged at once)."""
         syndrome = np.asarray(syndrome)
         if not len(syndrome) == self.m:
             raise ValueError(f"The syndrome must have length {self.m}. Not {len(syndrome)}.")
@@ -1103,7 +1117,7 @@ class LsdDecoder(_LsdOptions):
             raise TypeError(f"The input matrix is of an invalid type. Please input{_S12}a np.ndarray or scipy.sparse.spmatrix object, not {type(pcm)}")
         self.m, self.n, cols = _columns(pcm)
         method, order = _lsd_ctor(lsd_method, lsd_order)
-        self.bits_per_step = self.n if bits_per_step == 0 else int(bits_per_step)
+        self.bits_per_step = self.n if bits_per_step == 0 else _per_step(bits_per_step, self.n)
         self._lsd_method, self._lsd_order = method, order
         self._x = call(_core.BpLsd, self.m, cols, [0.5] * self.n, 1, "product_sum", 1.0, method, order, self.bits_per_step, True)
         self._decoding = np.zeros(self.n, dtype=np.uint8)

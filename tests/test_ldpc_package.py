@@ -144,6 +144,123 @@ def test_v1_decoders_and_soft_info_bposd():
     assert dec.osd_method == "OSD_CS" and hard.sum() == 2
 
 
+@pytest.mark.parametrize("p", [2.0, -0.1, float("nan")])
+def test_error_probability_outside_the_unit_interval_is_as_ldpc(p):
+    # ldpc takes any number for the error rate; the posteriors are then NaN, and it decodes as usual.
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    syndrome = np.array([1, 0], dtype=np.uint8)
+    want = ldpc.BpDecoder(pcm, error_rate=p)
+    got = ours.BpDecoder(pcm, error_rate=p)
+    assert np.array_equal(np.asarray(got.decode(syndrome)), np.asarray(want.decode(syndrome)))
+    assert np.array_equal(np.asarray(got.log_prob_ratios), np.asarray(want.log_prob_ratios), equal_nan=True)
+
+
+@pytest.mark.parametrize("value", [1, np.float32(0.5)])
+def test_ms_scaling_factor_reads_back_as_a_float(value):
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    got = ours.BpDecoder(pcm, error_rate=0.1)
+    want = ldpc.BpDecoder(pcm, error_rate=0.1)
+    got.ms_scaling_factor = value
+    want.ms_scaling_factor = value
+    assert type(got.ms_scaling_factor) is float and type(want.ms_scaling_factor) is float
+    assert got.ms_scaling_factor == want.ms_scaling_factor
+
+
+@pytest.mark.parametrize("order", [1.0, 1.5, np.float64(1.0), True])
+def test_lsd_order_as_a_number_is_truncated_as_ldpc(order):
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    got = ours.BpLsdDecoder(pcm, error_rate=0.1, lsd_order=order, lsd_method=1)
+    want = ldpc.BpLsdDecoder(pcm, error_rate=0.1, lsd_order=order, lsd_method=1)
+    assert got.lsd_order == want.lsd_order
+
+
+@pytest.mark.parametrize("order", ["a", None])
+def test_lsd_order_of_another_type_is_ldpcs_error(order):
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    with pytest.raises(TypeError) as want:
+        ldpc.BpLsdDecoder(pcm, error_rate=0.1, lsd_order=order, lsd_method=1)
+    with pytest.raises(TypeError) as got:
+        ours.BpLsdDecoder(pcm, error_rate=0.1, lsd_order=order, lsd_method=1)
+    assert str(got.value) == str(want.value)
+
+
+def test_wrong_types_are_refused_with_ldpcs_errors():
+    # ldpc checks each argument's type before its value, and refuses a list as a matrix.
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    cases = [
+        (lambda m: m.BpLsdDecoder([[1, 1, 0], [0, 1, 1]], error_rate=0.1, bits_per_step=0), TypeError),
+        (lambda m: m.BpLsdDecoder([[1, 1, 0], [0, 1, 1]], error_rate=0.1, bits_per_step=1), TypeError),
+        (lambda m: m.BpLsdDecoder("ab", error_rate=0.1, bits_per_step=1), TypeError),
+        (lambda m: m.SoftInfoBpDecoder(pcm, error_rate=0.1, sigma="a"), TypeError),
+        (lambda m: m.SoftInfoBpDecoder(pcm, error_rate=0.1, cutoff="a"), TypeError),
+    ]
+    for make, error in cases:
+        with pytest.raises(error) as want:
+            make(ldpc)
+        with pytest.raises(error) as got:
+            make(ours)
+        assert str(got.value) == str(want.value)
+    import ldpc.mod2 as upstream_mod2
+
+    for matrix in ([[1, 0], [0, 1]], "ab"):
+        with pytest.raises(TypeError) as want:
+            upstream_mod2.rank(matrix)
+        with pytest.raises(TypeError) as got:
+            om.rank(matrix)
+        assert str(got.value) == str(want.value)
+
+
+def test_legacy_bposd_max_iter_is_a_c_int_as_ldpcs():
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    import warnings
+
+    import stabilizer_qec.ldpc as ldpc_port
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with pytest.raises(OverflowError) as want:
+            ldpc.bposd_decoder(pcm, error_rate=0.1, max_iter=2**40)
+        with pytest.raises(OverflowError) as got:
+            ldpc_port.bposd_decoder(pcm, error_rate=0.1, max_iter=2**40)
+        assert str(got.value) == str(want.value)
+        assert ldpc_port.bposd_decoder(pcm, error_rate=0.1, max_iter=2**31 - 1).max_iter == 2**31 - 1
+
+
+def test_legacy_bposd_signature_is_ldpcs():
+    import inspect
+    import warnings
+
+    import stabilizer_qec.ldpc as ldpc_port
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        want = inspect.signature(ldpc.bposd_decoder)
+        got = inspect.signature(ldpc_port.bposd_decoder)
+    assert list(got.parameters) == list(want.parameters)
+    assert [p.default for p in got.parameters.values()] == [p.default for p in want.parameters.values()]
+
+
+@pytest.mark.parametrize("bits", [-1, -7])
+def test_negative_bits_per_step_decodes_as_ldpc(bits):
+    # ldpc reads a negative bits_per_step as an unsigned count, so every syndrome bit is in one step.
+    from ldpc.lsd_decoder import LsdDecoder as UpstreamLsd
+
+    from stabilizer_qec.ldpc.lsd_decoder import LsdDecoder as OurLsd
+
+    rng = np.random.default_rng(5)
+    pcm = (rng.random((6, 10)) < 0.4).astype(np.uint8)
+    pairs = [
+        (ours.BpLsdDecoder(pcm, error_rate=0.1, bits_per_step=bits), ldpc.BpLsdDecoder(pcm, error_rate=0.1, bits_per_step=bits)),
+        (OurLsd(pcm, bits_per_step=bits), UpstreamLsd(pcm, bits_per_step=bits)),
+    ]
+    weights = np.full(10, 0.5)
+    for _ in range(20):
+        syndrome = ((pcm @ (rng.random(10) < 0.3)) % 2).astype(np.uint8)
+        for got, want in pairs:
+            args = (syndrome, weights) if isinstance(got, OurLsd) else (syndrome,)
+            assert np.array_equal(np.asarray(got.decode(*args)), np.asarray(want.decode(*args)))
+
+
 def test_every_module_imports():
     failed = []
     for m in pkgutil.walk_packages(ours.__path__, "stabilizer_qec.ldpc."):
