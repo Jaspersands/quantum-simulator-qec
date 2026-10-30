@@ -985,8 +985,8 @@ Checked against both packages, installed alongside:
    is corrected. Matching on the model's own weights through the new per-shot weight path is plain
    matching, weight for weight.
 
-Single-threaded it runs at about half the reference's time per shot: 0.9 ms against 1.7 ms at
-d = 5 (the reference rebuilds a PyMatching graph for every shot).
+Single-threaded it runs at about half the reference's time per shot: 0.9 ms against 1.9 ms at
+d = 5 and p = 0.4% (the reference rebuilds a PyMatching graph for every shot).
 
 **Sycamore, against Google's own belief-matching.** Every experiment, all 6.5 million shots, is
 decoded with the data-fitted pij priors, cross-fitted as Google used them, and with the circuit's own
