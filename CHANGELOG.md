@@ -45,6 +45,8 @@ policy for its documented items.
   yielded nothing, and `copy.copy` of one shared its position.
 - Hits and dets shot files take only ASCII decimal indices: `1_0`, `+3`, ` 4` and Unicode digits raise
   `ValueError` (they were read as bit numbers).
+- A size or index too large for the core (`gen --distance 2**32`, a `diagram --tick` past 2**64) is a usage
+  error (exit 1) rather than a traceback.
 
 ## 2.2.0 — 2026-10-30
 

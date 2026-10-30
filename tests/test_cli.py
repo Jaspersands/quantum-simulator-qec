@@ -223,6 +223,9 @@ def test_main_returns_exit_codes(tmp_path, capsys):
     assert sq.main(command_line_args=["gen", "--code", "repetition_code", "--task", "memory", "--rounds", "2", "--distance", "2", "--out", str(path)]) == 0
     assert path.read_text().startswith("# Generated repetition_code circuit.")
     assert sq.main(command_line_args=["gen", "--code", "nope"]) == 1
+    # An integer too large for the core's sizes is a usage error (exit 1), not a traceback.
+    assert sq.main(command_line_args=["gen", "--code", "repetition_code", "--task", "memory", "--rounds", "2", "--distance", str(2**32)]) == 1
+    assert sq.main(command_line_args=["diagram", "--in", str(path), "--type", "detslice-svg", "--tick", "0:" + str(2**64)]) == 1
     assert sq.main(command_line_args=["sample", "--help"]) == 0
 
 
