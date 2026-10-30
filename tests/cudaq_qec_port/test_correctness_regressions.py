@@ -14,6 +14,7 @@ from test_trt_decoder import FLOAT, FP8, INT64, UINT8, _int, _len, _str, model_p
 
 
 def _bounded_python(source, timeout=10):
+    psutil = pytest.importorskip('psutil')
     # Explicit overlay under -I also works for the separately repaired Python 3.9 launcher.
     source = 'import sys; sys.path[:] = ' + repr(sys.path) + '\n' + source
     p = subprocess.Popen([sys.executable, '-I', '-c', source], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -22,8 +23,11 @@ def _bounded_python(source, timeout=10):
         while p.poll() is None:
             if time.monotonic() >= deadline:
                 pytest.fail('own regression process exceeded %ss' % timeout)
-            rss = subprocess.run(['ps', '-o', 'rss=', '-p', str(p.pid)], capture_output=True, text=True).stdout.strip()
-            if rss and int(rss) * 1024 > 2 * 1024**3:
+            try:
+                rss = psutil.Process(p.pid).memory_info().rss
+            except psutil.Error:
+                rss = 0
+            if rss > 2 * 1024**3:
                 pytest.fail('own regression process exceeded 2 GiB RSS')
             time.sleep(0.03)
         out, err = p.communicate()
@@ -33,6 +37,23 @@ def _bounded_python(source, timeout=10):
         if p.poll() is None:
             p.kill()
         p.communicate()
+
+def test_bounded_python_reads_rss_without_ps(monkeypatch):
+    # The watchdog reads the child's RSS through psutil, which works on Windows, where there is no ps.
+    psutil = pytest.importorskip('psutil')
+    monkeypatch.setenv('PATH', '')
+    assert _bounded_python('print("ok")').strip() == 'ok'
+
+    class Big:
+        def __init__(self, pid):
+            pass
+
+        def memory_info(self):
+            return type('Memory', (), {'rss': 3 * 1024**3})()
+
+    monkeypatch.setattr(psutil, 'Process', Big)
+    with pytest.raises(pytest.fail.Exception, match='2 GiB'):
+        _bounded_python('import time; time.sleep(5)', timeout=5)
 
 
 def _realtime_config(path, batch=1, global_name=None):
