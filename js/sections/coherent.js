@@ -46,7 +46,7 @@ async function load(name, status) {
       status.textContent = 'Awaiting measurements with the corrected proposal. Historical rows are archived in the raw data.';
       return null;
     }
-    status.textContent = archived ? `${rows.length} current measurements; ${archived} historical rows await remeasurement.` : '';
+    status.textContent = archived ? `${rows.length} current measurements; ${archived} historical rows are archival and excluded from the current tables.` : '';
     return { ...doc, rows };
   } catch (error) {
     status.textContent = `Recorded measurements unavailable (${error.message}).`;
