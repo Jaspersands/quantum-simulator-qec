@@ -750,6 +750,11 @@ def test_enum_values_refused_with_loom_message():
     assert loom.Direction("TOP") is loom.Direction.TOP
 
 
+def test_rotated_surface_code_refuses_a_lattice_in_loom_words():
+    with pytest.raises(ValueError, match=re.escape("of type LatticeType.LINEAR.")):
+        loom.RotatedSurfaceCode.create(3, 3, Lattice.linear((5,)), unique_label="x")
+
+
 def test_block_history_refusals_name_block_labels():
     from stabilizer_qec.loom.interpreter import InterpretationStep
 
