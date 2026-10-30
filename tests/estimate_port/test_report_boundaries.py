@@ -91,6 +91,7 @@ def test_rich_fields_are_data_with_fixed_formatting(markdown, monkeypatch):
     '<a href=" javascript:marker">link</a>',
     '<a href="https://example.invalid/&#9;marker">link</a>',
     '<a href="//example.invalid/">link</a>',
+    '<a href="audit:marker" title="x&quot; onmouseover=&quot;alert(1)">link</a>',
     '<a href="http://[/">link</a>',
     '<a href="https:///missing-host">link</a>',
     '<a href="https://example.invalid:bad/">link</a>',
