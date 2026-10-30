@@ -351,6 +351,34 @@ def test_subnormal_fault_probability_is_not_refused_and_its_zero_event_weight_di
     assert weights[0] == 0.0 and np.isnan(weights[1:]).all()
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["predict", "--dem", "d3.dem", "--in", "d3.01", "--in_format", "bogus"],
+        ["predict", "--dem", "d3.dem", "--in", "d3.01", "--out", "missing/dir/out.01"],
+        ["benchmark", "--dem", "d3.dem", "--in", "d3.01", "--in_includes_appended_observables", "--obs_in_format", "bogus"],
+    ],
+)
+def test_inputs_are_closed_when_a_command_fails_before_reading_them(tmp_path, monkeypatch, argv):
+    """A command that stops before it reads its inputs closes the files it opened, so none is
+    left for Python to report as unclosed (a ResourceWarning)."""
+    for name, data in FILES.items():
+        (tmp_path / name).write_bytes(data)
+    opened = []
+    real_open = open
+
+    def recording_open(*args, **kwargs):
+        f = real_open(*args, **kwargs)
+        opened.append(f)
+        return f
+
+    monkeypatch.setattr(cli, "open", recording_open, raising=False)
+    monkeypatch.chdir(tmp_path)
+    assert cli.main(["chromobius", *argv]) == 1
+    assert opened and opened[0].name == "d3.01"
+    assert all(f.closed for f in opened)
+
+
 def test_integers_read_as_stims_uint64(tmp_path):
     """Hit and DETS indices are read as Stim's ``read_uint64`` reads them, in uint64_t
     arithmetic: a value that wraps past 2^64 without dropping below the step before it is read
