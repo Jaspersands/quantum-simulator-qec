@@ -333,7 +333,7 @@ def _parser(command: str) -> _Parser:
     add = p.add_argument
     if command in ("sample", "detect", "analyze_errors", "explain_errors", "diagram", "sample_dem"):
         add("--in", dest="input", help="the input file (default: stdin)")
-    if command != "help":
+    if command not in ("help", "serve", "repl"):  # (serve and repl speak on stdin and stdout)
         add("--out", help="the output file (default: stdout)")
     if command in ("sample", "detect", "sample_dem"):
         add("--shots", type=int, default=1)

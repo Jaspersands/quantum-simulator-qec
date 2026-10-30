@@ -47,6 +47,8 @@ policy for its documented items.
   `ValueError` (they were read as bit numbers).
 - A size or index too large for the core (`gen --distance 2**32`, a `diagram --tick` past 2**64) is a usage
   error (exit 1) rather than a traceback.
+- `serve` and `repl` no longer take `--out`, which they ignored (their output is stdout); passing it is a
+  usage error (exit 1).
 
 ## 2.2.0 — 2026-10-30
 

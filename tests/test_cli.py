@@ -226,6 +226,11 @@ def test_main_returns_exit_codes(tmp_path, capsys):
     # An integer too large for the core's sizes is a usage error (exit 1), not a traceback.
     assert sq.main(command_line_args=["gen", "--code", "repetition_code", "--task", "memory", "--rounds", "2", "--distance", str(2**32)]) == 1
     assert sq.main(command_line_args=["diagram", "--in", str(path), "--type", "detslice-svg", "--tick", "0:" + str(2**64)]) == 1
+    # serve and repl have no output file: their --out is refused, not ignored.
+    out = tmp_path / "unused.txt"
+    assert sq.main(command_line_args=["serve", "--stdio", "--circuit", str(path), "--out", str(out)]) == 1
+    assert sq.main(command_line_args=["repl", "--out", str(out)]) == 1
+    assert not out.exists()
     assert sq.main(command_line_args=["sample", "--help"]) == 0
 
 
