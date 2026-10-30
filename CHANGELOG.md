@@ -32,6 +32,8 @@ policy for its documented items.
   and only correlated decoding is refused, with the 64-observable limit as its message.
 - A `Visualizer` with an empty filepath keeps its JSON in memory up to 256 MB and then in a
   temporary file, as MWPF does, where it kept all of it in memory.
+- The visualizer's JSON writes a float from 1e-5 up to 1e-4 as a plain decimal, as serde_json does,
+  where it wrote an exponent.
 
 ## 2.2.0 — 2026-10-30
 

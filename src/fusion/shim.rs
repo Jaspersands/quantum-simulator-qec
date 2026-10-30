@@ -671,11 +671,24 @@ pub mod serde_json {
     use std::collections::BTreeMap;
     use std::fmt::Write as _;
 
-    #[derive(Clone, Debug, PartialEq)]
+    #[derive(Clone, PartialEq)]
     pub enum Number {
         PosInt(u64),
         NegInt(i64),
         Float(f64),
+    }
+
+    /// `serde_json`'s form: `Number(1)`, `Number(-1)`, `Number(1.5)`.
+    impl std::fmt::Debug for Number {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("Number(")?;
+            match self {
+                Number::PosInt(u) => write!(f, "{u}")?,
+                Number::NegInt(i) => write!(f, "{i}")?,
+                Number::Float(x) => write!(f, "{x:?}")?,
+            }
+            f.write_str(")")
+        }
     }
 
     impl Number {
@@ -710,7 +723,7 @@ pub mod serde_json {
         }
     }
 
-    #[derive(Clone, Debug, PartialEq, Default)]
+    #[derive(Clone, PartialEq, Default)]
     pub enum Value {
         #[default]
         Null,
@@ -719,6 +732,26 @@ pub mod serde_json {
         String(String),
         Array(Vec<Value>),
         Object(Map<String, Value>),
+    }
+
+    /// `serde_json`'s form: `Null`, `Bool(true)`, `String("x")`, `Array [...]`, `Object {...}`.
+    impl std::fmt::Debug for Value {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                Value::Null => f.write_str("Null"),
+                Value::Bool(b) => write!(f, "Bool({b})"),
+                Value::Number(n) => std::fmt::Debug::fmt(n, f),
+                Value::String(s) => write!(f, "String({s:?})"),
+                Value::Array(a) => {
+                    f.write_str("Array ")?;
+                    std::fmt::Debug::fmt(a, f)
+                }
+                Value::Object(m) => {
+                    f.write_str("Object ")?;
+                    std::fmt::Debug::fmt(m, f)
+                }
+            }
+        }
     }
 
     pub type Map<K, V> = BTreeMap<K, V>;
@@ -806,7 +839,17 @@ pub mod serde_json {
             }
             match self {
                 Value::Object(m) => m.entry(key.to_string()).or_insert(Value::Null),
-                _ => panic!("cannot index a non-object JSON value with \"{key}\""),
+                other => {
+                    let kind = match other {
+                        Value::Null => "null",
+                        Value::Bool(_) => "boolean",
+                        Value::Number(_) => "number",
+                        Value::String(_) => "string",
+                        Value::Array(_) => "array",
+                        Value::Object(_) => "object",
+                    };
+                    panic!("cannot access key {key:?} in JSON {kind}")
+                }
             }
         }
     }
@@ -851,7 +894,14 @@ pub mod serde_json {
             }
             Value::Number(Number::Float(x)) => {
                 if x.is_finite() {
-                    let _ = write!(out, "{x:?}");
+                    // serde_json's ryu writes plain decimals down to 1e-5; Debug switches to the
+                    // exponent form below 1e-4, where Display (shortest digits, never an exponent)
+                    // is the plain decimal.
+                    if (1e-5..1e-4).contains(&x.abs()) {
+                        let _ = write!(out, "{x}");
+                    } else {
+                        let _ = write!(out, "{x:?}");
+                    }
                 } else {
                     out.push_str("null");
                 }
@@ -1626,4 +1676,35 @@ macro_rules! nz {
     ($e:expr) => {
         ::std::num::NonZeroUsize::new($e as usize).expect("nonzero")
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::serde_json::Value;
+    use super::json;
+
+    #[test]
+    fn debug_prints_as_serde_json_does() {
+        assert_eq!(format!("{:?}", json!({"a": 1})), "Object {\"a\": Number(1)}");
+        assert_eq!(format!("{:?}", json!([null, true, "x", -2, 0.5])), "Array [Null, Bool(true), String(\"x\"), Number(-2), Number(0.5)]");
+        assert_eq!(format!("{:?}", Value::Null), "Null");
+    }
+
+    #[test]
+    fn floats_in_the_band_below_1e_minus_4_are_plain_as_serde_json_writes_them() {
+        assert_eq!(json!(1.5e-5).to_string(), "0.000015");
+        assert_eq!(json!(-1.5e-5).to_string(), "-0.000015");
+        assert_eq!(json!(1e-5).to_string(), "0.00001");
+        assert_eq!(json!(1e-6).to_string(), "1e-6");
+        assert_eq!(json!(0.0001).to_string(), "0.0001");
+        assert_eq!(json!(0.1234).to_string(), "0.1234");
+        assert_eq!(json!(1.0).to_string(), "1.0");
+    }
+
+    #[test]
+    #[should_panic(expected = "cannot access key \"k\" in JSON number")]
+    fn indexing_a_number_panics_as_serde_json_does() {
+        let mut v = json!(1);
+        v["k"] = json!(2);
+    }
 }
