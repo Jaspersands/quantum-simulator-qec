@@ -361,14 +361,20 @@ def _fault_lists(s: _Setup, noise: CssNoise) -> None:
 # -- dem_from_css_matrices ---------------------------------------------------------------------------------
 
 
-def css_matrices_from_code(qec_code: Any) -> CssCodes:
+def css_matrices_from_code(qec_code: Any = None, *, code: Any = None) -> CssCodes:
     """Extract CSS generator matrices from a QEC code object.
 
     Calls ``code.get_parity_z/x()`` and ``code.get_observables_z/x()`` and wraps the results as
     ``CssCodes`` (a result that is not a matrix, as a code without stabilizers of a type returns,
-    is an empty 0 x 0 matrix, as CUDA-Q's ``tensor_to_sparse`` gives it; so is one with no rows)."""
+    is an empty 0 x 0 matrix, as CUDA-Q's ``tensor_to_sparse`` gives it; so is one with no rows).
+    The code is ``qec_code`` here and ``code`` as CUDA-Q names the argument; either keyword works.
+    """
     from ._codes import Code
 
+    if qec_code is None:
+        qec_code = code
+    elif code is not None:
+        raise TypeError("css_matrices_from_code(): give the code once, as qec_code or code")
     if not isinstance(qec_code, Code):
         raise TypeError("css_matrices_from_code(): incompatible function arguments: code must be a cudaq_qec.Code")
     m = CssCodes()

@@ -91,6 +91,23 @@ def test_configure_status_codes():
     assert qec.configure_decoders(multi(a, b)) == 0
 
 
+def test_cuda_q_keyword_names_are_accepted():
+    # CUDA-Q names these arguments code and config; this package's names keep working beside them.
+    code = qec.get_code("repetition", distance=3)
+    by_position, by_keyword = qec.css_matrices_from_code(code), qec.css_matrices_from_code(code=code)
+    assert np.array_equal(by_position.hz, by_keyword.hz) and np.array_equal(by_position.lz, by_keyword.lz)
+    assert np.array_equal(qec.css_matrices_from_code(qec_code=code).hx, by_keyword.hx)
+    with pytest.raises(TypeError):
+        qec.css_matrices_from_code(code, code=code)
+    a = tiny_lut()
+    assert qec.configure_decoders(config=multi(a)) == 0
+    assert qec.configure_decoders(multi(a)) == 0
+    with pytest.raises(TypeError):
+        qec.configure_decoders(multi(a), config=multi(a))
+    with pytest.raises(TypeError):
+        qec.configure_decoders()
+
+
 def test_configure_invalid_decoders_returns_4():
     config = tiny_lut()
     config.type = "invalid-decoder"

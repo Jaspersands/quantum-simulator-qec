@@ -22,6 +22,9 @@ policy for its documented items.
 - `DetectorErrorModel.rounded` refuses a negative digit count with `TypeError`, as Stim does, and a count
   above 308 with `ValueError`; a negative count used to zero every probability silently, and a huge one
   ran for an unbounded time before failing.
+- `cudaq_qec.css_matrices_from_code` takes the code as `code=` and `cudaq_qec.configure_decoders` takes a
+  `multi_decoder_config` as `config=`, the keyword names CUDA-Q gives them; the names this package had,
+  `qec_code=` and `decoders=`, keep working.
 
 ## 2.2.0 — 2026-10-30
 
