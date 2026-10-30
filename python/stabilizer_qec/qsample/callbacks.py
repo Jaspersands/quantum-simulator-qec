@@ -182,8 +182,8 @@ class PlotStats(Callback):
             """
             n_lines = int(stats_len/2)
             for _ in range(n_lines):
-                ax.collections.pop()
-                ax.lines.pop()
+                ax.collections[-1].remove()
+                ax.lines[-1].remove()
 
         def plot(ax, x, stats, i, drawn):
             """Plot 2 or 4 plots (depending on return value of `sampler.stats()`,
@@ -344,72 +344,18 @@ class VerboseCircuitExec(Callback):
             print(f"{name} -> Msmt: {msmt}")
 
 class PlotERVPerShot(Callback):
-    """Callback to plot statistics about ERV values and selected subsets due to ERV"""
-    
+    """Callback to plot statistics about ERV values and selected subsets due to ERV. Not ported: the
+    samplers here compute no ERV values, so it cannot be built."""
+
     def __init__(self, log_dir=None):
-        self.log_dir = log_dir
-        self.data = []
-        self.n_calls = 0
-        
-    def on_protocol_begin(self, **kwargs):
-        self.erv_vals = []
-        
-    def on_circuit_end(self, sampler, local_vars):
-        subset = local_vars.get("subset", None)
-        name = local_vars.get("pnode", None)
-        if subset:
-            erv_val = sampler.erv_vals[sampler.erv_idx]
-            self.erv_vals.append((name,subset,erv_val))
-        
-    def on_protocol_end(self, **kwargs):
-        self.data.append(self.erv_vals)
-        self.n_calls += 1
-        
-    def on_sampler_end(self, **kwargs):
-        data = dict()
-        for i, erv_sel in enumerate(self.data):
-            for j, (name, subset, erv) in enumerate(erv_sel):
-                key = (j, name, subset)
-                data[key] = data.get(key, []) + [(i,erv)]
-        
-        max_levels = max([k[0] for k in data.keys()])
-        max_subset_weight = max([sum(k[-1]) for k in data.keys()])
-        cmap = lambda p1, p2: (p1, 0, p2)
-
-        plt.figure(figsize=(6,4))
-        for k,vlist in sorted(data.items()):
-            p1 = k[0] / (max_levels + 1)
-            p2 = sum(k[-1]) / max_subset_weight if max_subset_weight != 0 else 0
-
-            xs = [x for x,_ in vlist]
-            ys = [np.nan if np.ma.is_masked(y) else y for _,y in vlist]
-            plt.plot(xs, ys, '.',label=k)#, color=cmap(p1,p2))
-            
-        plt.yscale('log')
-        plt.legend(ncol=3, loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.xlabel('# of samples')
-        plt.ylabel('ERV value of selection')
-            
-        if self.log_dir: 
-            self.store(self.log_dir, self.data, ext=self.n_calls)
+        raise NotImplementedError("PlotERVPerShot is not ported: the samplers here compute no ERV values")
 
 class PrintERVPerShot(Callback):
-    """Callback to print ERV statistics per shot"""
-    
-    def on_protocol_begin(self, sampler):
-        print("### Start protocol run ###")
-        
-    def on_protocol_end(self, sampler):
-        print('### End protocol run ###\n')
-    
-    def on_circuit_end(self, sampler, local_vars):
-        name = local_vars.get('pnode', None)
-        print(f"# ERV for circuit {name}")
-        for ss, log in zip(sampler.erv_subset_candidates, sampler.logs):
-            erv_str = ", ".join(list(map(str,log)))
-            if ss == sampler.erv_subset_candidates[sampler.erv_idx]:
-                erv_str = "\033[1m" + erv_str + "\033[0m"
-            print(erv_str)
+    """Callback to print ERV statistics per shot. Not ported: the samplers here compute no ERV values,
+    so it cannot be built."""
+
+    def __init__(self):
+        raise NotImplementedError("PrintERVPerShot is not ported: the samplers here compute no ERV values")
 
 class PathProducts(Callback):
     """Callback to plot distribution of sampled paths"""
@@ -463,7 +409,7 @@ class SubsetRates(Callback):
             if not leaf.is_root and leaf in sampler.tree.marked:
                 name = ":".join([f'{n.name}' for n in leaf.path]) 
                 prev_data = self.data.get(name, [])
-                prod = np.product([sampler.tree.value(node) for node in leaf.path[1:]])
+                prod = np.prod([sampler.tree.value(node) for node in leaf.path[1:]])
                 self.data[name] = prev_data + [(leaf.rate, prod)]
         self.n_calls += 1
 

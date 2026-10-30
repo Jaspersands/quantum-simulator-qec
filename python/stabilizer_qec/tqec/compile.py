@@ -521,7 +521,11 @@ class TopologicalComputationGraph:
     honour, just as ``CompiledBlockGraph.generate_stim_circuit`` does. The check is arithmetic on
     the graph's time slices (one per cube height, a merge when a spatial pipe runs in it), so it
     holds on graphs the engine cannot express (spatial cubes, Hadamard pipes), whose matching
-    controls pass through to tqec's circuit."""
+    controls pass through to tqec's circuit.
+
+    The members above are all this class has. tqec's graph methods ``add_cube``, ``get_cube``,
+    ``add_pipe`` and ``to_layer_tree`` are on the graph it compiles, which ``_tqec_graph()``
+    returns, and this package has no ``generate_crumble_url``."""
 
     def __init__(self, block_graph: "BlockGraph", *, convention: object = FIXED_BULK_CONVENTION, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto", block_temporal_height: object = None, rounds: Optional[int] = None, merged: Optional[int] = None, _engine_only: bool = False) -> None:
         self.convention = _convention(convention)
@@ -685,8 +689,9 @@ class TopologicalComputationGraph:
         return f"TopologicalComputationGraph({self._graph.name!r}, {self.convention.name}, {self.num_observables} observables)"
 
 
-def compile_block_graph(graph: "BlockGraph", distance=None, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto", block_temporal_height: object = None, *, convention: object = FIXED_BULK_CONVENTION, p: float = 0.0, rounds: Optional[int] = None, merged: Optional[int] = None):
-    """A block graph compiled to circuits, in either of two shapes.
+def compile_block_graph(graph: Optional["BlockGraph"] = None, distance=None, observables: Union[Sequence["CorrelationSurface"], str, None] = "auto", block_temporal_height: object = None, *, convention: object = FIXED_BULK_CONVENTION, p: float = 0.0, rounds: Optional[int] = None, merged: Optional[int] = None, block_graph: Optional["BlockGraph"] = None):
+    """A block graph compiled to circuits, in either of two shapes. The graph is ``graph``, or
+    ``block_graph=`` as tqec names it; give one of the two.
 
     tqec's: ``compile_block_graph(graph, convention=..., observables=...,
     block_temporal_height=...)`` (the second argument may be the convention, as tqec places it)
@@ -708,6 +713,10 @@ def compile_block_graph(graph: "BlockGraph", distance=None, observables: Union[S
     surfaces must be the graph's, and a surface that runs one patch's logical along two of its
     lines (it passes two seams of that patch) is refused: the surgery engine's observables take
     one line, and the difference of two lines is a band of checks whose signs are random."""
+    if (graph is None) == (block_graph is None):
+        raise TQECError("give the block graph once: as graph, or as block_graph=")
+    if graph is None:
+        graph = block_graph
     if distance is not None and _is_convention(distance):
         convention, distance = distance, None
     if distance is None:

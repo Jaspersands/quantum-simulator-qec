@@ -1,6 +1,7 @@
 # sinter 1.16.0's own test (Copyright Google LLC, Apache License 2.0; see THIRD_PARTY_NOTICES.md),
 # run against stabilizer_qec.sinter: imports and expected reprs modified.
 import os
+import sys
 
 import pathlib
 import tempfile
@@ -23,10 +24,6 @@ def get_test_decoders() -> Tuple[List[str], Dict[str, sinter.Decoder]]:
     available_decoders = list(BUILT_IN_DECODERS.keys())
     custom_decoders = {}
     try:
-        import pymatching
-    except ImportError:
-        available_decoders.remove('pymatching')
-    try:
         from stabilizer_qec import mwpf  # noqa: F401
     except ImportError:
         available_decoders.remove('hypergraph_union_find')
@@ -45,6 +42,13 @@ def get_test_decoders() -> Tuple[List[str], Dict[str, sinter.Decoder]]:
     return available_decoders, custom_decoders
 
 TEST_DECODER_NAMES, TEST_CUSTOM_DECODERS = get_test_decoders()
+
+
+def test_pymatching_decoder_is_tested_without_pypi_pymatching(monkeypatch):
+    # the built-in decoder compiles with this package's PyMatching, so its cases do not depend on PyPI's
+    monkeypatch.setitem(sys.modules, 'pymatching', None)  # import pymatching raises ImportError
+    available, _ = get_test_decoders()
+    assert 'pymatching' in available
 
 DECODER_CASES = [
     (decoder, force_streaming)

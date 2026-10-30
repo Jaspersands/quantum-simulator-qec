@@ -124,6 +124,7 @@ def test_simulator_gates_are_qsamples():
     assert sim._sim.current_inverse_tableau() == ref.current_inverse_tableau()
     with pytest.raises(NotImplementedError):
         sim.T(0)
+    assert hasattr(sim, "T") is False and getattr(sim, "Rx", None) is None  # a non-Clifford gate is absent
     assert isinstance(Tableau(1), Tableau)
 
 

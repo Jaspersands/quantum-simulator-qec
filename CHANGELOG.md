@@ -298,6 +298,28 @@ policy for its documented items.
   check used `numpy.dtypes`, which those versions lack, so every call raised `AttributeError`.
 - `mod2.solve_linear_system`, and `decompose_into_basis` on NumPy inputs, return `uint8` arrays as
   qec-util does; they returned `int64`.
+- `qecsim.graphtools.blossom5.mwpm_ids` raises `TypeError` for a non-integer edge weight instead of
+  truncating it, which could return a heavier matching.
+- A sampler loaded with `utils.load` runs again: `Circuit.id` hashes the circuit's text instead of its
+  object address, so the ids a sampler keys its circuits by survive a pickle round trip. A sampler saved
+  before this change still cannot run after loading.
+- `callbacks.PlotStats` and `callbacks.SubsetRates` run again on NumPy 2 and matplotlib 3.11: they called
+  `np.product`, which NumPy 2.0 removed, and popped matplotlib's artist lists, which have no `pop`.
+- `tqec.compile_block_graph` takes the graph as `block_graph=` too, as tqec's call does:
+  `compile_block_graph(block_graph=g)` raised `TypeError`. Give the graph once, as `graph` or as
+  `block_graph=`.
+- `StabilizerSimulator` reports a non-Clifford gate (`T`, `Rx`, `Ry`, `Rz`) as absent to `hasattr` and
+  `getattr` with a default; using the gate still raises `NotImplementedError`.
+- A seeded `qsample` run repeats in another process: the error models drew from a set of strings, whose
+  order changes with `PYTHONHASHSEED`, so the same `np.random.seed` picked different errors in each process.
+- `callbacks.PlotERVPerShot` and `callbacks.PrintERVPerShot` raise `NotImplementedError` when built,
+  instead of an `AttributeError` partway through a run: the samplers here compute no ERV values.
+
+### Not ported
+
+- qsample's non-Clifford gates and expectation values on `StatevectorSimulator` (it runs the Clifford
+  gates only), `SubsetSamplerERV`, `ChpSimulator`, and the `qsample.sim.*` modules: the one module
+  here is `stabilizer_qec.qsample.sim`.
 
 ## 2.2.0 — 2026-10-30
 

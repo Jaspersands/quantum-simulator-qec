@@ -98,7 +98,10 @@ class Decoder:
 
         Args:
             dem: A detector error model for the samples that will need to be
-                decoded. What to configure the decoder to decode.
+                decoded. What to configure the decoder to decode. Collection in
+                this package passes its own DetectorErrorModel, not Stim's; a
+                decoder built on Stim converts it with
+                `stim.DetectorErrorModel(str(dem))`.
 
         Returns:
             An instance of `sinter.CompiledDecoder` that can be used to invoke

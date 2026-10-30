@@ -65,7 +65,7 @@ def test_belief_matching_and_bposd_run_under_sinter():
         assert s.shots >= 3000 and rate < 0.05, name
 
 
-def test_the_18_decoders_run_under_sinter():
+def test_five_sinter_decoders_and_samplers_run_under_sinter():
     gross = sq.BivariateBicycleCode("gross").memory_circuit(2, 0.002)
     colour = sq.CssCode.color_code(3).memory_circuit(3, 0.002, annotate_colors=True)
     tasks = [

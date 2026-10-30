@@ -37,7 +37,7 @@ class DirectSampler:
         ----------
         protocol : Protocol
             The protocol to sample from
-        simulator : ChpSimulator or StatevectorSimulator
+        simulator : StabilizerSimulator or StatevectorSimulator
             The simulator used in sampling process
         err_model : ErrorModel
             Error model used in sampling process

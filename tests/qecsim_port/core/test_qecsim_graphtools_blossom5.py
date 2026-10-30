@@ -2,6 +2,8 @@
 # stabilizer_qec: qecsim is stabilizer_qec.qecsim.
 import math
 
+import pytest
+
 from stabilizer_qec.qecsim.graphtools import blossom5
 
 
@@ -23,6 +25,11 @@ def test_blossom5_mwpm_ids():
     mates = blossom5.mwpm_ids(edges)
     expected = {(0, 1), (2, 3)}
     assert mates == expected
+
+
+def test_blossom5_mwpm_ids_rejects_float_weights():
+    with pytest.raises(TypeError):
+        blossom5.mwpm_ids([(0, 1, 1.5)])
 
 
 def test_blossom5_mwpm_ids_no_edges():
