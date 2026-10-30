@@ -47,18 +47,29 @@ def rand_float(from_: float, to: float) -> float:
     return float(_rng.uniform(from_, to))
 
 
+def _index(value: Any, name: str) -> int:
+    """A node index or a count, which must be an integer as PyMatching requires."""
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+        raise TypeError(f"{name} must be an integer, not {type(value).__name__}")
+    return int(value)
+
+
 def _fault_set(fault_ids: Any) -> Set[int]:
+    """A fault id or a set of them, as PyMatching takes them: -1 is no fault, and a list or a
+    negative id is refused."""
     if fault_ids is None:
         return set()
     if isinstance(fault_ids, (int, np.integer)):
-        return set() if fault_ids == -1 else {int(fault_ids)}
-    try:
-        out = set(fault_ids)
-    except TypeError:
-        raise TypeError(f"fault_ids property must be an int or a set of int (or convertible to a set), not {fault_ids}") from None
-    if not all(isinstance(q, (int, np.integer)) for q in out):
+        ids = set() if fault_ids == -1 else {fault_ids}
+    elif isinstance(fault_ids, (set, frozenset)):
+        ids = set(fault_ids)
+    else:
+        raise TypeError(f"fault_ids property must be an int or a set of int, not {fault_ids}")
+    if not all(isinstance(q, (int, np.integer)) for q in ids):
         raise TypeError(f"fault_ids must be a set of ints, not {fault_ids}")
-    return {int(q) for q in out}
+    if any(q < 0 for q in ids):
+        raise TypeError(f"fault_ids must be non-negative, not {fault_ids}")
+    return {int(q) for q in ids}
 
 
 def _csc(matrix: Any) -> Tuple[int, int, np.ndarray, np.ndarray]:
@@ -361,7 +372,7 @@ class Matching:
         self._load_edges(len(graph), boundary, graph.weighted_edge_list(), min_num_fault_ids)
 
     def _load_edges(self, num_nodes: int, boundary: List[int], edges: Any, min_num_fault_ids: Optional[int]) -> None:
-        g = _core.UserGraph(num_nodes, 0 if min_num_fault_ids is None else int(min_num_fault_ids))
+        g = _core.UserGraph(num_nodes, 0 if min_num_fault_ids is None else _index(min_num_fault_ids, "min_num_fault_ids"))
         g.set_boundary(boundary)
         for u, v, attr in edges:
             if "fault_ids" in attr and "qubit_id" in attr:
@@ -385,31 +396,36 @@ class Matching:
             raise ValueError("Both `fault_ids` and `qubit_id` were provided as arguments. Please provide `fault_ids` instead of `qubit_id` as an argument, as use of `qubit_id` has been deprecated.")
         if fault_ids is None and "qubit_id" in kwargs:
             fault_ids = kwargs["qubit_id"]
+        node1, node2 = _index(node1, "node1"), _index(node2, "node2")
         if node1 < 0 or node2 < 0:
             raise ValueError("Node indices must be non-negative.")
         if _too_heavy(weight, node1, node2, 3):
             return
         p = -1.0 if error_probability is None else float(error_probability)
-        if call(self._g.add_edge, int(node1), int(node2), sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
+        if call(self._g.add_edge, node1, node2, sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
             self._corr = None
 
     def add_boundary_edge(self, node: int, fault_ids: Any = None, weight: float = 1.0, error_probability: Optional[float] = None, *, merge_strategy: str = "disallow", **kwargs: Any) -> None:
         """Adds an edge from ``node`` to the boundary (PyMatching's ``add_boundary_edge``)."""
+        node = _index(node, "node")
         if node < 0:
             raise ValueError("Node index must be non-negative.")
         if _too_heavy(weight, node, None, 3):
             return
         p = -1.0 if error_probability is None else float(error_probability)
-        if call(self._g.add_boundary_edge, int(node), sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
+        if call(self._g.add_boundary_edge, node, sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
             self._corr = None
 
     def set_boundary_nodes(self, nodes: Set[int]) -> None:
         """The boundary nodes: decoding treats an edge to one as an edge to the boundary."""
-        self._g.set_boundary(sorted(int(n) for n in nodes))
+        boundary = sorted(_index(n, "boundary node") for n in nodes)
+        if boundary and boundary[0] < 0:
+            raise TypeError(f"boundary nodes must be non-negative, not {boundary[0]}")
+        call(self._g.set_boundary, boundary)
         self._corr = None
 
     def ensure_num_fault_ids(self, min_num_fault_ids: int) -> None:
-        self._g.ensure_num_fault_ids(int(min_num_fault_ids))
+        call(self._g.ensure_num_fault_ids, _index(min_num_fault_ids, "min_num_fault_ids"))
 
     @property
     def boundary(self) -> Set[int]:

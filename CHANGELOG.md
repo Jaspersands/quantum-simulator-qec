@@ -31,6 +31,9 @@ policy for its documented items.
   column's edge in the order its entries are stored, as PyMatching does.
 - `Matching.from_check_matrix` reads each check-matrix entry as an 8-bit integer, as PyMatching does: 257,
   1.5 and -255 are ones, and 0.5 and 256, which read as zeros, are still refused.
+- `Matching` refuses a float node index or count, a list of fault ids, and a negative fault id or boundary
+  node with `TypeError`, as PyMatching does. A float used to be truncated to another node or count,
+  and a negative id raised `OverflowError`.
 
 ## 2.2.0 — 2026-10-30
 

@@ -538,6 +538,37 @@ def test_fault_ids_past_the_count_are_dropped(ids, negative):
     assert np.flatnonzero(m.decode_batch(np.array([syndrome] * 3, dtype=np.uint8))[2]).tolist() == want
 
 
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda m: m.add_edge(0.7, 1.9, fault_ids={0}),
+        lambda m: m.add_boundary_edge(0.5, fault_ids={0}),
+        lambda m: m.add_edge(0, 1, fault_ids=[0, 1]),
+        lambda m: m.add_edge(0, 1, fault_ids=-2),
+        lambda m: m.add_edge(0, 1, fault_ids={-1}),
+        lambda m: m.set_boundary_nodes({-1}),
+        lambda m: m.set_boundary_nodes({0.0}),
+    ],
+)
+def test_arguments_are_refused_as_pymatching_refuses_them(call):
+    # A float node index was truncated into another node, a list of fault ids was taken, and a
+    # negative fault id or boundary node reached the extension as an OverflowError. PyMatching
+    # raises TypeError for each, and leaves its graph as it was.
+    ours = sq.Matching()
+    with pytest.raises(TypeError):
+        call(ours)
+    with pytest.raises(TypeError):
+        call(pymatching.Matching())
+    assert ours.num_edges == 0
+
+
+def test_a_float_count_is_refused_and_not_truncated():
+    ours = sq.Matching()
+    with pytest.raises(TypeError):
+        ours.ensure_num_fault_ids(3.9)
+    assert ours.num_fault_ids == 0
+
+
 def test_a_sparse_check_matrix_is_left_as_given_and_keeps_its_edge_orientation():
     # The index arrays belong to the caller, so building from them must not sort them in place.
     # An unsorted column gives its edge in the order its entries are stored, as PyMatching does.
