@@ -240,6 +240,27 @@ def test_legacy_bposd_signature_is_ldpcs():
     assert [p.default for p in got.parameters.values()] == [p.default for p in want.parameters.values()]
 
 
+@pytest.mark.parametrize("bits", [-1, -7])
+def test_negative_bits_per_step_decodes_as_ldpc(bits):
+    # ldpc reads a negative bits_per_step as an unsigned count, so every syndrome bit is in one step.
+    from ldpc.lsd_decoder import LsdDecoder as UpstreamLsd
+
+    from stabilizer_qec.ldpc.lsd_decoder import LsdDecoder as OurLsd
+
+    rng = np.random.default_rng(5)
+    pcm = (rng.random((6, 10)) < 0.4).astype(np.uint8)
+    pairs = [
+        (ours.BpLsdDecoder(pcm, error_rate=0.1, bits_per_step=bits), ldpc.BpLsdDecoder(pcm, error_rate=0.1, bits_per_step=bits)),
+        (OurLsd(pcm, bits_per_step=bits), UpstreamLsd(pcm, bits_per_step=bits)),
+    ]
+    weights = np.full(10, 0.5)
+    for _ in range(20):
+        syndrome = ((pcm @ (rng.random(10) < 0.3)) % 2).astype(np.uint8)
+        for got, want in pairs:
+            args = (syndrome, weights) if isinstance(got, OurLsd) else (syndrome,)
+            assert np.array_equal(np.asarray(got.decode(*args)), np.asarray(want.decode(*args)))
+
+
 def test_every_module_imports():
     failed = []
     for m in pkgutil.walk_packages(ours.__path__, "stabilizer_qec.ldpc."):

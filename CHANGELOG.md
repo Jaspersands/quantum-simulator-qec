@@ -39,6 +39,7 @@ policy for its documented items.
   a str `sigma` or `cutoff` to `SoftInfoBpDecoder` (a `TypeError` each, where a `ValueError` or none was).
 - The v1 `bposd_decoder` refuses a `max_iter` above the C int's range with ldpc's `OverflowError`, as ldpc does.
 - `inspect.signature` and `help` of the v1 `bposd_decoder` show ldpc's parameters, where they showed `(*args, **kwargs)`.
+- `BpLsdDecoder` and `LsdDecoder` take a negative `bits_per_step` as ldpc does (all the syndrome in one step), where they raised `OverflowError`.
 - `stabilizer_qec.tsim` and `stabilizer_qec.tqec` have a `__version__`, as the other ports do (0.1.5 and 0.2.0, Tsim's and tqec's).
 
 ## 2.2.0 — 2026-10-30

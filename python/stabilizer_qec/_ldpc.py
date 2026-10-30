@@ -894,7 +894,7 @@ class BpLsdDecoder(_LsdOptions, BpDecoderBase):
         lsd_method = kwargs.pop("osd_method", lsd_method)
         lsd_order = kwargs.pop("osd_order", lsd_order)
         method, order = _lsd_ctor(lsd_method, lsd_order)
-        bits = pcm.shape[1] if bits_per_step == 0 else int(bits_per_step)
+        bits = pcm.shape[1] if bits_per_step == 0 else _per_step(bits_per_step, pcm.shape[1])
         self._input = "syndrome"
         self._setup(pcm, error_rate, error_channel, max_iter, bp_method, ms_scaling_factor, schedule, omp_thread_count, random_schedule_seed, serial_schedule_order, kwargs.get("random_serial_schedule", _Default(False)), kwargs.get("channel_probs", [None]), (method, order, bits, bool(always_run_lsd)))
         _cinit_args(self._strict, bp_method=bp_method, schedule=schedule, serial_schedule_order=serial_schedule_order, input_vector_type=input_vector_type)
@@ -1099,7 +1099,7 @@ class LsdDecoder(_LsdOptions):
             raise TypeError(f"The input matrix is of an invalid type. Please input{_S12}a np.ndarray or scipy.sparse.spmatrix object, not {type(pcm)}")
         self.m, self.n, cols = _columns(pcm)
         method, order = _lsd_ctor(lsd_method, lsd_order)
-        self.bits_per_step = self.n if bits_per_step == 0 else int(bits_per_step)
+        self.bits_per_step = self.n if bits_per_step == 0 else _per_step(bits_per_step, self.n)
         self._lsd_method, self._lsd_order = method, order
         self._x = call(_core.BpLsd, self.m, cols, [0.5] * self.n, 1, "product_sum", 1.0, method, order, self.bits_per_step, True)
         self._decoding = np.zeros(self.n, dtype=np.uint8)
