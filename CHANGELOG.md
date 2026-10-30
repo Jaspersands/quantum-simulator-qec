@@ -35,6 +35,8 @@ policy for its documented items.
   as Tesseract's program does (it exited 1 with an AttributeError at the final summary).
 - A `--detector-orders` file nested too deeply for Python's JSON reader is reported as not valid JSON (exit
   134), not as a runtime error.
+- `copy.copy` of a `TesseractDecoder` raises `TypeError`, as pickle and deepcopy do: a copy shared the native search,
+  so reconfiguring one changed the other's decodes.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.

@@ -413,6 +413,11 @@ class TesseractDecoder(_Decoder):
             call(self._x.reconfigure, *self._search_args())
             self._built = (changed, verbose, viz)
 
+    def __copy__(self) -> "TesseractDecoder":
+        # The search is native and would be shared by a copy, so a change to one's configuration
+        # would change the other's decodes; as pickle and deepcopy refuse it, so does copy.
+        raise TypeError("cannot copy a TesseractDecoder: its native search is not copied (compile another decoder from its config)")
+
     @property
     def config(self) -> TesseractConfig:
         """The decoder's configuration (its own: changes to it apply from the next decode)."""

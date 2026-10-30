@@ -8,6 +8,7 @@ errors of the same (optimal) cost; and the error, model and order helpers agree.
 from __future__ import annotations
 
 import contextlib
+import copy
 import ctypes
 import io
 import os
@@ -515,3 +516,13 @@ def test_output_goes_where_tesseracts_goes(capfd):
                 seen.append((buf.getvalue(), capfd.readouterr().out))
             assert seen[0] == seen[1], (label, redirect)
             assert seen[1] != ("", "")
+
+
+TWO_SYNDROMES_DEM = "error(0.1) D0 D1 L0\nerror(0.1) D2 D3 L1\nerror(0.1) D0 D2\nerror(0.05) D1 D3 L0\nerror(0.1) D0 L1\ndetector(0, 0) D0\ndetector(1, 0) D1\ndetector(2, 0) D2\ndetector(3, 0) D3\n"
+
+
+def test_copy_of_a_tesseract_decoder_is_refused():
+    # A copy would share the native search, so reconfiguring it would change the original's decodes.
+    dec = O.tesseract.TesseractConfig(sq.DetectorErrorModel(TWO_SYNDROMES_DEM)).compile_decoder()
+    with pytest.raises(TypeError, match="cannot copy a TesseractDecoder"):
+        copy.copy(dec)
