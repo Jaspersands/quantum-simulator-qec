@@ -310,6 +310,9 @@ def main():
     from importlib.metadata import PackageNotFoundError, version
 
     only = [x for x in args.only.split(",") if x]
+    unknown = [x for x in only if x not in SECTIONS]
+    if unknown:
+        ap.error(f"no section named {', '.join(unknown)}; choose from {', '.join(SECTIONS)}")
     ok, results, skipped = True, {}, []
     for key, (title, package, run) in SECTIONS.items():
         if only and key not in only:
@@ -329,8 +332,9 @@ def main():
         good, rows = run(args.quick)
         ok &= good
         results[key] = dict(reference=f"{package} {version(package)}", rows=rows)
-    if not args.quick:
-        # A partial run (--only) replaces its sections of the last full one.
+    if not args.quick and results:
+        # A partial run (--only) replaces its sections of the last full one; a run with no section
+        # run (all skipped as not installed) leaves the file, and its version, as they were.
         OUT.parent.mkdir(parents=True, exist_ok=True)
         old = json.loads(OUT.read_text())["sections"] if OUT.exists() else {}
         OUT.write_text(json.dumps(dict(version=sq.__version__, sections={**old, **results}), indent=1) + "\n")

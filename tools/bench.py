@@ -266,7 +266,13 @@ def main() -> int:
     print(f"{'benchmark':24} {'ours':>10} {'reference':>10} {'ratio':>6}")
     if args.only and args.record:
         ap.error("--only runs part of the suite, which is not a run to record")
-    this = run(args.quick, args.repeats, set(args.only.split(",")) if args.only else None)
+    if args.quick and args.record:
+        ap.error("--quick uses fewer shots, which is not a run to record")
+    only = set(args.only.split(",")) if args.only else None
+    this = run(args.quick, args.repeats, only)
+    unknown = sorted((only or set()) - set(this["results"]))
+    if unknown:
+        ap.error(f"no benchmark named {', '.join(unknown)}")
     if args.summary:
         with open(args.summary, "a", encoding="utf-8") as f:
             f.write(markdown(this, last))
