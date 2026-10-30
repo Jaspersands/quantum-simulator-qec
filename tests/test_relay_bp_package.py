@@ -6,8 +6,10 @@ parallel, from known errors), the Relay log and the sinter decoders."""
 
 from __future__ import annotations
 
+import importlib
 import os
 import pathlib
+import pkgutil
 
 import numpy as np
 import pytest
@@ -326,3 +328,15 @@ def test_noise_on_stim_circuits():
             assert isinstance(got, stim.Circuit) and got == expected
             got = mine.insert_uniform_academic_circuit_noise(sq.Circuit(str(circuit)), 0.001, **kw)
             assert isinstance(got, sq.Circuit) and str(got) == str(expected)
+
+
+def test_every_module_imports():
+    """Every module under stabilizer_qec.relay_bp imports on each Python the package supports
+    (CI's 3.9 leg runs this too, and a module's annotations are evaluated there at import)."""
+    failed = []
+    for m in pkgutil.walk_packages(ours.__path__, "stabilizer_qec.relay_bp."):
+        try:
+            importlib.import_module(m.name)
+        except Exception as e:  # pragma: no cover - reported below
+            failed.append((m.name, repr(e)))
+    assert failed == []

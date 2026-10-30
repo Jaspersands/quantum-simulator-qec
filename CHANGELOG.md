@@ -19,6 +19,8 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- `stabilizer_qec.relay_bp.stim.sinter.utils` imports on Python 3.9: its `X | None` annotations
+  are no longer evaluated where it is defined.
 
 ## 2.2.0 — 2026-10-30
 
