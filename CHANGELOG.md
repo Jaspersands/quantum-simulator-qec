@@ -23,6 +23,9 @@ policy for its documented items.
   (`\in` in their printed logical-membership lines); the printed text is unchanged.
 - A single-precision BP decoder refuses a `ms_scaling_factor` too large for float32 with its
   `ValueError` alone, without numpy's overflow `RuntimeWarning` first.
+- A forked child no longer blocks on a `PreDecoder`'s lock when another thread was training that
+  pre-decoder at the fork: the child's calls into it raise `RuntimeError: Already mutably
+  borrowed` instead of hanging.
 
 ## 2.2.0 — 2026-10-30
 

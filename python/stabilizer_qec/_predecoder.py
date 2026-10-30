@@ -9,6 +9,7 @@ import functools
 import inspect
 import os
 import threading
+import weakref
 from typing import Any, Union
 
 import numpy as np
@@ -31,6 +32,20 @@ def _serial(method: Any) -> Any:
             return method(self, *args, **kwargs)
 
     return run
+
+
+# A thread inside one of a pre-decoder's serial methods when its process forks is not in the
+# child, and the lock it held stays held there: each live pre-decoder takes a fresh lock.
+_LIVE: "weakref.WeakSet[PreDecoder]" = weakref.WeakSet()
+
+
+def _fresh_locks_in_child() -> None:
+    for pre in list(_LIVE):
+        pre._lock = threading.RLock()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_fresh_locks_in_child)
 
 
 class PreDecoder(_DemDecoder):
@@ -104,6 +119,7 @@ class PreDecoder(_DemDecoder):
         hidden = [count(h, "hidden", 1) for h in hidden]
         secs = None if sectors is None else [count(s, "sectors") for s in sectors]
         self._lock = threading.RLock()
+        _LIVE.add(self)
         self._x = call(_core.PreDecoder, model._d, hidden, count(kernel, "kernel", 1), count(seed, "seed"), secs, graph if reweight else None)
         self.threshold = threshold
         self._reweight = bool(reweight)
