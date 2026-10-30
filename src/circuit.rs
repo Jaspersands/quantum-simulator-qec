@@ -932,6 +932,11 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
                 }
                 v
             };
+            // Stim reads an inverted herald target ('!q'), but no engine here inverts a herald's
+            // record, so the circuit is refused rather than read with the '!' dropped.
+            if let Some(tok) = t.iter().find(|tok| tok.starts_with('!')) {
+                return Err(format!("{name}: inverted herald targets are not supported, got '{tok}'"));
+            }
             Instr::Heralded { erase, args: args.clone(), probs, qubits: qubit_targets(&t, &name)? }
         }
         "I_ERROR" | "II_ERROR" | "II" => {

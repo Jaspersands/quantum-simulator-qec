@@ -314,6 +314,8 @@ policy for its documented items.
   order changes with `PYTHONHASHSEED`, so the same `np.random.seed` picked different errors in each process.
 - `callbacks.PlotERVPerShot` and `callbacks.PrintERVPerShot` raise `NotImplementedError` when built,
   instead of an `AttributeError` partway through a run: the samplers here compute no ERV values.
+- A circuit with an inverted herald target (`HERALDED_ERASE(0.1) !3`) is refused when it is built, naming the
+  herald ("inverted herald targets are not supported"), where it said "bad qubit target"; no engine inverts a herald.
 
 ### Not ported
 

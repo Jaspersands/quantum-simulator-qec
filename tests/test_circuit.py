@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pickle
+import re
 
 import pytest
 
@@ -46,6 +47,33 @@ def test_bad_circuits():
             use()
     with pytest.raises(TypeError):
         sq.Circuit(3)
+
+
+HERALDS = [("HERALDED_ERASE", (0.1,)), ("HERALDED_PAULI_CHANNEL_1", (0.1, 0.1, 0.1, 0.1))]
+
+
+@pytest.mark.parametrize("name, args", HERALDS)
+def test_inverted_herald_targets_are_refused_naming_the_herald(name, args):
+    # No engine inverts a herald's record, so every circuit that could be sampled, analysed or
+    # converted is refused where it is built, naming the herald and its target.
+    gate = f"{name}({', '.join(map(str, args))}) !3"
+    message = f"{name}: inverted herald targets are not supported, got '!3'"
+    with pytest.raises(ValueError, match=re.escape(message)):
+        sq.Circuit(f"R 0 1 2 3\n{gate}\nM 0 1 2 3")
+    with pytest.raises(ValueError, match=re.escape(message)):
+        sq.Circuit().append_from_stim_program_text(gate)
+    with pytest.raises(ValueError, match=re.escape(message)):
+        sq.Circuit().append(name, [sq.target_inv(3)], list(args))
+
+
+@pytest.mark.parametrize("name, args", HERALDS)
+def test_inverted_herald_targets_are_refused_by_ref_circuit(name, args):
+    stim = pytest.importorskip("stim")
+    from stabilizer_qec.mwpf.ref_circuit import RefCircuit
+
+    gate = f"{name}({', '.join(map(str, args))}) !0"
+    with pytest.raises(ValueError, match=f"{name}: inverted herald targets are not supported"):
+        RefCircuit.of(stim.Circuit(f"R 0\n{gate}\nM 0"))
 
 
 def test_stim_objects_in_and_out():
