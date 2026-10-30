@@ -612,6 +612,11 @@ impl Lifted {
         // (Exactly, a negative zero's sign kept, so the model prints it as Stim does: "-0".)
         let exact = |c: f64| if c == 0.0 && c.is_sign_negative() { "-0".to_string() } else { crate::dem_program::fmt_exact(c) };
         for (coords, n) in &self.mobius_decls {
+            // A shift past the float range leaves an infinite coordinate; it names the detector
+            // (its Möbius copies are 2k and 2k + 1) rather than reach the model's parser as "inf".
+            if coords.iter().any(|c| !c.is_finite()) {
+                return Err(format!("detector D{}: accumulated coordinate overflow", n / 2));
+            }
             let list: Vec<String> = coords.iter().map(|&c| exact(c)).collect();
             let _ = writeln!(text, "detector({}) D{n}", list.join(", "));
         }

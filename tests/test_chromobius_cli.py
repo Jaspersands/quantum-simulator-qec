@@ -533,7 +533,7 @@ def test_describe_coordinate_shift_overflow_is_controlled(tmp_path, monkeypatch,
     monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="utf-8"))
     assert cli.main(["chromobius", "describe_decoder", "--in", str(path)]) == 1
     err = capsys.readouterr().err
-    assert "bad argument 'inf'" in err and "Traceback" not in err
+    assert err == "detector D0: accumulated coordinate overflow\n" and "Traceback" not in err
 
 
 def test_model_tag_invalid_utf8_retains_replacement_behavior():
