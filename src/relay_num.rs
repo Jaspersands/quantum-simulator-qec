@@ -1,3 +1,6 @@
+// Copyright IBM 2025. A port of IBM's relay_bp 0.2.2 (Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+// modified for stabilizer_qec.
+//
 //! The numbers Relay-BP can run in, as IBM's `relay_bp` 0.2.2 instantiates its min-sum decoder:
 //! `f32`, `f64`, the integers `i8` to `i64`, and 64-bit fixed point with 0 to 31 fractional bits
 //! (`fixed::FixedI64<Frac>`).

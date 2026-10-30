@@ -1,3 +1,6 @@
+// Copyright IBM 2025. A port of IBM's relay_bp 0.2.2 (Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+// modified for stabilizer_qec.
+//
 //! Relay-BP (Müller, Alexander, Beverland, Bühler, Johnson, Maurer and Vandeth, IBM,
 //! arXiv:2506.01779): chained runs of belief propagation with memory.
 //!
