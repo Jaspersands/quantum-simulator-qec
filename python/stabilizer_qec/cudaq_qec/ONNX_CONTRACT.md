@@ -76,8 +76,8 @@ Exact ORT agreement is tested for the existing fixed recordings in `tests/cudaq_
 (ORT 1.31.0 CPU on macOS arm64), among them MatMul + Add past one K block, fused and not, and
 products whose twice-rounded sums would differ; the CUDA-Q surface model's 30 recorded PyTorch
 outputs are checked to absolute tolerance 1e-4. Neither establishes arbitrary graph/CPU
-equality. Computed B and weight-only DequantizeLinear feeding MatMul/Gemm can select different
-ORT prepacking, blocking and quantized-operator fusion even on the same CPU. The port keeps the
+equality. Computed B, constant B that ORT does not prepack, and weight-only DequantizeLinear feeding
+MatMul/Gemm can select different ORT prepacking, blocking and quantized-operator fusion even on the same CPU. The port keeps the
 typed mathematical operations and its fixed float32 order rather than imitating those choices.
 
 New computed-B and weight-DQ tests compare against float64 sums of the graph's typed inputs
