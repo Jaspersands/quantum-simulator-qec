@@ -621,8 +621,12 @@ impl UserDecoder {
     /// bytes, zeroed first). Returns the weight.
     pub fn decode_packed_with(&self, mwpm: &mut Mwpm, events: &[u64], out: &mut [u8]) -> Result<f64, String> {
         self.own(mwpm)?;
-        out.iter_mut().for_each(|b| *b = 0);
         let g = &self.graph;
+        let need = g.num_observables.div_ceil(8);
+        if out.len() < need {
+            return Err(format!("a packed output of {} bytes cannot hold {} observables ({need} bytes needed)", out.len(), g.num_observables));
+        }
+        out.iter_mut().for_each(|b| *b = 0);
         if g.num_observables <= 64 {
             let (mask, w) = mwpm.decode_to_mask(events)?;
             for (k, byte) in out.iter_mut().enumerate().take(8) {

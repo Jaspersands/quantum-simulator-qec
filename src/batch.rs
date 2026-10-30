@@ -266,64 +266,69 @@ pub type ColorShot = (u64, f64, u8, Option<Box<[u32]>>);
 /// explains; or, with no tour, the matched edges did not fall into closed tours) / 3 the
 /// matcher found no perfect matching (PyMatching's
 /// [`NO_PERFECT_MATCHING`](crate::pm_exact::NO_PERFECT_MATCHING))).
-/// Each thread has 64 MiB of stack for PyMatching's recursive blossom shattering.
-pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<ColorShot> {
+/// Each thread has 64 MiB of stack for PyMatching's recursive blossom shattering. An error
+/// when the shots' results cannot be allocated.
+pub fn color_shots(dec: &ColorDecoder, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Result<Vec<ColorShot>, String> {
     let stride = nd.div_ceil(8);
-    crate::parallel::parallel_with_stack(num_shots, threads, 64 << 20, |range| {
+    crate::parallel::try_parallel_with_stack(num_shots, threads, 64 << 20, |range| {
         let mut work = dec.work();
         let mut defects = Vec::new();
-        range
-            .map(|s| {
-                let row = &packed[s * stride..(s + 1) * stride];
-                defects.clear();
-                crate::shots::defects_from_b8(row, nd, &mut defects);
-                let fired = |d: u32| (row[d as usize / 8] >> (d % 8)) & 1 == 1;
-                match dec.decode(&defects, &fired, &mut work) {
-                    Ok((o, w)) => (o, w, u8::from(work.tied), None),
-                    Err(ColorError::Unmatchable) => (u64::MAX, f64::NAN, 3, None),
-                    Err(ColorError::NotEulerian) => (u64::MAX, f64::NAN, 2, None),
-                    Err(ColorError::Unliftable(tour)) => (u64::MAX, f64::NAN, 2, Some(tour.into_boxed_slice())),
-                }
-            })
-            .collect()
+        let mut out = Vec::new();
+        out.try_reserve_exact(range.len()).map_err(|e| format!("cannot allocate {} colour shots: {e}", range.len()))?;
+        out.extend(range.map(|s| {
+            let row = &packed[s * stride..(s + 1) * stride];
+            defects.clear();
+            crate::shots::defects_from_b8(row, nd, &mut defects);
+            let fired = |d: u32| (row[d as usize / 8] >> (d % 8)) & 1 == 1;
+            match dec.decode(&defects, &fired, &mut work) {
+                Ok((o, w)) => (o, w, u8::from(work.tied), None),
+                Err(ColorError::Unmatchable) => (u64::MAX, f64::NAN, 3, None),
+                Err(ColorError::NotEulerian) => (u64::MAX, f64::NAN, 2, None),
+                Err(ColorError::Unliftable(tour)) => (u64::MAX, f64::NAN, 2, Some(tour.into_boxed_slice())),
+            }
+        }));
+        Ok(out)
     })
 }
 
 /// The search decoder over b8 shots: per shot (observables, in the decoder's
 /// `observable_words` words, as many as its model's observables need; the found faults'
-/// cost; whether the search gave up).
-pub fn search_shots(dec: &Search, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(Vec<u64>, f64, bool)> {
+/// cost; whether the search gave up). An error when the shots' results cannot be allocated.
+pub fn search_shots(dec: &Search, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Result<Vec<(Vec<u64>, f64, bool)>, String> {
     let stride = nd.div_ceil(8);
-    parallel(num_shots, threads, |range| {
+    crate::parallel::try_parallel(num_shots, threads, |range| {
         let mut defects = Vec::new();
-        range
-            .map(|s| {
-                defects.clear();
-                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
-                let found = dec.decode(&defects);
-                (dec.observables(&found.faults), dec.cost(&found.faults), found.low_confidence)
-            })
-            .collect()
+        let mut out = Vec::new();
+        out.try_reserve_exact(range.len()).map_err(|e| format!("cannot allocate {} search results: {e}", range.len()))?;
+        out.extend(range.map(|s| {
+            defects.clear();
+            crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+            let found = dec.decode(&defects);
+            (dec.observables(&found.faults), dec.cost(&found.faults), found.low_confidence)
+        }));
+        Ok(out)
     })
 }
 
 /// The search decoder over b8 shots as Tesseract's program runs it: per shot (what the search
-/// found, its cost, the decode's time in whole microseconds, as the program counts it).
-pub fn search_found(dec: &Search, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Vec<(crate::search::Found, f64, u64)> {
+/// found, its cost, the decode's time in whole microseconds, as the program counts it). An
+/// error when the shots' results cannot be allocated.
+pub fn search_found(dec: &Search, packed: &[u8], nd: usize, num_shots: usize, threads: usize) -> Result<Vec<(crate::search::Found, f64, u64)>, String> {
     let stride = nd.div_ceil(8);
-    parallel(num_shots, threads, |range| {
+    crate::parallel::try_parallel(num_shots, threads, |range| {
         let mut defects = Vec::new();
-        range
-            .map(|s| {
-                defects.clear();
-                crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
-                let start = std::time::Instant::now();
-                let found = dec.decode(&defects);
-                let cost = dec.cost(&found.faults);
-                let micros = start.elapsed().as_micros() as u64;
-                (found, cost, micros)
-            })
-            .collect()
+        let mut out = Vec::new();
+        out.try_reserve_exact(range.len()).map_err(|e| format!("cannot allocate {} search results: {e}", range.len()))?;
+        out.extend(range.map(|s| {
+            defects.clear();
+            crate::shots::defects_from_b8(&packed[s * stride..(s + 1) * stride], nd, &mut defects);
+            let start = std::time::Instant::now();
+            let found = dec.decode(&defects);
+            let cost = dec.cost(&found.faults);
+            let micros = start.elapsed().as_micros() as u64;
+            (found, cost, micros)
+        }));
+        Ok(out)
     })
 }
 

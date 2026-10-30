@@ -370,3 +370,13 @@ def test_invalid_arguments_are_refused():
         with pytest.raises(ValueError):
             sq.Tableau.from_graph(bad)
     assert len(sq.Tableau.from_graph([])) == len(sq.Tableau.from_graph(np.zeros((0, 0)))) == 0
+
+
+def test_pauli_shorthand_qubit_indices_stop_where_circuit_indices_do():
+    # Stim refuses a Pauli shorthand past 2**24 - 1, as it refuses such a qubit in a circuit.
+    assert len(sq.PauliString("X16777215")) == 16777216
+    for text in ["X16777216", "X1000000000"]:
+        with pytest.raises(ValueError):
+            sq.PauliString(text)
+        with pytest.raises(ValueError):
+            sq.Circuit(f"H {text[1:]}")

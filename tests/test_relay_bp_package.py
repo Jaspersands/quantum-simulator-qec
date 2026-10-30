@@ -173,6 +173,24 @@ def test_errors_and_types():
     r = d.decode_detailed(np.array([1, 0], dtype=np.uint8))
     assert r.decoding.dtype == np.uint8 and r.posterior_ratios.dtype == np.float64 and r.success
     assert os.path.basename(type(d).__module__) == "stabilizer_qec.relay_bp.bp"
+    # Memory strengths the sampler or the number type cannot hold are a ValueError when the
+    # decoder is made, not a panic at decode time.
+    with pytest.raises(ValueError):
+        ours.RelayDecoderF64(h, p, gamma_dist_interval=(-1e308, 1e308))
+    with pytest.raises(ValueError):
+        ours.RelayDecoderI32(h, p, gamma_dist_interval=(-1e12, 1e12))
+    with pytest.raises(ValueError):
+        ours.RelayDecoderI64(h, p, explicit_gammas=np.full((2, 3), 1e30))
+    # A range narrower than 1e-9 of its ends takes unboundedly many passes to sample: refused.
+    with pytest.raises(ValueError):
+        ours.RelayDecoderF64(h, p, gamma_dist_interval=(1.0, 1.0 + 2**-52))
+    # Without legs there are no memory strengths to read, so an empty (0, n) array is accepted
+    # and decodes as relay_bp's decoder does.
+    empty = np.zeros((0, 3))
+    s = np.array([1, 0], dtype=np.uint8)
+    assert same(ours.RelayDecoderF64(h, p, explicit_gammas=empty, num_sets=0).decode_detailed(s), relay_bp.RelayDecoderF64(h, p, explicit_gammas=empty, num_sets=0).decode_detailed(s))
+    with pytest.raises(ValueError, match="at least one row"):
+        ours.RelayDecoderF64(h, p, explicit_gammas=empty, num_sets=2)
 
 
 def test_parallel_batches_on_threads(monkeypatch):

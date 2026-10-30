@@ -613,7 +613,7 @@ impl ColorMatching {
     /// annotations, or a model Chromobius cannot decode either), is an error naming it.
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
-        let out = crate::batch::color_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        let out = crate::batch::color_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads).map_err(Error::new)?;
         if let Some(s) = out.iter().position(|x| x.2 >= 2) {
             if out[s].2 == 3 {
                 return Err(Error::new(format!("shot {s}: {}", crate::pm_exact::NO_PERFECT_MATCHING)));
@@ -808,7 +808,7 @@ impl SearchDecoder {
     /// A batch of shots across `threads` threads (`0` is every core).
     pub fn decode_batch(&self, shots: &BitTable, threads: usize) -> Result<Vec<Prediction>> {
         check_width(shots, self.num_detectors)?;
-        let out = crate::batch::search_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads);
+        let out = crate::batch::search_shots(&self.inner, shots.as_bytes(), self.num_detectors, shots.num_rows(), threads).map_err(Error::new)?;
         Ok(out.into_iter().map(|(o, c, gave_up)| Prediction { observables: if gave_up { 0 } else { o[0] }, weight: (!gave_up).then_some(c), bp_converged: None }).collect())
     }
 }

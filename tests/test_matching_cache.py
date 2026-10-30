@@ -216,3 +216,15 @@ def test_largest_node_index_is_a_value_error_not_an_internal_one():
         m.set_boundary_nodes({big})
     assert m.num_nodes == 0 and m.num_edges == 0
 
+
+def test_zero_width_batches_too_big_for_memory_raise_memory_error():
+    # A model with no detectors takes any shot count in zero bytes a shot, but its output still
+    # has a size: every decoder raises MemoryError for it, none aborts or panics.
+    dem = sq.DetectorErrorModel("error(0.1) L0")
+    shots = np.zeros((2**62, 0), dtype=bool)
+    with pytest.raises(MemoryError):
+        sq.Matching(dem).decode_batch(shots)
+    with pytest.raises(MemoryError):
+        sq.SearchDecoder(dem).decode_batch(shots)
+    with pytest.raises(MemoryError):
+        sq.ColorMatching(dem).decode_batch(shots)

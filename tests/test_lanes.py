@@ -166,3 +166,19 @@ def test_gpu_equals_the_cpu_lanes_bit_for_bit(memory):
             gpu = circuit.compile_detector_sampler(seed=4, device="gpu").sample(shots, separate_observables=True, bit_packed=True)
             assert np.array_equal(cpu[0], gpu[0]) and np.array_equal(cpu[1], gpu[1]), (circuit.num_qubits, shots)
         assert np.array_equal(circuit.compile_sampler(seed=4, device="cpu-lanes").sample(100), circuit.compile_sampler(seed=4, device="gpu").sample(100))
+
+
+def test_refusals_in_the_source_name_only_extras_the_package_has():
+    # The GPU refusal once told users to pip install stabilizer-qec[gpu], an extra pyproject does
+    # not define, so the advice could not add the feature it was about.
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    table = (root / "pyproject.toml").read_text(encoding="utf-8").split("[project.optional-dependencies]", 1)[1].split("\n[", 1)[0]
+    extras = set(re.findall(r"(?m)^([\w-]+)\s*=\s*\[", table))
+    named = set()
+    for path in (root / "src").rglob("*.rs"):
+        for group in re.findall(r"pip install stabilizer-qec\[([\w,-]+)\]", path.read_text(encoding="utf-8")):
+            named.update(group.split(","))
+    assert extras and named <= extras, sorted(named - extras)

@@ -116,13 +116,16 @@ impl TableauSimulator {
         self.inv_state.append(t, targets);
     }
 
-    fn read_record(&self, t: GateTarget) -> bool {
+    fn read_record(&self, t: GateTarget) -> Result<bool, String> {
         if t.is_sweep() {
-            return false;
+            return Ok(false);
         }
         let k = t.value() as usize;
         let n = self.measurement_record.len();
-        k <= n && self.measurement_record[n - k]
+        if k == 0 || k > n {
+            return Err("Referred to a measurement record before the beginning of time.".into());
+        }
+        Ok(self.measurement_record[n - k])
     }
 
     /// Run one instruction.
@@ -170,12 +173,12 @@ impl TableauSimulator {
                         self.prepend_gate(g, &[c.value() as usize, t.value() as usize]);
                     } else if pauli == 3 && cbit && tbit {
                     } else if pauli == 3 && tbit {
-                        if self.read_record(t) {
+                        if self.read_record(t)? {
                             self.prepend_gate("Z", &[c.value() as usize]);
                         }
                     } else if tbit {
                         return Err("Measurement record editing is not supported.".into());
-                    } else if self.read_record(c) {
+                    } else if self.read_record(c)? {
                         let g = ["I", "X", "Y", "Z"][pauli as usize];
                         self.prepend_gate(g, &[t.value() as usize]);
                     }

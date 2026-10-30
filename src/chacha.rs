@@ -1,3 +1,7 @@
+// The algorithms here are rand 0.8.5's `StdRng` and `Uniform<f64>` and rand_core 0.6.4's
+// `seed_from_u64`, reproduced in Rust: Copyright 2018 Developers of the Rand project, licensed
+// under the MIT or Apache-2.0 licences (THIRD_PARTY_NOTICES.md, THIRD_PARTY_CRATES.md).
+//
 //! `rand` 0.8's `StdRng` and `Uniform<f64>`, without the dependency.
 //!
 //! WHY THIS EXISTS

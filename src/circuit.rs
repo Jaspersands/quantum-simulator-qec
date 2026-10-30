@@ -804,6 +804,9 @@ fn parse_instruction(name: &str, args: &[f64], t: &[&str]) -> Result<Instr, Stri
             if i < 0.0 || i.fract() != 0.0 {
                 return Err(format!("{name}: observable index must be a non-negative integer"));
             }
+            if i > f64::from(u32::MAX) {
+                return Err(format!("{name}: observable index must be below 2**32"));
+            }
             let mut recs = Vec::new();
             let mut paulis = Vec::new();
             let mut order = Vec::new();

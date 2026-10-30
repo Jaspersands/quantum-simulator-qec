@@ -1,3 +1,6 @@
+// Copyright IBM 2025. A port of IBM's relay_bp 0.2.2 (Apache License 2.0; see THIRD_PARTY_NOTICES.md),
+// modified for stabilizer_qec.
+//
 //! Relay-BP (Müller, Alexander, Beverland, Bühler, Johnson, Maurer and Vandeth, IBM,
 //! arXiv:2506.01779): chained runs of belief propagation with memory.
 //!
@@ -179,8 +182,17 @@ impl<N: RelayNum> RelayCore<N> {
         if !(lo < hi && lo.is_finite() && hi.is_finite()) {
             return Err(format!("the memory strengths' range must be finite and increasing, not ({lo}, {hi})"));
         }
+        if !(hi - lo).is_finite() {
+            return Err(format!("the memory strengths' range is too wide to sample: its width overflows ({lo}, {hi})"));
+        }
+        if hi - lo < 1e-9 * lo.abs().max(hi.abs()) {
+            return Err(format!("the memory strengths' range is too narrow to sample: the width of ({lo}, {hi}) is under 1e-9 of its larger end"));
+        }
         if let Some(g) = &config.gammas {
-            if g.is_empty() || g.iter().any(|row| row.len() != columns.len()) {
+            if g.is_empty() && config.legs > 0 {
+                return Err(format!("explicit memory strengths need at least one row of {} (one per fault) for the legs to run", columns.len()));
+            }
+            if g.iter().any(|row| row.len() != columns.len()) {
                 return Err(format!("explicit memory strengths need rows of {} (one per fault)", columns.len()));
             }
         }
@@ -230,6 +242,13 @@ impl<N: RelayNum> RelayCore<N> {
             fill[c as usize] += 1;
         }
         let convert = |x: f64, what: &str| N::from_f64(x).ok_or_else(|| format!("{what} {x} does not fit this decoder's number type"));
+        let scale = |x: f64| config.data_scale.map_or(x, |s| s * x);
+        for end in [lo, hi] {
+            convert(scale(end), "the memory strength range's end")?;
+        }
+        for &x in config.gammas.iter().flatten().flatten() {
+            convert(scale(x), "an explicit memory strength")?;
+        }
         let max_data = config.max_data.and_then(N::from_f64);
         let data_scale = config.data_scale.and_then(N::from_f64);
         let llr: Vec<f64> = priors.iter().map(|&p| ((1.0 - p) / p).ln()).collect();

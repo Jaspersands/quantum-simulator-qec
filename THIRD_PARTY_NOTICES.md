@@ -498,6 +498,10 @@ alternatives) and reproduces the licence texts and notices their packages carry;
 sampler's and the min-sum decoder's WGSL kernels (`src/gpu/`) on Metal, Vulkan and DX12; the
 kernels are this package's own.
 
+`src/chacha.rs` reproduces `rand` 0.8.5's `StdRng` and `Uniform<f64>` and `rand_core` 0.6.4's
+`seed_from_u64` without the dependency, so its draws are `rand`'s: Copyright 2018 Developers of the
+Rand project, under the MIT or Apache-2.0 licences that `THIRD_PARTY_CRATES.md` quotes for `rand`.
+
 ## Fusion Blossom
 
 Copyright (c) 2022 Yue Wu. Licensed under the MIT License (`src/fusion/LICENSE`, and
