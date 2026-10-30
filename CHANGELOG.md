@@ -34,6 +34,9 @@ policy for its documented items.
   parent's queue had no worker threads in the child, so the child's batches never finished.
 - `DecoderClient.decode_batch` splits a batch so that each DECODE frame fits the server's 256 MiB cap, not
   only its shot limit; a batch of wide syndromes used to be refused as one frame, closing the connection.
+- `serve` answers a DECODE with a clear ERROR when the decoder's batch result holds error frames (a
+  CUDA-Q QEC result with `.result` and no predictions), instead of a numpy shape error. Such decoders
+  still cannot be served; the ERROR says why.
 
 ## 2.2.0 — 2026-10-30
 

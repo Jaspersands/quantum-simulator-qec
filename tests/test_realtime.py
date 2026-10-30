@@ -267,6 +267,36 @@ def test_server_refuses_oversized_and_malformed_decode_before_reading_it(memory)
         thread.join(10)
 
 
+def test_a_decoder_of_error_frames_is_refused_with_a_clear_error():
+    """A decoder whose batch result is CUDA-Q QEC's BatchDecoderResult (error frames in ``result``, no predictions)
+    gets an ERROR that says so, on each DECODE, and the session goes on; a decoder returning an array is served."""
+    from stabilizer_qec.cudaq_qec._decoders import BatchDecoderResult
+
+    class ErrorFrames:
+        def decode_batch(self, syndromes):
+            return BatchDecoderResult(np.zeros((len(syndromes), 1)), np.ones(len(syndromes), dtype=bool))
+
+    class Predictions:
+        def decode_batch(self, syndromes):
+            return np.zeros((len(syndromes), 1), dtype=np.uint8)
+
+    payload = np.zeros((3, 1), dtype=np.uint8).tobytes()
+    queue = DecoderQueue(ErrorFrames())
+    try:
+        session = realtime._Session(queue, 4, 1, 0, 1 << 20)
+        for _ in range(2):
+            kind, _, _, body = Protocol.read(io.BytesIO(session.handle(Protocol.DECODE, 0, 3, payload)))
+            assert kind == Protocol.ERROR and "error frames" in json.loads(body)["error"] and "not observable predictions" in json.loads(body)["error"]
+    finally:
+        queue.close()
+    queue = DecoderQueue(Predictions())
+    try:
+        kind, _, _, body = Protocol.read(io.BytesIO(realtime._Session(queue, 4, 1, 0, 1 << 20).handle(Protocol.DECODE, 0, 3, payload)))
+        assert kind == Protocol.CORRECTIONS and body == b"\x00\x00\x00"
+    finally:
+        queue.close()
+
+
 def test_reset_leaves_no_statistics_from_running_batches():
     gate = threading.Event()
 

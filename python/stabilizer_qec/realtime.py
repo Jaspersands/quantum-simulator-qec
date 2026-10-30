@@ -562,7 +562,7 @@ class _Session:
                 kwargs: Dict[str, Any] = {}
                 if "bit_packed_shots" in takes or "**" in takes:
                     kwargs["bit_packed_shots"] = True
-                else:  # a decoder of plain rows (CUDA-Q QEC's, say)
+                else:  # a decoder that takes plain 0/1 rows, not bit-packed ones
                     rows = np.unpackbits(rows, axis=1, bitorder="little")[:, : self.nd]
                 if "threads" in takes or "**" in takes:  # 0 too: every core, as the decoders read it
                     kwargs["threads"] = self.threads
@@ -570,6 +570,8 @@ class _Session:
                 out = self.queue.get_corrections(ticket)
                 if hasattr(out, "predictions"):  # a result object rather than an array
                     out = out.predictions
+                elif hasattr(out, "result"):  # a batch result of error frames (CUDA-Q QEC's): no predictions to serve
+                    raise ValueError("the decoder returned error frames (a result with .result and no .predictions), not observable predictions; it cannot be served")
                 out = np.asarray(out)
                 if out.ndim != 2 or out.shape[0] != shots:
                     raise ValueError(f"the decoder returned shape {out.shape} for {shots} shots")
