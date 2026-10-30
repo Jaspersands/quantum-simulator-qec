@@ -4,9 +4,9 @@ sampled."""
 
 from __future__ import annotations
 
+import importlib.util
 import itertools
 import pathlib
-import shutil
 import subprocess
 import sys
 
@@ -15,8 +15,9 @@ import pytest
 
 import stabilizer_qec as sq
 
-STIM = shutil.which("stim") or str(pathlib.Path(sys.executable).parent / "stim")
-needs_stim = pytest.mark.skipif(not pathlib.Path(STIM).exists(), reason="the stim command is not installed")
+# Stim 1.16 itself, through the stim package (not a `stim` script on PATH: deltakit-stim installs one, a fork with its own messages).
+STIM = [sys.executable, "-c", "import stim, sys; sys.exit(stim.main(command_line_args=sys.argv[1:]))"]
+needs_stim = pytest.mark.skipif(not importlib.util.find_spec("stim"), reason="stim is not installed")
 
 
 def ours(*args, stdin: bytes = b"") -> bytes:
@@ -31,7 +32,7 @@ def lines(out: bytes) -> bytes:
 
 
 def theirs(*args, stdin: bytes = b"") -> bytes:
-    r = subprocess.run([STIM, *args], input=stdin, capture_output=True)
+    r = subprocess.run([*STIM, *args], input=stdin, capture_output=True)
     assert r.returncode == 0, r.stderr.decode()
     return r.stdout
 
