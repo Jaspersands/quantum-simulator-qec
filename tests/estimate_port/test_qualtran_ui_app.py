@@ -189,6 +189,8 @@ def test_dash_app_round_trip():
     assert client.post("/_dash-update-component", json=_dash_payload(GIDNEY[:1] + (None,) + GIDNEY[2:])).status_code == 204
     algorithm = [10, None, 10, 10, 10, 10]
     assert client.post("/_dash-update-component", json=_dash_payload(GIDNEY[:3] + (algorithm,) + GIDNEY[4:])).status_code == 204
+    # An error in update is not PreventUpdate, so Dash answers with its 500.
+    assert client.post("/_dash-update-component", json=_dash_payload(GIDNEY[:4] + ("NoSuchScheme",) + GIDNEY[5:])).status_code == 500
 
 
 def test_dash_app_against_qualtran():
