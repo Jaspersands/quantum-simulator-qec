@@ -59,7 +59,9 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   package's decoders built in (`decoders=["pymatching", "belief_matching", "bposd", ...]`).
   sinter's own tests and docstring examples pass on it. With sinter itself,
   `custom_decoders=stabilizer_qec.sinter.sinter_decoders()` adds the decoders as `sq_matching`
-  and so on. Circuits, models and decoders pickle, for `multiprocessing` and workers.
+  and so on. Circuits, models and decoders pickle, for `multiprocessing` and workers. A custom
+  decoder's `compile_decoder_for_dem` receives this package's `DetectorErrorModel`, not Stim's; a
+  decoder built on Stim converts it first with `stim.DetectorErrorModel(str(dem))`.
 - **Analysis.** `stabilizer_qec.analysis` has qec-util's tools (circuit and model
   utilities, p_ij matrices, syndromes and defects, decay and threshold fits, exact circuit
   distances) and deltakit's analysis (Λ and logical-error-per-round fits with asymmetric
