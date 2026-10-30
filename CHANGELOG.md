@@ -37,6 +37,8 @@ policy for its documented items.
   134), not as a runtime error.
 - `copy.copy` of a `TesseractDecoder` raises `TypeError`, as pickle and deepcopy do: a copy shared the native search,
   so reconfiguring one changed the other's decodes.
+- `TesseractDecoder` and `SimplexDecoder` answer each thread with its own syndrome's result when threads share one
+  decoder; a decode's errors were stored on the decoder, and another thread's could be read.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.

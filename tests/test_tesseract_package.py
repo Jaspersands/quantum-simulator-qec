@@ -17,6 +17,7 @@ import platform
 import random
 import subprocess
 import sys
+import threading
 
 import numpy as np
 import pytest
@@ -521,8 +522,42 @@ def test_output_goes_where_tesseracts_goes(capfd):
 TWO_SYNDROMES_DEM = "error(0.1) D0 D1 L0\nerror(0.1) D2 D3 L1\nerror(0.1) D0 D2\nerror(0.05) D1 D3 L0\nerror(0.1) D0 L1\ndetector(0, 0) D0\ndetector(1, 0) D1\ndetector(2, 0) D2\ndetector(3, 0) D3\n"
 
 
+def test_threads_sharing_a_decoder_get_their_own_answers():
+    # A decode stores its errors on the decoder: threads that share one must each get the answer to
+    # their own syndrome, as a single thread does, with the threads switching as often as they can.
+    syndromes = ([0, 1], [2, 3])
+    for dec in (O.tesseract.TesseractConfig(sq.DetectorErrorModel(TWO_SYNDROMES_DEM)).compile_decoder(), O.simplex.SimplexConfig(sq.DetectorErrorModel(TWO_SYNDROMES_DEM)).compile_decoder()):
+        single = [dec.decode_from_detection_events(s).tolist() for s in syndromes]
+        wrong = []
+
+        def run(k: int) -> None:
+            for _ in range(3000):
+                if dec.decode_from_detection_events(syndromes[k]).tolist() != single[k]:
+                    wrong.append(k)
+
+        interval = sys.getswitchinterval()
+        sys.setswitchinterval(1e-6)
+        try:
+            threads = [threading.Thread(target=run, args=(k,)) for k in (0, 1)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        finally:
+            sys.setswitchinterval(interval)
+        assert wrong == [], type(dec).__name__
+
+
 def test_copy_of_a_tesseract_decoder_is_refused():
     # A copy would share the native search, so reconfiguring it would change the original's decodes.
     dec = O.tesseract.TesseractConfig(sq.DetectorErrorModel(TWO_SYNDROMES_DEM)).compile_decoder()
     with pytest.raises(TypeError, match="cannot copy a TesseractDecoder"):
         copy.copy(dec)
+
+
+def test_simplex_decoder_copies_and_pickles_with_its_own_lock():
+    simplex = O.simplex.SimplexConfig(sq.DetectorErrorModel(TWO_SYNDROMES_DEM)).compile_decoder()
+    twin = copy.copy(simplex)
+    assert twin._lock is not simplex._lock
+    assert twin.decode_from_detection_events([0, 1]).tolist() == simplex.decode_from_detection_events([0, 1]).tolist()
+    assert pickle.loads(pickle.dumps(simplex)).decode_from_detection_events([2, 3]).tolist() == simplex.decode_from_detection_events([2, 3]).tolist()
