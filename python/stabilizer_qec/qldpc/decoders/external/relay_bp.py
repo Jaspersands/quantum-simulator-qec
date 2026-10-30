@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import functools
+import re
 import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
@@ -162,8 +163,13 @@ class RelayBPDecoder(BatchErrorDecoder):
         self.observable_error_matrix_transposed = scipy.sparse.csr_matrix(
             observable_error_matrix, dtype=np.uint8
         ).T.tocsr()
+        try:
+            backend = getattr(relay_bp, name)(pcm, np.asarray(error_priors), **decoder_args)
+        except TypeError as error:
+            # The backend's constructor names its private base class; name the decoder asked for.
+            raise TypeError(re.sub(r"\b_\w+\.__init__\(\)", f"{name}()", str(error))) from error
         self.decoder = relay_bp.ObservableDecoderRunner(
-            getattr(relay_bp, name)(pcm, np.asarray(error_priors), **decoder_args),
+            backend,
             observable_error_matrix,
             include_decode_result,
         )

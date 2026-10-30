@@ -32,6 +32,8 @@ policy for its documented items.
 - The Tesseract and Relay-BP decoders' docstrings and import errors no longer tell the user to
   install a `qldpc[tesseract]` or `qldpc[relay-bp]` extra, which this package does not define:
   both backends are bundled in `stabilizer_qec`, and the errors say to reinstall it.
+- An unknown Relay-BP backend option raises a `TypeError` that names the decoder asked for (such
+  as `RelayDecoderF32()`), not the private base class `_Relay`.
 
 ## 2.2.0 — 2026-10-30
 
