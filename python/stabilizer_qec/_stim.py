@@ -16,6 +16,7 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tupl
 import numpy as np
 
 from . import _core
+from ._util import seed_of
 
 _UNITS = {0: 1 + 0j, 1: 1j, 2: -1 + 0j, 3: complex(-0.0, -1.0)}
 
@@ -66,7 +67,7 @@ def _complex_array(data: bytes, shape: Tuple[int, ...]) -> np.ndarray:
 def _seed(seed: Optional[int]) -> int:
     if seed is None:
         return int(np.random.SeedSequence().generate_state(1, dtype=np.uint64)[0])
-    return int(seed) & ((1 << 64) - 1)
+    return seed_of(seed)
 
 
 # ---------------------------------------------------------------------------------------------

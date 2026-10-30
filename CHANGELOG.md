@@ -30,6 +30,9 @@ policy for its documented items.
 - Beam climbing with `det_beam=-1` gives the ARM64 answer on every platform, where Tesseract's
   remainder by zero is the dividend. Tesseract traps there on x86-64 (SIGFPE), so the 2.1.0 note
   that a negative beam gives Tesseract's answers does not hold for that one case on x86-64.
+- `TableauSimulator`, `FlipSimulator` and `DensityMatrixSimulator` refuse a seed that is negative, not an
+  integer, or 2**64 or more, as the sampler does; they used to take -1, 1.5, '7' and 2**64 + 5 as
+  other seeds.
 
 ## 2.2.0 — 2026-10-30
 

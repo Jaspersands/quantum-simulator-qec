@@ -59,6 +59,23 @@ def test_bad_arguments(d3):
         s.sample(10, threads="all")
 
 
+def test_simulator_seeds_are_refused_as_the_sampler_refuses_them():
+    """The simulators take a seed as the sampler does: a 64-bit unsigned integer, or None to draw
+    one. A negative number, a fraction, a string or 2**64 raises, rather than being wrapped or
+    truncated into a different seed."""
+    for make in (lambda seed: sq.TableauSimulator(seed=seed), lambda seed: sq.FlipSimulator(batch_size=1, seed=seed)):
+        with pytest.raises(ValueError):
+            make(-1)
+        with pytest.raises(TypeError):
+            make(1.5)
+        with pytest.raises(TypeError):
+            make("7")
+        with pytest.raises(ValueError):
+            make(2**64)
+        make(2**64 - 1)
+        make(None)
+
+
 def test_noiseless_shots_are_silent():
     c = sq.memory_circuit(distance=3, rounds=3, p=0.0)
     d, o = c.compile_detector_sampler(seed=1).sample(1000, separate_observables=True)
