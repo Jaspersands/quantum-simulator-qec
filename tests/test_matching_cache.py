@@ -212,3 +212,13 @@ def test_an_edit_while_another_thread_decodes_says_so():
     ):
         with pytest.raises(RuntimeError, match="decoded on another thread"):
             edit()
+
+
+def test_a_correlated_copy_keeps_the_ensured_width():
+    from stabilizer_qec._matching import _CorrelatedMatching
+
+    c = _CorrelatedMatching("error(0.1) D0 L0")
+    c.ensure_num_fault_ids(70)
+    for same in [copy.copy(c), copy.deepcopy(c), pickle.loads(pickle.dumps(c))]:
+        assert same.num_fault_ids == 70
+        assert same.decode_batch(np.zeros((1, 1), dtype=np.uint8)).shape == (1, 70)

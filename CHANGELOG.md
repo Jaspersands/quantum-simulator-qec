@@ -40,6 +40,9 @@ policy for its documented items.
   first, so an odd-parity shot gets PyMatching's `No perfect matching` error, not the not-configured one.
 - A correlated `Matching` refuses a bit-packed shot with a set bit past the last node, with the plain decode's
   `ValueError`, where it dropped that bit and decoded the rest.
+- A copy of the `correlated_matching` decoder (`copy`, `deepcopy`, pickle) keeps the fault-id count
+  `ensure_num_fault_ids` set. It used to return the model's count, so its predictions were narrower than the
+  original's.
 
 ## 2.2.0 — 2026-10-30
 

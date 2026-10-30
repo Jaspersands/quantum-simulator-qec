@@ -789,4 +789,12 @@ class _CorrelatedMatching:
         return self.matching.decode_batch(shots, enable_correlations=True, **kwargs)
 
     def __reduce__(self) -> tuple:
-        return (_CorrelatedMatching, (self.matching._dem_text,))
+        return (_rebuild_correlated, (self.matching._dem_text, self.matching.num_fault_ids))
+
+
+def _rebuild_correlated(dem: str, num_fault_ids: int) -> _CorrelatedMatching:
+    """A correlated matching's copy: the model's, at the fault-id count it had been widened to."""
+    c = _CorrelatedMatching(dem)
+    c.matching.ensure_num_fault_ids(num_fault_ids)
+    return c
+
