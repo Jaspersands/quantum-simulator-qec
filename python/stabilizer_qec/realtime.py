@@ -794,7 +794,8 @@ class DecoderClient:
 
         packed, n = rows_to_b8(shots, self.num_detectors, bit_packed_shots, "shots")
         stride = _b8_stride(self.num_detectors)
-        limit = max(1, self.max_shots)
+        # At most max_shots, and each piece's syndromes within the frame cap the server refuses past.
+        limit = max(1, min(self.max_shots, Protocol.MAX_FRAME // max(1, stride)))
         if n <= limit:
             kind, m, body = self._ask(Protocol.DECODE, packed, n)
             if kind != Protocol.CORRECTIONS or m != n:

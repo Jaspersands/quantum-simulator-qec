@@ -32,6 +32,8 @@ policy for its documented items.
   answer, as Dash's server prints none; other errors are still reported.
 - `decode_async` in a process forked after a use of the same decoder makes a queue of its own; the
   parent's queue had no worker threads in the child, so the child's batches never finished.
+- `DecoderClient.decode_batch` splits a batch so that each DECODE frame fits the server's 256 MiB cap, not
+  only its shot limit; a batch of wide syndromes used to be refused as one frame, closing the connection.
 
 ## 2.2.0 — 2026-10-30
 

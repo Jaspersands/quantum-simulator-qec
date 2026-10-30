@@ -385,6 +385,26 @@ def test_the_client_splits_a_batch_past_the_servers_cap(tmp_path):
         got["server"].shutdown()
 
 
+def test_the_client_splits_a_batch_by_the_frame_cap_too():
+    """A piece's syndromes stay within the frame cap, whatever max_shots allows: 1,048,576 shots of 2100 detectors
+    (263 bytes each) go in pieces that each fit in Protocol.MAX_FRAME, where one frame of 275,775,488 bytes would be
+    refused."""
+    from stabilizer_qec.realtime import Protocol
+
+    client = realtime.DecoderClient.__new__(realtime.DecoderClient)
+    client.num_detectors, client.num_observables, client.max_shots = 2100, 1, 1 << 20
+    frames = []
+
+    def ask(kind, payload, shots):
+        frames.append((len(payload), shots))
+        return Protocol.CORRECTIONS, shots, bytes(shots)
+
+    client._ask = ask
+    out = client.decode_batch(np.zeros((1 << 20, 2100), dtype=np.uint8))
+    assert out.shape == (1 << 20, 1) and sum(s for _, s in frames) == 1 << 20
+    assert max(length for length, _ in frames) <= Protocol.MAX_FRAME and len(frames) == 2
+
+
 def test_a_silent_peer_does_not_hang_connect(tmp_path):
     import socket
     import threading
