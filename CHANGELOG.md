@@ -613,7 +613,8 @@ contraction width (`CoherentSampler.contraction_width`).
     `II[R_PAULI(theta=t, pauli=...)]` was dropped, a wrong model and matrix, silently.
   - `SPP_DAG[R_PAULI(theta=a*pi)]` and `!` factors are kept as Tsim keeps them: in printing, in
     `inverse` (Tsim's `SPP_DAG[...]` text), in fusion with neighbours and in `R_PAULI`'s
-    limits and messages. A native `II[R_ZZ(theta=pi/8)]` prints as `TPP Z0*Z1`; it printed
+    limits and messages. A native `II[R_ZZ(theta=0.39269908169872414)]`, pi/8 as `repr` writes it,
+    prints as `TPP Z0*Z1`; it printed
     `R_ZZ(0.25) 0 1`, which reads back as `R_PAULI`.
   - An all-identity product rotation is left out of `str()`; Tsim read its raw line as a plain
     `II`, another matrix, or refused it.
