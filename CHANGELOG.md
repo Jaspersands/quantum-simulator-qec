@@ -133,6 +133,34 @@ policy for its documented items.
   random measurement, as `collapse=True` and `cySparseSim` do, where it raised.
 - `MWPM2D.decode` raises `TypeError` for a plain dict keyed by time (a `StdOutput`'s own dict), where it returned
   an empty recovery because the time keys were read as syndromes.
+- The PECOS `DensityMatrix` and `ProcessMatrix` simulators raise `ValueError` for a NaN or infinite
+  angle on `PhaseRot`, `CRZ`, `CRX` and `CRY`, as they already did for `RX`, `RZ` and `RZZ`, instead
+  of returning a NaN state.
+- `stabilizer-qec panqec analyze` runs: it raised `AttributeError` on any data it could read, because
+  the command called a method `Analysis` does not have.
+- `XCubeMatchingDecoder` returns instead of looping forever when its matching weights go negative
+  (the error model's X and Y rates together past one half, at a high error rate): its walk over the
+  matched pairs stops when it comes back to a state it has been in.
+- `Matching.from_check_matrix` no longer sorts the caller's sparse matrix in place, and keeps an unsorted
+  column's edge in the order its entries are stored, as PyMatching does.
+- `Matching.from_check_matrix` reads each check-matrix entry as an 8-bit integer, as PyMatching does: 257,
+  1.5 and -255 are ones, and 0.5 and 256, which read as zeros, are still refused.
+- `Matching` refuses a float node index or count, a list of fault ids, and a negative fault id or boundary
+  node with `TypeError`, as PyMatching does. A float used to be truncated to another node or count,
+  and a negative id raised `OverflowError`.
+- An edit to a `Matching` while another thread decodes it raises `RuntimeError` that says so, instead of
+  PyO3's `Already borrowed`.
+- A `Matching` loaded without correlations and decoded with `enable_correlations=True` runs the plain decode
+  first, so an odd-parity shot gets PyMatching's `No perfect matching` error, not the not-configured one.
+- A correlated `Matching` refuses a bit-packed shot with a set bit past the last node, with the plain decode's
+  `ValueError`, where it dropped that bit and decoded the rest.
+- A copy of the `correlated_matching` decoder (`copy`, `deepcopy`, pickle) keeps the fault-id count
+  `ensure_num_fault_ids` set. It used to return the model's count, so its predictions were narrower than the
+  original's.
+- `integer_ticks` and `time_ticks` return for a range of one value near 1.6e19 (they scanned forever); the
+  ticks they draw for every other range are unchanged.
+- A cycle-time formula that calls an unknown function reports an undefined name in the call's arguments first,
+  as the QDK does: `foo(bar)` reports `bar`, not `foo`.
 
 ## 2.2.0 — 2026-10-30
 

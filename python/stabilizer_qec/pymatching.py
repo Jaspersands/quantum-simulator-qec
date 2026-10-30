@@ -398,9 +398,9 @@ def _filesystem_error(op: str, ex: OSError, path: str) -> RuntimeError:
     same operation: libstdc++ on Linux (where ``mkdir("file/")`` fails EEXIST; macOS fails it
     ENOTDIR), libc++ elsewhere. PyMatching's Windows wheel is built with MSVC, whose STL words it
     ``create_directory: <Win32 message>: "<path>"``; that wording is not reproduced, and Windows
-    gets libc++'s. The pinned macOS wheel omits the final bracket for the tested 300-character
-    component (native formatting rule not isolated); this helper retains it. OS text is only
-    checked on the executed host."""
+    gets libc++'s. The pinned macOS wheel drops the final byte of any message 256 bytes or more
+    long (measured for ``create_directory``), so it loses the closing bracket; this helper keeps
+    it. OS text is only checked on the executed host."""
     reason = os.strerror(ex.errno) if ex.errno else str(ex)
     if op == "posix_stat":
         if sys.platform.startswith("linux"):

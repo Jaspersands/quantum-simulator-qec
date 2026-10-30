@@ -103,3 +103,11 @@ def test_generate_cluster_script(runner):
         f'stabilizer-qec panqec run-parallel -d {data_dir} -n 8 -j $SLURM_ARRAY_TASK_ID -c 5 -t 10000 '
         '--delete-existing\n\ndate'
     )
+
+
+def test_analyze_aggregates_the_data_and_writes_its_plots(runner, tmp_path):
+    data = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'toric')
+    result = runner.invoke(cli, ['analyze', data, '-p', str(tmp_path)])
+    assert result.exit_code == 0, result.output
+    assert (tmp_path / 'analysis.json.gz').is_file()
+    assert any(p.name.endswith('collapse.pdf') for p in tmp_path.iterdir())

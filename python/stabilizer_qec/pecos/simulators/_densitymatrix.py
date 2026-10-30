@@ -83,8 +83,11 @@ def _text(template, arity):
 
 
 def _matrix(make, angle=False):
-    """A gate given by its matrix, the first location the most significant bit."""
+    """A gate given by its matrix, the first location the most significant bit; with ``angle``,
+    ``make`` takes the gate's angle, which must be finite as the rotations' are."""
     def gate(state, location, **params):
+        if angle and not np.isfinite(params['angle']):
+            raise ValueError("'theta' must be finite")
         m = np.asarray(make(params['angle']) if angle else make)
         state._unitary(_locate(location, int(m.shape[0]).bit_length() - 1), m)
     return gate

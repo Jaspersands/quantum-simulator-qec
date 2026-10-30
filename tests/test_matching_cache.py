@@ -239,3 +239,45 @@ def test_zero_width_batches_too_big_for_memory_raise_memory_error():
         sq.SearchDecoder(dem).decode_batch(shots)
     with pytest.raises(MemoryError):
         sq.ColorMatching(dem).decode_batch(shots)
+
+@pytest.mark.parametrize("value", [257, 1.5, -255])
+def test_check_matrix_entries_that_read_as_ones_are_accepted(value):
+    # PyMatching reads each check-matrix entry as an 8-bit integer, so these read as ones.
+    assert sq.Matching.from_check_matrix(np.array([[value], [1.0]])).num_edges == 1
+
+
+@pytest.mark.parametrize("value, message", [(0.5, "a zero was found"), (256, "a zero was found"), (3, "the element 3 was found")])
+def test_check_matrix_entries_that_read_as_other_values_are_refused(value, message):
+    with pytest.raises(ValueError, match=message):
+        sq.Matching.from_check_matrix(np.array([[value], [1.0]]))
+
+
+def test_an_edit_while_another_thread_decodes_says_so():
+    # The extension refuses an edit while a decode on another thread holds the graph; the refusal
+    # has to say why, not only that the graph is borrowed.
+    class Borrowed:
+        def add_edge(self, *args):
+            raise RuntimeError("Already borrowed")
+
+        add_boundary_edge = set_boundary = ensure_num_fault_ids = add_edge
+
+    m = square()
+    m._g = Borrowed()
+    for edit in (
+        lambda: m.add_edge(0, 2, fault_ids={0}),
+        lambda: m.add_boundary_edge(0, fault_ids={1}),
+        lambda: m.set_boundary_nodes({0}),
+        lambda: m.ensure_num_fault_ids(70),
+    ):
+        with pytest.raises(RuntimeError, match="decoded on another thread"):
+            edit()
+
+
+def test_a_correlated_copy_keeps_the_ensured_width():
+    from stabilizer_qec._matching import _CorrelatedMatching
+
+    c = _CorrelatedMatching("error(0.1) D0 L0")
+    c.ensure_num_fault_ids(70)
+    for same in [copy.copy(c), copy.deepcopy(c), pickle.loads(pickle.dumps(c))]:
+        assert same.num_fault_ids == 70
+        assert same.decode_batch(np.zeros((1, 1), dtype=np.uint8)).shape == (1, 70)

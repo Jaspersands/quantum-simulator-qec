@@ -690,6 +690,11 @@ def _eval(node, ctx: Dict[str, float]) -> float:
     if tag == "C":
         return node[1]
     if tag in ("var", "call"):
+        if tag == "call" and node[2]:
+            # A call's arguments evaluate before the call is refused, as the QDK's do: an undefined name inside
+            # them is the one reported.
+            for arg in node[2]:
+                _eval(arg, ctx)
         if node[1] in ctx and (tag == "var" or not node[2]):
             return float(ctx[node[1]])
         raise _fasteval_error(f"Undefined({_rust_debug_str(node[1])})")

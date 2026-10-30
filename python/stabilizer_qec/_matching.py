@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 
@@ -49,35 +49,55 @@ def rand_float(from_: float, to: float) -> float:
     return float(_rng.uniform(from_, to))
 
 
+def _index(value: Any, name: str) -> int:
+    """A node index or a count, which must be an integer as PyMatching requires."""
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)):
+        raise TypeError(f"{name} must be an integer, not {type(value).__name__}")
+    return int(value)
+
+
+def _edit(fn: Any, *args: Any) -> Any:
+    """A graph edit, through ``call``. While another thread decodes the graph, the extension
+    refuses the edit with a borrow error that does not say why, so that one is restated."""
+    try:
+        return call(fn, *args)
+    except RuntimeError as e:
+        if "Already borrowed" in str(e):
+            raise RuntimeError("this Matching is being decoded on another thread, and its graph cannot change until that decode returns") from None
+        raise
+
+
 def _fault_set(fault_ids: Any) -> Set[int]:
+    """A fault id or a set of them, as PyMatching takes them: -1 is no fault, and a list or a
+    negative id is refused."""
     if fault_ids is None:
         return set()
     if isinstance(fault_ids, (int, np.integer)):
-        return set() if fault_ids == -1 else {int(fault_ids)}
-    try:
-        out = set(fault_ids)
-    except TypeError:
-        raise TypeError(f"fault_ids property must be an int or a set of int (or convertible to a set), not {fault_ids}") from None
-    if not all(isinstance(q, (int, np.integer)) for q in out):
+        ids = set() if fault_ids == -1 else {fault_ids}
+    elif isinstance(fault_ids, (set, frozenset)):
+        ids = set(fault_ids)
+    else:
+        raise TypeError(f"fault_ids property must be an int or a set of int, not {fault_ids}")
+    if not all(isinstance(q, (int, np.integer)) for q in ids):
         raise TypeError(f"fault_ids must be a set of ints, not {fault_ids}")
-    return {int(q) for q in out}
+    if any(q < 0 for q in ids):
+        raise TypeError(f"fault_ids must be non-negative, not {fault_ids}")
+    return {int(q) for q in ids}
 
 
 def _csc(matrix: Any) -> Tuple[int, int, np.ndarray, np.ndarray]:
-    """(rows, columns, indptr, indices) of a matrix's nonzero pattern, column by column."""
+    """(rows, columns, indptr, indices) of a matrix's nonzero pattern, column by column, in the
+    order its entries are stored. The matrix is copied, so the caller's arrays are left alone."""
     try:
-        from scipy.sparse import csc_matrix, issparse
+        from scipy.sparse import csc_matrix
 
-        if issparse(matrix) or not isinstance(matrix, np.ndarray):
-            m = csc_matrix(matrix)
-        else:
-            m = csc_matrix(matrix)
+        m = csc_matrix(matrix, copy=True)
         m.eliminate_zeros()
-        m.sort_indices()
-        bad = m.data[m.data != 1]
+        # PyMatching's check, its entries read as 8-bit integers.
+        cast = m.data.astype(np.uint8)
+        bad = cast[cast != 1]
         if len(bad):
-            # PyMatching's check, its entries read as 8-bit integers.
-            v = int(np.asarray(bad[:1]).astype(np.uint8)[0])
+            v = int(bad[0])
             if v == 0:
                 raise ValueError("`matrix.data` must only contain ones, but a zero was found. First call `matrix.eliminate_zeros()` before using this method.")
             raise ValueError(f"`matrix.data` must only contain ones, but the element {v} was found.")
@@ -372,7 +392,7 @@ class Matching:
         self._load_edges(len(graph), boundary, graph.weighted_edge_list(), min_num_fault_ids)
 
     def _load_edges(self, num_nodes: int, boundary: List[int], edges: Any, min_num_fault_ids: Optional[int]) -> None:
-        g = _core.UserGraph(num_nodes, 0 if min_num_fault_ids is None else int(min_num_fault_ids))
+        g = _core.UserGraph(num_nodes, 0 if min_num_fault_ids is None else _index(min_num_fault_ids, "min_num_fault_ids"))
         g.set_boundary(boundary)
         for u, v, attr in edges:
             if "fault_ids" in attr and "qubit_id" in attr:
@@ -396,22 +416,24 @@ class Matching:
             raise ValueError("Both `fault_ids` and `qubit_id` were provided as arguments. Please provide `fault_ids` instead of `qubit_id` as an argument, as use of `qubit_id` has been deprecated.")
         if fault_ids is None and "qubit_id" in kwargs:
             fault_ids = kwargs["qubit_id"]
+        node1, node2 = _index(node1, "node1"), _index(node2, "node2")
         if node1 < 0 or node2 < 0:
             raise ValueError("Node indices must be non-negative.")
         if _too_heavy(weight, node1, node2, 3):
             return
         p = -1.0 if error_probability is None else float(error_probability)
-        if call(self._g.add_edge, int(node1), int(node2), sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
+        if _edit(self._g.add_edge, node1, node2, sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
             self._corr = None
 
     def add_boundary_edge(self, node: int, fault_ids: Any = None, weight: float = 1.0, error_probability: Optional[float] = None, *, merge_strategy: str = "disallow", **kwargs: Any) -> None:
         """Adds an edge from ``node`` to the boundary (PyMatching's ``add_boundary_edge``)."""
+        node = _index(node, "node")
         if node < 0:
             raise ValueError("Node index must be non-negative.")
         if _too_heavy(weight, node, None, 3):
             return
         p = -1.0 if error_probability is None else float(error_probability)
-        if call(self._g.add_boundary_edge, int(node), sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
+        if _edit(self._g.add_boundary_edge, node, sorted(_fault_set(fault_ids)), float(weight), p, merge_strategy):
             self._corr = None
 
     def set_boundary_nodes(self, nodes: Set[int]) -> None:
@@ -428,6 +450,16 @@ class Matching:
         allocated, as with a count near 2**63, raises MemoryError; PyMatching's from_networkx
         given the same min_num_fault_ids builds, and its decode raises ValueError."""
         self._g.ensure_num_fault_ids(int(min_num_fault_ids))
+
+        """The boundary nodes: decoding treats an edge to one as an edge to the boundary."""
+        boundary = sorted(_index(n, "boundary node") for n in nodes)
+        if boundary and boundary[0] < 0:
+            raise TypeError(f"boundary nodes must be non-negative, not {boundary[0]}")
+        _edit(self._g.set_boundary, boundary)
+        self._corr = None
+
+    def ensure_num_fault_ids(self, min_num_fault_ids: int) -> None:
+        _edit(self._g.ensure_num_fault_ids, _index(min_num_fault_ids, "min_num_fault_ids"))
 
     @property
     def boundary(self) -> Set[int]:
@@ -544,7 +576,7 @@ class Matching:
             return times * z.shape[0] + checks
         raise ValueError(f"The shape ({z.shape}) of the syndrome vector z is not valid.")
 
-    def _check_correlations(self, enable_correlations: bool) -> bool:
+    def _check_correlations(self, enable_correlations: bool, plain: Callable[[], Any]) -> bool:
         if not enable_correlations:
             return False
         # PyMatching's correlated calls first take its decoder with the search graph
@@ -552,6 +584,9 @@ class Matching:
         # (or refuse); the plain decoder here follows, though the correlated matcher decodes.
         call(self._g.mwpm_with_search_graph)
         if self._corr is None:
+            # A matching not loaded with correlations first runs the plain decode, as PyMatching does,
+            # so a shot that decode refuses is refused for that reason.
+            plain()
             raise ValueError(
                 "Attempting to decode with `enable_correlations=True`, however the decoder has not been configured to decode using correlations. Ensure that you also set `enable_correlations=True` when loading the stim circuit or detector error model. For example: `matching = pymatching.Matching.from_detector_error_model(dem, enable_correlations=True)`"
             )
@@ -563,7 +598,7 @@ class Matching:
         """One syndrome (a 1-d array over the detectors, or 2-d over checks × rounds) to the
         fault ids its matching flips, as uint8 0/1; with ``return_weight``, also its weight."""
         events = self._events(z)
-        if self._check_correlations(enable_correlations):
+        if self._check_correlations(enable_correlations, lambda: call(self._g.decode, [int(e) for e in events])):
             dets = np.zeros((1, self.num_detectors), dtype=np.uint8)
             dets[0, events[events < self.num_detectors]] = 1
             pred, w = self.decode_batch(dets, return_weights=True, enable_correlations=True)
@@ -599,7 +634,13 @@ class Matching:
             if not nd <= shots.shape[1] <= nn:
                 raise ValueError(f"`shots` array should have at least {nd} columns (the number of detectors), and no more than {nn} columns (the number of nodes), but instead has {shots.shape[1]} columns")
             packed = np.packbits(shots.astype(np.uint8).astype(bool), axis=1, bitorder="little")
-        if self._check_correlations(enable_correlations):
+        if self._check_correlations(enable_correlations, lambda: call(self._g.decode_batch, packed.tobytes(), n, packed.shape[1], count(threads, "threads"))):
+            # A set bit past the last node is refused, as the plain decode refuses it; the padding
+            # bits of a row are the ones past the detectors, which a correlated load has as its nodes.
+            past = np.unpackbits(packed, axis=1, bitorder="little")[:, nn:]
+            if past.any():
+                r, c = (int(x) for x in np.argwhere(past)[0])
+                raise ValueError(f"shot {r}: The detection event with index {nn + c} does not correspond to a node in the graph, which only has {nn} nodes.")
             dets = np.unpackbits(packed, axis=1, count=nd, bitorder="little")
             raw = np.packbits(dets, axis=1, bitorder="little").tobytes()
             preds, weights, failed = call(self._corr.decode_batch, raw, n, count(threads, "threads"))
@@ -632,7 +673,7 @@ class Matching:
         """The edges the correction flips, as an (edges × 2) int64 array of node pairs (-1: the
         boundary)."""
         events = self._events(syndrome)
-        if self._check_correlations(enable_correlations):
+        if self._check_correlations(enable_correlations, lambda: call(self._g.decode_to_edges, [int(e) for e in events])):
             edges = call(self._corr.decode_to_edges, [int(e) for e in events[events < self.num_detectors]])
             return np.array(edges, dtype=np.int64).reshape(-1, 2)
         edges = call(self._g.decode_to_edges, [int(e) for e in events])
@@ -782,5 +823,12 @@ class _CorrelatedMatching:
         return self.matching.decode_batch(shots, enable_correlations=True, **kwargs)
 
     def __reduce__(self) -> tuple:
-        return (_CorrelatedMatching, (self.matching._dem_text,))
+        return (_rebuild_correlated, (self.matching._dem_text, self.matching.num_fault_ids))
+
+
+def _rebuild_correlated(dem: str, num_fault_ids: int) -> _CorrelatedMatching:
+    """A correlated matching's copy: the model's, at the fault-id count it had been widened to."""
+    c = _CorrelatedMatching(dem)
+    c.matching.ensure_num_fault_ids(num_fault_ids)
+    return c
 

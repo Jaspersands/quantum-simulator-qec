@@ -20,10 +20,16 @@ def get_matched_pairs(H, correction, syndrome):
             s_prime = s
             continue_search = True
             prev_qubit = -1
+            walked = set()
 
             while continue_search:
                 found_new_qubit = False
-                for q in H[s_prime].nonzero()[1]:
+                # The next step depends only on the current syndrome and the qubit just taken, so a
+                # state seen before means the walk circles a cycle of correction qubits: it ends there.
+                state = (s_prime, prev_qubit)
+                candidates = [] if state in walked else H[s_prime].nonzero()[1]
+                walked.add(state)
+                for q in candidates:
                     # print("q", q)
                     if correction[q] and q != prev_qubit:
                         # print("Found new qubit")

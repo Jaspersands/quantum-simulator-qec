@@ -52,7 +52,8 @@ def main() -> None:
             sys.executable, "-m", "pdoc", "stabilizer_qec", "stabilizer_qec.sinter",
             # 2.0's subpackages written here (the whole ports of other tools' packages keep
             # those tools' documentation).
-            "stabilizer_qec.estimate", "stabilizer_qec.tqec", "stabilizer_qec.loom", "stabilizer_qec.cudaq_qec",
+            "stabilizer_qec.estimate", "stabilizer_qec.estimate.azure_report", "stabilizer_qec.tqec", "stabilizer_qec.loom",
+            "stabilizer_qec.cudaq_qec",
             "stabilizer_qec.realtime", "stabilizer_qec.tsim", "stabilizer_qec.analysis",
             "--output-directory", str(OUT),
             "--docformat", "markdown",

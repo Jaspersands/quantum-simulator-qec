@@ -552,3 +552,88 @@ def test_fault_ids_past_the_count_are_dropped(ids, negative):
     want = sorted(i for i in ids if i < 64)
     assert np.flatnonzero(m.decode(syndrome)).tolist() == want
     assert np.flatnonzero(m.decode_batch(np.array([syndrome] * 3, dtype=np.uint8))[2]).tolist() == want
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda m: m.add_edge(0.7, 1.9, fault_ids={0}),
+        lambda m: m.add_boundary_edge(0.5, fault_ids={0}),
+        lambda m: m.add_edge(0, 1, fault_ids=[0, 1]),
+        lambda m: m.add_edge(0, 1, fault_ids=-2),
+        lambda m: m.add_edge(0, 1, fault_ids={-1}),
+        lambda m: m.set_boundary_nodes({-1}),
+        lambda m: m.set_boundary_nodes({0.0}),
+    ],
+)
+def test_arguments_are_refused_as_pymatching_refuses_them(call):
+    # A float node index was truncated into another node, a list of fault ids was taken, and a
+    # negative fault id or boundary node reached the extension as an OverflowError. PyMatching
+    # raises TypeError for each, and leaves its graph as it was.
+    ours = sq.Matching()
+    with pytest.raises(TypeError):
+        call(ours)
+    with pytest.raises(TypeError):
+        call(pymatching.Matching())
+    assert ours.num_edges == 0
+
+
+def test_a_float_count_is_refused_and_not_truncated():
+    ours = sq.Matching()
+    with pytest.raises(TypeError):
+        ours.ensure_num_fault_ids(3.9)
+    assert ours.num_fault_ids == 0
+
+
+def test_a_sparse_check_matrix_is_left_as_given_and_keeps_its_edge_orientation():
+    # The index arrays belong to the caller, so building from them must not sort them in place.
+    # An unsorted column gives its edge in the order its entries are stored, as PyMatching does.
+    import scipy.sparse as sp
+
+    def make():
+        return sp.csc_matrix((np.array([1, 1, 1]), np.array([2, 0, 1]), np.array([0, 2, 3])), shape=(3, 2))
+
+    matrix = make()
+    ours = sq.Matching.from_check_matrix(matrix)
+    assert matrix.indices.tolist() == [2, 0, 1] and matrix.indptr.tolist() == [0, 2, 3]
+    theirs = pymatching.Matching.from_check_matrix(make())
+    assert sorted((u, v) for u, v, _ in ours.edges()) == sorted((u, v) for u, v, _ in theirs.edges())
+
+
+def test_a_plain_load_decoded_with_correlations_refuses_as_pymatching():
+    # With no correlated matcher loaded, the plain decode runs first: an odd shot gets its
+    # "No perfect matching" error, and an even one the not-configured error, as PyMatching gives.
+    text = "error(0.1) D0 D1\nerror(0.1) D1 D2 L0"
+    ours = sq.Matching(text)
+    theirs = pymatching.Matching.from_detector_error_model(stim.DetectorErrorModel(text))
+    odd, even = np.array([1, 0, 0], dtype=np.uint8), np.array([1, 0, 1], dtype=np.uint8)
+    for m in (ours, theirs):
+        with pytest.raises(ValueError, match="No perfect matching"):
+            m.decode(odd, enable_correlations=True)
+        with pytest.raises(ValueError, match="not been configured"):
+            m.decode(even, enable_correlations=True)
+    with pytest.raises(ValueError, match="No perfect matching"):
+        ours.decode_batch(odd[None], enable_correlations=True)
+    with pytest.raises(ValueError, match="No perfect matching"):
+        ours.decode_to_edges_array(odd, enable_correlations=True)
+    with pytest.raises(ValueError, match="not been configured"):
+        ours.decode_batch(even[None], enable_correlations=True)
+
+
+@pytest.mark.parametrize("row, index", [(0b100, 2), (0b10000000, 7)])
+def test_a_correlated_packed_batch_refuses_padding_as_the_plain_path_does(row, index):
+    # A set bit past the last node is padding that the batch names, not a bit to drop: the
+    # correlated decode refuses it as the plain decode does, and as PyMatching's correlated decode.
+    text = "error(0.1) D0 L0\nerror(0.1) D0 D1 L0\nerror(0.1) D1"
+    ours = sq.Matching(text, enable_correlations=True)
+    theirs = pymatching.Matching.from_detector_error_model(stim.DetectorErrorModel(text), enable_correlations=True)
+    shots = np.array([[row]], dtype=np.uint8)
+    message = f"shot 0: The detection event with index {index} does not correspond to a node in the graph, which only has 2 nodes."
+    for kwargs in ({}, {"enable_correlations": True}):
+        with pytest.raises(ValueError) as e:
+            ours.decode_batch(shots, bit_packed_shots=True, **kwargs)
+        assert str(e.value) == message
+    with pytest.raises(ValueError, match=f"index {index} does not correspond to a node"):
+        theirs.decode_batch(shots, bit_packed_shots=True, enable_correlations=True)
+    # A row with no padding set decodes as before.
+    assert ours.decode_batch(np.array([[0b1]], dtype=np.uint8), bit_packed_shots=True, enable_correlations=True).tolist() == [[1]]
