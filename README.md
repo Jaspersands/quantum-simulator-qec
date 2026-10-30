@@ -549,12 +549,12 @@ fault Stim would split into pieces of its channel whose observables do not add u
 left whole (Stim's split changes what the fault does to the observables: on ldpc's [[4,2,2]]
 memory in the X basis, 1.3e-4 of probability moves from `D1 D2 L0` to `D1 D2`, and so on); and
 a tag Stim reads as inert names a gate here. `I[T]`, `I[R_Z(…)]`, `I[U3(…)]` and the other
-rotations written on `I` or `II` are run as the gates they name by `compile_sampler` and
-`compile_detector_sampler` (the stabilizer-rank sampler, see
+rotations written on `I` or `II` are run as the gates they name by `compile_sampler`,
+`compile_detector_sampler`, `detector_error_model` and `to_matrix` (the stabilizer-rank sampler, see
 [Clifford+T circuits](#cliffordt-circuits-and-coherent-noise-on-every-gate)), and `inverse()`
 inverts them (`I[T]` to `I[T_DAG]`), where Stim runs and inverts an identity; `without_tags()`
-gives the circuit Stim runs. The error model, `to_tableau`, flows and `TableauSimulator.do` read
-them as Stim does. One known difference is not deliberate: `FlipSimulator.broadcast_pauli_errors`
+gives the circuit Stim runs. `to_tableau`, flows and `TableauSimulator.do` read
+them as Stim does, as identities. One known difference is not deliberate: `FlipSimulator.broadcast_pauli_errors`
 at `p=0` applies no flip, where Stim 1.16 applies the masked flips as at `p=1`. The SVG diagrams
 are this package's own drawings.
 
