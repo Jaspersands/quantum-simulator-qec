@@ -35,6 +35,8 @@ policy for its documented items.
   as Tesseract's program does (it exited 1 with an AttributeError at the final summary).
 - A `--detector-orders` file nested too deeply for Python's JSON reader is reported as not valid JSON (exit
   134), not as a runtime error.
+- `tsim.Circuit` refuses a Unicode space between an instruction and its targets, as Stim and Tsim do (it read
+  them as separators).
 - `tsim.Circuit` reads a rotation with no targets (`R_Z(0.3)`) as Tsim does, a no-op that prints as written, instead of
   raising `ValueError`.
 - `tsim.Circuit` errors name the program's own line after a CCZ or CCX, not a line of its decomposition (`line 14`

@@ -191,6 +191,8 @@ def _native_lines(text: str, source: Optional[List[int]] = None) -> Tuple[str, L
         previous = numbers[index]
         number = previous
         body, sep, comment = _split_comment(line)
+        if any(ch.isspace() and ch not in " \t" for ch in body):  # Unicode spaces are no separators (Stim refuses them)
+            raise ValueError(f"line {number}: Targets must be separated by spacing.")
         gate_match = _GATE.match(body)
         if gate_match:
             name = canonical_gate(gate_match.group(2))

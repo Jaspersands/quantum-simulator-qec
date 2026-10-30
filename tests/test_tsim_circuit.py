@@ -620,6 +620,15 @@ def test_malformed_parametric_tags_raise_tsims_error_naming_the_line(text):
         tsim.Circuit(text)
 
 
+def test_unicode_spaces_are_not_separators():
+    # Stim and Tsim refuse a Unicode space between targets; a tab separates, and a comment may hold anything.
+    for text in ("H\u00a00", "H 0\u20031", "H 0\u3000"):
+        with pytest.raises(ValueError, match="Targets must be separated by spacing"):
+            tsim.Circuit(text)
+    assert str(tsim.Circuit("H 0\t1")) == "H 0 1"
+    assert str(tsim.Circuit("H 0 # caf\u00e9\u00a0x")) == "H 0"
+
+
 def test_zero_target_rotation_is_a_no_op_as_tsim_reads_it(real):
     # Tsim reads a rotation with no targets as a no-op and prints it as written; so does this package.
     assert str(tsim.Circuit("R_Z(0.3)")) == "R_Z(0.3)"
