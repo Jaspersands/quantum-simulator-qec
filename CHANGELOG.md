@@ -26,6 +26,7 @@ policy for its documented items.
   `multi_decoder_config` as `config=`, the keyword names CUDA-Q gives them; the names this package had,
   `qec_code=` and `decoders=`, keep working.
 - A decoder YAML that starts with a UTF-8 byte order mark, as some Windows editors save it, now reads; before, its first key failed with "missing required key 'id'".
+- A `trt_decoder` whose model has a dynamic dimension in an output's place past the first (the batch not leading the output) now fails to build with "Failed to build TensorRT engine"; before, it built with a negative output size and every decode failed.
 
 ## 2.2.0 — 2026-10-30
 

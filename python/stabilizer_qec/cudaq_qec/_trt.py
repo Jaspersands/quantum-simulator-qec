@@ -353,6 +353,9 @@ class _TrtDecoder(_NativeDecoder):
         if second is not None and len(second) != len(first):
             raise RuntimeError("Failed to build TensorRT engine")
         out = tuple(-1 if second is not None and a != b else a for a, b in zip(first, second or first))
+        if any(d < 0 for d in out[1:]):
+            # Only the output's first dimension may follow the batch: CUDA-Q sizes the output from the rest.
+            raise RuntimeError("Failed to build TensorRT engine")
         return (-1,) + rest, out
 
     # -- Decoding ---------------------------------------------------------------------------------

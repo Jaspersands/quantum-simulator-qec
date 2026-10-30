@@ -674,6 +674,22 @@ def test_dynamic_dimensions_beyond_the_batch(tmp_path):
     assert str(e.value) == PREFIX + "Failed to build TensorRT engine"
 
 
+def test_a_dynamic_output_dimension_past_the_first_fails_the_build(tmp_path):
+    # The output [8, batch] has its batch in dimension 1, so the engine's output would be -8 elements.
+    W = np.arange(32, dtype=np.float32).reshape(8, 4) / 10
+    data = onnx_model(
+        [node("Reshape", ["x", "shape"], ["r"]), node("MatMul", ["W", "r"], ["y"])],
+        [value_info("x", FLOAT, ["batch", 4])],
+        [value_info("y", FLOAT, [8, "batch"])],
+        inits=[tensor("W", W, FLOAT), tensor("shape", np.array([4, -1], dtype=np.int64), INT64)],
+    )
+    path = write(tmp_path, "batch_last.onnx", data)
+    for batch_size in (1, 2):
+        with pytest.raises(RuntimeError) as e:
+            qec.get_decoder("trt_decoder", np.eye(4, dtype=np.uint8), onnx_load_path=path, batch_size=batch_size)
+        assert str(e.value) == PREFIX + "Failed to build TensorRT engine"
+
+
 def identity_of(tmp_path, dims, name="big.onnx"):
     data = onnx_model([node("Identity", ["x"], ["y"])], [value_info("x", FLOAT, dims)], [value_info("y", FLOAT, dims)])
     return write(tmp_path, name, data)
