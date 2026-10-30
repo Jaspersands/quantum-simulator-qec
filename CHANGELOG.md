@@ -98,6 +98,14 @@ policy for its documented items.
 - Importing `stabilizer_qec.deltakit` on Python 3.9 or 3.10 raises an `ImportError` naming Python
   3.11, the version it needs; its subpackages used to fail inside Deltakit's code with a typing or
   `|` error.
+- `stabilizer_qec.fusion_blossom` has fusion_blossom 0.2.13's `__all__`, so a star import no longer
+  exports the compiled module's name; `fb.PyMut` raises RuntimeError on a second enter or an exit
+  without an enter (it used an assert, which `python -O` removed, and an exit without an enter
+  wrote None into the field).
+- The visualizer's server answers only requests whose Host is localhost, 127.0.0.1, `::1` or its
+  bound host (403 otherwise), so a page reached by DNS rebinding cannot read the data folder. It
+  serves each request on its own thread, so an idle connection no longer blocks the shutdown in
+  `open_visualizer`.
 
 ## 2.2.0 — 2026-10-30
 

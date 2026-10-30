@@ -1,8 +1,8 @@
 """Plaquette's study on the lattice-surgery CNOT: leakage added to the circuit noise, and what it
 does to the threshold.
 
-    python tools/surgery_leakage.py [--shots N] [--distances 3 5 7] [--fractions 0 0.1 0.5 1]
-                                    [--ps 0.002 ... 0.005] [--out data/surgery/leakage.json]
+    python tools/surgery_leakage.py [--shots N] [--distances 3 5 7] [--fractions 0 0.03 0.1 0.3]
+                                    [--ps 0.002 ... 0.005] [--out data/surgery/leakage-rerun.json]
 
 The circuit is `stabilizer_qec.surgery.cnot(d, merged=d, p=p)` (SD6 noise at p: depolarizing after
 every gate, flips before every measurement and after every reset) with `LEAKAGE(f·p)` after every
@@ -114,11 +114,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--shots", type=int, default=20_000)
     ap.add_argument("--distances", type=int, nargs="+", default=[3, 5, 7])
-    ap.add_argument("--fractions", type=float, nargs="+", default=[0.0, 0.1, 0.5, 1.0])
+    ap.add_argument("--fractions", type=float, nargs="+", default=[0.0, 0.03, 0.1, 0.3])
     ap.add_argument("--ps", type=float, nargs="+", default=[0.002, 0.0025, 0.003, 0.0035, 0.004, 0.0045, 0.005])
     ap.add_argument("--seepage", type=float, default=0.1, help="a leaked qubit's probability of returning at each of its two-qubit gates")
     ap.add_argument("--seed", type=int, default=2026)
-    ap.add_argument("--out", default="data/surgery/leakage.json")
+    ap.add_argument("--out", default="data/surgery/leakage-rerun.json", help="where to write the run; name data/surgery/leakage.json to replace the committed one")
     args = ap.parse_args()
 
     out = {"model": f"surgery.cnot(d, merged=d, p) with RELAX({args.seepage:g}) then LEAKAGE(f·p) after every CX on both qubits; leaked qubits read 1, depolarize their two-qubit partners, return at reset or by RELAX", "shots": args.shots, "distances": args.distances, "ps": args.ps, "fractions": args.fractions, "seepage": args.seepage, "fractions_results": {}, "points": {}}

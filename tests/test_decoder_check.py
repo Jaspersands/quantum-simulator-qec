@@ -28,6 +28,18 @@ def search_cli(monkeypatch, tool, probe, run):
     monkeypatch.setattr(tool, "SECTIONS", {"search": ("Search", "tesseract-decoder", run)})
 
 
+def test_unknown_only_key_is_refused_and_checks_nothing(tool, monkeypatch, tmp_path, capsys):
+    # A typo in --only ran no section, printed ALL CHECKS PASSED and rewrote the file's version.
+    monkeypatch.setattr(sys, "argv", ["decoder_check.py", "--only", "serach"])
+    monkeypatch.setattr(tool, "OUT", tmp_path / "check.json")
+    monkeypatch.setattr(tool, "SECTIONS", {"search": ("Search", "tesseract-decoder", lambda quick: pytest.fail("must not run"))})
+    with pytest.raises(SystemExit) as refused:
+        tool.main()
+    assert refused.value.code != 0
+    assert "no section named serach" in capsys.readouterr().err
+    assert not (tmp_path / "check.json").exists()
+
+
 @pytest.mark.skipif(os.name != "posix", reason="POSIX signal exit status")
 def test_sigill_unavailable_does_not_run_comparison_or_retain_stale_result(tool, monkeypatch, tmp_path, capsys):
     def must_not_run(quick):

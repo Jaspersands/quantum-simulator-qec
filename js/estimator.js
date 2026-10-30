@@ -276,10 +276,11 @@ export function defaultOptions(fit, latency, cores) {
  */
 export function validationCases(sources, defaults) {
   const rsa = sources.algorithms.rsa2048;
-  const perPeriod = (rsa.toffolis * 25e-6) / (rsa.reference.hours_per_shot * 3600);
-  // His ε: 1e-15 per patch per round at d = 25, tenfold per two steps of d at p = 0.1%.
-  const his = { kind: 'uniform', p: 1e-3, fit: { A: 0.01, pth: 0.01 } };
-  const gidney = { ...defaults, noise: his, budget: 0.067, storage: 'yoked', latencyOverrideUs: 0, parallel: perPeriod };
+  const perPeriod = (rsa.toffolis * gidneyStep(rsa)) / (rsa.reference.hours_per_shot * 3600);
+  // His ε: 1e-15 per patch per round at d = 25, tenfold per two steps of d at p = 0.1%; the fit
+  // A and pth reproduce that value at d = 25 and p = rsa.reference.p.
+  const his = { kind: 'uniform', p: rsa.reference.p, fit: { A: 0.01, pth: 0.01 } };
+  const gidney = { ...defaults, noise: his, budget: rsa.reference.budget, storage: 'yoked', latencyOverrideUs: 0, parallel: perPeriod };
   const rsaRef = { qubits: rsa.reference.qubits, seconds: rsa.reference.hours_per_shot * 3600 };
   const fem = sources.algorithms.femoco_reiher;
   const femRef = { qubits: fem.reference.qubits, seconds: fem.reference.days * 86400 };
@@ -294,10 +295,13 @@ export function validationCases(sources, defaults) {
   ];
 }
 
+/** Seconds per lattice-surgery step of Gidney's schedule: d = 25 cycles of 1 µs, from the sources. */
+const gidneyStep = (rsa) => (rsa.reference.d * rsa.reference.cycle_us) / 1e6;
+
 /** Gidney's schedule: Toffolis per d = 25 lattice-surgery period of 25 µs. */
 export const gidneyParallel = (sources) => {
   const rsa = sources.algorithms.rsa2048;
-  return (rsa.toffolis * 25e-6) / (rsa.reference.hours_per_shot * 3600);
+  return (rsa.toffolis * gidneyStep(rsa)) / (rsa.reference.hours_per_shot * 3600);
 };
 
 /** 3.2e7 → "32 million"; 4.1e9 → "4.1 billion"; 12,345 → "12,345". */

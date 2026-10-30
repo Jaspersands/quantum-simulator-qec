@@ -12,7 +12,7 @@ import { poolSize } from '../js/pool.js';
 import { decoderLabel, percent as pct, percentRange, ratio } from '../js/hardware-format.js';
 import { GROSS, BB72, neighbours as bbNeighbours, dataIndex, position as bbPosition, torusDelta } from '../js/bb-geometry.js';
 import { surgeryLayout, cnotLayout } from '../js/surgery-geometry.js';
-import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration, coresFrom, epsilonUniform, BLOCKS, tileQubits, factoryFor, latencyAt, estimateFull } from '../js/estimator.js';
+import { epsilonAt, failureAt, distanceFor, physicalQubits, runtimeSeconds, decodingCores, estimate, bigNumber, duration, coresFrom, epsilonUniform, BLOCKS, tileQubits, factoryFor, latencyAt, estimateFull, validationCases, defaultOptions, gidneyParallel } from '../js/estimator.js';
 import { parseStim, toStim, toCrumbleUrl, parseCrumbleUrl, formatArg, CRUMBLE_PREFIX } from '../js/crumble-format.js';
 import { EditorModel, layersOf, propagate, annotationsOf, ONE_QUBIT, TWO_QUBIT } from '../js/editor.js';
 import { fidelity, fitEpsilon, epsilonByDistance, lambdaFit, bootstrap, decoderKeys, seededRandom } from '../js/lambda-fit.js';
@@ -366,6 +366,20 @@ test('estimator: the uniform-noise law fits this engine\'s own points, and holds
   }
   assert.ok(Math.abs(doc.fit.free_slope - 1) < 0.1, 'with the slope in log p free, it comes out near 1');
   assert.ok(epsilonUniform(25, 1e-3, { A, pth }) < epsilonUniform(23, 1e-3, { A, pth }), 'below threshold, ε falls with d');
+});
+
+test('estimator: the RSA validation reads its p, budget and step from the sources', () => {
+  const rsa = SOURCES.algorithms.rsa2048;
+  const [gidney] = validationCases(SOURCES, defaultOptions(null, 0, 1));
+  assert.equal(gidney.options.noise.p, rsa.reference.p);
+  assert.equal(gidney.options.budget, rsa.reference.budget);
+  assert.equal(rsa.reference.budget, 0.067, 'the run-time section: 93.3% of shots succeed');
+  // The step is d = 25 cycles of 1 µs, and the schedule is the Toffolis per that step: bit for bit as before.
+  assert.equal(gidneyParallel(SOURCES), (rsa.toffolis * 25e-6) / (rsa.reference.hours_per_shot * 3600));
+  assert.equal(gidney.options.parallel, gidneyParallel(SOURCES));
+  // The fit the RSA case uses reproduces Gidney's ε at d = 25 and p = 0.1%.
+  const eps = epsilonUniform(rsa.reference.d, rsa.reference.p, { A: 0.01, pth: 0.01 });
+  assert.ok(Math.abs(eps / SOURCES.yoked.error_per_round - 1) < 1e-9, `fit gives ${eps}`);
 });
 
 test('estimator: Litinski\'s data blocks reproduce his worked examples', () => {

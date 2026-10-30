@@ -65,7 +65,7 @@ try {
   }
   const figs = await render([old, current, unrelated]);
   for (const [kind, fig] of Object.entries(figs)) {
-    assert.match(fig.nodes.get(`[data-${kind}-status]`).textContent, /1 current measurements; 2 historical rows await remeasurement/);
+    assert.match(fig.nodes.get(`[data-${kind}-status]`).textContent, /1 current measurements; 2 historical rows are archival and excluded from the current tables\./);
     if (kind === 'val') {
       assert.equal(fig.nodes.get('[data-val-rows]').children.length, 1);
       assert.match(fig.nodes.get('[data-val-rows]').children[0].children[0].textContent, /^current, d = 3/);

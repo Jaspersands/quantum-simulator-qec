@@ -44,6 +44,15 @@ def test_api_surface():
     assert hasattr(fb.helper, "bottle")
 
 
+def test_star_import_exports_fusion_blossoms_names():
+    # fusion_blossom's __all__ is the whole star-import surface: no extra names, none missing.
+    assert set(fb.__all__) == set(ref.__all__) and len(fb.__all__) == len(set(fb.__all__)) == 35
+    exported = {}
+    exec("from stabilizer_qec.fusion_blossom import *", exported)
+    exported.pop("__builtins__")
+    assert set(exported) == set(ref.__all__)
+
+
 @pytest.mark.parametrize("name", PLAIN + TIMED)
 @pytest.mark.parametrize("d", [3, 5])
 def test_codes(name, d):

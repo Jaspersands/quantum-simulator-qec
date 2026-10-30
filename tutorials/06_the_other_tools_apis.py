@@ -108,7 +108,7 @@ print(f"logical error blind to the leakage: {blind:.3%}; with the heralds: {awar
 # package: `stabilizer_qec.sinter` (collection and plotting), `stabilizer_qec.ldpc` (the whole
 # library, codes and GF(2) tools included), `qsample` (subset sampling), `mqt_qecc` (code
 # switching and surgery routing), `panqec`, `qecsim`, `pecos`, `quits`, `deltakit`, `tsim`,
-# `tqec`, `loom`, `estimate`, `realtime` — each a module with its own notebook or README section.
+# `tqec`, `loom`, `estimate`, `realtime` — each a module whose docstring the loop below prints.
 
 # %%
 import importlib

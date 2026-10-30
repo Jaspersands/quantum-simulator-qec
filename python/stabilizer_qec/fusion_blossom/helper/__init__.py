@@ -7,8 +7,10 @@ fusion_blossom embeds), and helpers for viewing a code or rendering a snapshot.
 
 The package import loads this helper and Bottle, without registering top-level ``bottle`` or
 ``helper`` modules. ``serve`` binds only when its runner starts; routes use Bottle's process-wide
-default app and the latest call's data folder. Data paths are resolved within that folder (this
-check is not a defense against concurrent filesystem replacement). Bottle supplies data MIME
+default app and the latest call's data folder. The folder (cwd and symlinks) is resolved when
+``serve`` is called, so ETags use the resolved path. Data paths are resolved within that folder (this
+check is not a defense against concurrent filesystem replacement). Only requests whose Host names
+localhost, 127.0.0.1, ``::1`` or the bound host are answered; others get 403. Bottle supplies data MIME
 types: JSON is application/json and extensionless files default to text/html. ``quiet`` suppresses
 request logs, not every server error or malformed HTTP syntax message."""
 
@@ -19,6 +21,7 @@ import sys
 import tempfile
 import threading
 import webbrowser
+from urllib.parse import urlsplit
 
 # As fusion_blossom's helper module, this one gets its Bottle when the package is imported.
 from . import bottle  # noqa: F401
@@ -103,8 +106,19 @@ def serve(host='localhost', port=51665, data_folder=".", return_server=False, qu
 
     def run_server():
         app = bottle.default_app()
+        # Only this server's own names are answered. A page that reaches the server by DNS rebinding
+        # sends its own name in Host, and must not read the data folder through it.
+        own_names = {"localhost", "127.0.0.1", "::1", host.lower()}
 
         def validated_app(environ, start_response):
+            try:
+                name = urlsplit("//" + environ.get("HTTP_HOST", "")).hostname
+            except ValueError:
+                name = None
+            if name not in own_names:
+                body = b"403 Forbidden\n"
+                start_response("403 Forbidden", [("Content-Type", "text/plain; charset=utf-8"), ("Content-Length", str(len(body)))])
+                return [] if environ.get("REQUEST_METHOD") == "HEAD" else [body]
             # WSGI carries the original path bytes through Latin-1. Reject invalid UTF-8 before
             # Bottle's error renderer attempts to interpolate a surrogate-containing URL.
             try:
@@ -133,11 +147,16 @@ def open_visualizer(filename, host='localhost', port=51666, data_folder=".", ope
     Bind errors are raised before prompting or opening a browser. Browser startup waits for binding.
     """
     server, run_server = serve(host, port, data_folder, return_server=True, quiet=quiet)
+    from socketserver import ThreadingMixIn
     from wsgiref.simple_server import WSGIServer
 
     serving = threading.Event()
 
-    class VisualizerServer(WSGIServer):
+    class VisualizerServer(ThreadingMixIn, WSGIServer):
+        # Each request runs on its own daemon thread, so a connection that sends nothing (a browser's
+        # preconnect socket) cannot hold the serving loop and block shutdown.
+        daemon_threads = True
+
         def service_actions(self):
             # Called inside BaseServer's serving loop, after its shutdown event was initialized.
             serving.set()

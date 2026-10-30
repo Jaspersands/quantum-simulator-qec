@@ -23,8 +23,10 @@ import argparse
 import datetime
 import json
 import math
+import os
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 
@@ -33,7 +35,21 @@ REPORT = ROOT / "report"
 BUILD = REPORT / "build"
 FIGS = REPORT / "figures"
 DATA = ROOT / "data"
-CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+MAC_CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+
+
+def chrome() -> str:
+    """The Chrome binary the PDF is printed with: $CHROME if set, else the macOS app, else
+    google-chrome or chromium on PATH."""
+    if os.environ.get("CHROME"):
+        return os.environ["CHROME"]
+    if pathlib.Path(MAC_CHROME).exists():
+        return MAC_CHROME
+    for name in ("google-chrome", "chromium"):
+        found = shutil.which(name)
+        if found:
+            return found
+    sys.exit("report: no Chrome found for the PDF (set CHROME to its binary, or pass --no-pdf)")
 
 PALETTE = dict(d3="#2f5fd0", d5="#c0392b", d7="#2c7a4b", purple="#7b4bb5", amber="#a8620b",
                ink="#1c1d1f", ink2="#4a4c50", ink3="#6b6d71", rule="#ded9cd")
@@ -711,7 +727,7 @@ def main():
                     "--number-sections", "--output", str(REPORT / "report.html")], cwd=REPORT, check=True)
     print(f"report/report.html: {len(v)} values, {len(t)} tables")
     if not args.no_pdf:
-        subprocess.run([CHROME, "--headless=new", "--disable-gpu", "--no-pdf-header-footer", "--run-all-compositor-stages-before-draw",
+        subprocess.run([chrome(), "--headless=new", "--disable-gpu", "--no-pdf-header-footer", "--run-all-compositor-stages-before-draw",
                         "--virtual-time-budget=15000", f"--print-to-pdf={REPORT / 'report.pdf'}",
                         (REPORT / "report.html").as_uri()], check=True, capture_output=True)
         print(f"report/report.pdf: {(REPORT / 'report.pdf').stat().st_size / 1024:.0f} KB")

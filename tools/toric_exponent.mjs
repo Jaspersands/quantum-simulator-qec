@@ -2,13 +2,13 @@
  * Measure the phenomenological critical exponent on the independent toric code,
  * with an approximate matcher and with an exact one.
  *
- * This exists to settle a disagreement. The engine reports ν ≈ 0.89 ± 0.04 for
- * phenomenological noise; an earlier run of this harness reported 1.41 ± 0.28,
- * which is about 1.8σ away — consistent with the engine's value, consistent with
- * the ~1.0 the literature gives for this universality class, and therefore
- * consistent with nothing useful. The suspected cause was this side's decoder:
- * nearest-pair-plus-2-opt is not minimum-weight, and its threshold came out
- * 1.2% against the engine's 3.4%. A decoder that weak can distort an exponent.
+ * This exists to settle a disagreement. The engine reports ν = 0.95 ± 0.11 (rotated)
+ * and 0.97 ± 0.06 (XZZX) for phenomenological noise; an earlier run of this harness
+ * reported 1.41 ± 0.28, which is about 1.5σ from either — consistent with the engine's
+ * values, consistent with the ~1.0 the literature gives for this universality class,
+ * and therefore consistent with nothing useful. The suspected cause was this side's
+ * decoder: nearest-pair-plus-2-opt is not minimum-weight, and its threshold came out
+ * 1.2% against the engine's 3.3%. A decoder that weak can distort an exponent.
  *
  * So: run both matchers over the same lattices, the same rates and the same
  * seeds, and see whether ν moves.

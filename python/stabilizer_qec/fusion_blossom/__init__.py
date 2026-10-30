@@ -5,8 +5,8 @@ serial and parallel minimum-weight perfect matching solvers (``SolverSerial``,
 partitions, the example codes with their random errors, the visualizer and its website
 (``fb.helper.open_visualizer``), with the same matchings as fusion_blossom's.
 
-Weights are 64-bit (fusion_blossom's wheels use 32-bit ones), and where
-fusion_blossom would call the Blossom V library, which its wheels leave out, this package's own
+Weights are 64-bit (fusion_blossom's wheels use 32-bit ones), vertex and edge indices are usize,
+and where fusion_blossom would call the Blossom V library, which its wheels leave out, this package's own
 exact matcher runs. Error messages can differ from fusion_blossom's wording, and some exception
 types too: a misused ``PyMut`` raises ``AssertionError`` here where fusion_blossom raises
 ``PanicException``. The helper and unchanged embedded Bottle live below this package rather than
@@ -25,6 +25,9 @@ from . import helper  # noqa: E402
 helper.register(fusion_blossom)
 
 
+_UNSET = object()
+
+
 class PyMut:
     """Changes a field of a field: fields come back as copies, so ``obj.a.b = 1`` leaves ``obj``
     alone, and this writes the copy back on leaving the block::
@@ -32,23 +35,40 @@ class PyMut:
         with fb.PyMut(code, "vertices") as vertices:
             with fb.PyMut(vertices[0], "position") as position:
                 position.i = 100
-    """
+
+    Entering twice, or leaving without entering, raises RuntimeError (fusion_blossom panics)."""
 
     def __init__(self, object, attr_name):
         self.object = object
         self.attr_name = attr_name
-        self.attr_object = None
+        self.attr_object = _UNSET
 
     def __enter__(self):
-        assert self.attr_object is None, "do not enter twice"
+        if self.attr_object is not _UNSET:
+            raise RuntimeError("do not enter twice")
         self.attr_object = getattr(self.object, self.attr_name)
         return self.attr_object
 
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.attr_object is _UNSET:
+            raise RuntimeError("PyMut was not entered")
         setattr(self.object, self.attr_name, self.attr_object)
-        self.attr_object = None
+        self.attr_object = _UNSET
 
 
 PyMut.__module__ = __name__
 
 __version__ = "0.2.13"  # the fusion_blossom release this follows
+
+# fusion_blossom 0.2.13's __all__: a star import exports these names and no others (the compiled
+# module's own name is left out).
+__all__ = [
+    "CircuitLevelPlanarCode", "CodeCapacityPlanarCode", "CodeCapacityRepetitionCode", "CodeCapacityRotatedCode",
+    "CodeEdge", "CodeVertex", "DefectRange", "ErrorPatternReader", "IntermediateMatching", "LegacySolverSerial",
+    "NodeRange", "PartitionConfig", "PartitionInfo", "PartitionUnitInfo", "PerfectMatching",
+    "PhenomenologicalPlanarCode", "PhenomenologicalRotatedCode", "PyMut", "SolverDualParallel",
+    "SolverErrorPatternLogger", "SolverInitializer", "SolverParallel", "SolverSerial", "SyndromePattern",
+    "SyndromeRange", "VertexRange", "VisualizePosition", "Visualizer", "auto_visualize_data_filename",
+    "center_positions", "helper", "print_visualize_link", "print_visualize_link_with_parameters",
+    "static_visualize_data_filename", "weight_of_p",
+]

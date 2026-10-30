@@ -59,8 +59,9 @@ def compare_bp(h, priors, syndromes, method, scale, iters):
             continue
         llr, theirs = np.array(llr), np.array(ref.log_prob_ratios)
         diff = np.abs(llr - theirs)
-        worst["llr_abs"] = max(worst["llr_abs"], float(diff.max()))
-        worst["llr_rel"] = max(worst["llr_rel"], float((diff / np.maximum(np.abs(theirs), 1.0)).max()))
+        # np.maximum keeps a NaN difference (the builtin max would drop it), so a NaN fails the check.
+        worst["llr_abs"] = float(np.maximum(worst["llr_abs"], diff.max()))
+        worst["llr_rel"] = float(np.maximum(worst["llr_rel"], (diff / np.maximum(np.abs(theirs), 1.0)).max()))
         worst["hard"] += int((np.array(hard) != theirs_hard).any())
         worst["converge"] += int(conv != ref.converge)
         worst["iterations"] += int(it != ref.iter)

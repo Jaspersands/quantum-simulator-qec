@@ -285,7 +285,12 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   website CRLF is compared as LF, with raw upstream body/length and installed LF resource checks. These are explicit
   limits on raw live-response parity.
   The helper binds when run, uses the latest process-wide serve root and needs `server_close()`
-  after shutdown to release its socket. It validates UTF-8 and stable-filesystem containment
+  after shutdown to release its socket. The serve root (cwd and any symlinks in it) is resolved
+  when `serve()` is called, so ETags use the resolved path and differ from fusion_blossom's for
+  a symlinked folder. It answers only requests whose Host names localhost, 127.0.0.1, `::1` or the
+  bound host, and refuses others with 403, so a DNS-rebinding page cannot read the folder. It
+  serves each request on its own thread, so an idle connection does not block shutdown. It
+  validates UTF-8 and stable-filesystem containment
   of Bottle's strip+abspath candidate while preserving original stripped component spelling
   in both static-file calls; filesystem replacement races remain outside that check. JSON MIME
   is application/json, extensionless defaults to HTML, and quiet suppresses request logs rather
@@ -964,9 +969,10 @@ On Sycamore's data it was one of the two decoders that made d = 5 beat d = 3.
   - edge probabilities summed, clipped to [1e-14, 1 − 1e-14], and weighted −ln p.
 
 Checked against both packages, installed alongside:
-1. **Posteriors equal `ldpc`'s bit for bit.** On random parity-check matrices and on a d = 5 surface
-   code's hypergraph, by product-sum and by min-sum (scaled 1 and 0.625), after 1, 3 and 20
-   iterations, every posterior log-likelihood ratio equals `ldpc`'s: the largest difference is 0.0.
+1. **Posteriors equal `ldpc`'s bit for bit.** On random parity-check matrices, by product-sum and by
+   min-sum (scaled 1 and 0.625), after 1, 3 and 20 iterations; and on a d = 5 surface code's
+   hypergraph, by product-sum and by min-sum (unscaled), after 20 iterations. Every posterior
+   log-likelihood ratio equals `ldpc`'s: the largest difference is 0.0.
    Hard decisions, convergence and iteration counts agree too.
 2. **Belief-matching equals `beliefmatching`** on every shot of SD6 memories at d = 3, 5, 7: the same
    convergence and the same prediction.
@@ -1743,9 +1749,11 @@ with at least 100,000 variance-equivalent unweighted shots and at most 40 millio
 row. This stopping rule uses the weighted rate variance; it is not a threshold on Kish ESS.
 
 **Limits.**
-- Past `max_contraction` (and twelve generators) the class sum is truncated, and the sampler
-  warns. A non-local generator the faults reach is summed with the generators around it and
-  with the same logical a few rounds further on. Products of two non-local generators that
+- Past `max_contraction` (and twelve generators) the class sum of a Clifford circuit's coherent
+  sampler is truncated, and the sampler warns. The joint sampler (a circuit with non-Clifford
+  gates) truncates past twelve generators without a warning, as the next section says. A
+  non-local generator the faults reach is summed with the generators around it and with the
+  same logical a few rounds further on. Products of two non-local generators that
   share no location are taken as independent, and so are untouched generators that overlap.
   2.1 truncated the three-round d = 3 surface code with one rotation per round this way and
   left part of the interference between rounds out (see Checked); 2.2 contracts it. Raising
@@ -2302,7 +2310,8 @@ Willow. The sizes are illustrations of scale:
 
 `report/report.md` is the source. `python3 tools/report.py` builds `report/report.html`, which
 is served with the site, and `report/report.pdf`, printed from it by headless Chrome. It needs
-Node, pandoc, matplotlib and Chrome.
+Node, pandoc, matplotlib and Chrome. Chrome is the macOS app by default; set `CHROME` to another
+binary (for example `google-chrome` or `chromium` on Linux). `--no-pdf` skips the PDF.
 
 - **Numbers.** None is typed by hand. `{{name}}` is a value computed from a file in `data/`, or from
   the fits `tools/lambda.mjs --json` makes of them. `{{table:name}}` is a whole table built the same
@@ -2394,8 +2403,8 @@ The runs are in `data/sweeps/`, from `node tools/sweep.mjs 3 0` and `node tools/
 **Confirmed against an independent implementation.** An L×L toric code written from scratch in
 JavaScript (periodic lattice, no boundaries, with its own noise, syndrome, graph and scoring, and
 sharing no physics with the Rust engine) gives **ν = 0.86** for phenomenological noise, against
-the engine's **0.89 ± 0.04**. Two implementations that share nothing but the arithmetic agree on
-the exponent.
+the engine's **0.95 ± 0.11** (rotated) and **0.97 ± 0.06** (XZZX) from the phenomenological rows
+above. Two implementations that share nothing but the arithmetic agree on the exponent.
 
 Getting there required fixing the harness rather than the engine. Its decoder was
 nearest-pair-plus-2-opt, which is not minimum-weight, and that was a confound rather than a control:
@@ -2403,7 +2412,7 @@ a weak decoder moves the threshold, and at these sizes drags the fit with it. Th
 the same exact matcher the engine does. That is the one thing deliberately shared, since
 minimum-weight matching is a generic graph problem with a single right answer, and the matcher has
 been checked against brute force on 1,500 instances. With it, the toric threshold moves from
-**1.51% to 3.04%**, close to the engine's 3.36%, and reduced χ² settles near 1. Exact agreement on
+**1.51% to 3.04%**, close to the engine's 3.25% to 3.29%, and reduced χ² settles near 1. Exact agreement on
 the threshold is not expected, since these are different codes. ν is the universal quantity, and it
 agrees.
 
@@ -2640,7 +2649,7 @@ instead.
 
 What makes it checkable without any fitting at all is that the pairwise crossings drift. For
 rotated data noise they climb monotonically from 10.5% (d = 3 against 5) to 13.7% (9 against 11) and
-are still climbing. So the threshold is above 13.7%, and the uncorrected fit's 12.3% lies below
+are still climbing. So the threshold is above 13.7%, and the uncorrected fit's 12.2% lies below
 every crossing involving `d ≥ 5`.
 
 The fit window is chosen the same way, and for the same reason. The scaling form is an expansion
@@ -2997,8 +3006,9 @@ in a script's own directory first, so for the two benchmark scripts it would sha
 
 MIT for the code written here. The parts ported from other projects keep their own licences
 (Apache-2.0 for Stim, sinter, deltakit, qsample and PECOS among others; MIT, BSD and zlib for
-the rest; Apache-2.0 with LLVM exceptions for the standard-library algorithms reproduced) and
-are listed, with their copyright notices, in
+the rest; Apache-2.0 with LLVM exceptions for the standard-library algorithms reproduced; and
+CC BY 4.0 for `python/stabilizer_qec/tqec/noise_model.py`, a port of tqec's file recovered from
+Gidney's data) and are listed, with their copyright notices, in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The Rust crates the compiled module links
 (PyO3, rand, wgpu and what they depend on, per wheel target) are listed with their licence texts
 in [THIRD_PARTY_CRATES.md](THIRD_PARTY_CRATES.md). One file is left out for its licence: Loom's
