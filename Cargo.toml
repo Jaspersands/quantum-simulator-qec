@@ -11,7 +11,7 @@ readme = "docs/crate.md"
 keywords = ["quantum", "error-correction", "surface-code", "decoder", "clifford"]
 categories = ["science", "simulation"]
 rust-version = "1.87"
-include = ["/src", "/build.rs", "/data/surgery/golden.json", "/Cargo.toml", "/Cargo.lock", "/LICENSE", "/LICENSES", "/THIRD_PARTY_NOTICES.md", "/README.md", "/docs/crate.md", "/pyproject.toml", "/python/README.md", "/python/stabilizer_qec"]
+include = ["/src", "/build.rs", "/data/surgery/golden.json", "/data/xcheck/stim-rotated-memory-z-d3.stim.txt","/Cargo.toml", "/Cargo.lock", "/LICENSE", "/LICENSES", "/THIRD_PARTY_NOTICES.md", "/README.md", "/docs/crate.md", "/pyproject.toml", "/python/README.md", "/python/stabilizer_qec"]
 
 
 [lib]
