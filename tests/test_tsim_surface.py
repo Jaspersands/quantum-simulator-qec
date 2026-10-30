@@ -179,6 +179,14 @@ def test_inverse_rejects_non_unitary_tags():
 
 
 # Tsim's test_dem.py.
+def test_dem_merges_equal_errors_whatever_their_tags():
+    # Tsim's model has no tags: two X errors on one detector are one error of 0.1 + 0.1 - 2 * 0.1 * 0.1 = 0.18.
+    text = "X_ERROR[a](0.1) 0\nX_ERROR[b](0.1) 0\nM 0\nDETECTOR rec[-1]"
+    assert str(tsim.Circuit(text).detector_error_model()) == "error(0.18) D0"
+    # A stabilizer_qec.Circuit's model keeps Stim's tags.
+    assert str(sq.Circuit(text).detector_error_model()) == "error[a](0.1) D0\nerror[b](0.1) D0"
+
+
 def test_dem_with_non_deterministic_observable():
     with_nondet = sq.Circuit("""
         RX 6
