@@ -222,7 +222,9 @@ Its Möbius matching runs on `src/pm_exact/` in PyMatching 2.2.2's neighbour ord
 notice above). `tests/data/chromobius_cli_reference.json.gz` (written by
 `tools/chromobius_cli_reference.py`) records the outputs and messages of Chromobius 1.1.1's
 program, built from source with Stim 1320ad7 and PyMatching 2.2.2, on 184 cases, which the tests
-compare against.
+compare against. `tests/data/chromobius_cli_edges.json.gz` (read by `tests/test_chromobius_edge_cases.py`)
+records outputs of Chromobius 1.1.1, pinned, on macOS arm64, for equal-weight ties and recovery
+cases, from audit scripts that are not committed; it is not a cross-platform claim.
 
 ## beliefmatching
 
