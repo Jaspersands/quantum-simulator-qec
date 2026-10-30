@@ -15,6 +15,7 @@ observables (``num_detectors``, ``num_observables``).
 
 from __future__ import annotations
 
+import re
 from os import PathLike
 from typing import Any, Union
 
@@ -23,6 +24,8 @@ import numpy as np
 from ._util import count, open_file
 
 FORMATS = ("01", "b8", "r8", "ptb64", "hits", "dets")
+
+_DIGITS = re.compile(r"[0-9]+")
 
 
 def _format(format: str) -> str:
@@ -131,6 +134,8 @@ def decode_shots(raw: bytes, format: str, num_measurements: int = 0, num_detecto
         for line in lines:
             row = np.zeros(n, dtype=bool)
             for t in filter(None, line.split(",")):
+                if not _DIGITS.fullmatch(t):  # int() would take '+3', ' 4', '1_0' and Unicode digits
+                    raise ValueError(f"hits data must be comma-separated integers, not {t[:40]!r}")
                 k = int(t)
                 if not 0 <= k < n:
                     raise ValueError(f"hit {k} is out of range for {n} bits")
@@ -147,7 +152,7 @@ def decode_shots(raw: bytes, format: str, num_measurements: int = 0, num_detecto
         row = np.zeros(n, dtype=bool)
         for w in words[1:]:
             start, size = offsets.get(w[:1], (0, -1))
-            k = int(w[1:]) if w[1:].isdigit() else -1
+            k = int(w[1:]) if _DIGITS.fullmatch(w[1:]) else -1  # ASCII digits only, as Stim reads them
             if not 0 <= k < size:
                 raise ValueError(f"{w!r} is out of range")
             row[start + k] = True

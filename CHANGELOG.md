@@ -19,6 +19,8 @@ policy for its documented items.
 - `stabilizer-qec repl` runs a REPEAT block one iteration at a time, so each iteration prints its
   own measurements as Stim's does (they were fused across iterations), and a block with a line that
   does not parse runs the lines after that one, as Stim's does, instead of dropping the block.
+- The `hits` and `dets` shot readers take only ASCII digits: `1_0`, `+3`, ` 4` and Unicode digits are
+  refused as Stim refuses them (they were read as indices).
 - The legacy `--gen=CODE` (or `--gen CODE`) invocation runs `gen --code CODE`, as Stim's; it failed for the missing `--code`.
 - The command line takes no abbreviated flags (`--dist` is an unrecognized argument, not `--distance`),
   and with no command it prints the help after "No mode was given." and exits 1, as Stim's (it exited 0).

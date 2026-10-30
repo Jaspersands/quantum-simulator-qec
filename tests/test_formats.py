@@ -49,3 +49,7 @@ def test_bad_input(tmp_path):
     (tmp_path / "bad").write_bytes(b"shot D9\n")
     with pytest.raises(ValueError):
         sq.read_shot_data_file(path=tmp_path / "bad", format="dets", num_detectors=4)
+    for text, fmt in (("1_0\n", "hits"), ("+3\n", "hits"), (" 4\n", "hits"), ("shot M\u0663\n", "dets")):
+        (tmp_path / "bad").write_bytes(text.encode())
+        with pytest.raises(ValueError):
+            sq.read_shot_data_file(path=tmp_path / "bad", format=fmt, num_measurements=12)
