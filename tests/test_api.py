@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import importlib
+import sys
+
 import pytest
 
 import stabilizer_qec as sq
@@ -89,3 +92,12 @@ def test_circuit_and_model_reads_do_not_block_edits_on_another_thread():
             stop.set()
             worker.join()
         assert errors == []
+
+def test_deltakit_names_the_python_it_needs(monkeypatch):
+    """Before Python 3.11, importing the Deltakit package says which Python it needs, instead of
+    failing inside Deltakit's code with a typing or syntax error."""
+    for name in [m for m in sys.modules if m == "stabilizer_qec.deltakit" or m.startswith("stabilizer_qec.deltakit.")]:
+        monkeypatch.delitem(sys.modules, name)
+    monkeypatch.setattr(sys, "version_info", (3, 10, 15, "final", 0))
+    with pytest.raises(ImportError, match=r"needs Python 3\.11 or later.*Python 3\.10$"):
+        importlib.import_module("stabilizer_qec.deltakit.circuit")

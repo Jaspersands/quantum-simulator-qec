@@ -415,9 +415,13 @@ class Matching:
             self._corr = None
 
     def set_boundary_nodes(self, nodes: Set[int]) -> None:
-        """The boundary nodes: decoding treats an edge to one as an edge to the boundary."""
-        self._g.set_boundary(sorted(int(n) for n in nodes))
-        self._corr = None
+        """The boundary nodes: decoding treats an edge to one as an edge to the boundary. Naming
+        the nodes it already has changes nothing, and keeps correlated decoding, as PyMatching does."""
+        nodes = sorted(int(n) for n in nodes)
+        changed = set(nodes) != self.boundary
+        self._g.set_boundary(nodes)
+        if changed:
+            self._corr = None
 
     def ensure_num_fault_ids(self, min_num_fault_ids: int) -> None:
         """Reserve room for at least this many fault ids. A decode whose output cannot be

@@ -134,14 +134,15 @@ completion are approximations (see ``Circuit.compile_coherent_sampler``):
 >>> abs(rate - 0.1176) < 0.003   # sin²(0.35): the angles add, not their twirls
 True
 
-`compile_exact_sampler` and `exact_distribution` run the state vector (up to 24 qubits; also T,
-U3, amplitude and phase damping and T1/T2 relaxation, `I_ERROR[THERMAL_RELAXATION(t=…, t1=…,
-t2=…)]`). `Circuit.density_matrix` and `DensityMatrixSimulator` run the density matrix (up to 12
-qubits), noise as channels. `twirled(merge=True)` is the coherence-aware model for a decoder.
-`compile_leakage_sampler` runs `I_ERROR[LEAK(p=…)]`, `SEEP` and `LEAK_TRANSPORT`, with heralds,
-and Deltakit's dialect (`LEAKAGE(p)`, `RELAX(p)`, `HERALD_LEAKAGE_EVENT`, read as tagged lines
-Stim runs), with its measurements and leakage flags; `without_leakage()` is Deltakit's
-deinstrumentation and `to_deltakit_text()` writes the dialect back.
+`compile_exact_sampler` and `exact_distribution` run the state vector (up to 24 qubits, counting any
+declared with `QUBIT_COORDS`; also T, U3, amplitude and phase damping and T1/T2 relaxation,
+`I_ERROR[THERMAL_RELAXATION(t=…, t1=…, t2=…)]`). `Circuit.density_matrix` and
+`DensityMatrixSimulator` run the density matrix (up to 12 qubits), noise as channels.
+`twirled(merge=True)` is the coherence-aware model for a decoder. `compile_leakage_sampler` runs
+`I_ERROR[LEAK(p=…)]`, `SEEP` and `LEAK_TRANSPORT`, with heralds, and Deltakit's dialect
+(`LEAKAGE(p)`, `RELAX(p)`, `HERALD_LEAKAGE_EVENT`, read as tagged lines Stim runs), with its
+measurements and leakage flags; `without_leakage()` is Deltakit's deinstrumentation and
+`to_deltakit_text()` writes the dialect back.
 
 ## The command line
 

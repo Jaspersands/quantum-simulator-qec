@@ -81,10 +81,11 @@ deltakit-circuit, deltakit-core, deltakit-decode and deltakit-explorer: Copyrigh
 Licensed under the Apache License, Version 2.0 (`LICENSES/Apache-2.0.txt`). Source:
 https://github.com/Deltakit/deltakit
 
-`python/stabilizer_qec/deltakit/` is Deltakit whole (deltakit-circuit and -core 0.9.2, -decode
-0.9.2, -explorer 0.9.4) on this package's Stim (`stabilizer_qec.deltakit_stim`, Deltakit's Stim
-with its leakage instructions) and PyMatching; its `LICENSE` is beside it, and each modified
-file says so at its top.
+`python/stabilizer_qec/deltakit/` ports Deltakit's packages deltakit-circuit and -core 0.9.2,
+-decode 0.9.2 and -explorer 0.9.4 (not deltakit-compile 0.1.0 or deltakit-visualise 0.4.0, which
+are not ported), on this package's Stim (`stabilizer_qec.deltakit_stim`, Deltakit's Stim with its
+leakage instructions) and PyMatching; its `LICENSE` is beside it, and each modified file says so
+at its top.
 
 `python/stabilizer_qec/analysis/_dk/` is deltakit-explorer 0.9.4's analysis (`_analysis`,
 `_binomial_fit`, `_estimate`, `_lambda`, `_leppr`, `_quops`) and deltakit-decode 0.9.2's

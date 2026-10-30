@@ -18,6 +18,10 @@ Where it differs from Chromobius:
 
 - A model with a fault of probability 1 is refused (Chromobius's weights are then NaN);
   probabilities above 1/2 are negative-weight edges, as in Chromobius.
+- A model whose matching weights are NaN (a fault of probability below the normal float range
+  can make them so: small.dem with ``error(1e-320) D0 D1`` appended has NaN weights on every
+  shot with detection events) gives its zero-event shot the weight 0.0, where Chromobius gives
+  NaN. The predictions agree.
 - A model declaring an observable past L63 that no error names (``logical_observable L64``) is
   refused with this package's 64-observable message, where Chromobius compiles it (its
   predictions past L63 are undefined). An error naming one is refused with Chromobius's
@@ -89,7 +93,15 @@ class CompiledDecoder:
                 "and dets.dtype==np.uint8 indicating bit packed shots."
             )
         _check_padding(rows, self._num_detectors)
-        preds, weights = self._decoder.decode_batch(rows, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
+        from .._decoders import _NO_PERFECT_MATCHING
+
+        try:
+            preds, weights = self._decoder.decode_batch(rows, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
+        except ValueError as e:
+            # Chromobius's matcher throws PyMatching's message alone, not with the shot's index.
+            if str(e).endswith(_NO_PERFECT_MATCHING):
+                raise ValueError(_NO_PERFECT_MATCHING) from None
+            raise
         # Chromobius keeps a 64-bit observable mask; bytes past it are zero.
         obs = _np.zeros((rows.shape[0], self._num_observable_bytes), dtype=_np.uint8)
         k = min(self._num_observable_bytes, 8, preds.shape[1])
@@ -143,14 +155,16 @@ class _ChromobiusSinterCompiledDecoder:
         data = bit_packed_detection_event_data
         if not isinstance(data, _np.ndarray) or data.ndim != 2:
             raise ValueError("bit_packed_detection_event_data.ndim() != 2")
-        # Chromobius's binding casts the data to bytes (any integer dtype, any layout); an
-        # empty batch it refuses, its stride then reading as 0.
-        if not data.shape[0]:
+        # Chromobius's binding casts the data to bytes (any integer dtype) and reads each row in
+        # place, so the bytes of a row must be adjacent: a strided or column-major view is
+        # refused, as is an empty batch (its stride reading as 0).
+        data = data.astype(_np.uint8, copy=False)
+        stride = data.strides[1] if data.shape[0] else 0
+        if stride != 1:
             raise ValueError("bit_packed_detection_event_data.strides(1) != 1")
-        data = _np.ascontiguousarray(data.astype(_np.uint8, copy=False))
         if data.shape[1] != self._decoder._num_detector_bytes:
             raise ValueError("bit_packed_detection_event_data.shape(1) != num_detector_bytes")
-        return self._decoder.predict_obs_flips_from_dets_bit_packed(data.astype(_np.uint8, copy=False))
+        return self._decoder.predict_obs_flips_from_dets_bit_packed(data)
 
 
 class _ChromobiusSinterDecoder:

@@ -78,6 +78,22 @@ def xcheck_corr():
     return rows
 
 
+def xcheck_graphs():
+    """Check 1b: each circuit's matching graph against Stim's, or ours on the engine's own
+    models; the largest relative difference of its mechanisms and of its graph's edges."""
+    rows = []
+    for r in load("data/xcheck/reference.json")["circuits"]:
+        if r["source"] == "stim":
+            label = "Stim's `rotated_memory_z`"
+        else:
+            label = f"{'rotated' if r['code'] == 'rotated' else 'XZZX'}, {'engine model' if r['noise'] == 'current' else 'SD6'}"
+        largest = max(r["max_rel"], r["edges_max_rel"])
+        same = r["missing"] == r["extra"] == r["differing"] == r["edges_one_sided"] == r["splits_differ"] == 0
+        rows.append(f"| {label} | {r['d']} | {r['detectors']} | {r['ours']:,} / {r['mechanisms']:,} | {largest:.1e} | {r['edges']:,} | "
+                    f"{'identical' if same else 'differs'} |")
+    return rows
+
+
 def speed():
     native = load("data/matcher/native.json")["points"]
     pm = {(r["d"], r["p"]): r["pymatching_us"] for r in load("data/xcheck/reference.json")["decoding"]}
@@ -486,6 +502,7 @@ TABLES = [
     ("gross beside the surface code", r"\| p \| gross code: 12 logical qubits on 288 \| twelve d = 11 surface patches on 2,892 \| ratio \|", gross_vs_surface),
     ("cross-check, plain", r"\| d \| p \| PyMatching \| ours, on Stim's graph \|[^\n]*", xcheck_plain),
     ("cross-check, correlated", r"\| code \| d \| p \| PyMatching correlated \|[^\n]*", xcheck_corr),
+    ("matching graphs", r"\| circuit \| d \| detectors \| mechanisms, ours / Stim's \| largest Δp/p \| graph edges \| graph \|", xcheck_graphs),
     ("benchmarks", r"\| benchmark \| Apple silicon \| Linux x86_64 \| Linux arm64 \|", bench_ratios),
     ("matcher speed", r"\| d \| p \| dense \| sparse \| PyMatching \|", speed),
     ("latency", r"\| stream \| decoder \| window decode \| keeps up on \| mean latency \| p99 \|", latency),

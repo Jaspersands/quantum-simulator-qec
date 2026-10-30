@@ -57,7 +57,7 @@ def test_generated_circuits_with_leakage_equal():
 
 
 def test_gate_data_equal():
-    fields = ("name", "is_noisy_gate", "is_reset", "is_single_qubit_gate", "is_two_qubit_gate", "is_unitary", "produces_measurements", "num_parens_arguments_range", "takes_measurement_record_targets", "takes_pauli_targets")
+    fields = ("name", "is_noisy_gate", "is_reset", "is_single_qubit_gate", "is_two_qubit_gate", "is_symmetric_gate", "is_unitary", "produces_measurements", "num_parens_arguments_range", "takes_measurement_record_targets", "takes_pauli_targets")
     for name in ("LEAKAGE", "RELAX", "RL", "HERALD_LEAKAGE_EVENT", "CX", "CY", "CZ", "SQRT_XX", "SQRT_XX_DAG", "H", "M", "DEPOLARIZE2"):
         a, b = ours.gate_data(name), dk.gate_data(name)
         assert [getattr(a, f) for f in fields] == [getattr(b, f) for f in fields], name
@@ -98,8 +98,36 @@ def test_mobility_where_deltakit_stalls():
     assert abs(b[2] - 0.2) < 0.005 and abs(b[1] - 0.02) < 0.005, b
 
 
+def test_mobility_alone_where_both_qubits_leaked_stalls_in_deltakit():
+    # The docstring's case: mobility only, both qubits leaked. Deltakit's heralds read 0.3 each;
+    # this package's read 0.25 (qubit 1, the first detector) and 0.35 (qubit 0).
+    text = "R 0 1\nLEAKAGE(0.3) 0 1\nCX(0, 0, 0.5, 0.5) 0 1\nHERALD_LEAKAGE_EVENT 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]"
+    shots = 200_000
+    a, b = _rates(ours, text, shots, 11), _rates(dk, text, shots, 11)
+    assert abs(a[0] - 0.25) < 0.005 and abs(a[1] - 0.35) < 0.005, a
+    assert abs(b[0] - 0.30) < 0.005 and abs(b[1] - 0.30) < 0.005, b
+
+
 def test_without_tags_keeps_deltakits_instructions():
     text = "R 0 1\nLEAKAGE(0.1) 0\nCX(0.1, 0.2, 0.3, 0.4) 0 1\nHERALD_LEAKAGE_EVENT(0.01) 0\nRL 1\nS[a] 0\nM 0\nDETECTOR rec[-1]\nDETECTOR rec[-2]"
     a, b = dk.Circuit(text).without_tags(), ours.Circuit(text).without_tags()
     assert str(a) == str(b)
     assert str(a.detector_error_model()) == str(b.detector_error_model())
+
+
+def test_flip_simulator_refuses_deltakits_instructions_and_runs_stim_circuits():
+    # Deltakit's FlipSimulator reads the herald of a leaked qubit as 1 in every shot; this
+    # package's frames hold no leakage, so its FlipSimulator refuses the instructions (and a copy
+    # of it does too) rather than read the herald as 0. A plain Stim circuit runs as before.
+    text = "R 0\nLEAKAGE(1.0) 0\nHERALD_LEAKAGE_EVENT(0.0) 0\nM 0"
+    reference = dk.FlipSimulator(batch_size=4)
+    reference.do(dk.Circuit(text))
+    assert reference.get_measurement_flips()[0].all()
+    sim = ours.FlipSimulator(batch_size=4)
+    with pytest.raises(ValueError, match="does not run Deltakit's leakage instructions"):
+        sim.do(ours.Circuit(text))
+    with pytest.raises(ValueError, match="does not run Deltakit's leakage instructions"):
+        sim.copy().do(ours.Circuit(text))
+    plain = ours.FlipSimulator(batch_size=2)
+    plain.do(ours.Circuit("X_ERROR(1) 0\nM 0"))
+    assert plain.get_measurement_flips().tolist() == [[True, True]]

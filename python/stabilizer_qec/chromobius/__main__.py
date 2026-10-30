@@ -206,6 +206,11 @@ class _Input:
         with self.file:
             return self.file.read()
 
+    def close(self) -> None:
+        """Closes the file, for a command that fails before it reads its input."""
+        if self.file is not None:
+            self.file.close()
+
 
 def _find_open_file_argument(name: str, stdin_default: bool, argv: List[str]) -> _Input:
     path = _find_argument(name, argv)
@@ -216,6 +221,12 @@ def _find_open_file_argument(name: str, stdin_default: bool, argv: List[str]) ->
     if path == "":
         raise _Fail(f"Command line argument '{name}' can't be empty. It's supposed to be a file path.")
     return _Input(path)
+
+
+def _close_inputs(*inputs: Optional[_Input]) -> None:
+    for i in inputs:
+        if i is not None:
+            i.close()
 
 
 def _find_output_argument(name: str, argv: List[str]) -> Any:
@@ -678,87 +689,95 @@ def _output_file(out: Any):
 
 def _predict(argv: List[str], stdout: Any) -> None:
     _check_for_unknown_arguments(("--in", "--in_format", "--in_includes_appended_observables", "--out", "--out_format", "--dem"), "predict", argv)
-    shots_in = _find_open_file_argument("--in", True, argv)
-    with _output_file(_find_output_argument("--out", argv)) as out:
-        dem_in = _find_open_file_argument("--dem", False, argv)
-        in_format = _find_format_argument("--in_format", "b8", argv)
-        out_format = _find_format_argument("--out_format", "01", argv)
-        append = _find_bool_argument("--in_includes_appended_observables", argv)
-        dem = _model(dem_in.read())
-        decoder = _decoder(dem)
-        nd, no = dem.num_detectors, dem.num_observables
-        if out_format == "ptb64":
-            raise _Fail("SAMPLE_FORMAT_PTB64 incompatible with SingleMeasurementRecord")
-        rows, read_err = _read_records(shots_in.read(), in_format, nd, no if append else 0)
-        if append:
-            _clear_bits(rows, nd, nd + no)
-        preds, err = _decode(decoder, rows, nd, 0)
-        from .._shots import encode_shots
+    shots_in = dem_in = None
+    try:
+        shots_in = _find_open_file_argument("--in", True, argv)
+        with _output_file(_find_output_argument("--out", argv)) as out:
+            dem_in = _find_open_file_argument("--dem", False, argv)
+            in_format = _find_format_argument("--in_format", "b8", argv)
+            out_format = _find_format_argument("--out_format", "01", argv)
+            append = _find_bool_argument("--in_includes_appended_observables", argv)
+            dem = _model(dem_in.read())
+            decoder = _decoder(dem)
+            nd, no = dem.num_detectors, dem.num_observables
+            if out_format == "ptb64":
+                raise _Fail("SAMPLE_FORMAT_PTB64 incompatible with SingleMeasurementRecord")
+            rows, read_err = _read_records(shots_in.read(), in_format, nd, no if append else 0)
+            if append:
+                _clear_bits(rows, nd, nd + no)
+            preds, err = _decode(decoder, rows, nd, 0)
+            from .._shots import encode_shots
 
-        (out or stdout).write(encode_shots(_bits(preds, no), out_format, num_observables=no))
-        if err or read_err:
-            raise err or read_err
+            (out or stdout).write(encode_shots(_bits(preds, no), out_format, num_observables=no))
+            if err or read_err:
+                raise err or read_err
+    finally:
+        _close_inputs(shots_in, dem_in)
 
 
 def _benchmark(argv: List[str], stdout: Any) -> None:
     t0 = time.perf_counter()
     _check_for_unknown_arguments(("--in", "--in_format", "--in_includes_appended_observables", "--obs_in", "--obs_in_format", "--out", "--dem"), "benchmark", argv)
-    shots_in = _find_open_file_argument("--in", True, argv)
-    obs_in = _find_open_file_argument("--obs_in", False, argv) if _find_argument("--obs_in", argv) is not None else None
-    with _output_file(_find_output_argument("--out", argv)) as out:
-        dem_in = _find_open_file_argument("--dem", False, argv)
-        in_format = _find_format_argument("--in_format", "01", argv)
-        obs_format = _find_format_argument("--obs_in_format", "01", argv)
-        append = _find_bool_argument("--in_includes_appended_observables", argv)
-        if not append and obs_in is None:
-            raise _Fail("Must specify --in_includes_appended_observables or --obs_in.")
-        dem = _model(dem_in.read())
-        nd, no = dem.num_detectors, dem.num_observables
-        decoder = _decoder(dem)
-        t1 = time.perf_counter()
+    shots_in = obs_in = dem_in = None
+    try:
+        shots_in = _find_open_file_argument("--in", True, argv)
+        obs_in = _find_open_file_argument("--obs_in", False, argv) if _find_argument("--obs_in", argv) is not None else None
+        with _output_file(_find_output_argument("--out", argv)) as out:
+            dem_in = _find_open_file_argument("--dem", False, argv)
+            in_format = _find_format_argument("--in_format", "01", argv)
+            obs_format = _find_format_argument("--obs_in_format", "01", argv)
+            append = _find_bool_argument("--in_includes_appended_observables", argv)
+            if not append and obs_in is None:
+                raise _Fail("Must specify --in_includes_appended_observables or --obs_in.")
+            dem = _model(dem_in.read())
+            nd, no = dem.num_detectors, dem.num_observables
+            decoder = _decoder(dem)
+            t1 = time.perf_counter()
 
-        rows, read_err = _read_records(shots_in.read(), in_format, nd, no if append else 0)
-        if obs_in is None:
-            # The observables appended to each record, then cleared from it.
-            actual = _first64(_pack(_np.unpackbits(rows, axis=1, bitorder="little", count=nd + no)[:, nd:]))
-            _clear_bits(rows, nd, nd + no)
-            num_obs_records, obs_err = len(rows) + 1, None
-        else:
-            # The separate file's: a mistake is a prediction differing from a record's first 64
-            # bits (padding bits included, as Chromobius compares them).
-            obs_rows, obs_read_err = _read_records(obs_in.read(), obs_format, 0, no)
-            actual = _first64(obs_rows)
-            num_obs_records, obs_err = len(obs_rows), obs_read_err or _Fail("Obs data ended before shot data ended.")
-        # Record k is read (or its reader fails, or the data ends), then its observables (or
-        # their reader fails, or their data ends), then decoded (or its lifting fails).
-        preds, decode_err = _decode(decoder, rows[: min(len(rows), num_obs_records)], nd, 1)
-        events = [(len(rows), 0, read_err), (num_obs_records, 1, obs_err)]
-        if decode_err is not None:
-            events.append((len(preds), 2, decode_err))
-        first = min(events, key=lambda e: e[:2])[2]
-        if first is not None:
-            raise first
-        num_shots = len(rows)
-        num_mistakes = int((actual[:num_shots] != preds).sum())
-        num_events = int(_np.unpackbits(rows, axis=1).sum())
-        t2 = time.perf_counter()
-        decoding_us = float(int((t2 - t1) * 1e6))
-        config_us = float(int((t1 - t0) * 1e6))
-        text = (
-            f"                                num_shots = {num_shots}\n"
-            f"                             num_mistakes = {num_mistakes}\n"
-            f"                        mistakes_per_shot = {_g(num_mistakes / num_shots if num_shots else 0.0)}\n"
-            "\n"
-            f"                     num_detection_events = {num_events}\n"
-            f"                   num_detectors_per_shot = {nd}\n"
-            f"                       detection_fraction = {_g(_div(num_events, nd * num_shots))}\n"
-            "\n"
-            f"                            setup_seconds = {_g(config_us / 1000000)}\n"
-            f"                         decoding_seconds = {_g(decoding_us / 1000000)}\n"
-            f"           decoding_microseconds_per_shot = {_g(_div(decoding_us, num_shots))}\n"
-            f"decoding_microseconds_per_detection_event = {_g(_div(decoding_us, num_events))}\n"
-        )
-        (out or stdout).write(text.encode())
+            rows, read_err = _read_records(shots_in.read(), in_format, nd, no if append else 0)
+            if obs_in is None:
+                # The observables appended to each record, then cleared from it.
+                actual = _first64(_pack(_np.unpackbits(rows, axis=1, bitorder="little", count=nd + no)[:, nd:]))
+                _clear_bits(rows, nd, nd + no)
+                num_obs_records, obs_err = len(rows) + 1, None
+            else:
+                # The separate file's: a mistake is a prediction differing from a record's first 64
+                # bits (padding bits included, as Chromobius compares them).
+                obs_rows, obs_read_err = _read_records(obs_in.read(), obs_format, 0, no)
+                actual = _first64(obs_rows)
+                num_obs_records, obs_err = len(obs_rows), obs_read_err or _Fail("Obs data ended before shot data ended.")
+            # Record k is read (or its reader fails, or the data ends), then its observables (or
+            # their reader fails, or their data ends), then decoded (or its lifting fails).
+            preds, decode_err = _decode(decoder, rows[: min(len(rows), num_obs_records)], nd, 1)
+            events = [(len(rows), 0, read_err), (num_obs_records, 1, obs_err)]
+            if decode_err is not None:
+                events.append((len(preds), 2, decode_err))
+            first = min(events, key=lambda e: e[:2])[2]
+            if first is not None:
+                raise first
+            num_shots = len(rows)
+            num_mistakes = int((actual[:num_shots] != preds).sum())
+            num_events = int(_np.unpackbits(rows, axis=1).sum())
+            t2 = time.perf_counter()
+            decoding_us = float(int((t2 - t1) * 1e6))
+            config_us = float(int((t1 - t0) * 1e6))
+            text = (
+                f"                                num_shots = {num_shots}\n"
+                f"                             num_mistakes = {num_mistakes}\n"
+                f"                        mistakes_per_shot = {_g(num_mistakes / num_shots if num_shots else 0.0)}\n"
+                "\n"
+                f"                     num_detection_events = {num_events}\n"
+                f"                   num_detectors_per_shot = {nd}\n"
+                f"                       detection_fraction = {_g(_div(num_events, nd * num_shots))}\n"
+                "\n"
+                f"                            setup_seconds = {_g(config_us / 1000000)}\n"
+                f"                         decoding_seconds = {_g(decoding_us / 1000000)}\n"
+                f"           decoding_microseconds_per_shot = {_g(_div(decoding_us, num_shots))}\n"
+                f"decoding_microseconds_per_detection_event = {_g(_div(decoding_us, num_events))}\n"
+            )
+            (out or stdout).write(text.encode())
+    finally:
+        _close_inputs(shots_in, obs_in, dem_in)
 
 
 def _div(a: float, b: float) -> float:

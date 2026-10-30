@@ -75,6 +75,29 @@ policy for its documented items.
 - A `trt_decoder` whose model has a dynamic dimension in an output's place past the first (the batch not leading the output) now fails to build with "Failed to build TensorRT engine"; before, it built with a negative output size and every decode failed.
 - `copy.copy` of a `sliding_window` decoder mid-stream gives a copy with its own round buffers; before, the copy and the original shared them, and the original's later corrections could be wrong.
 - Chromobius's `decode_via_files` raises `ValueError` ("Failed to open '...' for writing.") for an output it cannot write, and `TypeError` for a negative `num_shots` or `num_obs`, as Chromobius does; before, a missing directory raised `FileNotFoundError`, a negative `num_obs` wrote an empty file, and a negative `num_shots` raised numpy's `ValueError`.
+- The 2.0.0 note's "Deltakit 0.10 whole" left out deltakit-compile 0.1.0 and deltakit-visualise
+  0.4.0, which the deltakit 0.10.2 distribution requires and this package does not port.
+- The 2.2.0 Fusion Blossom note does not say that a blocking `helper.serve()` now returns `None`
+  on Ctrl-C, where 2.1 raised `KeyboardInterrupt`: Bottle's `run()` catches the interrupt. Calling
+  Bottle's server directly would restore 2.1's behaviour.
+- `Matching.set_boundary_nodes` with the boundary nodes a matching already has keeps correlated
+  decoding, as PyMatching does; it used to refuse `enable_correlations=True` until the matching
+  was reloaded. Naming a different set still refuses it.
+- `chromobius`'s facade raises its no-perfect-matching error with PyMatching's message alone, as
+  Chromobius's does, instead of prefixed with `shot N: `. The native `ColorMatching` API keeps the
+  prefix.
+- `chromobius`'s sinter decoder refuses bit-packed data whose rows are not adjacent bytes (a strided
+  view, a column-major array, zero rows) with Chromobius's `strides(1) != 1` message, where it
+  decoded them.
+- `stabilizer_qec.deltakit_stim.FlipSimulator` refuses Deltakit's leakage instructions (`LEAKAGE`,
+  `RELAX`, `RL`, `HERALD_LEAKAGE_EVENT` and a transport gate's four arguments), where it ran them
+  as identities and read a leaked herald as 0 (Deltakit reads 1). Sample such circuits with
+  `compile_sampler` or `compile_detector_sampler`.
+- `gate_data` reports `is_symmetric_gate` True for `LEAKAGE`, `RELAX`, `RL` and
+  `HERALD_LEAKAGE_EVENT`, as deltakit_stim does.
+- Importing `stabilizer_qec.deltakit` on Python 3.9 or 3.10 raises an `ImportError` naming Python
+  3.11, the version it needs; its subpackages used to fail inside Deltakit's code with a typing or
+  `|` error.
 
 ## 2.2.0 — 2026-10-30
 

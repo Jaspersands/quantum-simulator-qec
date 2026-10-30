@@ -3,7 +3,8 @@
 *.dylib
 .venv/
 /target-py
-/data/google/
+/data/google/*.zip
+/data/google/part*
 __pycache__/
 .DS_Store
 /target-wheel

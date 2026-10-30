@@ -12,7 +12,8 @@ does (``circuit[1].name == "LEAKAGE"``), and runs them as Deltakit's does: its s
 Deltakit's frame simulator's leakage model (a leaked qubit depolarizes its partner in those
 gates; a reset returns it), and its ``detector_error_model`` is Deltakit's, with the leakage
 its heralds read (each herald firing with its qubit depolarized, and with each transport
-gate's partner depolarized after the leakage came). Everything else is this package's Stim.
+gate's partner depolarized after the leakage came). Everything else is this package's Stim,
+except its ``FlipSimulator``, whose frames hold no leakage: it refuses Deltakit's instructions.
 
 The circuit holds Deltakit's instructions as tagged lines Stim reads (``I_ERROR[LEAKAGE(p=…)]``
 and the rest, see ``Circuit.to_deltakit_text``), so ``stabilizer_qec.Circuit(c)`` is the same
@@ -27,13 +28,15 @@ a tag on its own instructions (``LEAKAGE[site](0.1) 0``, which ``deltakit.circui
 package refuses one with ``ValueError``.
 
 The transport gates follow deltakit_stim's documentation: spreading, then mobility each way.
-deltakit_stim 0.2.7's simulator departs from it when one gate is given spreading and mobility
-together, applying only the spreading (``CX(0.1, 0.2, 0.3, 0.4)`` with the control leaked at
-0.2 leaves the target leaked with probability 0.020 there, 0.057 by the documented rule, and
-here); with one kind of argument, and in every detector error model, the two agree. Decoded
-by matching without leakage awareness, Deltakit's bundled leakage circuits get other answers
-than PyMatching's on 6–31% of shots, every one a tie between equally light corrections (the
-heralds' edges weigh nothing), and logical error rates 4–5% apart either way.
+deltakit_stim 0.2.7's simulator departs from it in two places. When one gate is given spreading
+and mobility together, it applies only the spreading (``CX(0.1, 0.2, 0.3, 0.4)`` with the control
+leaked at 0.2 leaves the target leaked with probability 0.020 there, 0.057 by the documented rule,
+and here). When a mobility draw lands on a leaked partner, it stalls: ``CX(0, 0, 0.5, 0.5)`` with
+both qubits leaked at 0.3 reads its heralds at 0.30 and 0.30 there, and at 0.25 and 0.35 here
+(qubit 1 first). Spreading alone, mobility with only the control leaked, and every detector error
+model, agree. Decoded by matching without leakage awareness, Deltakit's bundled leakage circuits
+get other answers than PyMatching's on 6–31% of shots, every one a tie between equally light
+corrections (the heralds' edges weigh nothing), and logical error rates 4–5% apart either way.
 
 >>> import stabilizer_qec.deltakit_stim as stim
 >>> c = stim.Circuit("R 0\\nLEAKAGE(0.1) 0\\nHERALD_LEAKAGE_EVENT(0.01) 0\\nM 0\\nDETECTOR rec[-1]\\nDETECTOR rec[-2]")
@@ -53,7 +56,7 @@ import numpy as np
 
 import stabilizer_qec as _sq
 
-from . import _circuit, _core, _stim
+from . import _circuit, _core, _flip_sim, _stim
 from ._util import b8_to_rows, call, count, seed_of
 
 __version__ = "0.2.7"
@@ -365,6 +368,22 @@ class Circuit(_circuit.Circuit):
         return super().compile_sampler(skip_reference_sample=skip_reference_sample, seed=seed, reference_sample=reference_sample)
 
 
+class FlipSimulator(_flip_sim.FlipSimulator):
+    """``FlipSimulator`` for Deltakit's Stim. Its frames hold no leakage, so it refuses
+    Deltakit's instructions rather than run them as identities (a herald would read unleaked,
+    where Deltakit's reads leaked); the samplers and the detector error model here are the
+    leaky ones."""
+
+    __slots__ = ()
+
+    def do(self, obj: Any) -> None:
+        if _has_dialect(_stim._stim_text_of(obj)):
+            raise ValueError(
+                "FlipSimulator does not run Deltakit's leakage instructions (LEAKAGE, RELAX, RL, HERALD_LEAKAGE_EVENT, or a transport gate's four arguments): its frames hold no leakage. Sample the circuit with compile_sampler or compile_detector_sampler."
+            )
+        super().do(obj)
+
+
 def _dialect_name(name: str, arg: Any) -> Optional[str]:
     n = name.strip().upper()
     if n in _LEAKAGE_GATES:
@@ -524,7 +543,7 @@ def _extra_gate(name: str) -> dict:
         "is_noisy_gate": e["is_noisy_gate"],
         "is_reset": e["is_reset"],
         "is_single_qubit_gate": True,
-        "is_symmetric_gate": False,
+        "is_symmetric_gate": True,
         "is_two_qubit_gate": False,
         "is_unitary": False,
         "produces_measurements": e["produces_measurements"],

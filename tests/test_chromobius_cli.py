@@ -132,6 +132,18 @@ def mismatches(names, tmp_path, compare):
     return bad
 
 
+HELP_CASES = sorted(n for n, c in CASES.items() if c["args"] and c["returncode"] == 0 and c["args"][0] not in ("predict", "benchmark", "describe_decoder"))
+
+
+def test_help_cases_are_all_recorded_here():
+    assert HELP_CASES == sorted(["help help", "help --help", "help -help", "help -h", "help ignores the rest"])
+
+
+@pytest.mark.parametrize("name", HELP_CASES)
+def test_help_case_matches_the_recorded_output(tmp_path, name):
+    assert mismatches([name], tmp_path, lambda n, got, want: got == want) == []
+
+
 def test_every_command_is_recorded():
     commands = {c["args"][0] if c["args"] else "" for c in CASES.values()}
     assert {"predict", "benchmark", "describe_decoder", "help", ""} <= commands
@@ -154,6 +166,35 @@ def test_predict_equals_python_api(tmp_path):
         for fout in ("01", "b8", "r8", "hits", "dets"):
             _, out, _, _ = run(CASES[f"predict {fin} to {fout}"], tmp_path)
             assert out == encode_shots(obs, fout, num_observables=no), (fin, fout)
+
+
+def test_r8_run_of_255_bits_is_a_continuation(tmp_path, monkeypatch):
+    """An r8 byte of 255 skips 255 bits and the record goes on: a hit 290 bits in is read as
+    one, where the recorded r8 inputs (gaps below 255) never reach that byte. The record's
+    hits are d3's shot 2 (predicting observable 0) and an ignored detector 290 bits in; the
+    prediction is the Python API's, and a record misread at the 255 byte is refused."""
+    d3 = FILES["d3.dem"].decode().rstrip("\n")
+    nd, n = sq.DetectorErrorModel(d3).num_detectors, 300
+    (tmp_path / "m.dem").write_text(d3 + "\n" + "".join(f"detector(0,0,0,-1) D{i}\n" for i in range(nd, n)))
+    hits = [4, 7, 10, 290]
+    r8, pos = bytearray(), 0
+    for h in hits:
+        gap = h - pos
+        while gap >= 255:
+            r8.append(255)
+            gap -= 255
+        r8.append(gap)
+        pos = h + 1
+    r8.append(n - pos)
+    assert 255 in r8
+    (tmp_path / "shot.r8").write_bytes(bytes(r8))
+    row = np.zeros((1, (n + 7) // 8), dtype=np.uint8)
+    for h in hits:
+        row[0, h // 8] |= 1 << (h % 8)
+    want = chromobius.compile_decoder_for_dem(sq.DetectorErrorModel(FILES["d3.dem"].decode().rstrip("\n") + "\n" + "".join(f"detector(0,0,0,-1) D{i}\n" for i in range(nd, n)))).predict_obs_flips_from_dets_bit_packed(row)
+    monkeypatch.chdir(tmp_path)
+    assert cli.main(["chromobius", "predict", "--dem", "m.dem", "--in", "shot.r8", "--in_format", "r8", "--out", "pred.01"]) == 0
+    assert (tmp_path / "pred.01").read_bytes() == f"{int(want[0, 0])}\n".encode() == b"1\n"
 
 
 TIMING = ("setup_seconds", "decoding_seconds", "decoding_microseconds_per_shot", "decoding_microseconds_per_detection_event")
@@ -330,6 +371,53 @@ def test_unmatchable_shot_message(tmp_path):
         with pytest.raises(ValueError, match="^shot 2: " + re.escape(NO_PERFECT_MATCHING) + "$"):
             decoder.decode_batch(shots, threads=threads)
     assert decoder.decode_batch(shots[[0, 1, 3]]).tolist() == [[0], [1], [1]]
+    # The package's Chromobius API throws the message alone, for a batch and for one shot.
+    facade = chromobius.compile_decoder_for_dem(sq.DetectorErrorModel(FILES["unmatchable.dem"].decode()))
+    packed = np.packbits(shots, axis=1, bitorder="little")
+    with pytest.raises(ValueError, match="^" + re.escape(NO_PERFECT_MATCHING) + "$"):
+        facade.predict_obs_flips_from_dets_bit_packed(packed)
+    with pytest.raises(ValueError, match="^" + re.escape(NO_PERFECT_MATCHING) + "$"):
+        facade.predict_obs_flips_from_dets_bit_packed(packed[2])
+
+
+def test_subnormal_fault_probability_is_not_refused_and_its_zero_event_weight_differs():
+    """A fault of probability 1e-320 (below the normal float range) is not refused. In small.dem
+    with that fault appended, every shot with detection events has a NaN weight, as Chromobius's
+    does, and the predictions agree; Chromobius gives the zero-event shot NaN too, where this port
+    gives 0.0 (the package docstring lists it)."""
+    dem = sq.DetectorErrorModel(FILES["small.dem"].decode().rstrip("\n") + "\nerror(1e-320) D0 D1\n")
+    rows = np.array([[0], [1], [2], [3]], dtype=np.uint8)
+    obs, weights = chromobius.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(rows)
+    assert obs.tolist() == [[0], [1], [0], [1]]
+    assert weights[0] == 0.0 and np.isnan(weights[1:]).all()
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["predict", "--dem", "d3.dem", "--in", "d3.01", "--in_format", "bogus"],
+        ["predict", "--dem", "d3.dem", "--in", "d3.01", "--out", "missing/dir/out.01"],
+        ["benchmark", "--dem", "d3.dem", "--in", "d3.01", "--in_includes_appended_observables", "--obs_in_format", "bogus"],
+    ],
+)
+def test_inputs_are_closed_when_a_command_fails_before_reading_them(tmp_path, monkeypatch, argv):
+    """A command that stops before it reads its inputs closes the files it opened, so none is
+    left for Python to report as unclosed (a ResourceWarning)."""
+    for name, data in FILES.items():
+        (tmp_path / name).write_bytes(data)
+    opened = []
+    real_open = open
+
+    def recording_open(*args, **kwargs):
+        f = real_open(*args, **kwargs)
+        opened.append(f)
+        return f
+
+    monkeypatch.setattr(cli, "open", recording_open, raising=False)
+    monkeypatch.chdir(tmp_path)
+    assert cli.main(["chromobius", *argv]) == 1
+    assert opened and opened[0].name == "d3.01"
+    assert all(f.closed for f in opened)
 
 
 def test_integers_read_as_stims_uint64(tmp_path):
