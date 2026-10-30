@@ -475,7 +475,13 @@ impl DensityProgram {
     /// Qubits renumbered (`whole` false) or as the circuit numbers them; `outcomes` what the
     /// results carry (`StateOnly` for the state alone, any observables then allowed).
     pub fn with_layout(circuit: &Circuit, whole: bool, outcomes: Outcomes) -> Result<DensityProgram, String> {
-        let program = Program::with_layout_for(circuit, whole, MAX_QUBITS, outcomes)?;
+        let program = Program::with_layout_for(circuit, whole, MAX_QUBITS, outcomes).map_err(|e| {
+            if e == crate::statevec::PAULI_OBSERVABLE_REFUSAL {
+                "the density matrix does not take observables of Pauli targets".to_string()
+            } else {
+                e
+            }
+        })?;
         let steps = grouped(&program.steps, "the density matrix")?;
         if steps.iter().any(|s| matches!(s, Step::Leak { .. } | Step::Seep { .. } | Step::Transport { .. })) {
             return Err("the density matrix does not run leakage; the leakage sampler and the state vector do".into());

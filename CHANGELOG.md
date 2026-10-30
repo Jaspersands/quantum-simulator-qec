@@ -24,6 +24,9 @@ policy for its documented items.
 - The coherent sampler's weights for a seed are bitwise reproducible across compiles: its
   stabilizer-rank term sums run in key order, not in a hash map's order, which had changed the
   last bits.
+- The density-matrix and perturbative exact engines name themselves when they refuse an
+  `OBSERVABLE_INCLUDE` with Pauli targets, where they reported the state vector's refusal;
+  `exact_distribution` says which engines refuse such observables.
 
 ## 2.2.0 — 2026-10-30
 

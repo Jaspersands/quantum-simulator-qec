@@ -54,6 +54,21 @@ def test_explain_says_detectors_may_be_gauge_and_observables_may_not():
     assert "As in Stim, detectors may depend on random outcomes" in d and "observables may not" in d
 
 
+def test_exact_distribution_says_which_engines_refuse_pauli_observables():
+    c = sq.Circuit("R 0\nH 0\nX_ERROR(0.1) 0\nOBSERVABLE_INCLUDE(0) X0\nM 0\n")
+    # Each exact engine names itself; the detector sampler and the error model read the observable.
+    with pytest.raises(ValueError, match="^the state vector does not take observables of Pauli targets$"):
+        c.exact_distribution()
+    with pytest.raises(ValueError, match="^the density matrix does not take observables of Pauli targets$"):
+        c.exact_distribution(method="density_matrix")
+    with pytest.raises(ValueError, match="^the perturbative expansion does not take observables of Pauli targets$"):
+        c.perturbative_distribution(order=1)
+    assert c.compile_detector_sampler(seed=1).sample(2, separate_observables=True)[1].shape == (2, 1)
+    assert "logical_observable L0" in str(c.detector_error_model())
+    d = doc(sq.Circuit.exact_distribution)
+    assert "An observable of Pauli targets (``OBSERVABLE_INCLUDE(0) X0``) is refused by these engines" in d
+
+
 def test_tsim_docstring_says_what_every_sampler_refuses():
     import stabilizer_qec.tsim as tsim
     from stabilizer_qec.tsim import zx

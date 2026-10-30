@@ -20,6 +20,10 @@ use crate::surface_code::Xorshift;
 /// The most qubits in use the simulator takes (2^24 amplitudes, 256 MB).
 pub const MAX_QUBITS: usize = 24;
 
+/// The refusal of an observable with Pauli targets. The callers that run a program's exact
+/// engines on other terms (the density matrix, the perturbative expansion) name their own.
+pub(crate) const PAULI_OBSERVABLE_REFUSAL: &str = "the state vector does not take observables of Pauli targets";
+
 /// A complex number.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct C {
@@ -408,7 +412,7 @@ impl Program {
                     Control::Sweep(_) => {}
                 },
                 Instr::Observable { paulis, .. } if !paulis.is_empty() && outcomes != Outcomes::StateOnly => {
-                    return Err("the state vector does not take observables of Pauli targets".into());
+                    return Err(PAULI_OBSERVABLE_REFUSAL.into());
                 }
                 Instr::NonPauli(ops) => {
                     for op in ops {
