@@ -16,6 +16,7 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tupl
 import numpy as np
 
 from . import _core
+from ._util import count, seed_of
 
 _UNITS = {0: 1 + 0j, 1: 1j, 2: -1 + 0j, 3: complex(-0.0, -1.0)}
 
@@ -66,7 +67,7 @@ def _complex_array(data: bytes, shape: Tuple[int, ...]) -> np.ndarray:
 def _seed(seed: Optional[int]) -> int:
     if seed is None:
         return int(np.random.SeedSequence().generate_state(1, dtype=np.uint64)[0])
-    return int(seed) & ((1 << 64) - 1)
+    return seed_of(seed)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -425,8 +426,18 @@ class PauliStringIterator:
                         v[q] = "_XYZ".index(p)
                     yield PauliString._wrap(_core.PauliStringCore.from_paulis(v, 0))
 
+    def _fork(self) -> "PauliStringIterator":
+        """An independent iterator at this one's position: iterating it does not advance this one."""
+        new = object.__new__(type(self))
+        new.__dict__.update(self.__dict__)
+        self._gen, new._gen = itertools.tee(self._gen)
+        return new
+
     def __iter__(self) -> "PauliStringIterator":
-        return self
+        return self._fork()
+
+    def __copy__(self) -> "PauliStringIterator":
+        return self._fork()
 
     def __next__(self) -> PauliString:
         return next(self._gen)
@@ -721,8 +732,18 @@ class TableauIterator:
         self._unsigned = bool(unsigned)
         self._gen = self._generate()
 
+    def _fork(self) -> "TableauIterator":
+        """An independent iterator at this one's position: iterating it does not advance this one."""
+        new = object.__new__(type(self))
+        new.__dict__.update(self.__dict__)
+        self._gen, new._gen = itertools.tee(self._gen)
+        return new
+
     def __iter__(self) -> "TableauIterator":
-        return self
+        return self._fork()
+
+    def __copy__(self) -> "TableauIterator":
+        return self._fork()
 
     def __next__(self) -> Tableau:
         return next(self._gen)
@@ -803,7 +824,7 @@ class TableauSimulator:
         return self._s.num_qubits
 
     def set_num_qubits(self, new_num_qubits: int) -> None:
-        self._s.set_num_qubits(int(new_num_qubits))
+        self._s.set_num_qubits(count(new_num_qubits, "new_num_qubits"))
 
     # Running things.
     def do(self, circuit_or_pauli_string: Any) -> None:

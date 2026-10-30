@@ -11,7 +11,7 @@ from typing import Any, List, Optional, Union
 import numpy as np
 
 from . import _core, _stim
-from ._util import call
+from ._util import call, count, probability
 
 _PAULIS = {"I": 0, "_": 0, "X": 1, "Y": 2, "Z": 3, 0: 0, 1: 1, 2: 2, 3: 3}
 
@@ -41,7 +41,7 @@ class FlipSimulator:
     __slots__ = ("_s",)
 
     def __init__(self, *, batch_size: int, disable_stabilizer_randomization: bool = False, num_qubits: int = 0, seed: Optional[int] = None) -> None:
-        self._s = _core.FlipSimCore(int(batch_size), int(num_qubits), not disable_stabilizer_randomization, _stim._seed(seed))
+        self._s = _core.FlipSimCore(count(batch_size, "batch_size"), count(num_qubits, "num_qubits"), not disable_stabilizer_randomization, _stim._seed(seed))
 
     # Sizes.
     @property
@@ -128,11 +128,12 @@ class FlipSimulator:
     def broadcast_pauli_errors(self, *, pauli: Any, mask: np.ndarray, p: float = 1) -> None:
         """Applies ``pauli`` to qubit q of instance k wherever ``mask[q, k]``, each with
         probability ``p``."""
+        p = probability(p, "p")
         code = _pauli_code(pauli)
         mask = np.asarray(mask)
         if mask.dtype != np.bool_ or mask.ndim != 2 or mask.shape[1] != self.batch_size:
             raise ValueError("Need mask.shape[1] == flip_sim.batch_size")
-        self._s.broadcast(code, _pack_rows(mask, self.batch_size), float(p))
+        self._s.broadcast(code, _pack_rows(mask, self.batch_size), p)
 
     def append_measurement_flips(self, measurement_flip_data: np.ndarray) -> None:
         """Appends measurement flips: one or more rows over the batch, as bools or bytes
@@ -226,8 +227,9 @@ class FlipSimulator:
     def generate_bernoulli_samples(self, num_samples: int, *, p: float, bit_packed: bool = False, out: Optional[np.ndarray] = None) -> np.ndarray:
         """Biased coins from the simulator's generator: ``num_samples`` bools (or bytes packed
         little-endian, padding zero), written into ``out`` if given."""
+        p = probability(p, "p")
         n = int(num_samples)
-        raw = np.frombuffer(self._s.bernoulli(n, float(p)), dtype=np.uint8)
+        raw = np.frombuffer(self._s.bernoulli(n, p), dtype=np.uint8)
         data = raw.copy() if bit_packed else np.unpackbits(raw, count=n, bitorder="little").astype(np.bool_)
         if out is not None:
             if out.dtype != data.dtype or out.size != data.size:

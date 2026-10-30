@@ -115,7 +115,10 @@ class TesseractConfig:
     As Tesseract's, it is made with the model first (``TesseractConfig(dem, det_beam=...)``)
     or with no model, the settings then starting at ``det_beam`` (``TesseractConfig(7)``).
     ``dem`` reads back as Stim's model when it was given as Stim's (and as this package's
-    otherwise; Tesseract's is always Stim's), a copy each time it is read."""
+    otherwise; Tesseract's is always Stim's), a copy each time it is read.
+
+    With beam climbing, ``det_beam=-1`` climbs as Tesseract does on ARM64, where its remainder by
+    zero is the dividend. Tesseract traps on that case on x86-64 (SIGFPE); this package does not."""
 
     __slots__ = (
         "_dem", "_stims", "_orders", "_det_beam", "_beam_climbing", "_no_revisit_dets", "_verbose", "_merge_errors", "_pqlimit", "_det_penalty",

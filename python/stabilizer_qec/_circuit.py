@@ -319,10 +319,14 @@ class Circuit:
 
     def get_detector_coordinates(self, only: Any = None) -> dict:
         """The coordinates of every detector, or of the indices in ``only``."""
+        if isinstance(only, (int, np.integer)):
+            only = [only]
         if only is None:
             wanted = list(range(self.num_detectors))
         else:
             wanted = sorted({int(k) for k in only})
+            if wanted and wanted[0] < 0:
+                raise ValueError(f"Detector index {wanted[0]} is negative")
         return dict(call(_core.circuit_detector_coordinates, self._stim_exact_text(), wanted))
 
     def count_determined_measurements(self, *, unknown_input: bool = False) -> int:
@@ -984,7 +988,9 @@ class Circuit:
         of small factors (each rotation's, a phase that is a quadratic form in the generators,
         the shot's signs), contracted one generator at a time in O(k·2^w) per shot, w the
         ``contraction_width`` (3 on a d = 3 surface memory over three rounds, 9 at d = 7 over
-        seven). ``max_contraction`` caps the contraction's tables (entries in all, 2^16 by
+        seven, with one R_Z rotation on every data qubit at each round's start, before the X
+        ancillas' first Hadamard; other placements of the rotations give other widths).
+        ``max_contraction`` caps the contraction's tables (entries in all, 2^16 by
         default; 0 turns it off; a budget past 2^31 is 2^31, and no table spans 32 or more
         generators at any budget): past it, and with more than twelve generators, a shot sums
         the products of up to ``order`` generators its faults touch (an ``order`` of 0 is taken
@@ -1582,11 +1588,14 @@ class DetectorErrorModel:
 
     def get_detector_coordinates(self, only: Any = None) -> dict:
         """Each detector's coordinates (an empty list for none), or those in ``only``."""
+        if isinstance(only, (int, np.integer)):
+            only = [only]
         n = self.num_detectors
         wanted = set(range(n)) if only is None else {int(k) for k in only}
         for k in wanted:
             if not 0 <= k < n:
-                raise ValueError(f"Detector index {k} is too big. The detector error model has {n} detectors)")
+                what = "negative" if k < 0 else "too big"
+                raise ValueError(f"Detector index {k} is {what}. The detector error model has {n} detectors)")
         found: dict = {}
         order = sorted(wanted)
 

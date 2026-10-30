@@ -186,6 +186,36 @@ policy for its documented items.
   `stabilizer-qec` command exits 130 without a traceback.
 - `serve` binds an IPv6 address given as `::1:0` or `[::1]:0` (`--tcp` and `tcp=` alike); before, the
   bind failed with a name-resolution error.
+- `stabilizer_qec.relay_bp.stim.sinter.utils` imports on Python 3.9: its `pathlib.Path | str`
+  annotation is no longer evaluated where the function is defined.
+- Relay-BP and min-sum decoders take an `np.matrix` check matrix with an even entry, as relay_bp
+  does; it raised `TypeError`.
+- `copy.copy` and `copy.deepcopy` of a relay_bp decoder give a decoder with its own engine: decoding
+  through the copy no longer advances the original's random memory strengths.
+- `ObservableDecodeResult.converged` and `.iterations` are read-only, as relay_bp's are; assigning
+  them used to succeed.
+- Beam climbing with `det_beam=-1` gives the ARM64 answer on every platform, where Tesseract's
+  remainder by zero is the dividend. Tesseract traps there on x86-64 (SIGFPE), so the 2.1.0 note
+  that a negative beam gives Tesseract's answers does not hold for that one case on x86-64.
+- `TableauSimulator`, `FlipSimulator` and `DensityMatrixSimulator` refuse a seed that is negative,
+  not an integer, or 2**64 or more, as the sampler does; they used to take -1, 1.5, '7' and 2**64 +
+  5 as other seeds.
+- A negative or too-large `batch_size` or `num_qubits` in `FlipSimulator` and a negative
+  `set_num_qubits` argument raise `ValueError`, not `OverflowError`; a negative detector index in
+  `get_detector_coordinates` is reported as negative.
+- `Circuit.get_detector_coordinates` and `DetectorErrorModel.get_detector_coordinates` take a single
+  index, as Stim's do, not only an iterable of them (which raised `TypeError`).
+- `FlipSimulator.broadcast_pauli_errors` and `generate_bernoulli_samples` refuse a probability
+  outside [0, 1] or NaN with `ValueError`; they used to accept it (`p=1.5` gave all-True samples,
+  `p=-0.5` all-False).
+- `PauliStringIterator` and `TableauIterator` iterate again, as Stim's do: a second pass over one
+  yielded nothing, and `copy.copy` of one shared its position.
+- Hits and dets shot files take only ASCII decimal indices: `1_0`, `+3`, ` 4` and Unicode digits
+  raise `ValueError` (they were read as bit numbers).
+- A size or index too large for the core (`gen --distance 2**32`, a `diagram --tick` past 2**64) is
+  a usage error (exit 1) rather than a traceback.
+- `serve` and `repl` no longer take `--out`, which they ignored (their output is stdout); passing it
+  is a usage error (exit 1).
 
 ## 2.2.0 — 2026-10-30
 

@@ -377,3 +377,88 @@ def test_heavy_rustworkx_edges_are_left_out_with_pymatchings_warning():
     assert said == ["Weight -20000000.000000 of edge (1, 2) exceeds maximum edge weight 16777215 and has not been added to the matching graph."]
     assert m.num_edges == 3 and [w["weight"] for _, _, w in m.edges()] == [1.0, 1.0, 7.0]
     assert m.decode([1, 0, 0, 1]).tolist() == [0, 0, 0, 1]
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: sq.FlipSimulator(batch_size=-1),
+        lambda: sq.FlipSimulator(batch_size=2**70),
+        lambda: sq.FlipSimulator(batch_size=1, num_qubits=-1),
+        lambda: sq.TableauSimulator().set_num_qubits(-1),
+        lambda: sq.TableauSimulator().set_num_qubits(2**70),
+        lambda: sq.DetectorErrorModel("error(0.1) D0\ndetector(1, 2) D0\n").get_detector_coordinates([-1]),
+        lambda: sq.Circuit("H 0\nM 0\nDETECTOR rec[-1]\n").get_detector_coordinates([-1]),
+    ],
+)
+def test_out_of_range_sizes_and_indices_are_value_errors(make):
+    """A negative or too-large size or detector index raises ValueError, as the rest of the
+    facade does, not the OverflowError the extension's conversion gives."""
+    with pytest.raises(ValueError):
+        make()
+
+
+def test_a_negative_detector_index_is_named_as_negative():
+    with pytest.raises(ValueError, match="Detector index -1 is negative"):
+        sq.DetectorErrorModel("error(0.1) D0\ndetector(1, 2) D0\n").get_detector_coordinates([-1])
+    with pytest.raises(ValueError, match="Detector index -1 is negative"):
+        sq.Circuit("H 0\nM 0\nDETECTOR rec[-1]\n").get_detector_coordinates([-1])
+
+
+def test_a_single_detector_index_is_a_list_of_one():
+    """get_detector_coordinates takes one index as Stim does, as a list of one."""
+    c = sq.Circuit("H 0\nM 0\nDETECTOR(5, 6) rec[-1]\nDETECTOR(7, 8) rec[-1]\n")
+    d = sq.DetectorErrorModel("error(0.1) D0\ndetector(5, 6) D0\ndetector(7, 8) D1\n")
+    for model in (c, d):
+        assert model.get_detector_coordinates(1) == model.get_detector_coordinates([1]) == {1: [7.0, 8.0]}
+        assert model.get_detector_coordinates(np.int64(0)) == {0: [5.0, 6.0]}
+
+
+@pytest.mark.parametrize("p", [1.5, -0.5, float("nan"), float("inf")])
+def test_flip_probabilities_outside_zero_to_one_are_refused(p):
+    f = sq.FlipSimulator(batch_size=3, num_qubits=2, seed=1)
+    mask = np.array([[True, False, True], [False, False, True]])
+    with pytest.raises(ValueError):
+        f.broadcast_pauli_errors(pauli="X", mask=mask, p=p)
+    with pytest.raises(ValueError):
+        f.generate_bernoulli_samples(4, p=p)
+    f.broadcast_pauli_errors(pauli="X", mask=mask, p=0.0)  # (p = 0 is in range; it applies nothing)
+    assert f.generate_bernoulli_samples(4, p=0.0).tolist() == [False] * 4
+
+
+
+def test_pauli_and_tableau_iterators_iterate_again_and_copy_apart():
+    """Each pass over a Pauli string or tableau iterator yields the whole sequence, as Stim's do,
+    and a copy of a partly consumed iterator goes on from the same place without advancing the
+    original."""
+    from stabilizer_qec import _stim
+
+    a = _stim.PauliStringIterator(3, 1, 2)  # 3 * 3 weight-1 strings, and 3 * 9 of weight 2
+    first = [str(x) for x in a]
+    assert len(first) == 36 and [str(x) for x in a] == first
+    t = _stim.TableauIterator(1)
+    assert len(list(t)) == 24 and len(list(t)) == 24
+    p = _stim.PauliStringIterator(2, 0, 1)
+    assert str(next(p)) == "+__"
+    q = copy.copy(p)
+    rest = [str(x) for x in q]
+    assert len(rest) == 6 and [str(x) for x in p] == rest
+
+
+def test_shot_files_refuse_malformed_numbers(tmp_path):
+    """Hits and dets files take plain decimal indices: int() would read '1_0', '+3' and ' 4' as
+    numbers, and isdigit() admits Unicode digits. Stim refuses all of these."""
+    hits = tmp_path / "hits.01"
+    hits.write_bytes(b"1_0\n")
+    with pytest.raises(ValueError):
+        sq.read_shot_data_file(path=hits, format="hits", num_measurements=12)
+    for text in (b"+3\n", b" 4\n"):
+        hits.write_bytes(text)
+        with pytest.raises(ValueError):
+            sq.read_shot_data_file(path=hits, format="hits", num_measurements=12)
+    dets = tmp_path / "dets.dets"
+    dets.write_bytes("shot M\u0663\n".encode())
+    with pytest.raises(ValueError):
+        sq.read_shot_data_file(path=dets, format="dets", num_measurements=5)
+    dets.write_bytes(b"shot M3\n")
+    assert sq.read_shot_data_file(path=dets, format="dets", num_measurements=5).nonzero()[1].tolist() == [3]

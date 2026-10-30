@@ -44,6 +44,7 @@ def _sparse_bits(matrix: Any) -> Tuple[int, int, List[List[int]], Any, Optional[
     if isinstance(m, np.ndarray):
         if m.ndim != 2:
             raise TypeError("Input must be a numpy array or scipy sparse matrix (csr_matrix or csc_matrix)")
+        m = np.asarray(m)  # a plain array: indexing an np.matrix with arrays stays two-dimensional
         rows, cols = m.shape
         col_of, row_of = np.nonzero(m.T)  # column by column, each column's rows in order
         indices, data, indptr = row_of, m[row_of, col_of], np.searchsorted(col_of, np.arange(cols + 1))
@@ -179,9 +180,10 @@ class DecodeResult:
 
     def __init__(self, raw: tuple) -> None:
         correction, decoded, posterior, success, iterations, max_iter, quality = raw
-        self._decoding = np.asarray(correction, dtype=np.uint8)
-        self._decoded = np.asarray(decoded, dtype=np.uint8)
-        self._posterior = np.asarray(posterior, dtype=np.float64)
+        # (Copies: a batch's results are rows of its arrays, and a result must not keep them all alive.)
+        self._decoding = np.array(correction, dtype=np.uint8)
+        self._decoded = np.array(decoded, dtype=np.uint8)
+        self._posterior = np.array(posterior, dtype=np.float64)
         self._success, self._iterations, self._max_iter, self._quality = bool(success), int(iterations), int(max_iter), float(quality)
 
     @classmethod
@@ -235,6 +237,17 @@ class _Decoder:
             with open(self._log, "a") as f:
                 for line in self._x.log_lines():
                     f.write(line + "\n")
+
+    def __copy__(self) -> "_Decoder":
+        """A decoder on a copy of this one's engine as it is now, so that decoding on either
+        leaves the other's state (its random memory strengths) where it was."""
+        new = object.__new__(type(self))
+        new.__dict__.update(self.__dict__)
+        new._x = self._x.copy()
+        return new
+
+    def __deepcopy__(self, memo: dict) -> "_Decoder":
+        return self.__copy__()
 
     def decode(self, detectors: Any) -> np.ndarray:
         """The correction for one shot's detectors."""
@@ -385,18 +398,26 @@ class ObservableDecodeResult:
     ``iterations``, the physical result when asked for, and when decoded from a known error,
     whether the logical outcome was wrong and how (otherwise ``None``)."""
 
-    __slots__ = ("observables_", "converged", "iterations", "_truth", "_physical")
+    __slots__ = ("observables_", "_converged", "_iterations", "_truth", "_physical")
 
     def __init__(self, observables: np.ndarray, result: DecodeResult, truth: Optional[dict], include: bool) -> None:
         self.observables_ = observables
-        self.converged = result.success
-        self.iterations = result.iterations
+        self._converged = result.success
+        self._iterations = result.iterations
         self._truth = truth
         self._physical = result if include else None
 
     @property
     def observables(self) -> np.ndarray:
         return self.observables_.copy()
+
+    @property
+    def converged(self) -> bool:
+        return self._converged
+
+    @property
+    def iterations(self) -> int:
+        return self._iterations
 
     def _t(self, key: str) -> Optional[bool]:
         return None if self._truth is None else self._truth[key]
