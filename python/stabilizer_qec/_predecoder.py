@@ -318,7 +318,7 @@ class PreDecoder(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> np.ndarray:
-        """As ``Matching.decode_batch``: the pre-decoder's faults, then the global decoder on the
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``): the pre-decoder's faults, then the global decoder on the
         detection events left (on the network's weights, with ``reweight``), their observables
         together."""
         if self._reweight:

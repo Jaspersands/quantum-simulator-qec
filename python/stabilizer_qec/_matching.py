@@ -610,8 +610,10 @@ class Matching:
         threads: int = 1,
     ) -> Any:
         """Shots (shots × detectors, uint8 0/1 or bool; or bit-packed rows) to predictions
-        (shots × fault ids, uint8; or bit-packed), as PyMatching's ``decode_batch``; with
-        ``return_weights``, each shot's matching weight too. ``threads = 0`` uses every core."""
+        (shots × fault ids, uint8; or bit-packed), as PyMatching's ``decode_batch``. Other numeric
+        entries are cast to uint8 and then read as bool, as PyMatching reads them: 256 reads as 0,
+        0.5 as 0 and 1.0 as 1. With ``return_weights``, each shot's matching weight too.
+        ``threads = 0`` uses every core."""
         shots = np.asarray(shots)
         if shots.ndim != 2:
             raise ValueError(f"`shots` array should have two dimensions, not {shots.ndim}")
