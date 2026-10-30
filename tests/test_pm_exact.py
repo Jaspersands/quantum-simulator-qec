@@ -582,3 +582,23 @@ def test_a_sparse_check_matrix_is_left_as_given_and_keeps_its_edge_orientation()
     assert matrix.indices.tolist() == [2, 0, 1] and matrix.indptr.tolist() == [0, 2, 3]
     theirs = pymatching.Matching.from_check_matrix(make())
     assert sorted((u, v) for u, v, _ in ours.edges()) == sorted((u, v) for u, v, _ in theirs.edges())
+
+
+def test_a_plain_load_decoded_with_correlations_refuses_as_pymatching():
+    # With no correlated matcher loaded, the plain decode runs first: an odd shot gets its
+    # "No perfect matching" error, and an even one the not-configured error, as PyMatching gives.
+    text = "error(0.1) D0 D1\nerror(0.1) D1 D2 L0"
+    ours = sq.Matching(text)
+    theirs = pymatching.Matching.from_detector_error_model(stim.DetectorErrorModel(text))
+    odd, even = np.array([1, 0, 0], dtype=np.uint8), np.array([1, 0, 1], dtype=np.uint8)
+    for m in (ours, theirs):
+        with pytest.raises(ValueError, match="No perfect matching"):
+            m.decode(odd, enable_correlations=True)
+        with pytest.raises(ValueError, match="not been configured"):
+            m.decode(even, enable_correlations=True)
+    with pytest.raises(ValueError, match="No perfect matching"):
+        ours.decode_batch(odd[None], enable_correlations=True)
+    with pytest.raises(ValueError, match="No perfect matching"):
+        ours.decode_to_edges_array(odd, enable_correlations=True)
+    with pytest.raises(ValueError, match="not been configured"):
+        ours.decode_batch(even[None], enable_correlations=True)

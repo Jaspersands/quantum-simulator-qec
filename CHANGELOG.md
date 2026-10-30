@@ -36,6 +36,8 @@ policy for its documented items.
   and a negative id raised `OverflowError`.
 - An edit to a `Matching` while another thread decodes it raises `RuntimeError` that says so, instead of
   PyO3's `Already borrowed`.
+- A `Matching` loaded without correlations and decoded with `enable_correlations=True` runs the plain decode
+  first, so an odd-parity shot gets PyMatching's `No perfect matching` error, not the not-configured one.
 
 ## 2.2.0 — 2026-10-30
 

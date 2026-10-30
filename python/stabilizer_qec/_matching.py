@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 
@@ -553,7 +553,7 @@ class Matching:
             return times * z.shape[0] + checks
         raise ValueError(f"The shape ({z.shape}) of the syndrome vector z is not valid.")
 
-    def _check_correlations(self, enable_correlations: bool) -> bool:
+    def _check_correlations(self, enable_correlations: bool, plain: Callable[[], Any]) -> bool:
         if not enable_correlations:
             return False
         # PyMatching's correlated calls first take its decoder with the search graph
@@ -561,6 +561,9 @@ class Matching:
         # (or refuse); the plain decoder here follows, though the correlated matcher decodes.
         call(self._g.mwpm_with_search_graph)
         if self._corr is None:
+            # A matching not loaded with correlations first runs the plain decode, as PyMatching does,
+            # so a shot that decode refuses is refused for that reason.
+            plain()
             raise ValueError(
                 "Attempting to decode with `enable_correlations=True`, however the decoder has not been configured to decode using correlations. Ensure that you also set `enable_correlations=True` when loading the stim circuit or detector error model. For example: `matching = pymatching.Matching.from_detector_error_model(dem, enable_correlations=True)`"
             )
@@ -570,7 +573,7 @@ class Matching:
         """One syndrome (a 1-d array over the detectors, or 2-d over checks × rounds) to the
         fault ids its matching flips, as uint8 0/1; with ``return_weight``, also its weight."""
         events = self._events(z)
-        if self._check_correlations(enable_correlations):
+        if self._check_correlations(enable_correlations, lambda: call(self._g.decode, [int(e) for e in events])):
             dets = np.zeros((1, self.num_detectors), dtype=np.uint8)
             dets[0, events[events < self.num_detectors]] = 1
             pred, w = self.decode_batch(dets, return_weights=True, enable_correlations=True)
@@ -606,7 +609,7 @@ class Matching:
             if not nd <= shots.shape[1] <= nn:
                 raise ValueError(f"`shots` array should have at least {nd} columns (the number of detectors), and no more than {nn} columns (the number of nodes), but instead has {shots.shape[1]} columns")
             packed = np.packbits(shots.astype(np.uint8).astype(bool), axis=1, bitorder="little")
-        if self._check_correlations(enable_correlations):
+        if self._check_correlations(enable_correlations, lambda: call(self._g.decode_batch, packed.tobytes(), n, packed.shape[1], count(threads, "threads"))):
             dets = np.unpackbits(packed, axis=1, count=nd, bitorder="little")
             raw = np.packbits(dets, axis=1, bitorder="little").tobytes()
             preds, weights, failed = call(self._corr.decode_batch, raw, n, count(threads, "threads"))
@@ -639,7 +642,7 @@ class Matching:
         """The edges the correction flips, as an (edges × 2) int64 array of node pairs (-1: the
         boundary)."""
         events = self._events(syndrome)
-        if self._check_correlations(enable_correlations):
+        if self._check_correlations(enable_correlations, lambda: call(self._g.decode_to_edges, [int(e) for e in events])):
             edges = call(self._corr.decode_to_edges, [int(e) for e in events[events < self.num_detectors]])
             return np.array(edges, dtype=np.int64).reshape(-1, 2)
         edges = call(self._g.decode_to_edges, [int(e) for e in events])
