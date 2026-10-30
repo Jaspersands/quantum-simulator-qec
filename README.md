@@ -249,7 +249,7 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   `IfElseCircuit` is defined in the one file that carries a notice prohibiting its use,
   distribution and reproduction without Entropica Labs' consent, and its `BoolOp` conditions are
   in Apache-2.0 `src/loom/eka/utilities/enums.py`.
-- **The other estimators, to the bit**: Qualtran's surface-code cost models
+- **The other estimators, to double-precision rounding**: Qualtran's surface-code cost models
   (`stabilizer_qec.estimate`: Gidney–Fowler's and Beverland et al.'s schemes, the CCZ-to-2T and
   15-to-1 factories with Litinski's density-matrix error model, Litinski's data blocks, rotation
   cost models, the grid search) and Azure's Resource Estimator (`azure_estimate`: the QDK's six
@@ -257,8 +257,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   split, its exhaustive search over distillation rounds and code distances for the T factory, its
   constraints, its Pareto frontier), each returning the number its original returns — Qualtran's
   pinned values and the QDK's results on 55 configurations, physical qubits to runtime to the
-  factory's output error rate. With them, the QDK's parameter classes (`EstimatorParams` and its
-  sections) and its report (`summary`, `diagram`, the space and scatter charts as static SVG,
+  factory's output error rate. Qualtran's FifteenToOne `p_out` agrees with its original to
+  double-precision rounding: most points to better than 1e-9 relative, and the largest gap, about
+  3%, only at p_out near 1e-14, where the absolute gap is below 1e-15. With them, the QDK's
+  parameter classes (`EstimatorParams` and its sections) and its report (`summary`, `diagram`, the space and scatter charts as static SVG,
   not the QDK's live widgets), and Qualtran's Dash app (`stabilizer_qec.estimate.qualtran.ui`,
   on Dash where it is installed and on the standard library's HTTP server otherwise).
 - **Noise beyond Pauli channels, exactly**: a density-matrix simulator (equal to Quantumsim's)
