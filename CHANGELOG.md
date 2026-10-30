@@ -30,6 +30,8 @@ policy for its documented items.
   merge set fault ids past the count, as the original does.
 - A model with more than 64 observables loads with `enable_correlations=True`: plain decoding works,
   and only correlated decoding is refused, with the 64-observable limit as its message.
+- A `Visualizer` with an empty filepath keeps its JSON in memory up to 256 MB and then in a
+  temporary file, as MWPF does, where it kept all of it in memory.
 
 ## 2.2.0 — 2026-10-30
 

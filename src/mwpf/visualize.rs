@@ -14,7 +14,9 @@ use pyo3::prelude::*;
 #[cfg(feature = "python")]
 use pyo3::types::PyTuple;
 use std::fs::{File, OpenOptions};
-use std::io::{Seek, SeekFrom, Write};
+use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub trait MWPSVisualizer {
     /// take a snapshot, set `abbrev` to true to save space
@@ -82,15 +84,125 @@ impl VisualizerFileTrait for File {
     }
 }
 
-/// the temporary file (`tempfile`'s `SpooledTempFile`) kept in memory
-impl VisualizerFileTrait for std::io::Cursor<Vec<u8>> {
+/// The most JSON kept in memory before it moves to a temporary file.
+#[cfg(not(test))]
+const SPOOL_BYTES: usize = 256 << 20;
+#[cfg(test)]
+const SPOOL_BYTES: usize = 64;
+
+/// The JSON of a visualizer with an empty filepath: in memory until it passes `SPOOL_BYTES`, then
+/// in a temporary file that is deleted when this is dropped (`tempfile`'s `SpooledTempFile`, which
+/// the port does without `tempfile`).
+#[derive(Debug, Default)]
+struct SpooledJson {
+    memory: Vec<u8>,
+    file: Option<(PathBuf, File)>,
+    len: u64,
+    pos: u64,
+}
+
+static SPILLED: AtomicU64 = AtomicU64::new(0);
+
+impl SpooledJson {
+    fn spill(&mut self) -> std::io::Result<()> {
+        let path = std::env::temp_dir().join(format!("stabilizer_qec_visualizer_{}_{}.json", std::process::id(), SPILLED.fetch_add(1, Ordering::Relaxed)));
+        let file = OpenOptions::new().read(true).write(true).create_new(true).open(&path)?;
+        self.file = Some((path, file));
+        let memory = std::mem::take(&mut self.memory);
+        if let Some((_, file)) = self.file.as_mut() {
+            file.write_all(&memory)?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for SpooledJson {
+    fn drop(&mut self) {
+        if let Some((path, file)) = self.file.take() {
+            drop(file);
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
+impl Read for SpooledJson {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = match self.file.as_mut() {
+            Some((_, file)) => {
+                file.seek(SeekFrom::Start(self.pos))?;
+                file.read(buf)?
+            }
+            None => {
+                let at = (self.pos as usize).min(self.memory.len());
+                let n = buf.len().min(self.memory.len() - at);
+                buf[..n].copy_from_slice(&self.memory[at..at + n]);
+                n
+            }
+        };
+        self.pos += n as u64;
+        Ok(n)
+    }
+}
+
+impl Write for SpooledJson {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if self.file.is_none() && self.pos as usize + buf.len() > SPOOL_BYTES {
+            self.spill()?;
+        }
+        let n = match self.file.as_mut() {
+            Some((_, file)) => {
+                file.seek(SeekFrom::Start(self.pos))?;
+                file.write(buf)?
+            }
+            None => {
+                let (at, end) = (self.pos as usize, self.pos as usize + buf.len());
+                if self.memory.len() < end {
+                    self.memory.resize(end, 0);
+                }
+                self.memory[at..end].copy_from_slice(buf);
+                buf.len()
+            }
+        };
+        self.pos += n as u64;
+        self.len = self.len.max(self.pos);
+        Ok(n)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Seek for SpooledJson {
+    fn seek(&mut self, to: SeekFrom) -> std::io::Result<u64> {
+        let at = match to {
+            SeekFrom::Start(n) => i128::from(n),
+            SeekFrom::End(d) => i128::from(self.len) + i128::from(d),
+            SeekFrom::Current(d) => i128::from(self.pos) + i128::from(d),
+        };
+        match u64::try_from(at) {
+            Ok(pos) => {
+                self.pos = pos;
+                Ok(pos)
+            }
+            Err(_) => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "seek to a negative or overflowing position")),
+        }
+    }
+}
+
+impl VisualizerFileTrait for SpooledJson {
     fn set_len(&mut self, len: u64) -> std::io::Result<()> {
-        self.get_mut().resize(len as usize, 0);
+        match self.file.as_mut() {
+            Some((_, file)) => file.set_len(len)?,
+            None => self.memory.resize(len as usize, 0),
+        }
+        self.len = len;
         Ok(())
     }
     fn sync_all(&mut self) -> std::io::Result<()> {
-        // doesn't matter whether it's written to file, because it's temporary anyway
-        Ok(())
+        match self.file.as_mut() {
+            Some((_, file)) => file.sync_all(),
+            None => Ok(()),
+        }
     }
 }
 
@@ -356,8 +468,8 @@ impl Visualizer {
         }
         let mut file: Option<Box<dyn VisualizerFileTrait + Sync>> = match filepath {
             Some(ref filepath) => Some(if filepath.is_empty() {
-                // 256MB max memory (uncompressed JSON can be very large, no need to write to file)
-                Box::new(std::io::Cursor::new(Vec::new()))
+                // in memory up to 256MB (uncompressed JSON can be very large), then in a temporary file
+                Box::new(SpooledJson::default())
             } else {
                 Box::new(
                     // manually enable read, see
@@ -594,4 +706,36 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+
+    #[test]
+    fn spooled_json_reads_back_what_it_wrote_across_the_spill() {
+        let mut s = SpooledJson::default();
+        s.write_all(b"{\"a\":").unwrap();
+        assert!(s.file.is_none());
+        s.write_all(&[b'x'; 200]).unwrap();
+        let path = s.file.as_ref().expect("spilled").0.clone();
+        s.seek(SeekFrom::End(-2)).unwrap();
+        s.write_all(b"]}").unwrap();
+        s.seek(SeekFrom::Start(0)).unwrap();
+        let mut text = Vec::new();
+        s.read_to_end(&mut text).unwrap();
+        assert_eq!(text.len(), 205);
+        assert_eq!(&text[..5], b"{\"a\":");
+        assert_eq!(&text[203..], b"]}");
+        assert!(path.exists());
+        drop(s);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn an_empty_path_visualizer_keeps_its_data_past_the_spill() {
+        let positions = vec![VisualizePosition::new(0., 0., 0.), VisualizePosition::new(1., 0., 0.)];
+        let mut v = Visualizer::new(Some(String::new()), positions, false).unwrap();
+        v.incremental_save("step".to_string(), json!({"x": 1})).unwrap();
+        let data = v.get_visualizer_data();
+        assert_eq!(data["format"], json!("mwpf"));
+        assert_eq!(data["snapshots"], json!([["step", {"x": 1}]]));
+    }
+}
