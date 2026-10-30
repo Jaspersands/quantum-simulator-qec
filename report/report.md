@@ -56,8 +56,8 @@ and whether they flipped the logical qubit. Two questions decide whether it is a
   that falls behind never catches up.
 
 This report describes an engine built to answer both. It covers how the engine works, how it is
-checked, and what it measures. Every number below is read from a file committed with the source,
-and the build fails if one is missing. The same engine drives an interactive explainer that runs
+checked, and what it measures. The tables and figures below are read from files committed with the source, and the build
+fails if one is missing; the few figures quoted in the prose are typed from those files. The same engine drives an interactive explainer that runs
 it in the reader's browser, at [qcompiler.jaspersands.com](https://qcompiler.jaspersands.com).
 
 The work is organised around three references the field already trusts:
