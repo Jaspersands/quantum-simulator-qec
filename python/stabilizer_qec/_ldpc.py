@@ -9,8 +9,11 @@ integers where a float is typed, NumPy scalars, and sequences where a list is ty
 ldpc's Cython signatures refuse them. Three things are stricter, or decode differently, where ldpc
 decodes: a received vector on a non-square check matrix under BP+LSD and BP+OSD is refused;
 ``BpFlipDecoder`` refuses a negative ``flip_iterations`` and ``pflip_frequency``, which ldpc takes;
-and a syndrome entry other than 0 or 1 gives a correction that differs from ldpc's, the difference
-depending on the decoder. Its v1 classes (``bp_decoder``, ``bposd_decoder``) are held to ldpc's
+and a syndrome entry other than 0 or 1 is read as 1 when it is nonzero, for every decoder here, where
+ldpc reads it per decoder: BpDecoder truncates the entry to an integer and reads a nonzero result as 1
+(so 0.5 reads as 0); BpLsdDecoder and UnionFindDecoder read only the integer 1 as 1 (so 2 and 3 read as
+0); and BpOsdDecoder uses the integer itself, so its correction for a syndrome of 2 is [2, 0, 0]. So the
+corrections differ from ldpc's for some such entries. Its v1 classes (``bp_decoder``, ``bposd_decoder``) are held to ldpc's
 exact types and one positional argument. And ``BpOsdDecoder.decoding`` returns the OSD decoding
 (in ldpc it raises ``AttributeError``)."""
 
