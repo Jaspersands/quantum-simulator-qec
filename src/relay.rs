@@ -182,6 +182,9 @@ impl<N: RelayNum> RelayCore<N> {
         if !(hi - lo).is_finite() {
             return Err(format!("the memory strengths' range is too wide to sample: its width overflows ({lo}, {hi})"));
         }
+        if hi - lo < 1e-9 * lo.abs().max(hi.abs()) {
+            return Err(format!("the memory strengths' range is too narrow to sample: the width of ({lo}, {hi}) is under 1e-9 of its larger end"));
+        }
         if let Some(g) = &config.gammas {
             if g.is_empty() || g.iter().any(|row| row.len() != columns.len()) {
                 return Err(format!("explicit memory strengths need rows of {} (one per fault)", columns.len()));

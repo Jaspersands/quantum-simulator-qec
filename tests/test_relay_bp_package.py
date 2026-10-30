@@ -181,6 +181,9 @@ def test_errors_and_types():
         ours.RelayDecoderI32(h, p, gamma_dist_interval=(-1e12, 1e12))
     with pytest.raises(ValueError):
         ours.RelayDecoderI64(h, p, explicit_gammas=np.full((2, 3), 1e30))
+    # A range narrower than 1e-9 of its ends takes unboundedly many passes to sample: refused.
+    with pytest.raises(ValueError):
+        ours.RelayDecoderF64(h, p, gamma_dist_interval=(1.0, 1.0 + 2**-52))
 
 
 def test_parallel_batches_on_threads(monkeypatch):
