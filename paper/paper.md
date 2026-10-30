@@ -131,7 +131,7 @@ experiments, 27.5 million shots) [@google2023suppressing; @google2025quantum], a
 That anchors its decoders to hardware rather than only to its own noise model.
 
 Correctness is enforced beyond the comparisons. A randomized run of 20,000 generated and
-mutated circuits and models drives every parser, builder, sampler and decoder; inputs may be
+mutated circuits and models drives the parsers, builders and samplers and the decoders built on a model (the matcher of `src/sparse/`, belief-matching, BP+OSD and the window decoders), not `Matching`'s matcher; inputs may be
 refused, but nothing may panic. Fuzzing covers the parsers. The Python test suite runs on
 Python 3.9 to 3.14 on Linux, macOS and Windows. Benchmarks against Stim and PyMatching run in
 continuous integration, which fails a change that doubles a speed ratio.
