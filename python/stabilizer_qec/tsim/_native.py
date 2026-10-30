@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import math
 import re
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from stabilizer_qec.tsim.utils.program_text import _product_rotation, _stored_radians
 
@@ -175,8 +175,21 @@ def tsim_to_native(text: str) -> str:
     raises Tsim's error as this package's ``ValueError`` naming the line, and a half-turn rotation
     Tsim reads as no gate (``I[R_Z (theta=0.3*pi)] 0``, ``I[ R_Z(theta=0.3*pi)] 0``,
     ``I[R_Z(theta=0.3*pi)#x] 0``) is the identity ``I 0`` (its tag, inert in Tsim, is not kept)."""
-    lines = []
-    for number, line in enumerate(text.splitlines(), 1):
+    return _native_lines(text)[0]
+
+
+def _native_lines(text: str, source: Optional[List[int]] = None) -> Tuple[str, List[int]]:
+    """``tsim_to_native``'s text, and for each of its lines the number of the line it came from:
+    ``source`` gives the number of each of ``text``'s lines in the program the user wrote (the line
+    numbers in the errors are those), and by default they are ``text``'s own."""
+    numbers = list(range(1, len(text.splitlines()) + 1)) if source is None or len(source) != len(text.splitlines()) else source
+    lines: List[str] = []
+    owner: List[int] = []
+    previous = 0
+    for index, line in enumerate(text.splitlines()):
+        owner.extend([previous] * (len(lines) - len(owner)))  # the lines the previous line made
+        previous = numbers[index]
+        number = previous
         body, sep, comment = _split_comment(line)
         gate_match = _GATE.match(body)
         if gate_match:
@@ -215,4 +228,14 @@ def tsim_to_native(text: str) -> str:
             continue
         if sep:
             lines[-1] += f" {sep}{comment}"
-    return "\n".join(lines)
+    owner.extend([previous] * (len(lines) - len(owner)))
+    return "\n".join(lines), owner
+
+
+def _source_error(exc: ValueError, owner: List[int]) -> ValueError:
+    """``exc`` with the line number its message gives (``line N: ...``) as the program the user
+    wrote numbers that line, through ``owner`` (the source line of each line of the text it parsed)."""
+    m = re.match(r"line (\d+): ", str(exc))
+    if not m or not 1 <= int(m.group(1)) <= len(owner):
+        return exc
+    return ValueError(f"line {owner[int(m.group(1)) - 1]}: " + str(exc)[m.end():])

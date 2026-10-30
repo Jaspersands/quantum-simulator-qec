@@ -620,6 +620,19 @@ def test_malformed_parametric_tags_raise_tsims_error_naming_the_line(text):
         tsim.Circuit(text)
 
 
+def test_errors_name_the_source_line_after_a_controlled_gate():
+    # A CCZ or CCX line is decomposed into many lines; an error names the line the program has.
+    with pytest.raises(ValueError, match=r"^line 2: Could not parse instruction 'I\[R_Z\(theta=0\.3\*pi\*pi\)\] 0'"):
+        tsim.Circuit("CCZ 0 1 2\nI[R_Z(theta=0.3*pi*pi)] 0")
+    with pytest.raises(ValueError, match=r"^line 3: Could not parse instruction"):
+        tsim.Circuit("H 0\nCCX 0 1 2\nI[R_Z(theta=0.3*pi*pi)] 0")
+    with pytest.raises(ValueError, match=r"^line 2: Gate not found: 'FOO'"):
+        tsim.Circuit("CCZ 0 1 2\nFOO 0")
+    c = tsim.Circuit()
+    with pytest.raises(ValueError, match=r"^line 2: Gate not found: 'FOO'"):
+        c.append_from_stim_program_text("CCZ 0 1 2\nFOO 0")
+
+
 def test_malformed_parametric_tags_are_tsims_errors(real):
     for text, message in MALFORMED_TAGS.items():
         with pytest.raises(ValueError, match=f"{re.escape(message)}$"):
