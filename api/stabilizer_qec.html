@@ -3339,7 +3339,7 @@ its faults decomposed (<code>detector_error_model(decompose_errors=True)</code>)
     </div>
     <a class="headerlink" href="#BeliefMatching.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_converged</code> also returns, per shot, whether
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>); <code>return_converged</code> also returns, per shot, whether
 BP's own correction was used.</p>
 </div>
 
@@ -4299,7 +4299,7 @@ product-sum, flooding (<code>schedule="serial"</code> is <code>ldpc</code>'s ser
     </div>
     <a class="headerlink" href="#AmbiguityClustering.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>. <code>return_converged</code> also returns, per shot, whether BP
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>). <code>return_converged</code> also returns, per shot, whether BP
 explained it alone; <code>return_stats</code> returns, per shot, the blocks, the ambiguous blocks
 and the solutions searched in them (an int array of shape (shots, 3)).</p>
 </div>
@@ -4506,7 +4506,7 @@ raised (0 for local clustering, whose triggers are the graph's edges).</p>
     </div>
     <a class="headerlink" href="#LeakageAwareDecoder.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, with the shots' triggers: <code>heralds</code> (shape (shots,
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>), with the shots' triggers: <code>heralds</code> (shape (shots,
 measurement records)), <code>leakage_flags</code> (shape (shots, heralds)), and, where the shots
 are the circuit's own detectors, the detectors reading a herald. <code>return_raised</code> also
 returns how many priors each shot raised. A shot no correction explains raises
@@ -4811,7 +4811,7 @@ applied.</p>
     </div>
     <a class="headerlink" href="#PreDecoder.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>: the pre-decoder's faults, then the global decoder on the
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>): the pre-decoder's faults, then the global decoder on the
 detection events left (on the network's weights, with <code><a href="#PreDecoder.reweight">reweight</a></code>), their observables
 together.</p>
 </div>
@@ -4876,7 +4876,7 @@ of growth and the pairs compared, the hardware's work. The model must be decompo
     </div>
     <a class="headerlink" href="#CollisionClustering.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_stats</code> also returns, per shot, the rounds of
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>); <code>return_stats</code> also returns, per shot, the rounds of
 growth and the pairs of events compared (an int array of shape (shots, 2)). A shot no
 correction explains raises <code>ValueError</code>.</p>
 </div>
@@ -5005,7 +5005,7 @@ and Z sectors apart, or separate patches, <code><a href="#CompositeDecoder">Comp
     </div>
     <a class="headerlink" href="#SubgraphDecoder.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>: each subgraph's inner decoder on its detectors' columns,
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>): each subgraph's inner decoder on its detectors' columns,
 their predictions combined by exclusive or.</p>
 </div>
 
@@ -5110,7 +5110,7 @@ circuit with those channels added to the decoding graph.</p>
     </div>
     <a class="headerlink" href="#LocalClustering.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>. <code>heralds</code>: per shot, which triggers of the
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>). <code>heralds</code>: per shot, which triggers of the
 adaptivity map fired (shape (shots, triggers)); their edges are pre-grown.
 <code>return_stats</code> also returns, per shot, the rounds of growth, the stage passes the
 controller ran (the hardware's time steps) and the edges pre-grown (an int array of
@@ -5163,7 +5163,7 @@ and <code>random_schedule_seed</code> are <code>ldpc</code>'s (see <code>_schedu
     </div>
     <a class="headerlink" href="#BpLsd.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_converged</code> also returns, per shot, whether
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>); <code>return_converged</code> also returns, per shot, whether
 BP converged before LSD.</p>
 </div>
 
@@ -5367,7 +5367,7 @@ IBM's bivariate bicycle codes: give it the undecomposed model. <code>schedule</c
     </div>
     <a class="headerlink" href="#BpOsd.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_converged</code> also returns, per shot, whether
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>); <code>return_converged</code> also returns, per shot, whether
 BP converged before OSD.</p>
 </div>
 
@@ -5614,7 +5614,7 @@ below <code><a href="#SoftInfoBpDecoder.cutoff">cutoff</a></code> take part as v
     <a class="headerlink" href="#BpFlipDecoder"></a>
     
             <div class="docstring"><p>Bit flipping, then BP on what it leaves, as ldpc's <code><a href="#BpFlipDecoder">BpFlipDecoder</a></code>: Gallager's
-flipping for <code><a href="#BpFlipDecoder.flip_iterations">flip_iterations</a></code> passes (0: the block length), every <code>pflip_frequency</code>-th
+flipping for <code><a href="#BpFlipDecoder.flip_iterations">flip_iterations</a></code> passes (0: the block length; a negative count: none, as in ldpc), every <code>pflip_frequency</code>-th
 pass flipping tied bits at random (<code>pflip_seed</code>; 0 is the clock), then BP decodes the
 remaining syndrome. <code>osd_method</code> and <code>osd_order</code> are accepted and unused, as in ldpc.</p>
 </div>
@@ -7698,7 +7698,7 @@ cannot split into basic ones are an error, as in Chromobius, unless
     </div>
     <a class="headerlink" href="#ColorMatching.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_weights</code> also returns each shot's Möbius
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>); <code>return_weights</code> also returns each shot's Möbius
 matching weight (as <code>chromobius</code>'s <code>predict_weighted_obs_flips_from_dets_bit_packed</code>).</p>
 </div>
 
@@ -10336,8 +10336,10 @@ fault ids its matching flips, as uint8 0/1; with <code>return_weight</code>, als
     <a class="headerlink" href="#Matching.decode_batch"></a>
     
             <div class="docstring"><p>Shots (shots × detectors, uint8 0/1 or bool; or bit-packed rows) to predictions
-(shots × fault ids, uint8; or bit-packed), as PyMatching's <code><a href="#Matching.decode_batch">decode_batch</a></code>; with
-<code>return_weights</code>, each shot's matching weight too. <code>threads = 0</code> uses every core.</p>
+(shots × fault ids, uint8; or bit-packed), as PyMatching's <code><a href="#Matching.decode_batch">decode_batch</a></code>. Other numeric
+entries are cast to uint8 and then read as bool, as PyMatching reads them: 256 reads as 0,
+0.5 as 0 and 1.0 as 1. With <code>return_weights</code>, each shot's matching weight too.
+<code>threads = 0</code> uses every core.</p>
 </div>
 
 
@@ -10484,7 +10486,7 @@ detectors: give it the undecomposed model.</p>
     </div>
     <a class="headerlink" href="#RelayBp.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_converged</code> also returns, per shot, whether a
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>); <code>return_converged</code> also returns, per shot, whether a
 leg converged (where none did, the prediction is from the first leg's last guess).</p>
 </div>
 
@@ -10619,7 +10621,7 @@ lines (flattened), or <code>[]</code> where it gave up.</p>
     </div>
     <a class="headerlink" href="#SearchDecoder.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_weights</code> also returns each shot's found cost
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>); <code>return_weights</code> also returns each shot's found cost
 (Σ −ln(p/(1 − p)) over its faults), <code>return_low_confidence</code> whether the search gave
 up (then the prediction is no flips).</p>
 </div>
@@ -10879,7 +10881,7 @@ is about twice as fast here). The model must be decomposed (<code>decompose_erro
     </div>
     <a class="headerlink" href="#UnionFind.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>. A shot no correction explains raises <code>ValueError</code>.</p>
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>). A shot no correction explains raises <code>ValueError</code>.</p>
 </div>
 
 
@@ -11068,7 +11070,7 @@ are NaN).</p>
     </div>
     <a class="headerlink" href="#WindowMatching.decode_batch"></a>
     
-            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>; <code>return_timings</code> also returns each window's decode
+            <div class="docstring"><p>As <code><a href="#Matching.decode_batch">Matching.decode_batch</a></code>, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises <code>TypeError</code>); <code>return_timings</code> also returns each window's decode
 time per shot in seconds (shots × windows).</p>
 </div>
 

@@ -1058,7 +1058,9 @@ reaches the QDK through its JSON round trip, which keeps 15 significant digits e
 error's name, as <code>Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget</code>) and its <code><a href="#EstimatorError.message">message</a></code>, <code>Error
 estimating resources (&lt;code&gt;):</code> with the QDK's reason on the next line, which is also the error's string.
 <code>reason</code> is the reason alone, what a batch's failed item holds as its <code><a href="#EstimatorError.message">message</a></code>. Its <code><a href="#EstimatorError.args">args</a></code> are its code
-and reason, and its repr <code>EstimatorError('&lt;code&gt;', '&lt;reason&gt;')</code>, as the QDK's are.</p>
+and reason, and its repr <code>EstimatorError('&lt;code&gt;', '&lt;reason&gt;')</code>, as the QDK's are. Its second
+parameter is named <code>reason</code>, not the QDK's <code><a href="#EstimatorError.message">message</a></code>, so it is given positionally, as
+<code>EstimatorError(code, reason)</code>; a keyword <code>message=</code> is refused with a TypeError.</p>
 
 <p>A ValueError here, as in 2.1, where the QDK's derives from BaseException alone: this package promises that
 bad input raises a ValueError or a TypeError. Code that catches it by name, as with the QDK, works the same;
@@ -4500,7 +4502,11 @@ charts of the QDK's notebook widgets, as SVG: <code><a href="#EstimatorResult.sp
     </div>
     <a class="headerlink" href="#EstimatorResult.logical_counts"></a>
     
-    
+            <div class="docstring"><p>The job's logical counts as a <code><a href="#LogicalCounts">LogicalCounts</a></code>, the port's frozen dataclass: its counts are
+attributes, and <code>asdict()</code> gives the QDK's camelCase dict. Unlike the QDK's dict, it cannot be
+subscripted (a TypeError) and has no <code><a href="#EstimatorResult.json">json</a></code> property.</p>
+</div>
+
 
                             </div>
                             <div id="EstimatorResult.json" class="classattr">
