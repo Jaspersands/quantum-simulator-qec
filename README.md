@@ -1435,7 +1435,7 @@ with it. The same program finds the gross code's own distance, 12 in both types.
 report 103 ancilla qubits for one system that measures eight operators, with fault distance 12
 from a schedule they optimise; each system here measures one operator.
 
-**Checked** (`tools/gross_ops.py check`, in CI):
+**Checked** (`tools/gross_ops.py check`; CI runs `--quick`: X(f, 0) with 64 shots):
 - Without noise every detector and observable is deterministic, in both bases, for all three
   operators and both systems, reading out after memory cycles or right at the split.
 - A check whose whole support is read in its own basis closes its comparison with that reading:
