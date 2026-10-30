@@ -2999,8 +2999,9 @@ in a script's own directory first, so for the two benchmark scripts it would sha
 
 MIT for the code written here. The parts ported from other projects keep their own licences
 (Apache-2.0 for Stim, sinter, deltakit, qsample and PECOS among others; MIT, BSD and zlib for
-the rest; Apache-2.0 with LLVM exceptions for the standard-library algorithms reproduced) and
-are listed, with their copyright notices, in
+the rest; Apache-2.0 with LLVM exceptions for the standard-library algorithms reproduced; and
+CC BY 4.0 for `python/stabilizer_qec/tqec/noise_model.py`, a port of tqec's file recovered from
+Gidney's data) and are listed, with their copyright notices, in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The Rust crates the compiled module links
 (PyO3, rand, wgpu and what they depend on, per wheel target) are listed with their licence texts
 in [THIRD_PARTY_CRATES.md](THIRD_PARTY_CRATES.md). One file is left out for its licence: Loom's

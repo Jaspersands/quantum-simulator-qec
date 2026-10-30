@@ -2,8 +2,8 @@
 
 The code written for stabilizer-qec is MIT-licensed (see `LICENSE`). Parts of the package are
 ported from, or reproduce material of, other projects under their own licences (Apache-2.0, MIT,
-BSD, zlib, and Apache-2.0 with LLVM exceptions), which apply to those parts and travel with them; each is listed below with its
-copyright notice. The Rust crates the compiled module links are listed, with their licence texts,
+BSD, zlib, Apache-2.0 with LLVM exceptions, and CC BY 4.0), which apply to those parts and travel
+with them; each is listed below with its copyright notice. The Rust crates the compiled module links are listed, with their licence texts,
 in `THIRD_PARTY_CRATES.md` (see "Rust crates" below).
 
 ## Stim
