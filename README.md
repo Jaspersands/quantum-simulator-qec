@@ -1147,8 +1147,9 @@ It is checked four ways:
    (sliding) or 1 (parallel) to 3, in both schedules and with both matchers, the committed edges
    explain the shot's defects exactly. This caught a real hole: parallel windows with no buffer
    have no gaps for layer B, and leave corrections nowhere to land. They are now refused.
-3. **Accuracy on Google's data.** Every Willow experiment is decoded with C = B = d, beside the
-   global decoder (see the table below).
+3. **Accuracy on Google's data.** Every Willow experiment with more than one round is decoded with C = B = d
+   (392 of 420; the 28 single-round ones have nothing to window), beside the global decoder (see
+   the table below).
 4. **A template is the full model.** The million-round stream never builds a million-round model.
    Each window takes the graph of the window in the same position in a short template: the ends
    from the template's ends, the bulk from its middle. On a 60-round stream this decodes all 64
