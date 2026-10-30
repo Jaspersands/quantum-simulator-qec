@@ -1093,6 +1093,8 @@ def main(argv: Optional[List[str]] = None, *, command_line_args: Optional[List[s
         return 1
     except SystemExit as ex:  # argparse's own --help
         return int(ex.code or 0)
+    except KeyboardInterrupt:  # Ctrl-C: the shell's 128 + SIGINT, without a traceback
+        return 130
     return 0
 
 

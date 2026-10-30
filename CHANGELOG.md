@@ -39,6 +39,9 @@ policy for its documented items.
   still cannot be served; the ERROR says why.
 - `serve` refuses a STATS, RESET or BYE frame that declares a payload from its header, before buffering
   the payload; it used to read and ignore up to 256 MiB of it.
+- `serve --stdio` with stdin or stdout closed is a one-line error with exit 1 (it was an AttributeError);
+  with its reader gone it exits 0 quietly (it was a flush error at exit, exit 120); Ctrl-C in any
+  `stabilizer-qec` command exits 130 without a traceback.
 - `serve` binds an IPv6 address given as `::1:0` or `[::1]:0` (`--tcp` and `tcp=` alike); before, the
   bind failed with a name-resolution error.
 

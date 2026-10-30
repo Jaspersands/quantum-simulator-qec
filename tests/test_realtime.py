@@ -8,6 +8,8 @@ from __future__ import annotations
 import io
 import json
 import os
+import signal
+import subprocess
 import sys
 import threading
 import time
@@ -172,6 +174,53 @@ def test_stdio_server_subprocess(memory, tmp_path):
         assert np.array_equal(client.decode_batch(dets[:300]), sq.Matching(dem).decode_batch(dets[:300]))
     with pytest.raises(TypeError):
         DecoderClient.spawn()
+
+
+_POSIX_STREAMS = pytest.mark.skipif(sys.platform == "win32", reason="closes the standard streams with sh")
+
+
+@_POSIX_STREAMS
+@pytest.mark.parametrize("redirect", ["<&-", ">&-"], ids=["stdin", "stdout"])
+def test_serve_stdio_with_a_closed_stream_is_a_usage_error(memory, tmp_path, redirect):
+    c, dets, obs = memory
+    path = tmp_path / "m.dem"
+    path.write_text(str(c.detector_error_model(decompose_errors=True)))
+    run = subprocess.run(["/bin/sh", "-c", f"exec '{sys.executable}' -m stabilizer_qec._cli serve --stdio --dem '{path}' {redirect}"], capture_output=True, text=True, timeout=120)
+    assert run.returncode == 1 and "must both be open" in run.stderr and "Traceback" not in run.stderr
+
+
+@_POSIX_STREAMS
+def test_serve_stdio_exits_quietly_when_its_reader_has_gone(memory, tmp_path):
+    c, dets, obs = memory
+    path = tmp_path / "m.dem"
+    path.write_text(str(c.detector_error_model(decompose_errors=True)))
+    p = subprocess.Popen([sys.executable, "-m", "stabilizer_qec._cli", "serve", "--stdio", "--dem", str(path)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        Protocol.read(p.stdout)  # HELLO
+        p.stdout.close()  # the reply to the request below has no reader
+        p.stdin.write(Protocol.pack(Protocol.STATS))
+        p.stdin.close()
+        rc = p.wait(60)
+    finally:
+        p.kill()
+    err = p.stderr.read()
+    assert rc == 0 and b"Exception ignored" not in err and b"Traceback" not in err
+
+
+@_POSIX_STREAMS
+def test_serve_stdio_ends_with_130_on_ctrl_c_without_a_traceback(memory, tmp_path):
+    c, dets, obs = memory
+    path = tmp_path / "m.dem"
+    path.write_text(str(c.detector_error_model(decompose_errors=True)))
+    p = subprocess.Popen([sys.executable, "-m", "stabilizer_qec._cli", "serve", "--stdio", "--dem", str(path)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        Protocol.read(p.stdout)  # HELLO: the server now waits for a request
+        p.send_signal(signal.SIGINT)
+        rc = p.wait(60)
+    finally:
+        p.kill()
+    err = p.stderr.read()
+    assert rc == 130 and b"Traceback" not in err
 
 
 def test_serve_cli_arguments(memory, tmp_path, capsys):

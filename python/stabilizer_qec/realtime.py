@@ -662,7 +662,15 @@ def serve(decoder: Any, *, tcp: Optional[str] = None, stdio: bool = False, worke
         raise ValueError("serve over tcp='host:port' or stdio=True, one of the two")
     try:
         if stdio:
+            if sys.stdin is None or sys.stdout is None:
+                raise ValueError("stdin and stdout must both be open for stdio")
             session.run(sys.stdin.buffer, sys.stdout.buffer)
+            try:
+                sys.stdout.flush()
+            except BrokenPipeError:  # the reader has gone: the interpreter's last flush of stdout must not fail
+                devnull = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(devnull, sys.stdout.fileno())
+                os.close(devnull)
             return
         host, _, port = tcp.rpartition(":")
         if not host or not port:
