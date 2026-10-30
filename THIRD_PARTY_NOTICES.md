@@ -102,7 +102,8 @@ the Apache License, Version 2.0 (`LICENSES/Apache-2.0.txt`). Source:
 https://github.com/PECOS-packages/PECOS
 
 `python/stabilizer_qec/pecos/` is PECOS whole, on this package's engines; its `LICENSE` is
-beside it, and each modified file says so at its top.
+beside it, and each modified file says so at its top. `src/pecos_sparse.rs` is a Rust translation
+of PECOS's `sparsesim.cpp`, under the same licence, and says so at its top.
 
 ## PanQEC
 
