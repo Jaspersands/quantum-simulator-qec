@@ -309,8 +309,9 @@ See 'save_fit_information' for more information.</p>
 
 <h2 id="notes">Notes</h2>
 
-<p>The file is YAML, written by pyyaml when it is installed and otherwise as JSON (which
-YAML readers read too).</p>
+<p>The file is YAML, written by pyyaml when it is installed and otherwise as JSON. A JSON file
+is read by pyyaml as YAML except for numbers in exponent form with no decimal point (1e-06),
+which it reads as strings; the arrays are converted to floats here, whichever parser read them.</p>
 </div>
 
 
@@ -334,8 +335,9 @@ the arguments in this function.</p>
 
 <h2 id="notes">Notes</h2>
 
-<p>The file is YAML, written by pyyaml when it is installed and otherwise as JSON (which
-YAML readers read too).</p>
+<p>The file is YAML, written by pyyaml when it is installed and otherwise as JSON. A JSON file
+is read by pyyaml as YAML except for numbers in exponent form with no decimal point (1e-06),
+which it reads as strings; <code><a href="#load_fit_information">load_fit_information</a></code> converts them back.</p>
 </div>
 
 

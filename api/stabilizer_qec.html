@@ -2659,14 +2659,15 @@ completion are approximations (see <code><a href="#Circuit.compile_coherent_samp
 </code></pre>
 </div>
 
-<p><code>compile_exact_sampler</code> and <code>exact_distribution</code> run the state vector (up to 24 qubits; also T,
-U3, amplitude and phase damping and T1/T2 relaxation, <code>I_ERROR[THERMAL_RELAXATION(t=…, t1=…,
-t2=…)]</code>). <code><a href="#Circuit.density_matrix">Circuit.density_matrix</a></code> and <code><a href="#DensityMatrixSimulator">DensityMatrixSimulator</a></code> run the density matrix (up to 12
-qubits), noise as channels. <code>twirled(merge=True)</code> is the coherence-aware model for a decoder.
-<code>compile_leakage_sampler</code> runs <code>I_ERROR[LEAK(p=…)]</code>, <code>SEEP</code> and <code>LEAK_TRANSPORT</code>, with heralds,
-and Deltakit's dialect (<code>LEAKAGE(p)</code>, <code>RELAX(p)</code>, <code>HERALD_LEAKAGE_EVENT</code>, read as tagged lines
-Stim runs), with its measurements and leakage flags; <code>without_leakage()</code> is Deltakit's
-deinstrumentation and <code>to_deltakit_text()</code> writes the dialect back.</p>
+<p><code>compile_exact_sampler</code> and <code>exact_distribution</code> run the state vector (up to 24 qubits, counting any
+declared with <code>QUBIT_COORDS</code>; also T, U3, amplitude and phase damping and T1/T2 relaxation,
+<code>I_ERROR[THERMAL_RELAXATION(t=…, t1=…, t2=…)]</code>). <code><a href="#Circuit.density_matrix">Circuit.density_matrix</a></code> and
+<code><a href="#DensityMatrixSimulator">DensityMatrixSimulator</a></code> run the density matrix (up to 12 qubits), noise as channels.
+<code>twirled(merge=True)</code> is the coherence-aware model for a decoder. <code>compile_leakage_sampler</code> runs
+<code>I_ERROR[LEAK(p=…)]</code>, <code>SEEP</code> and <code>LEAK_TRANSPORT</code>, with heralds, and Deltakit's dialect
+(<code>LEAKAGE(p)</code>, <code>RELAX(p)</code>, <code>HERALD_LEAKAGE_EVENT</code>, read as tagged lines Stim runs), with its
+measurements and leakage flags; <code>without_leakage()</code> is Deltakit's deinstrumentation and
+<code>to_deltakit_text()</code> writes the dialect back.</p>
 
 <h2 id="the-command-line">The command line</h2>
 
@@ -7403,10 +7404,11 @@ not count.</p>
     </div>
     <a class="headerlink" href="#Circuit.compile_exact_sampler"></a>
     
-            <div class="docstring"><p>An exact sampler: the full state vector (up to 24 qubits in use), running every
-instruction, Clifford or not, including the tagged rotations, T, U3 and amplitude damping
-(<code>I_ERROR[R_Z(theta=0.01)] 0</code>, <code>I[T] 0</code>). Noise channels are drawn as quantum
-trajectories. Its <code>sample</code> has the detector sampler's signature.</p>
+            <div class="docstring"><p>An exact sampler: the full state vector (up to 24 qubits, counting any declared with
+<code>QUBIT_COORDS</code>), running every instruction, Clifford or not, including the tagged
+rotations, T, U3 and amplitude damping (<code>I_ERROR[R_Z(theta=0.01)] 0</code>, <code>I[T] 0</code>). Noise
+channels are drawn as quantum trajectories. Its <code>sample</code> has the detector sampler's
+signature.</p>
 </div>
 
 
@@ -7520,7 +7522,9 @@ cost growing with the non-Clifford gates) follows the branches as the state vect
 with the stabilizer-rank sampler's engine; <code>"coherent"</code> sums the joint coherent
 sampler's weighted twirl over every branch with the whole interference kernel (the
 proof of its identity: it equals the state vector's). For small circuits; more than
-<code>max_branches</code> branches is an error.</p>
+<code>max_branches</code> branches is an error. An observable of Pauli targets
+(<code>OBSERVABLE_INCLUDE(0) X0</code>) is refused by these engines, which read measurement
+records; the detector sampler and the detector error model read it.</p>
 </div>
 
 
@@ -10104,7 +10108,8 @@ edge already there: <code>disallow</code> (an error), <code>independent</code>, 
     </div>
     <a class="headerlink" href="#Matching.set_boundary_nodes"></a>
     
-            <div class="docstring"><p>The boundary nodes: decoding treats an edge to one as an edge to the boundary.</p>
+            <div class="docstring"><p>The boundary nodes: decoding treats an edge to one as an edge to the boundary. Naming
+the nodes it already has changes nothing, and keeps correlated decoding, as PyMatching does.</p>
 </div>
 
 
@@ -10119,7 +10124,11 @@ edge already there: <code>disallow</code> (an error), <code>independent</code>, 
     </div>
     <a class="headerlink" href="#Matching.ensure_num_fault_ids"></a>
     
-    
+            <div class="docstring"><p>Reserve room for at least this many fault ids. A decode whose output cannot be
+allocated, as with a count near 2**63, raises MemoryError; PyMatching's from_networkx
+given the same min_num_fault_ids builds, and its decode raises ValueError.</p>
+</div>
+
 
                             </div>
                             <div id="Matching.boundary" class="classattr">

@@ -1225,7 +1225,7 @@ decoders' engines (a TensorRT engine file, CUDA graphs) need CUDA-Q itself and a
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">configure_decoders</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">decoders</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">):</span></span>
+        <span class="name">configure_decoders</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">decoders</span><span class="o">=</span><span class="kc">None</span>, </span><span class="param"><span class="o">*</span>, </span><span class="param"><span class="n">config</span><span class="o">=</span><span class="kc">None</span>, </span><span class="param"><span class="n">workers</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span></span><span class="return-annotation">):</span></span>
 
         
     </div>
@@ -1233,9 +1233,10 @@ decoders' engines (a TensorRT engine file, CUDA graphs) need CUDA-Q itself and a
     
             <div class="docstring"><p>Configure real-time decoders. From a <code><a href="#multi_decoder_config">multi_decoder_config</a></code>, as CUDA-Q: the decoders it
 describes replace those configured before, and the status (0 when all were built) is
-returned. Or this package's queue form: <code>decoders</code> a dict <code>{id: decoder}</code> or a list
-(numbered from 0) of any decoders with <code>decode_batch</code> or <code>decode</code> (this package's, or a
-<code><a href="#Decoder">Decoder</a></code>), each put behind a queue of <code>workers</code> threads; returns their ids.</p>
+returned. It is given as <code>config</code> (CUDA-Q's keyword) or as <code>decoders</code>. Or this package's
+queue form: <code>decoders</code> a dict <code>{id: decoder}</code> or a list (numbered from 0) of any decoders
+with <code>decode_batch</code> or <code>decode</code> (this package's, or a <code><a href="#Decoder">Decoder</a></code>), each put behind a
+queue of <code>workers</code> threads; returns their ids.</p>
 </div>
 
 
@@ -4726,7 +4727,7 @@ n_checks).</p>
                     <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">css_matrices_from_code</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">qec_code</span><span class="p">:</span> <span class="n">Any</span></span><span class="return-annotation">) -> <span class="n"><a href="#CssCodes">CssCodes</a></span>:</span></span>
+        <span class="name">css_matrices_from_code</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">qec_code</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="o">*</span>,</span><span class="param">	<span class="n">code</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span></span><span class="return-annotation">) -> <span class="n"><a href="#CssCodes">CssCodes</a></span>:</span></span>
 
         
     </div>
@@ -4736,7 +4737,8 @@ n_checks).</p>
 
 <p>Calls <code>code.get_parity_z/x()</code> and <code>code.get_observables_z/x()</code> and wraps the results as
 <code><a href="#CssCodes">CssCodes</a></code> (a result that is not a matrix, as a code without stabilizers of a type returns,
-is an empty 0 x 0 matrix, as CUDA-Q's <code>tensor_to_sparse</code> gives it; so is one with no rows).</p>
+is an empty 0 x 0 matrix, as CUDA-Q's <code>tensor_to_sparse</code> gives it; so is one with no rows).
+The code is <code>qec_code</code> here and <code><a href="#code">code</a></code> as CUDA-Q names the argument; either keyword works.</p>
 </div>
 
 

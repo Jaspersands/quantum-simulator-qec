@@ -191,7 +191,10 @@ overall efficiency.</p>
 
 <p>Args:
     dem: A detector error model for the samples that will need to be
-        decoded. What to configure the decoder to decode.</p>
+        decoded. What to configure the decoder to decode. Collection in
+        this package passes its own DetectorErrorModel, not Stim's; a
+        decoder built on Stim converts it with
+        <code>stim.DetectorErrorModel(str(dem))</code>.</p>
 
 <p>Returns:
     An instance of <code>sinter.CompiledDecoder</code> that can be used to invoke

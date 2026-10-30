@@ -361,7 +361,7 @@ PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outc
                 <section id="SINGLE_QUBIT">
                     <div class="attr variable">
             <span class="name">SINGLE_QUBIT</span>        =
-<span class="default_value">frozenset({&#39;i&#39;, &#39;phaseinv&#39;, &#39;t&#39;, &#39;h&#39;, &#39;phase&#39;, &#39;hadamard&#39;, &#39;z&#39;, &#39;x&#39;, &#39;y&#39;})</span>
+<span class="default_value">frozenset({&#39;h&#39;, &#39;hadamard&#39;, &#39;phase&#39;, &#39;phaseinv&#39;, &#39;t&#39;, &#39;i&#39;, &#39;x&#39;, &#39;z&#39;, &#39;y&#39;})</span>
 
         
     </div>
@@ -373,7 +373,7 @@ PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outc
                 <section id="TWO_QUBIT">
                     <div class="attr variable">
             <span class="name">TWO_QUBIT</span>        =
-<span class="default_value">frozenset({&#39;cnot&#39;, &#39;cz&#39;, &#39;cy&#39;, &#39;cx&#39;, &#39;swap&#39;})</span>
+<span class="default_value">frozenset({&#39;cnot&#39;, &#39;swap&#39;, &#39;cy&#39;, &#39;cz&#39;, &#39;cx&#39;})</span>
 
         
     </div>
@@ -385,7 +385,7 @@ PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outc
                 <section id="RESETS">
                     <div class="attr variable">
             <span class="name">RESETS</span>        =
-<span class="default_value">frozenset({&#39;reset_-i&#39;, &#39;reset_+i&#39;, &#39;reset&#39;, &#39;reset_+&#39;, &#39;reset_0&#39;, &#39;reset_1&#39;, &#39;reset_-&#39;})</span>
+<span class="default_value">frozenset({&#39;reset_-i&#39;, &#39;reset_-&#39;, &#39;reset&#39;, &#39;reset_0&#39;, &#39;reset_1&#39;, &#39;reset_+&#39;, &#39;reset_+i&#39;})</span>
 
         
     </div>
@@ -410,7 +410,7 @@ PennyLane, CUDA-Q, Mimiq or Guppy text; each converter's reading of a run's outc
                     <div class="attr variable">
             <span class="name">CLIFFORD_OPS</span>        =
 <input id="CLIFFORD_OPS-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="CLIFFORD_OPS-view-value"></label><span class="default_value">frozenset({&#39;cnot&#39;, &#39;reset_-i&#39;, &#39;reset_+&#39;, &#39;h&#39;, &#39;phase&#39;, &#39;cy&#39;, &#39;hadamard&#39;, &#39;z&#39;, &#39;measure_z&#39;, &#39;measure_y&#39;, &#39;y&#39;, &#39;reset_0&#39;, &#39;reset_1&#39;, &#39;i&#39;, &#39;phaseinv&#39;, &#39;reset_+i&#39;, &#39;t&#39;, &#39;swap&#39;, &#39;reset_-&#39;, &#39;measure_x&#39;, &#39;cz&#39;, &#39;cx&#39;, &#39;reset&#39;, &#39;measurement&#39;, &#39;x&#39;})</span>
+            <label class="view-value-button pdoc-button" for="CLIFFORD_OPS-view-value"></label><span class="default_value">frozenset({&#39;cnot&#39;, &#39;reset&#39;, &#39;cy&#39;, &#39;reset_+&#39;, &#39;t&#39;, &#39;reset_-&#39;, &#39;x&#39;, &#39;measure_y&#39;, &#39;h&#39;, &#39;swap&#39;, &#39;reset_1&#39;, &#39;hadamard&#39;, &#39;phase&#39;, &#39;measurement&#39;, &#39;cz&#39;, &#39;reset_-i&#39;, &#39;reset_+i&#39;, &#39;phaseinv&#39;, &#39;i&#39;, &#39;measure_x&#39;, &#39;reset_0&#39;, &#39;measure_z&#39;, &#39;z&#39;, &#39;y&#39;, &#39;cx&#39;})</span>
 
         
     </div>
@@ -617,7 +617,7 @@ circuit</code> / <code>End of circuit</code> comments (circuits named <code>wrap
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">convert_circuit</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">):</span></span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code condensed">(<span class="param"><span class="bp">self</span>, </span><span class="param"><span class="n">input_circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">):</span></span>
 
         
     </div>
@@ -653,7 +653,7 @@ package's parser refuses when the circuit is made.</p>
                                 <div class="attr variable">
             <span class="name">SUPPORTED_ERROR_TYPES</span>        =
 <input id="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value"></label><span class="default_value">frozenset({&lt;ErrorType.PAULI_X: (&#39;pauli_x&#39;, 1)&gt;, &lt;ErrorType.PAULI_Z: (&#39;pauli_z&#39;, 1)&gt;, &lt;ErrorType.PAULI_Y: (&#39;pauli_y&#39;, 1)&gt;, &lt;ErrorType.DEPOLARIZING1: (&#39;depolarizing1&#39;, 1)&gt;, &lt;ErrorType.DEPOLARIZING2: (&#39;depolarizing2&#39;, 1)&gt;, &lt;ErrorType.PHASE_FLIP: (&#39;phase-flip&#39;, 1)&gt;, &lt;ErrorType.BIT_FLIP: (&#39;bit-flip&#39;, 1)&gt;, &lt;ErrorType.PAULI_CHANNEL: (&#39;pauli_channel&#39;, 3)&gt;})</span>
+            <label class="view-value-button pdoc-button" for="EkaToStimConverter.SUPPORTED_ERROR_TYPES-view-value"></label><span class="default_value">frozenset({&lt;ErrorType.PAULI_Z: (&#39;pauli_z&#39;, 1)&gt;, &lt;ErrorType.PAULI_CHANNEL: (&#39;pauli_channel&#39;, 3)&gt;, &lt;ErrorType.PHASE_FLIP: (&#39;phase-flip&#39;, 1)&gt;, &lt;ErrorType.DEPOLARIZING2: (&#39;depolarizing2&#39;, 1)&gt;, &lt;ErrorType.BIT_FLIP: (&#39;bit-flip&#39;, 1)&gt;, &lt;ErrorType.DEPOLARIZING1: (&#39;depolarizing1&#39;, 1)&gt;, &lt;ErrorType.PAULI_Y: (&#39;pauli_y&#39;, 1)&gt;, &lt;ErrorType.PAULI_X: (&#39;pauli_x&#39;, 1)&gt;})</span>
 
         
     </div>
@@ -705,7 +705,7 @@ package's parser refuses when the circuit is made.</p>
                     <div class="decorator decorator-staticmethod">@staticmethod</div>
 
         <span class="def">def</span>
-        <span class="name">emit_detectors_and_observables</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">step</span><span class="p">:</span> <span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span>,</span><span class="param">	<span class="n">records</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>,</span><span class="param">	<span class="n">offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>:</span></span>
+        <span class="name">emit_detectors_and_observables</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="n">input_istep</span><span class="p">:</span> <span class="n"><a href="../loom.html#InterpretationStep">stabilizer_qec.loom.InterpretationStep</a></span>,</span><span class="param">	<span class="n">rec_dict</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span>,</span><span class="param">	<span class="n">measurement_offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span></span><span class="return-annotation">) -> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>:</span></span>
 
         
     </div>
@@ -718,7 +718,7 @@ package's parser refuses when the circuit is made.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span>,</span><span class="param">	<span class="n">error_models</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="../loom.html#CircuitErrorModel">stabilizer_qec.loom.CircuitErrorModel</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">with_ticks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#StimProgram">StimProgram</a></span>:</span></span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">input_circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span>,</span><span class="param">	<span class="n">error_models</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="n"><a href="../loom.html#CircuitErrorModel">stabilizer_qec.loom.CircuitErrorModel</a></span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>,</span><span class="param">	<span class="n">with_ticks</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span></span><span class="return-annotation">) -> <span class="n"><a href="#StimProgram">StimProgram</a></span>:</span></span>
 
         
     </div>
@@ -893,7 +893,7 @@ the noise of <code>error_models</code> (Loom's circuit error models, made on <co
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span>:</span></span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">input_circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span>:</span></span>
 
         
     </div>
@@ -1002,7 +1002,7 @@ channel's label as the register name.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span>:</span></span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">input_circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span>:</span></span>
 
         
     </div>
@@ -1144,7 +1144,7 @@ here by labels, which is what a reader can use), measurements into <code>measure
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span>:</span></span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">input_circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span>:</span></span>
 
         
     </div>
@@ -1286,7 +1286,7 @@ order, a measurement's targets its qubit then its bit.</p>
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span>:</span></span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">input_circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span>:</span></span>
 
         
     </div>
@@ -1410,7 +1410,7 @@ CXs, and the qubits discarded at the end. The prefixes (default <code>guppyQ.</c
                                 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span>:</span></span>
+        <span class="name">convert_circuit</span><span class="signature pdoc-code multiline">(<span class="param">	<span class="bp">self</span>,</span><span class="param">	<span class="n">input_circuit</span><span class="p">:</span> <span class="n"><a href="../loom.html#Circuit">stabilizer_qec.loom.Circuit</a></span></span><span class="return-annotation">) -> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">dict</span><span class="p">[</span><span class="n"><a href="../loom.html#Channel">stabilizer_qec.loom.Channel</a></span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span>:</span></span>
 
         
     </div>
