@@ -408,9 +408,11 @@ contraction width (`CoherentSampler.contraction_width`).
   workspace from `mwpm()`.
 - **Chromobius.** A colour-code model is refused as Chromobius refuses it, with its messages: a
   detector declared without a fourth coordinate that is a whole number from −1 to 5
-  (`detector D0` among them), which 2.1 decoded as uncoloured; an error naming a detector no
-  declaration colours ("Expected all detectors to have at least 4 coordinates, ... but got
-  error(0.1) D1 L0", where 2.1 said "detector D1 has no colour annotation ...") or an
+  (`detector D0` among them), where 2.1 refused one with one to three coordinates or an invalid
+  fourth ("expected at least 4 coordinates") and one with none only when a fault set it off; an
+  error naming a detector no declaration colours ("Expected all detectors to have at least 4
+  coordinates, ... but got error(0.1) D1 L0", where 2.1 said "detector D1 has no colour
+  annotation ...") or an
   observable past L63 ("Max logical observable is L63 but a larger one appeared in ...", where
   2.1 gave its 64-observable message); and a fault it cannot decompose (Chromobius's message,
   with the instruction, its pieces and the detectors' data). The model is read as written, as
