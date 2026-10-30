@@ -2396,8 +2396,8 @@ The runs are in `data/sweeps/`, from `node tools/sweep.mjs 3 0` and `node tools/
 **Confirmed against an independent implementation.** An L×L toric code written from scratch in
 JavaScript (periodic lattice, no boundaries, with its own noise, syndrome, graph and scoring, and
 sharing no physics with the Rust engine) gives **ν = 0.86** for phenomenological noise, against
-the engine's **0.89 ± 0.04**. Two implementations that share nothing but the arithmetic agree on
-the exponent.
+the engine's **0.95 ± 0.11** (rotated) and **0.97 ± 0.06** (XZZX) from the phenomenological rows
+above. Two implementations that share nothing but the arithmetic agree on the exponent.
 
 Getting there required fixing the harness rather than the engine. Its decoder was
 nearest-pair-plus-2-opt, which is not minimum-weight, and that was a confound rather than a control:
@@ -2405,7 +2405,7 @@ a weak decoder moves the threshold, and at these sizes drags the fit with it. Th
 the same exact matcher the engine does. That is the one thing deliberately shared, since
 minimum-weight matching is a generic graph problem with a single right answer, and the matcher has
 been checked against brute force on 1,500 instances. With it, the toric threshold moves from
-**1.51% to 3.04%**, close to the engine's 3.36%, and reduced χ² settles near 1. Exact agreement on
+**1.51% to 3.04%**, close to the engine's 3.25% to 3.29%, and reduced χ² settles near 1. Exact agreement on
 the threshold is not expected, since these are different codes. ν is the universal quantity, and it
 agrees.
 
@@ -2642,7 +2642,7 @@ instead.
 
 What makes it checkable without any fitting at all is that the pairwise crossings drift. For
 rotated data noise they climb monotonically from 10.5% (d = 3 against 5) to 13.7% (9 against 11) and
-are still climbing. So the threshold is above 13.7%, and the uncorrected fit's 12.3% lies below
+are still climbing. So the threshold is above 13.7%, and the uncorrected fit's 12.2% lies below
 every crossing involving `d ≥ 5`.
 
 The fit window is chosen the same way, and for the same reason. The scaling form is an expansion
