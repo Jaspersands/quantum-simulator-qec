@@ -22,6 +22,7 @@ __pycache__/
 /fuzz/Cargo.lock
 .venv-g/
 /target-g
+/target-m1
 
 # iCloud Drive conflict copies ("name 2.py"): the repository lives in a synced folder
 * [0-9].*
