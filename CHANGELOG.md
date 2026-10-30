@@ -30,6 +30,8 @@ policy for its documented items.
   not only on Enter or on leaving the input.
 - The standard-library page server prints no traceback when a client drops its connection before the
   answer, as Dash's server prints none; other errors are still reported.
+- `decode_async` in a process forked after a use of the same decoder makes a queue of its own; the
+  parent's queue had no worker threads in the child, so the child's batches never finished.
 
 ## 2.2.0 — 2026-10-30
 

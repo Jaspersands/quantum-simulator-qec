@@ -28,6 +28,7 @@ from __future__ import annotations
 import concurrent.futures
 import inspect
 import json
+import os
 import socket
 import socketserver
 import struct
@@ -337,20 +338,21 @@ class DecoderQueue:
         return f"DecoderQueue({self.name}, workers={self._workers}, pending={self.pending()})"
 
 
-_shared: Dict[int, "tuple[weakref.ref, DecoderQueue]"] = {}
+_shared: Dict[int, "tuple[weakref.ref, DecoderQueue, int]"] = {}
 _shared_lock = threading.Lock()
 
 
 def shared_queue(decoder: Any, workers: Optional[int] = None) -> DecoderQueue:
     """The queue ``decode_async`` uses for a decoder: one per decoder object, made on first use
     with ``workers`` threads (the machine's cores by default), closed and forgotten when the
-    decoder is garbage-collected."""
+    decoder is garbage-collected. A process forked from one that used the decoder makes its own:
+    the threads of the parent's queue do not exist in the child."""
     key = id(decoder)
+    pid = os.getpid()
     with _shared_lock:
         entry = _shared.get(key)
-        if entry is not None and entry[0]() is decoder:
+        if entry is not None and entry[0]() is decoder and entry[2] == pid:
             return entry[1]
-        import os
 
         def forget(k=key):
             with _shared_lock:
@@ -374,7 +376,7 @@ def shared_queue(decoder: Any, workers: Optional[int] = None) -> DecoderQueue:
             return target.decode_batch(shots, **kwargs)
 
         q = DecoderQueue(decode=decode, workers=workers or max(1, os.cpu_count() or 1), name=type(decoder).__name__)
-        _shared[key] = (ref, q)
+        _shared[key] = (ref, q, pid)
         return q
 
 

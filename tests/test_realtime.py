@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import sys
 import threading
 import time
+import warnings
 
 import numpy as np
 import pytest
@@ -302,6 +304,27 @@ def test_shared_queue_is_released_with_its_decoder(memory):
     del m
     gc.collect()
     assert all(entry[1] is not q for entry in realtime._shared.values())
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
+def test_decode_async_in_a_forked_child_after_a_use_in_the_parent(memory):
+    """A child of a process that has used decode_async on a decoder makes a queue of its own: the parent's queue has
+    no worker threads in the child, so a batch sent to it would never be decoded."""
+    c, dets, obs = memory
+    m = sq.Matching(c.detector_error_model(decompose_errors=True))
+    want = m.decode_batch(dets[:10])
+    assert np.array_equal(m.decode_async(dets[:10]).get(30), want)
+    with warnings.catch_warnings():  # the parent's pool threads are idle; the child does not use them
+        warnings.simplefilter("ignore", DeprecationWarning)
+        pid = os.fork()
+    if pid == 0:
+        code = 2
+        try:
+            code = 0 if np.array_equal(m.decode_async(dets[:10]).get(20), want) else 1
+        finally:
+            os._exit(code)
+    _, status = os.waitpid(pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 0
 
 
 # ---------------------------------------------------------------------------------------------
