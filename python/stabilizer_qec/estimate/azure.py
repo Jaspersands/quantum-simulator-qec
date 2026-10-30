@@ -80,7 +80,9 @@ class EstimatorError(ValueError):
     error's name, as ``Qdk.Qsc.Estimates.InvalidInputError.InvalidErrorBudget``) and its `message`, ``Error
     estimating resources (<code>):`` with the QDK's reason on the next line, which is also the error's string.
     `reason` is the reason alone, what a batch's failed item holds as its ``message``. Its `args` are its code
-    and reason, and its repr ``EstimatorError('<code>', '<reason>')``, as the QDK's are.
+    and reason, and its repr ``EstimatorError('<code>', '<reason>')``, as the QDK's are. Its second
+    parameter is named `reason`, not the QDK's `message`, so it is given positionally, as
+    ``EstimatorError(code, reason)``; a keyword ``message=`` is refused with a TypeError.
 
     A ValueError here, as in 2.1, where the QDK's derives from BaseException alone: this package promises that
     bad input raises a ValueError or a TypeError. Code that catches it by name, as with the QDK, works the same;
@@ -3536,6 +3538,9 @@ class EstimatorResult(dict):
 
     @property
     def logical_counts(self) -> LogicalCounts:
+        """The job's logical counts as a `LogicalCounts`, the port's frozen dataclass: its counts are
+        attributes, and ``asdict()`` gives the QDK's camelCase dict. Unlike the QDK's dict, it cannot be
+        subscripted (a TypeError) and has no ``json`` property."""
         return LogicalCounts.fromdict(self.data()["logicalCounts"] if self._is_simple else self.data(0)["logicalCounts"])
 
     @property
