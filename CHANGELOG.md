@@ -38,6 +38,8 @@ policy for its documented items.
   PyO3's `Already borrowed`.
 - A `Matching` loaded without correlations and decoded with `enable_correlations=True` runs the plain decode
   first, so an odd-parity shot gets PyMatching's `No perfect matching` error, not the not-configured one.
+- A correlated `Matching` refuses a bit-packed shot with a set bit past the last node, with the plain decode's
+  `ValueError`, where it dropped that bit and decoded the rest.
 
 ## 2.2.0 — 2026-10-30
 

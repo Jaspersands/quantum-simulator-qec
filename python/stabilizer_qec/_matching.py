@@ -610,6 +610,12 @@ class Matching:
                 raise ValueError(f"`shots` array should have at least {nd} columns (the number of detectors), and no more than {nn} columns (the number of nodes), but instead has {shots.shape[1]} columns")
             packed = np.packbits(shots.astype(np.uint8).astype(bool), axis=1, bitorder="little")
         if self._check_correlations(enable_correlations, lambda: call(self._g.decode_batch, packed.tobytes(), n, packed.shape[1], count(threads, "threads"))):
+            # A set bit past the last node is refused, as the plain decode refuses it; the padding
+            # bits of a row are the ones past the detectors, which a correlated load has as its nodes.
+            past = np.unpackbits(packed, axis=1, bitorder="little")[:, nn:]
+            if past.any():
+                r, c = (int(x) for x in np.argwhere(past)[0])
+                raise ValueError(f"shot {r}: The detection event with index {nn + c} does not correspond to a node in the graph, which only has {nn} nodes.")
             dets = np.unpackbits(packed, axis=1, count=nd, bitorder="little")
             raw = np.packbits(dets, axis=1, bitorder="little").tobytes()
             preds, weights, failed = call(self._corr.decode_batch, raw, n, count(threads, "threads"))
@@ -784,4 +790,3 @@ class _CorrelatedMatching:
 
     def __reduce__(self) -> tuple:
         return (_CorrelatedMatching, (self.matching._dem_text,))
-

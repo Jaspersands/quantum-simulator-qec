@@ -602,3 +602,22 @@ def test_a_plain_load_decoded_with_correlations_refuses_as_pymatching():
         ours.decode_to_edges_array(odd, enable_correlations=True)
     with pytest.raises(ValueError, match="not been configured"):
         ours.decode_batch(even[None], enable_correlations=True)
+
+
+@pytest.mark.parametrize("row, index", [(0b100, 2), (0b10000000, 7)])
+def test_a_correlated_packed_batch_refuses_padding_as_the_plain_path_does(row, index):
+    # A set bit past the last node is padding that the batch names, not a bit to drop: the
+    # correlated decode refuses it as the plain decode does, and as PyMatching's correlated decode.
+    text = "error(0.1) D0 L0\nerror(0.1) D0 D1 L0\nerror(0.1) D1"
+    ours = sq.Matching(text, enable_correlations=True)
+    theirs = pymatching.Matching.from_detector_error_model(stim.DetectorErrorModel(text), enable_correlations=True)
+    shots = np.array([[row]], dtype=np.uint8)
+    message = f"shot 0: The detection event with index {index} does not correspond to a node in the graph, which only has 2 nodes."
+    for kwargs in ({}, {"enable_correlations": True}):
+        with pytest.raises(ValueError) as e:
+            ours.decode_batch(shots, bit_packed_shots=True, **kwargs)
+        assert str(e.value) == message
+    with pytest.raises(ValueError, match=f"index {index} does not correspond to a node"):
+        theirs.decode_batch(shots, bit_packed_shots=True, enable_correlations=True)
+    # A row with no padding set decodes as before.
+    assert ours.decode_batch(np.array([[0b1]], dtype=np.uint8), bit_packed_shots=True, enable_correlations=True).tolist() == [[1]]
