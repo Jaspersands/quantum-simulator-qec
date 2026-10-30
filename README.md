@@ -733,8 +733,9 @@ what 32 bits hold, PyMatching's decoder never finishes and this one decodes the 
 (`tests/test_matching_radius.py`). Plain routes built on `Matching` use it too. Correlated matching, `BeliefMatching`,
 `WindowMatching`, `stream_memory`, `LeakageAwareDecoder`, `ArgumentReweighting` and
 `PreDecoder` (unless `reweight=False`) with matching, the Rust crate's `Matching` and
-`BeliefMatching`, and the extension's `decode_b8` family keep `src/sparse/`, timed above (the
-whole list is under [Stim's Python API](#stims-python-api)).
+`BeliefMatching`, and the extension's `decode_b8` family keep `src/sparse/`, timed above; so do
+the site's WebAssembly decoders (`src/wasm_rt.rs`, `src/wasm_ls.rs`, `src/wasm_hw.rs`), and the
+Python routes are listed under [Stim's Python API](#stims-python-api).
 
 ## Correlated matching
 
