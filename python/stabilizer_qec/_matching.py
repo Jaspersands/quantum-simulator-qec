@@ -62,20 +62,18 @@ def _fault_set(fault_ids: Any) -> Set[int]:
 
 
 def _csc(matrix: Any) -> Tuple[int, int, np.ndarray, np.ndarray]:
-    """(rows, columns, indptr, indices) of a matrix's nonzero pattern, column by column."""
+    """(rows, columns, indptr, indices) of a matrix's nonzero pattern, column by column, in the
+    order its entries are stored. The matrix is copied, so the caller's arrays are left alone."""
     try:
-        from scipy.sparse import csc_matrix, issparse
+        from scipy.sparse import csc_matrix
 
-        if issparse(matrix) or not isinstance(matrix, np.ndarray):
-            m = csc_matrix(matrix)
-        else:
-            m = csc_matrix(matrix)
+        m = csc_matrix(matrix, copy=True)
         m.eliminate_zeros()
-        m.sort_indices()
-        bad = m.data[m.data != 1]
+        # PyMatching's check, its entries read as 8-bit integers.
+        cast = m.data.astype(np.uint8)
+        bad = cast[cast != 1]
         if len(bad):
-            # PyMatching's check, its entries read as 8-bit integers.
-            v = int(np.asarray(bad[:1]).astype(np.uint8)[0])
+            v = int(bad[0])
             if v == 0:
                 raise ValueError("`matrix.data` must only contain ones, but a zero was found. First call `matrix.eliminate_zeros()` before using this method.")
             raise ValueError(f"`matrix.data` must only contain ones, but the element {v} was found.")

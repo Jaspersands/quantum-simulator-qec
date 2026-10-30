@@ -536,3 +536,18 @@ def test_fault_ids_past_the_count_are_dropped(ids, negative):
     want = sorted(i for i in ids if i < 64)
     assert np.flatnonzero(m.decode(syndrome)).tolist() == want
     assert np.flatnonzero(m.decode_batch(np.array([syndrome] * 3, dtype=np.uint8))[2]).tolist() == want
+
+
+def test_a_sparse_check_matrix_is_left_as_given_and_keeps_its_edge_orientation():
+    # The index arrays belong to the caller, so building from them must not sort them in place.
+    # An unsorted column gives its edge in the order its entries are stored, as PyMatching does.
+    import scipy.sparse as sp
+
+    def make():
+        return sp.csc_matrix((np.array([1, 1, 1]), np.array([2, 0, 1]), np.array([0, 2, 3])), shape=(3, 2))
+
+    matrix = make()
+    ours = sq.Matching.from_check_matrix(matrix)
+    assert matrix.indices.tolist() == [2, 0, 1] and matrix.indptr.tolist() == [0, 2, 3]
+    theirs = pymatching.Matching.from_check_matrix(make())
+    assert sorted((u, v) for u, v, _ in ours.edges()) == sorted((u, v) for u, v, _ in theirs.edges())

@@ -27,6 +27,10 @@ policy for its documented items.
 - `XCubeMatchingDecoder` returns instead of looping forever when its matching weights go negative
   (the error model's X and Y rates together past one half, at a high error rate): its walk over the
   matched pairs stops when it comes back to a state it has been in.
+- `Matching.from_check_matrix` no longer sorts the caller's sparse matrix in place, and keeps an unsorted
+  column's edge in the order its entries are stored, as PyMatching does.
+- `Matching.from_check_matrix` reads each check-matrix entry as an 8-bit integer, as PyMatching does: 257,
+  1.5 and -255 are ones, and 0.5 and 256, which read as zeros, are still refused.
 
 ## 2.2.0 — 2026-10-30
 

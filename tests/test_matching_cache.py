@@ -179,3 +179,15 @@ def test_core_batch_checked_products_and_zero_width_capacity():
         g.decode_batch(b"", 2**63, 0, 1)
     assert g.decode_batch(b"", 0, 0, 1) == (b"", b"")
     assert g.decode([]) == (b"", 0)
+
+
+@pytest.mark.parametrize("value", [257, 1.5, -255])
+def test_check_matrix_entries_that_read_as_ones_are_accepted(value):
+    # PyMatching reads each check-matrix entry as an 8-bit integer, so these read as ones.
+    assert sq.Matching.from_check_matrix(np.array([[value], [1.0]])).num_edges == 1
+
+
+@pytest.mark.parametrize("value, message", [(0.5, "a zero was found"), (256, "a zero was found"), (3, "the element 3 was found")])
+def test_check_matrix_entries_that_read_as_other_values_are_refused(value, message):
+    with pytest.raises(ValueError, match=message):
+        sq.Matching.from_check_matrix(np.array([[value], [1.0]]))
