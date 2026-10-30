@@ -28,8 +28,8 @@
 //! neighbours in `std::unordered_map` order, which differs between C++ libraries, when it
 //! looks for the shortest way to drag charge between two places; where two such ways flip
 //! different observables the table entry is marked ambiguous, and a shot whose lifting uses one
-//! is flagged as tied (no colour-code shot checked has needed one; small hand-made models with
-//! faults above 1/2 have).
+//! is flagged as tied. Five saved macOS shots of a model with ignored detectors are all flagged
+//! as tied: their weights equal Chromobius's, and their predictions differ from it.
 
 mod decode;
 mod graphs;
