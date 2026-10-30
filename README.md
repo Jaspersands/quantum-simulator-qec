@@ -483,8 +483,8 @@ How much is not measured here: those thresholds were not rerun with the weighted
 path too: every mechanism of every model, decoded alone, predicts its own logical flip. That covers
 the rotated and XZZX codes, both bases and both noise models:
 
-- 446, 2,522 and 7,478 mechanisms at d = 3, 5 and 7 under the engine's model;
-- 568, 3,888 and 12,152 under SD6;
+- 892, 5,044 and 14,956 mechanisms at d = 3, 5 and 7 under the engine's model;
+- 1,170, 7,862 and 24,450 under SD6;
 - no failures.
 
 **What the checks caught.** The first decomposition kept any fault with at most two detectors whole,
