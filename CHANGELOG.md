@@ -134,7 +134,8 @@ contraction width (`CoherentSampler.contraction_width`).
   340,000 shots of `tools/decoder_check.py`'s colour cases (0 ties, at 0.72 times Chromobius's
   time), with the weights equal as float32. This finite evidence does not ensure equal
   observable choices on other inputs: tied lifting can differ at equal matching weight on
-  any platform, including macOS. Facade cases permit 95% agreement; the sweep requires 99%. `python -m stabilizer_qec.chromobius
+  any platform, including macOS. Off macOS, facade cases permit 95% agreement and the sweep
+  requires 99%; on macOS both are exact. `python -m stabilizer_qec.chromobius
   predict|benchmark|describe_decoder|help` is Chromobius's program, with Stim's flag parsing
   and record formats, and its outputs and messages, checked against 184 cases recorded from
   Chromobius 1.1.1's own binary. Where it differs: a `--circuit` that Stim's error analysis
