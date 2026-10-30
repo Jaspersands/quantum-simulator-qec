@@ -295,6 +295,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   website CRLF is compared as LF, with raw upstream body/length and installed LF resource checks. A percent-encoded slash is a further limit: `GET /%2Fdata/x.txt`
   returns 200 here, since the server decodes it to `//` and the port collapses that, while the live
   upstream returns 404. These are explicit limits on raw live-response parity.
+  The page's scripts and stylesheets come from jsDelivr, unpkg and Google Fonts with no `integrity`
+  attributes (no SRI hashes), as the upstream page has them, so a compromised file on those hosts
+  would run in the origin that serves the data folder. The page is kept byte for byte, so it stays
+  unhashed.
   The helper binds when run, uses the latest process-wide serve root and needs `server_close()`
   after shutdown to release its socket. The serve root (cwd and any symlinks in it) is resolved
   when `serve()` is called, so ETags use the resolved path and differ from fusion_blossom's for
