@@ -1,3 +1,7 @@
+// Copyright 2025-2026 Google LLC
+// Licensed under the Apache License, Version 2.0 (see THIRD_PARTY_NOTICES.md). Modified: ported
+// to Rust for this crate.
+
 //! A search decoder for any detector error model: Tesseract's A* over sets of faults (Beni,
 //! Higgott and Shutty, Google, arXiv:2503.10988).
 //!

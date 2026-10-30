@@ -1,3 +1,7 @@
+// Copyright 2021 Google LLC
+// Licensed under the Apache License, Version 2.0 (see THIRD_PARTY_NOTICES.md). Modified: ported
+// to Rust for this crate.
+
 //! Stim's detector slices (`detector_slice_set.cc`): what each detector and observable is
 //! sensitive to at chosen ticks, found by running the circuit backwards, and the text diagram
 //! of them, drawn with a port of Stim's `AsciiDiagram`.

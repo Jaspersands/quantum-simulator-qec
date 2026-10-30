@@ -1,3 +1,7 @@
+// Copyright 2023 Google LLC
+// Licensed under the Apache License, Version 2.0 (see THIRD_PARTY_NOTICES.md). Modified: ported
+// to Rust for this crate.
+
 //! Colour-code decoding by matching: Chromobius's Möbius construction (Gidney and Jones,
 //! arXiv:2312.08813).
 //!

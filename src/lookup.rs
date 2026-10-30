@@ -1,3 +1,7 @@
+// Copyright (c) 2022 - 2026 NVIDIA Corporation & Affiliates
+// Licensed under the Apache License, Version 2.0 (see THIRD_PARTY_NOTICES.md). Modified: ported
+// to Rust for this crate.
+
 //! Lookup-table decoders, as CUDA-Q QEC's `single_error_lut` and `multi_error_lut`
 //! (`libs/qec/lib/decoders/lut.cpp`): every set of at most `depth` faults, by size and then in
 //! lexicographic order of fault indices, entered under the syndrome it sets off, the first set

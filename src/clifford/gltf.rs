@@ -1,3 +1,7 @@
+// Copyright 2021 Google LLC
+// Licensed under the Apache License, Version 2.0 (see THIRD_PARTY_NOTICES.md). Modified: ported
+// to Rust for this crate.
+
 //! Stim's 3D diagrams as glTF (`timeline-3d`, `matchgraph-3d`), written as Stim writes them:
 //! a port of `gltf.cc`, `json_obj.cc`, `basic_3d_diagram.cc`, `gate_data_3d.cc`,
 //! `timeline_3d_drawer.cc` and `match_graph_3d_drawer.cc` (Stim, Apache-2.0; the gate texture

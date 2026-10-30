@@ -320,6 +320,8 @@ policy for its documented items.
   as plain BP. It raised `OverflowError`. A negative `pflip_frequency` is still refused.
 - PanQEC's default output directory, used when `PANQEC_DIR` is unset, is named for the user
   (`panqec-<user>` in the temp dir), so two users on one host no longer share it.
+- A circuit with an inverted herald target (`HERALDED_ERASE(0.1) !3`) is refused when it is built, naming the
+  herald ("inverted herald targets are not supported"), where it said "bad qubit target"; no engine inverts a herald.
 
 ### Not ported
 
