@@ -946,7 +946,8 @@ Rust crate both at 2.1.0. Behaviour changes are under **Changed**.
 ### Added
 
 - **Stim.** `search_for_undetectable_logical_errors` now takes Stim's own steps, and finds Stim's
-  faults exactly: the same terms on 3,804 random models, the colour, surface and bivariate
+  faults exactly: the same terms on 1,200 random models at five sets of limits (3,804 searches
+  that find faults), the colour, surface and bivariate
   bicycle codes and BPC72, and Stim's messages where both fail. It is also faster than Stim:
   0.07 s on BPC72 against Stim's 0.25 s (2.0 took 8.1 s), and 0.6 s against 4.0 s on the d = 5
   surface code at limits (6, 6). Limits of (2, 2) go to the graph-like search, as in Stim. The
