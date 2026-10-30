@@ -1011,8 +1011,8 @@ model:
   only 77.8%.
 
 **Willow**, on the first 10,000 shots of each of the 420 experiments, with Google's SI1000 prior.
-BP costs about 25 ms a shot on ten cores at d = 7 and 250 rounds, so the full 50,000 would take
-some 18 hours. Every decoder below is scored on the same shots:
+BP costs about 27 ms a shot on ten cores at d = 7 and 250 rounds, so the full 50,000 shots of all
+420 experiments would take some 21 hours. Every decoder below is scored on the same shots:
 
 | decoder, same 10,000 shots each | ε, d = 3 | ε, d = 5 | ε, d = 7 | Λ [95%] |
 |---|---|---|---|---|
