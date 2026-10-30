@@ -427,7 +427,9 @@ def update(physical_error_rate: float, error_budget: float, estimation_model: st
     """Updates the visualization: the app's nine outputs (the qubit pie chart; the runtime plot's style and
     figure; the magic-state count's name and value; the minimum factory count's style and value; the
     duration's style and value). ``algorithm_data`` is the qubits, measurements, Ts, Toffolis, rotations and
-    rotation depth, in that order; an input of None raises `PreventUpdate`."""
+    rotation depth, in that order. A None for the physical error rate, the error budget, an algorithm value or the
+    magic count raises `PreventUpdate`; a None estimation model computes the Beverland et al. model; a None QEC,
+    magic or rotation model name raises KeyError."""
     if any(x is None for x in [physical_error_rate, error_budget, *algorithm_data, magic_count]):
         raise PreventUpdate
 
