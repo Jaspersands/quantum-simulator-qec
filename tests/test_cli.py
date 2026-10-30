@@ -294,6 +294,26 @@ def test_diagram_flags_and_replayed_shot_counts(files):
 
 
 @needs_stim
+def test_mixed_shot_files_and_model_types(files):
+    """Stim's command line reads and writes a file of measurements, detectors and observables
+    together, and with a model the shots are its detectors then its observables, whatever
+    --types says."""
+    c = sq.Circuit((files / "c.stim").read_text())
+    rng = np.random.default_rng(3)
+    mixed = files / "mixed.01"
+    bits = rng.integers(0, 2, (70, c.num_measurements + c.num_detectors + c.num_observables))
+    mixed.write_text("".join("".join(map(str, row)) + "\n" for row in bits))
+    for fmt in ("01", "b8", "r8", "hits", "dets"):
+        both("convert", "--in", str(mixed), "--in_format", "01", "--out_format", fmt, "--circuit", str(files / "c.stim"), "--types", "MDL")
+    (files / "model.dem").write_text(str(c.detector_error_model()))
+    shots = files / "model.01"
+    bits = rng.integers(0, 2, (70, c.num_detectors + c.num_observables))
+    shots.write_text("".join("".join(map(str, row)) + "\n" for row in bits))
+    for types in ("M", "L", "DL"):
+        both("convert", "--in", str(shots), "--in_format", "01", "--out_format", "01", "--dem", str(files / "model.dem"), "--types", types)
+
+
+@needs_stim
 def test_hits_toggle_a_bit_named_twice():
     both("convert", "--in_format", "hits", "--out_format", "01", "--num_measurements", "3", stdin=b"0,0\n1,1,1\n")
     both("convert", "--in_format", "dets", "--out_format", "01", "--num_detectors", "3", stdin=b"shot D0 D0 D1\n")
