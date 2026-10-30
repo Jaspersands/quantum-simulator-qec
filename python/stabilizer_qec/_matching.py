@@ -19,6 +19,8 @@ from ._util import call, count
 
 _rng = np.random.default_rng()
 _MAX_WEIGHT = float((1 << 24) - 1)
+# The `_corr` of a model loaded with correlations that has more than 64 observables: not built.
+_TOO_WIDE_FOR_CORRELATIONS = object()
 
 
 def _too_heavy(weight: float, a: Any, b: Any, stacklevel: int) -> bool:
@@ -182,7 +184,14 @@ class Matching:
         # for each other in its weight scale, so plain decodes on it differ from a plain load's.
         self._g = call(_core.UserGraph.from_dem, str(dem), bool(enable_correlations))
         self._dem_text = str(dem)
-        self._corr = call(_core.Matcher, dem._d, True) if enable_correlations else None
+        # The correlated matcher takes at most 64 observables. A wider model still loads, and its
+        # plain decodes are PyMatching's; its correlated decodes are refused (`_check_correlations`).
+        if not enable_correlations:
+            self._corr = None
+        elif dem.num_observables > 64:
+            self._corr = _TOO_WIDE_FOR_CORRELATIONS
+        else:
+            self._corr = call(_core.Matcher, dem._d, True)
 
     @staticmethod
     def from_detector_error_model(model: Any, *, enable_correlations: bool = False) -> "Matching":
@@ -539,6 +548,8 @@ class Matching:
             raise ValueError(
                 "Attempting to decode with `enable_correlations=True`, however the decoder has not been configured to decode using correlations. Ensure that you also set `enable_correlations=True` when loading the stim circuit or detector error model. For example: `matching = pymatching.Matching.from_detector_error_model(dem, enable_correlations=True)`"
             )
+        if self._corr is _TOO_WIDE_FOR_CORRELATIONS:
+            raise ValueError(f"correlated decoding takes at most 64 observables; this model has {self.num_observables}. Plain decoding (`enable_correlations=False`) takes any number.")
         return True
 
     def decode(self, z: Any, *, return_weight: bool = False, enable_correlations: bool = False, **kwargs: Any) -> Any:

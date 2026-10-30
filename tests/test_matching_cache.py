@@ -174,13 +174,22 @@ def test_empty_graph_and_initial_wide_build():
     assert m.decode_batch(np.zeros((0, 4))).shape == (0, 70)
 
 
-def test_correlated_padding_keeps_bit63_and_refuses_real_wide_model():
+def test_correlated_padding_keeps_bit63_and_refuses_real_wide_decoding():
     m = sq.Matching("error(0.1) D0 L63", enable_correlations=True)
     m.ensure_num_fault_ids(70)
     out = m.decode_batch([[1]], enable_correlations=True, bit_packed_predictions=True)
     assert out.tolist() == [[0] * 7 + [128, 0]]
-    with pytest.raises(ValueError, match="64"):
-        sq.Matching("error(0.1) D0 L64", enable_correlations=True)
+
+
+def test_wide_model_loads_with_correlations_plain_decodes_and_correlated_decodes_refuse():
+    wide = sq.Matching("error(0.1) D0 L64", enable_correlations=True)
+    assert wide.num_observables == 65
+    assert wide.decode([1]).tolist() == [0] * 64 + [1]
+    assert wide.decode_batch([[1]]).tolist() == [[0] * 64 + [1]]
+    with pytest.raises(ValueError, match="at most 64 observables"):
+        wide.decode([1], enable_correlations=True)
+    with pytest.raises(ValueError, match="at most 64 observables"):
+        wide.decode_batch([[1]], enable_correlations=True)
 
 
 def test_core_batch_checked_products_and_zero_width_capacity():

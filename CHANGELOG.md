@@ -28,6 +28,8 @@ policy for its documented items.
   them.
 - A copied or pickled `Matching` keeps its fault-id count and its all-probabilities flag after a
   merge set fault ids past the count, as the original does.
+- A model with more than 64 observables loads with `enable_correlations=True`: plain decoding works,
+  and only correlated decoding is refused, with the 64-observable limit as its message.
 
 ## 2.2.0 — 2026-10-30
 
