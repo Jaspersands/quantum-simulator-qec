@@ -1527,8 +1527,8 @@ arithmetic in its order so that its answers can be held to theirs shot for shot:
   neighbour order), and the matching lifted back by carrying colour charge around its cycles.
   The detectors need Chromobius's colour annotation (`annotate_colors=True` on the colour-code
   circuits). The recorded weights agree bit for bit, and the lifting, handed PyMatching's edges
-  in PyMatching's order, agrees on the recorded macOS corpora (65,000/240,000 sweep shots
-  and 340,000 colour-case shots). Other equal-weight liftings can select different observable
+  in PyMatching's order, agrees on every shot of the recorded 65,000-shot macOS sweep (and on 240,000 shots of an
+  extended run that is not kept in the repository) and on the 340,000 colour-case shots. Other equal-weight liftings can select different observable
   predictions on any platform, including macOS; no worse optimum is established. Some facade
   tests require 95% agreement; the sweep requires 99%. `python -m stabilizer_qec.chromobius
   predict|benchmark|describe_decoder|help` is Chromobius's command line, its outputs and
