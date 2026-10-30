@@ -11,8 +11,9 @@ order follows a Python set: there, under the same ``PYTHONHASHSEED``), a validat
 and output codes on this package's tableau simulator, and exporters to Stim (this package's
 ``Circuit``, with the noise of Loom's circuit error models), OpenQASM 3, PennyLane, CUDA-Q,
 Mimiq and Guppy, with their readings of a run's outcome and Loom's ``Executor``. Loom's module
-paths work under this package: ``loom.eka.operations`` is ``stabilizer_qec.loom.eka.operations``,
-``loom_repetition_code.code_factory`` is ``stabilizer_qec.loom.repetition_code.code_factory``.
+paths import under this package only where ``_register_loom_paths`` registers them, for example
+``loom.eka.operations`` is ``stabilizer_qec.loom.eka.operations`` and ``loom_repetition_code.code_factory``
+is ``stabilizer_qec.loom.repetition_code.code_factory``; the other Loom module paths, such as ``loom.eka.eka``, do not.
 
 >>> from stabilizer_qec import loom
 >>> lattice = loom.Lattice.square_2d((15, 15))
