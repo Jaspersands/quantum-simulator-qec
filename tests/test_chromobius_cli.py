@@ -330,6 +330,13 @@ def test_unmatchable_shot_message(tmp_path):
         with pytest.raises(ValueError, match="^shot 2: " + re.escape(NO_PERFECT_MATCHING) + "$"):
             decoder.decode_batch(shots, threads=threads)
     assert decoder.decode_batch(shots[[0, 1, 3]]).tolist() == [[0], [1], [1]]
+    # The package's Chromobius API throws the message alone, for a batch and for one shot.
+    facade = chromobius.compile_decoder_for_dem(sq.DetectorErrorModel(FILES["unmatchable.dem"].decode()))
+    packed = np.packbits(shots, axis=1, bitorder="little")
+    with pytest.raises(ValueError, match="^" + re.escape(NO_PERFECT_MATCHING) + "$"):
+        facade.predict_obs_flips_from_dets_bit_packed(packed)
+    with pytest.raises(ValueError, match="^" + re.escape(NO_PERFECT_MATCHING) + "$"):
+        facade.predict_obs_flips_from_dets_bit_packed(packed[2])
 
 
 def test_integers_read_as_stims_uint64(tmp_path):

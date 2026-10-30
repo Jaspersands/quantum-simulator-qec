@@ -89,7 +89,15 @@ class CompiledDecoder:
                 "and dets.dtype==np.uint8 indicating bit packed shots."
             )
         _check_padding(rows, self._num_detectors)
-        preds, weights = self._decoder.decode_batch(rows, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
+        from .._decoders import _NO_PERFECT_MATCHING
+
+        try:
+            preds, weights = self._decoder.decode_batch(rows, bit_packed_shots=True, bit_packed_predictions=True, return_weights=True)
+        except ValueError as e:
+            # Chromobius's matcher throws PyMatching's message alone, not with the shot's index.
+            if str(e).endswith(_NO_PERFECT_MATCHING):
+                raise ValueError(_NO_PERFECT_MATCHING) from None
+            raise
         # Chromobius keeps a 64-bit observable mask; bytes past it are zero.
         obs = _np.zeros((rows.shape[0], self._num_observable_bytes), dtype=_np.uint8)
         k = min(self._num_observable_bytes, 8, preds.shape[1])
