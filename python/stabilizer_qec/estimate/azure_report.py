@@ -679,6 +679,15 @@ def _ceil(x: float) -> float:
     return x if not math.isfinite(x) else float(math.ceil(x))
 
 
+def _first_multiple(lo: float, unit: float) -> int:
+    """The index of the first multiple of ``unit`` that can reach ``lo``, one below it for safety (every
+    multiple before it is under ``lo``, so a scan starting there draws the same ticks)."""
+    q = lo / unit
+    if not math.isfinite(q) or q <= 1:
+        return 1
+    return max(1, int(math.floor(q)) - 1)
+
+
 def _pow10(k: float) -> float:
     """``10 ** k``."""
     if k != k:
@@ -719,7 +728,7 @@ def time_ticks(lo: float, hi: float) -> List[Dict[str, Any]]:
     if left < last:
         coeff = _pow10(_floor(_log10(ticks[left + 1][0] / ticks[left][0])))
         while True:
-            i = 1
+            i = _first_multiple(lo, ticks[left][0] * coeff)
             while True:
                 val = ticks[left][0] * i * coeff
                 if val >= lo and val <= hi:
@@ -735,7 +744,7 @@ def time_ticks(lo: float, hi: float) -> List[Dict[str, Any]]:
         while True:
             coeff = _pow10(_floor(_log10(hi / ticks[unit][0])))
             while True:
-                i = 1
+                i = _first_multiple(lo, ticks[unit][0] * coeff)
                 while True:
                     val = ticks[unit][0] * i * coeff
                     if val >= lo and val <= hi:
@@ -774,6 +783,8 @@ def integer_ticks(lo: float, hi: float) -> List[Dict[str, Any]]:
             i = _ceil(lo / step) * step
             while i <= hi:
                 out.append({"value": i, "label": _js_locale(i)})
+                if i + step == i:
+                    break
                 i += step
             if out:
                 break

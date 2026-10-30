@@ -581,6 +581,27 @@ def test_color_map_and_ticks_are_the_widgets():
     assert rep.integer_ticks(math.nan, 5) == [] and rep.time_ticks(math.nan, 5) == [] and len(rep.integer_ticks(1, math.inf)) == 309
 
 
+def test_a_degenerate_tick_range_near_sixteen_quintillion_returns():
+    # One value near 1.6e19 (no power of ten, unit or multiple of one in range) used to scan forever: integer_ticks
+    # stepped by a size the value's spacing rounds away, and time_ticks walked every multiple of its finest unit up
+    # to the value. Each now draws only the value, if it draws anything, and returns at once.
+    import threading
+
+    x = 1.5999999999993856e19
+    done = {}
+
+    def run():
+        done["int"] = rep.integer_ticks(x, x)
+        done["time"] = rep.time_ticks(x, x)
+
+    worker = threading.Thread(target=run, daemon=True)
+    worker.start()
+    worker.join(timeout=30)
+    assert not worker.is_alive(), "the tick functions did not return"
+    for name in ("int", "time"):
+        assert all(tick["value"] == x for tick in done[name]), name
+
+
 def test_run_names_are_the_widgets():
     for keys, drawn in zip(WIDGET["scatter"], DRAWN["scatter"]):
         assert rep.run_names([_material(k) for k in keys]) == drawn["run_names"], keys

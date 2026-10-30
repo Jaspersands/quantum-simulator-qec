@@ -43,6 +43,8 @@ policy for its documented items.
 - A copy of the `correlated_matching` decoder (`copy`, `deepcopy`, pickle) keeps the fault-id count
   `ensure_num_fault_ids` set. It used to return the model's count, so its predictions were narrower than the
   original's.
+- `integer_ticks` and `time_ticks` return for a range of one value near 1.6e19 (they scanned forever); the
+  ticks they draw for every other range are unchanged.
 
 ## 2.2.0 — 2026-10-30
 
