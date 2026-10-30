@@ -38,6 +38,9 @@ policy for its documented items.
   `OverflowError`; a negative index's message says it is negative.
 - `Circuit.get_detector_coordinates` and `DetectorErrorModel.get_detector_coordinates` take a single
   index, as Stim's do, not only an iterable of them (which raised `TypeError`).
+- `FlipSimulator.broadcast_pauli_errors` and `generate_bernoulli_samples` refuse a probability outside
+  [0, 1] or NaN with `ValueError`; they used to accept it (p = 1.5 gave all-True samples, p = -0.5
+  all-False).
 
 ## 2.2.0 — 2026-10-30
 

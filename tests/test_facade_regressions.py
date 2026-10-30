@@ -401,3 +401,15 @@ def test_a_single_detector_index_is_a_list_of_one():
     for model in (c, d):
         assert model.get_detector_coordinates(1) == model.get_detector_coordinates([1]) == {1: [7.0, 8.0]}
         assert model.get_detector_coordinates(np.int64(0)) == {0: [5.0, 6.0]}
+
+
+@pytest.mark.parametrize("p", [1.5, -0.5, float("nan"), float("inf")])
+def test_flip_probabilities_outside_zero_to_one_are_refused(p):
+    f = sq.FlipSimulator(batch_size=3, num_qubits=2, seed=1)
+    mask = np.array([[True, False, True], [False, False, True]])
+    with pytest.raises(ValueError):
+        f.broadcast_pauli_errors(pauli="X", mask=mask, p=p)
+    with pytest.raises(ValueError):
+        f.generate_bernoulli_samples(4, p=p)
+    f.broadcast_pauli_errors(pauli="X", mask=mask, p=0.0)  # (p = 0 is in range; it applies nothing)
+    assert f.generate_bernoulli_samples(4, p=0.0).tolist() == [False] * 4
