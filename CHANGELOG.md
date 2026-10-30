@@ -29,6 +29,8 @@ policy for its documented items.
   buffer, such as a notebook's or a redirect's, instead of raising `AttributeError`.
 - `tesseract_decoder`'s `--dem-out` reports a failed write or close as the output's error (`tesseract: ...`,
   exit 1), not as `Failed to open`.
+- `tesseract_decoder`'s `--stats-out` file is written as UTF-8 whatever the locale: a non-ASCII path or tag
+  aborted under an ASCII locale.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.

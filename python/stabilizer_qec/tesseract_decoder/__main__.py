@@ -919,7 +919,7 @@ def _decode(a: _Args, dem: Any, sources: Any, dets: np.ndarray, obs: np.ndarray,
         else:
             # (As Tesseract's ofstream, a file that cannot be opened is left unwritten.)
             try:
-                with open(a.stats_out_fname, "w") as f:
+                with open(a.stats_out_fname, "w", encoding="utf-8") as f:
                     f.write(text)
             except OSError:
                 pass

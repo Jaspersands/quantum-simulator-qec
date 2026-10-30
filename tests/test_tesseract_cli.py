@@ -577,6 +577,25 @@ def test_cli_dem_out_write_failure_is_an_output_error(tmp_path, capsys, monkeypa
     assert (code, err) == (1, f"tesseract: {OSError(errno.ENOSPC, os.strerror(errno.ENOSPC))}\n")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="the C locale is POSIX's")
+def test_cli_stats_out_is_utf8_under_an_ascii_locale(tmp_path):
+    # A non-ASCII path is written to the stats file as UTF-8 whatever the locale's encoding is.
+    import codecs
+
+    env = {**os.environ, "LC_ALL": "C", "PYTHONCOERCECLOCALE": "0", "PYTHONUTF8": "0"}
+    probe = subprocess.run([sys.executable, "-c", "import locale, sys; sys.stdout.write(locale.getpreferredencoding(False))"], env=env, capture_output=True, text=True)
+    assert codecs.lookup(probe.stdout).name == "ascii", probe.stdout
+    (tmp_path / "\u00e9.dem").write_text(SMALL_DEM, encoding="utf-8")
+    (tmp_path / "s.01").write_text("1000\n0110\n")
+    r = subprocess.run(
+        [sys.executable, "-m", "stabilizer_qec.tesseract_decoder", "--dem", str(tmp_path / "\u00e9.dem"), "--in", str(tmp_path / "s.01"), "--in-format", "01",
+         "--in-includes-appended-observables", "--stats-out", str(tmp_path / "stats.json")],
+        env=env, capture_output=True,
+    )
+    assert (r.returncode, r.stderr) == (0, b"")
+    assert str(tmp_path / "\u00e9.dem").encode("utf-8") in (tmp_path / "stats.json").read_bytes()
+
+
 def test_cli_reads_models_with_non_utf8_comment_bytes(tmp_path, capsys):
     # Stim reads a model's or circuit's bytes and passes over those in a comment, so Tesseract's
     # program reads such a file; here a byte that is not UTF-8 is replaced, as the Chromobius
