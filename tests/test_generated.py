@@ -83,6 +83,7 @@ def test_generated_circuits_work_here():
         ("repetition_code:memory", dict(distance=1), "distance >= 2"),
         ("repetition_code:memory", dict(rounds=0), "rounds"),
         ("repetition_code:memory", dict(after_clifford_depolarization=1.5), "outside"),
+        ("repetition_code:memory", dict(distance=1002), "at most 1001"),
     ],
 )
 def test_bad_arguments_are_refused(task, kw, message):
@@ -112,3 +113,7 @@ def test_colour_annotations_are_clorcos():
         assert str(ours) == str(ref)
     with pytest.raises(ValueError, match="colour code"):
         sq.Circuit.generated("surface_code:rotated_memory_z", distance=3, rounds=3, annotate_colors=True)
+
+
+def test_rounds_are_not_capped():
+    assert sq.Circuit.generated("repetition_code:memory", distance=3, rounds=20000).num_detectors >= 20000
