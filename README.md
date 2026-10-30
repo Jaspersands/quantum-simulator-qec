@@ -1744,9 +1744,11 @@ with at least 100,000 variance-equivalent unweighted shots and at most 40 millio
 row. This stopping rule uses the weighted rate variance; it is not a threshold on Kish ESS.
 
 **Limits.**
-- Past `max_contraction` (and twelve generators) the class sum is truncated, and the sampler
-  warns. A non-local generator the faults reach is summed with the generators around it and
-  with the same logical a few rounds further on. Products of two non-local generators that
+- Past `max_contraction` (and twelve generators) the class sum of a Clifford circuit's coherent
+  sampler is truncated, and the sampler warns. The joint sampler (a circuit with non-Clifford
+  gates) truncates past twelve generators without a warning, as the next section says. A
+  non-local generator the faults reach is summed with the generators around it and with the
+  same logical a few rounds further on. Products of two non-local generators that
   share no location are taken as independent, and so are untouched generators that overlap.
   2.1 truncated the three-round d = 3 surface code with one rotation per round this way and
   left part of the interference between rounds out (see Checked); 2.2 contracts it. Raising
