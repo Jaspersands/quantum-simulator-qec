@@ -133,11 +133,16 @@ def open_visualizer(filename, host='localhost', port=51666, data_folder=".", ope
     Bind errors are raised before prompting or opening a browser. Browser startup waits for binding.
     """
     server, run_server = serve(host, port, data_folder, return_server=True, quiet=quiet)
+    from socketserver import ThreadingMixIn
     from wsgiref.simple_server import WSGIServer
 
     serving = threading.Event()
 
-    class VisualizerServer(WSGIServer):
+    class VisualizerServer(ThreadingMixIn, WSGIServer):
+        # Each request runs on its own daemon thread, so a connection that sends nothing (a browser's
+        # preconnect socket) cannot hold the serving loop and block shutdown.
+        daemon_threads = True
+
         def service_actions(self):
             # Called inside BaseServer's serving loop, after its shutdown event was initialized.
             serving.set()

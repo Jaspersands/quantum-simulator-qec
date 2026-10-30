@@ -314,3 +314,36 @@ def test_dash_port_forwarding_is_explicit(monkeypatch):
     ui.serve(port=0, dash=True)
     assert seen == [{'host': '127.0.0.1', 'port': 0}]
     assert 'Dash 4.4.1 treats zero' in ui.serve.__doc__
+
+
+def test_idle_connection_does_not_block_visualizer_shutdown(tmp_path, monkeypatch):
+    # A browser's preconnect socket that sends nothing must not keep ENTER from stopping the server.
+    started = []
+    original = helper.serve
+
+    def tracked(*args, **kwargs):
+        result = original(*args, **kwargs)
+        started.append(result[0])
+        return result
+
+    idle = []
+
+    def press_enter():
+        port = started[-1].srv.server_port
+        idle.append(socket.create_connection(('127.0.0.1', port), timeout=3))
+        time.sleep(0.5)  # the server accepts it and blocks reading the request it never sends
+        return ''
+
+    monkeypatch.setattr(helper, 'serve', tracked)
+    monkeypatch.setattr('builtins.input', press_enter)
+    monkeypatch.setattr(helper.webbrowser, 'open', lambda *args: pytest.fail('opened a browser'))
+    finished = threading.Event()
+
+    def run():
+        helper.open_visualizer('synthetic.json', host='127.0.0.1', port=0, data_folder=str(tmp_path), open_browser=False)
+        finished.set()
+
+    threading.Thread(target=run, daemon=True).start()
+    assert finished.wait(15), 'open_visualizer did not return with an idle connection open'
+    for sock in idle:
+        sock.close()
