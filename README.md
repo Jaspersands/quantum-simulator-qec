@@ -2770,6 +2770,8 @@ src/gates.rs          Stim's other Clifford gates as exact H/S/CX sequences (too
 src/dem.rs            detector error models: built backwards from any circuit, decomposed as
                       Stim decomposes, read and written in Stim's .dem format, compared
 src/dem_decoder.rs    probability-weighted exact matching over any detector error model
+src/distance.rs       circuit distance: the shortest graph-like fault, and the bounded search for undetectable
+                      logical errors within a memory budget
 src/frame_sampler.rs  Pauli-frame sampling of any circuit, independent of the model
 src/batch_sampler.rs  the same, 64 shots per word, REPEAT without flattening
 src/shots.rs          Stim's 01 and b8 detection-event formats
@@ -2882,7 +2884,7 @@ tools/bb_check.py       the bivariate bicycle codes and BP+OSD against Bravyi et
 tools/decoder_check.py  BP+LSD, Relay-BP, colour-code matching and the search decoder against
                         ldpc, relay_bp, Chromobius and Tesseract, shot for shot
 tools/lsd_merge_capture.py  ldpc's BP+LSD answers that vary with its merge order, for the tests
-tools/*_fixtures.py, *_reference.py, search_corpus.py, cudaq_trt_models.py
+tools/*_fixture*.py, *_reference.py, search_corpus.py, cudaq_trt_models.py
                         the ports' references, recorded from the originals for the tests
 tools/gross.py          the gross code's logical error per cycle, and the surface code beside it
 tools/gross_ops.py      the gross code's automorphisms, gauging distances and logical measurement
@@ -2917,10 +2919,12 @@ data/gpu/               sampling and BP on the GPU against the CPU
 data/predecoder/        the CNN pre-decoder's training record
 data/bench/             the decoder benchmarks, every recorded run
 data/distances.json     the circuit distance of every memory the package builds
+data/fingerprints.json  a sha256 of every result the package computes (tools/fingerprints.py)
 
 tools/smoke.py          an installed wheel checked end to end against Stim and PyMatching
 tools/wasm-smoke.mjs    the WASM engine driven in Node through the page's wrappers
 tools/site-tests.mjs    Node tests for the site's pure modules
+tools/coherent-tests.mjs  Node checks of the coherent section's provenance and UI wiring
 tools/contrast.mjs      WCAG contrast for every text-on-wash pairing the page draws
 tools/report.py         the technical report: values, tables and figures from data/, then HTML and PDF
 report/                 the report's source, template, figures, and the built HTML and PDF
@@ -2958,10 +2962,12 @@ python3 -m http.server 8080
 
 Then open `http://localhost:8080`.
 
-The site's pure modules have Node tests, and the palette has a contrast check:
+The site's pure modules and the coherent section's wiring have Node tests, and the palette has a
+contrast check:
 
 ```bash
 node tools/site-tests.mjs
+node tools/coherent-tests.mjs
 node tools/contrast.mjs
 ```
 
