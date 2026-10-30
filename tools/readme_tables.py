@@ -144,8 +144,12 @@ def latency():
             continue
         w = s["by_workers"][str(k)]
         rows.append(f"| Willow d = {d} | {mode}, {m} | {us(s['window_us']['mean'])} | {cores(k)} | {whole(w['mean_us'])} | {whole(w['p99_us'])} |")
-    for m, k2 in (("plain", 4), ("correlated", 8)):
+    for m in ("plain", "correlated"):
         r = next(x for x in mil["runs"] if x["mode"] == "parallel" and x["matcher"] == m)
+        # The second count: the fewest workers whose mean, to the whole microsecond the table prints,
+        # is the run's best.
+        best = min(round(v["mean_us"]) for v in r["by_workers"].values())
+        k2 = min(int(j) for j, v in r["by_workers"].items() if round(v["mean_us"]) == best)
         k = first_k(r["by_workers"])
         if k is None:
             rows.append(f"| SD6 d = 5, 10⁶ rounds | parallel, {m} | {us(r['window_us']['mean'])} | falls behind | — | — |")
