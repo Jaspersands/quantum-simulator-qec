@@ -21,7 +21,7 @@ from typing import List, Optional, Tuple
 
 from stabilizer_qec.tsim.utils.program_text import _product_rotation, _stored_radians
 
-_LINE = re.compile(r"^(\s*)(S|S_DAG|SPP|SPP_DAG|I)\[([^\]\n]*)\]\s+(.*?)\s*$")
+_LINE = re.compile(r"^(\s*)(S|S_DAG|SPP|SPP_DAG|I)\[([^\]\n]*)\](?:\s+(.*?))?\s*$")
 _GATE = re.compile(r"^(\s*)([A-Za-z][A-Za-z0-9_]*)(?=[\s\[(]|$)")
 # Tsim's grammar of a parametric tag (``tsim.core.parse.parse_parametric_tag``): the whole tag a name
 # and its parentheses, no space around either, each argument (spaces around it stripped) a key and a
@@ -201,16 +201,17 @@ def _native_lines(text: str, source: Optional[List[int]] = None) -> Tuple[str, L
             lines.append(line)
             continue
         indent, gate, tag, targets = m.groups()
+        targets = targets or ""  # a rotation with no targets is a no-op, as Tsim reads it
         instruction = body.strip()
         parsed = _tsim_parameters(tag, instruction, number) if gate in ("I", "SPP", "SPP_DAG") and ("*pi" in tag or gate != "I") else None
         name, turns = parsed if parsed is not None else (None, None)
         if gate in ("S", "S_DAG") and _is_t(tag):
             lines.append(f"{indent}I[{'T' if gate == 'S' else 'T_DAG'}] {targets}")
         elif gate == "I" and name in ("R_X", "R_Y", "R_Z"):
-            lines.append(f"{indent}I[{name}(theta={_stored_radians(turns['theta'], 0.5)})] {targets}")
+            lines.append(f"{indent}I[{name}(theta={_stored_radians(turns['theta'], 0.5)})]" + (f" {targets}" if targets else ""))
         elif gate == "I" and name == "U3":
             a = {k: _stored_radians(v, 1.0) for k, v in turns.items()}
-            lines.append(f"{indent}I[U3(theta={a['theta']}, phi={a['phi']}, lambda={a['lambda']})] {targets}")
+            lines.append(f"{indent}I[U3(theta={a['theta']}, phi={a['phi']}, lambda={a['lambda']})]" + (f" {targets}" if targets else ""))
         elif gate == "I" and parsed is None and "*pi" in tag and tag.split("(", 1)[0].strip() in _CORE_ROTATIONS and not _TSIM_TAG.match(tag):
             lines.append(f"{indent}I {targets}")
         elif gate in ("SPP", "SPP_DAG") and (_is_t(tag) or name == "R_PAULI") and _products(targets) is not None:

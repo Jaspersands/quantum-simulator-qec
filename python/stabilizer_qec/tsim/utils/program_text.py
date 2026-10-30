@@ -448,14 +448,15 @@ def _native_to_shorthand_line(line: str) -> str | None:
     if gate == "I" and _no_args(body) and name in ("T", "T_DAG") and targets:
         return f"{indent}{name} {' '.join(targets)}"
     args = _native_args(body) if body else None
-    if args is None or not targets:
+    rotation = gate == "I" and name in ("R_X", "R_Y", "R_Z", "U3")  # a rotation with no targets is a no-op, as Tsim reads it
+    if args is None or (not targets and not rotation):
         return None
     try:
         if gate == "I" and name in ("R_X", "R_Y", "R_Z") and set(args) == {"theta"}:
-            return f"{indent}{name}({_read_turns(args['theta'], 0.5)}) {' '.join(targets)}"
+            return f"{indent}{name}({_read_turns(args['theta'], 0.5)})" + (f" {' '.join(targets)}" if targets else "")
         if gate == "I" and name == "U3" and set(args) == {"theta", "phi", "lambda"}:
             a, b, c = (_read_turns(args[k], 1.0) for k in ("theta", "phi", "lambda"))
-            return f"{indent}U3({a}, {b}, {c}) {' '.join(targets)}"
+            return f"{indent}U3({a}, {b}, {c})" + (f" {' '.join(targets)}" if targets else "")
         found = _pair_rotation(name, body, args, targets) if gate == "II" else None
         if found is not None:
             dagger, angle, products = found

@@ -620,6 +620,15 @@ def test_malformed_parametric_tags_raise_tsims_error_naming_the_line(text):
         tsim.Circuit(text)
 
 
+def test_zero_target_rotation_is_a_no_op_as_tsim_reads_it(real):
+    # Tsim reads a rotation with no targets as a no-op and prints it as written; so does this package.
+    assert str(tsim.Circuit("R_Z(0.3)")) == "R_Z(0.3)"
+    assert str(tsim.Circuit("I[R_Z(theta=0.3*pi)]")) == "R_Z(0.3)"
+    for text in ("R_Z(0.3)", "R_X(0.25)", "H 0\nR_Y(-0.5)", "U3(0.3, 0.24, 0.49)", "R_Z(0.3)\nM 0"):
+        assert str(tsim.Circuit(text)) == str(real.Circuit(text)), text
+    assert tsim.Circuit("R_Z(0.3)").num_qubits == 0
+
+
 def test_errors_name_the_source_line_after_a_controlled_gate():
     # A CCZ or CCX line is decomposed into many lines; an error names the line the program has.
     with pytest.raises(ValueError, match=r"^line 2: Could not parse instruction 'I\[R_Z\(theta=0\.3\*pi\*pi\)\] 0'"):
