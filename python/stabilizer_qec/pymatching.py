@@ -180,8 +180,10 @@ def _find_open_file_argument(name: str, argv: List[str]) -> int:
         raise _InvalidArgument(f"Missing command line argument: '{name}'")
     if path == "":
         raise _InvalidArgument(f"Command line argument '{name}' can't be empty. It's supposed to be a file path.")
+    # Text mode on Windows, as PyMatching opens these ('r'); binary elsewhere.
+    flags = os.O_RDONLY if sys.platform == "win32" else os.O_RDONLY | getattr(os, "O_BINARY", 0)
     try:
-        return os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0))
+        return os.open(path, flags)
     except OSError:
         raise _InvalidArgument(f"Failed to open '{path}'") from None
 

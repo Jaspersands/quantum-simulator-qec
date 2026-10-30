@@ -322,6 +322,8 @@ policy for its documented items.
   (`panqec-<user>` in the temp dir), so two users on one host no longer share it.
 - A circuit with an inverted herald target (`HERALDED_ERASE(0.1) !3`) is refused when it is built, naming the
   herald ("inverted herald targets are not supported"), where it said "bad qubit target"; no engine inverts a herald.
+- On Windows, `animate`'s `--dets_in` and `--dem_in` files are opened in text mode, as PyMatching opens them,
+  not in binary mode.
 
 ### Not ported
 
