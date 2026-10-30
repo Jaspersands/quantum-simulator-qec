@@ -33,9 +33,16 @@ class MeasureResult:
         return f"MeasureResult(value={self.value!r}, determined={self.determined!r})"
 
 
+class _NotClifford(AttributeError, NotImplementedError):
+    """A gate the stabilizer simulator cannot apply: an ``AttributeError`` too, so ``hasattr`` and
+    ``getattr`` with a default treat the gate as absent."""
+
+
 class StabilizerSimulator(CircuitRunnerMixin):
     """A stabilizer state of ``num_qubits`` qubits, all |0⟩ (qsample's CHP simulator, on this
-    package's tableau simulator). ``seed`` fixes its measurements' randomness."""
+    package's tableau simulator). ``seed`` fixes its measurements' randomness. An instance cannot be
+    pickled, since its tableau simulator's core has no pickle support; a sampler saves the class and
+    makes an instance for each shot."""
 
     def __init__(self, num_qubits: int, seed: Optional[int] = None) -> None:
         import numpy as np
@@ -100,7 +107,7 @@ class StabilizerSimulator(CircuitRunnerMixin):
 
     def __getattr__(self, name: str):
         if name in ("T", "Rx", "Ry", "Rz"):
-            raise NotImplementedError(f"{name} is not a Clifford gate: the stabilizer simulator cannot apply it")
+            raise _NotClifford(f"{name} is not a Clifford gate: the stabilizer simulator cannot apply it")
         raise AttributeError(name)
 
 
