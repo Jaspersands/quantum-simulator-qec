@@ -432,8 +432,9 @@ decoded by its own decoder, and compared with Stim's sampler decoded by PyMatchi
 
 The last two columns are native decode time per shot.
 
-**4. Speed.** Single-threaded, this engine takes 0.89 to 0.99 times PyMatching's time per
-shot, and its correlated matching 0.75 to 0.94 times PyMatching's correlated mode. At d = 7, p = 0.6%
+**4. Speed.** Single-threaded, this engine took 0.89 to 0.99 times PyMatching's time per shot in the
+1.7 pass (1.02 in the 2.2.0 record), and its correlated matching 0.75 to 0.94 times PyMatching's
+correlated mode (1.03 in 2.2.0). At d = 7, p = 0.6%
 it takes 13.1 µs a shot, native, against PyMatching's 14.6 µs. The first version of this check used
 the dense matcher, which was 18 to 136 times slower and fell further behind as the patch grew. The
 sparse matcher closed most of that gap, and later passes (below) the rest. It also decodes shots
@@ -785,7 +786,7 @@ where PyMatching accepts them; proven no-op merges retain configuration. `src/sp
 | XZZX | 7 | 0.6% | 8.027% | 8.033% | 10.646% | 292 | 37.3 | 32.8 |
 
 100,000 shots per row, sampled by Stim, SD6 noise, T = d. The timing columns are single-threaded,
-correlated mode for both: ours takes 0.75 to 0.94 times as long as PyMatching's. Natively (the
+correlated mode for both: in the 1.7 pass ours took 0.75 to 0.94 times as long as PyMatching's. Natively (the
 table above), the second pass more than doubles the cost of a shot: at d = 9 and p = 0.6%, 35 µs plain
 and 86 µs correlated.
 
