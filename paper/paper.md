@@ -113,7 +113,8 @@ corrections equal `ldpc`'s except where tied corrections are chosen differently.
 identical to IBM's implementation, the search decoder finds Tesseract's faults, and colour-code
 matching weighs every Möbius matching as Chromobius does. Explained errors and the text timeline
 diagram match Stim's output character for character. The command line is byte-identical to Stim's wherever Stim's output is
-deterministic.
+deterministic, except that its help pages and messages name stabilizer-qec, and its top-level help
+lists more commands.
 
 *One engine, three targets.* Sampling, model building and decoding run in the same process, so
 the browser, Python and Rust users get the same shots and the same error model from a seed, on
