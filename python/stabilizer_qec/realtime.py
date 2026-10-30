@@ -445,8 +445,10 @@ class Protocol:
     JSON with ``num_detectors``, ``num_observables``, ``decoder``), ``DECODE`` (b8 syndromes, one
     row per shot, the shot count in the header) answered by ``CORRECTIONS`` (b8 predictions),
     ``STATS`` answered by ``STATS_REPLY`` (JSON), ``RESET`` answered by ``OK``, ``BYE``, and
-    ``ERROR`` (JSON ``{"error": ...}``) for a request the server refuses, after which the
-    connection goes on."""
+    ``ERROR`` (JSON ``{"error": ...}``) for a request the server refuses. After a refused request's
+    contents the connection goes on; a refused frame header (bad magic or version, a length its kind
+    does not take, or over the cap) gets its ERROR and then the connection closes, since its payload
+    is not read."""
 
     MAGIC = b"SQRT"
     VERSION = 1

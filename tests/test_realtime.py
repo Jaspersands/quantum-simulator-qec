@@ -330,6 +330,37 @@ def test_server_refuses_a_payload_on_a_frame_that_takes_none_before_reading_it(m
         thread.join(10)
 
 
+def test_a_refused_frame_header_gets_its_error_and_then_the_connection_closes():
+    """A header the server cannot read (bad magic) is answered with its ERROR, after which the connection is closed
+    (its payload is never read, so the next frame could not be found); a refused request's contents leave it open."""
+    import socket
+
+    m = sq.Matching.from_detector_error_model(sq.memory_circuit(distance=3, rounds=2, p=0.01).detector_error_model(decompose_errors=True))
+    bound = {}
+    started = threading.Event()
+
+    def ready(server):
+        bound["server"] = server
+        started.set()
+
+    thread = threading.Thread(target=serve, args=(m,), kwargs=dict(tcp="127.0.0.1:0", ready=ready, timeout=10.0), daemon=True)
+    thread.start()
+    assert started.wait(10)
+    host, port = bound["server"].server_address[:2]
+    try:
+        s = socket.create_connection((host, port), timeout=10)
+        f = s.makefile("rb")
+        Protocol.read(f)  # HELLO
+        s.sendall(b"XXXX" + bytes(Protocol.HEADER.size - 4))
+        kind, _, _, body = Protocol.read(f)
+        assert kind == Protocol.ERROR and b"magic" in body
+        assert f.read(1) == b""  # closed after the ERROR
+        s.close()
+    finally:
+        bound["server"].shutdown()
+        thread.join(10)
+
+
 def test_reset_leaves_no_statistics_from_running_batches():
     gate = threading.Event()
 

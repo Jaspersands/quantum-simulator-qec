@@ -1052,8 +1052,10 @@ count, the payload length — then the payload. Kinds: <code><a href="#Protocol.
 JSON with <code>num_detectors</code>, <code>num_observables</code>, <code>decoder</code>), <code><a href="#Protocol.DECODE">DECODE</a></code> (b8 syndromes, one
 row per shot, the shot count in the header) answered by <code><a href="#Protocol.CORRECTIONS">CORRECTIONS</a></code> (b8 predictions),
 <code><a href="#Protocol.STATS">STATS</a></code> answered by <code><a href="#Protocol.STATS_REPLY">STATS_REPLY</a></code> (JSON), <code><a href="#Protocol.RESET">RESET</a></code> answered by <code><a href="#Protocol.OK">OK</a></code>, <code><a href="#Protocol.BYE">BYE</a></code>, and
-<code><a href="#Protocol.ERROR">ERROR</a></code> (JSON <code>{"error": ...}</code>) for a request the server refuses, after which the
-connection goes on.</p>
+<code><a href="#Protocol.ERROR">ERROR</a></code> (JSON <code>{"error": ...}</code>) for a request the server refuses. After a refused request's
+contents the connection goes on; a refused frame header (bad magic or version, a length its kind
+does not take, or over the cap) gets its ERROR and then the connection closes, since its payload
+is not read.</p>
 </div>
 
 
