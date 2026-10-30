@@ -64,7 +64,8 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   utilities, p_ij matrices, syndromes and defects, decay and threshold fits, exact circuit
   distances) and deltakit's analysis (Λ and logical-error-per-round fits with asymmetric
   intervals, quops prediction, models from p_ij, error budgets, defect and Λ plots), checked
-  against both and needing only numpy. Subset sampling gives a circuit's logical error rate at
+  against both and needing numpy, with scipy for exact circuit distances, xarray for defect
+  probabilities and pyyaml for reading YAML fit files. Subset sampling gives a circuit's logical error rate at
   every noise scale, with its error and bounds, from one run
   (`analysis.subset_sampling.SubsetSampler`), and `stabilizer_qec.qsample` is qsample's
   protocol-level dynamical subset sampling.
