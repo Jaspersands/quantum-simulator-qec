@@ -433,7 +433,7 @@ contraction width (`CoherentSampler.contraction_width`).
   - `CompiledBlockGraph.generate_stim_circuit` (on `compile_block_graph(g, distance)`) wrote
     the engine's layout at distance 2k + 1 with the program's `rounds` and `merged`. It now
     writes tqec's layout and takes tqec's keyword parameters (an unknown keyword is a
-    TypeError, where 2.1 ignored it), and raises a ValueError pointing at `.circuit`, the
+    TypeError), and raises a ValueError pointing at `.circuit`, the
     engine's layout, for a program whose rounds tqec's layout cannot honour.
   - Separate compilations isolate the cache initialization/build transaction across threads.
     First generation matches a fresh reference process; repeated generation of one compilation
