@@ -269,6 +269,23 @@ def test_cli_verbose(tmp_path, capsys):
     assert re.fullmatch(r"1 num_low_confidence = 0 total_time_seconds = \S+\n", stats)
 
 
+def test_a_verbose_shot_does_not_change_a_later_shots_precision(tmp_path, capsys, monkeypatch):
+    """A verbose shot's cost is printed at precision 13, and the precision is restored after it: a
+    shot with an infinite cost leaves a later shot with no detections printed at the default."""
+    original = TesseractDecoder._decode_result
+
+    def with_costs(self, detections, updates=()):
+        flipped, errors, low, _ = original(self, detections, updates)
+        return flipped, errors, low, float("inf") if detections else 1 / 3
+
+    monkeypatch.setattr(TesseractDecoder, "_decode_result", with_costs)
+    (tmp_path / "v.dem").write_text(REF["verbose"]["dem"])
+    (tmp_path / "v.01").write_text("101\n000\n")
+    code, out, err = run(["--dem", tmp_path / "v.dem", "--in", tmp_path / "v.01", "--in-format", "01", "--verbose", "--print-stats"], capsys)
+    assert (code, err) == (0, "")
+    assert [line for line in out.splitlines() if line.startswith("cost = ")] == ["cost = inf", "cost = 0.3333333333333333"]
+
+
 def test_cli_help_and_version(capsys):
     code, out, err = run(["--help"], capsys)
     assert (code, err) == (0, "")

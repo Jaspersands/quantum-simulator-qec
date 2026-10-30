@@ -324,6 +324,8 @@ policy for its documented items.
   herald ("inverted herald targets are not supported"), where it said "bad qubit target"; no engine inverts a herald.
 - On Windows, `animate`'s `--dets_in` and `--dem_in` files are opened in text mode, as PyMatching opens them,
   not in binary mode.
+- `tesseract_decoder`'s `--print-stats` prints a verbose shot's cost at precision 13 and restores the default
+  after it, so the costs of later shots no longer print at 13 digits.
 
 ### Not ported
 

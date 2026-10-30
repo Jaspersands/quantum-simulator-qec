@@ -861,10 +861,14 @@ def _decode(a: _Args, dem: Any, sources: Any, dets: np.ndarray, obs: np.ndarray,
                 flipped, low, cost = mp.decode_result(hits)
                 errors = None
             micros = int((time.perf_counter() - start) * 1e6)
-            # (A verbose search leaves Tesseract's std::cout at precision 13.)
+            # A verbose search's cost is printed at precision 13; the previous precision is restored after
+            # this shot, so the costs of later shots print as before.
+            previous = state["precision"]
             if a.verbose and hits and (mp is None or any(mp._component_of[d] in scheduled for d in hits)):
                 state["precision"] = 13
-            if not consume(k, flipped, errors, low, cost, micros):
+            more = consume(k, flipped, errors, low, cost, micros)
+            state["precision"] = previous
+            if not more:
                 break
     else:
         decoder = decoders[0]
