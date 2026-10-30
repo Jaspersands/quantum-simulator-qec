@@ -255,7 +255,8 @@ its text; <code>str()</code> and <code>repr()</code> are Tsim's shorthand; <code
 <code>stim.Circuit</code> or <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code> (Tsim's tagged Stim read as its gates); what
 Tsim's methods return is a <code>tsim.Circuit</code> (<code>copy</code>, slices, <code>*</code>, <code>flattened</code>,
 <code>without_noise</code>, <code>inverse</code>, ...), and <code>stim_circuit</code> a plain <code><a href="../stabilizer_qec.html#Circuit">stabilizer_qec.Circuit</a></code>.
-<code>tcount</code>, <code>is_clifford</code> and <code>inverse</code> are Tsim's; <code>to_matrix</code> is Tsim's map on the
+<code>tcount</code> and <code>inverse</code> are Tsim's, and <code>is_clifford</code> is Tsim's up to the tolerance under
+"Where it differs"; <code>to_matrix</code> is Tsim's map on the
 qubits the circuit names, a state column when every qubit is reset first, and, of a circuit
 with measurements, detectors or observables (one that XORs no measurement is a factor of 2),
 resets after a qubit's first operation, feedback, noise on a qubit before its reset or a
@@ -309,6 +310,10 @@ radians of exp(−iθP)).</li>
 <ul>
 <li>Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
 JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.</li>
+<li><code>is_clifford</code> and <code>stim_circuit</code>'s expansion of rotations take an angle within 1e-9 (in
+units of π/4) of a multiple of π/4 as that Clifford angle, so <code>R_Z(0.5000000001)</code> is Clifford
+here and <code>stim_circuit</code> writes it as <code>SPP Z0</code>. Tsim reads the literal's exact half-turn
+fraction and calls it Clifford when the denominator is at most 2.</li>
 <li>An angle appended as an int prints as a float (<code>R_Z(1.0)</code>, Tsim <code>R_Z(1)</code>); a tag on an
 appended <code>T</code>, <code>T_DAG</code>, <code>TPP</code> or <code>TPP_DAG</code> is not kept. The suffix of a tagged input
 such as <code>S[T:x] 0</code> is also dropped (prints <code>T 0</code>, inverse <code>T_DAG 0</code>, where Tsim
