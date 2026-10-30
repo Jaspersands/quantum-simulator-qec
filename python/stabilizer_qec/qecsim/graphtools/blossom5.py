@@ -17,10 +17,6 @@ requirements). Therefore, Blossom V is not packaged with qecsim.
 If your use case satisfies the license requirements of Blossom V, see section :ref:`install_blossom` for details on how
 to configure qecsim to use Blossom V. When performance is not a concern, the Python package NetworkX,
 https://networkx.github.io/, may be sufficient and is already installed as a qecsim dependency.
-
-The functions in this module assume the presence of a C++ library ``libpypm.so`` in one of the locations searched by
-:func:`qecsim.util.load_clib`. All functions, except :func:`available` will fail with an :class:`OSError` if the library
-cannot be loaded.
 """
 import ctypes
 import decimal
@@ -83,7 +79,6 @@ def infty():
 
     :return: Value that represents infinity.
     :rtype: int
-    :raises OSError: if Blossom V library cannot be loaded.
     """
     return _libpypm().infty() if _have_libpypm() else _INFTY
 
@@ -103,7 +98,6 @@ def mwpm_ids(edges):
     :type edges: list of (int, int, int)
     :return: Set of matches as {(node_id, node_id), ...}. (Each tuple is sorted.)
     :rtype: set of (int, int)
-    :raises OSError: if Blossom V library cannot be loaded.
     """
     # extract and sort node ids
     node_ids = sorted(set(id for (id_a, id_b, _) in edges for id in (id_a, id_b)))
@@ -139,7 +133,6 @@ def mwpm(edges):
     :type edges: list of (object, object, int)
     :return: Set of matches as {(node, node), ...}.
     :rtype: set of (object, object)
-    :raises OSError: if Blossom V library cannot be loaded.
     """
     # list of nodes without duplicates
     # (stabilizer_qec: in order of first appearance, not a set's order: the CMWPM and SMWPM decoders' nodes hash by
@@ -173,7 +166,6 @@ def weight_to_int_fn(weights):
     :type weights: iterable of int or float
     :return: Function with signature weight_to_int(float or int) -> int
     :rtype: function
-    :raises OSError: if Blossom V library cannot be loaded.
     """
     # extract absolute non-zero weights
     abs_non_zero_wts = {abs(wt) for wt in weights if wt != 0}
