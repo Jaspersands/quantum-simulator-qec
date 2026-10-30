@@ -15,13 +15,13 @@ Submitting is done by the author, from their own account, at
 - [ ] Read the *AI usage disclosure* section and change it to describe the work as you see it.
       JOSS requires the disclosure, and its wording is the author's to stand behind.
 - [ ] The numbers in the paper come from the technical report (`report/report.md`, built
-      4 October 2026). If the report is rebuilt with new data, check them again.
+      29 October 2026 at commit ca8dd67). If the report is rebuilt with new data, check them again.
 - [ ] Update the `date:` field to the submission date.
 - [ ] The latest run of the Paper workflow is green, and its PDF reads correctly.
 
 **The software (JOSS's review checklist).**
 
-- [x] An OSI licence (MIT, `LICENSE`).
+- [x] An OSI licence (MIT AND Apache-2.0: `LICENSE` and `LICENSES/Apache-2.0.txt`).
 - [x] A public repository with an issue tracker.
 - [x] Installation instructions, and a package on PyPI and crates.io.
 - [x] Example usage (README, `tutorials/`, the API guide).

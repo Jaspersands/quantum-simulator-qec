@@ -435,7 +435,8 @@ contraction width (`CoherentSampler.contraction_width`).
   340,000 shots of `tools/decoder_check.py`'s colour cases (0 ties, at 0.72 times Chromobius's
   time), with the weights equal as float32. This finite evidence does not ensure equal
   observable choices on other inputs: tied lifting can differ at equal matching weight on
-  any platform, including macOS. Facade cases permit 95% agreement; the sweep requires 99%. `python -m stabilizer_qec.chromobius
+  any platform, including macOS. Off macOS, facade cases permit 95% agreement and the sweep
+  requires 99%; on macOS both are exact. `python -m stabilizer_qec.chromobius
   predict|benchmark|describe_decoder|help` is Chromobius's program, with Stim's flag parsing
   and record formats, and its outputs and messages, checked against 184 cases recorded from
   Chromobius 1.1.1's own binary. Where it differs: a `--circuit` that Stim's error analysis
@@ -709,9 +710,11 @@ contraction width (`CoherentSampler.contraction_width`).
   workspace from `mwpm()`.
 - **Chromobius.** A colour-code model is refused as Chromobius refuses it, with its messages: a
   detector declared without a fourth coordinate that is a whole number from −1 to 5
-  (`detector D0` among them), which 2.1 decoded as uncoloured; an error naming a detector no
-  declaration colours ("Expected all detectors to have at least 4 coordinates, ... but got
-  error(0.1) D1 L0", where 2.1 said "detector D1 has no colour annotation ...") or an
+  (`detector D0` among them), where 2.1 refused one with one to three coordinates or an invalid
+  fourth ("expected at least 4 coordinates") and one with none only when a fault set it off; an
+  error naming a detector no declaration colours ("Expected all detectors to have at least 4
+  coordinates, ... but got error(0.1) D1 L0", where 2.1 said "detector D1 has no colour
+  annotation ...") or an
   observable past L63 ("Max logical observable is L63 but a larger one appeared in ...", where
   2.1 gave its 64-observable message); and a fault it cannot decompose (Chromobius's message,
   with the instruction, its pieces and the detectors' data). The model is read as written, as
@@ -734,7 +737,7 @@ contraction width (`CoherentSampler.contraction_width`).
   - `CompiledBlockGraph.generate_stim_circuit` (on `compile_block_graph(g, distance)`) wrote
     the engine's layout at distance 2k + 1 with the program's `rounds` and `merged`. It now
     writes tqec's layout and takes tqec's keyword parameters (an unknown keyword is a
-    TypeError, where 2.1 ignored it), and raises a ValueError pointing at `.circuit`, the
+    TypeError), and raises a ValueError pointing at `.circuit`, the
     engine's layout, for a program whose rounds tqec's layout cannot honour.
   - Separate compilations isolate the cache initialization/build transaction across threads.
     First generation matches a fresh reference process; repeated generation of one compilation
@@ -892,8 +895,9 @@ contraction width (`CoherentSampler.contraction_width`).
   matrix cannot install, none of it skipped: the Tsim tests against live Tsim, the sinter 1.16.0
   and relay-bp 0.2.2 differentials (both built from their sources), and PanQEC's slow tests
   (`PANQEC_RUNSLOW=1`); other matrices use reduced cases. The matrix no longer names
-  `relay-bp==0.2.2` or `qldpc==0.4.1`, which it could never install. This source change does not establish remote CI success. Valid scalar qsample comb
-  results again retain numpy.float64 rather than Python float.
+  `relay-bp==0.2.2` or `qldpc==0.4.1`, which it could never install.
+- **qsample comb.** Valid scalar results now return numpy.float64, where 2.0.0 and 2.1.0 returned a
+  Python float.
 
 - **Tsim.**
   - `to_matrix` gave the wrong shape for noise before a reset (`Z_ERROR(0.1) 1` then `R 1`
@@ -910,7 +914,8 @@ contraction width (`CoherentSampler.contraction_width`).
     `II[R_PAULI(theta=t, pauli=...)]` was dropped, a wrong model and matrix, silently.
   - `SPP_DAG[R_PAULI(theta=a*pi)]` and `!` factors are kept as Tsim keeps them: in printing, in
     `inverse` (Tsim's `SPP_DAG[...]` text), in fusion with neighbours and in `R_PAULI`'s
-    limits and messages. A native `II[R_ZZ(theta=pi/8)]` prints as `TPP Z0*Z1`; it printed
+    limits and messages. A native `II[R_ZZ(theta=0.39269908169872414)]`, pi/8 as `repr` writes it,
+    prints as `TPP Z0*Z1`; it printed
     `R_ZZ(0.25) 0 1`, which reads back as `R_PAULI`.
   - An all-identity product rotation is left out of `str()`; Tsim read its raw line as a plain
     `II`, another matrix, or refused it.
@@ -1242,7 +1247,8 @@ Rust crate both at 2.1.0. Behaviour changes are under **Changed**.
 ### Added
 
 - **Stim.** `search_for_undetectable_logical_errors` now takes Stim's own steps, and finds Stim's
-  faults exactly: the same terms on 3,804 random models, the colour, surface and bivariate
+  faults exactly: the same terms on 1,200 random models at five sets of limits (3,804 searches
+  that find faults), the colour, surface and bivariate
   bicycle codes and BPC72, and Stim's messages where both fail. It is also faster than Stim:
   0.07 s on BPC72 against Stim's 0.25 s (2.0 took 8.1 s), and 0.6 s against 4.0 s on the d = 5
   surface code at limits (6, 6). Limits of (2, 2) go to the graph-like search, as in Stim. The

@@ -32,7 +32,7 @@ running it:
 
 ```bash
 python tools/notebooks.py           # rebuild every notebook with its outputs
-python tools/notebooks.py --check   # run them; fail if one raises or is out of date
+python tools/notebooks.py --check   # run them; fail if one raises or its cells differ from the .py source (outputs are not compared)
 ```
 
 Edit the `.py` file, not the notebook. CI runs `--check` on every push.

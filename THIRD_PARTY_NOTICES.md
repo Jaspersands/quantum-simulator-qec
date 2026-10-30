@@ -112,7 +112,9 @@ Copyright (c) 2022 PanQEC (Eric Huang and contributors). MIT License. Source:
 https://github.com/panqec/panqec
 
 `python/stabilizer_qec/panqec/` is PanQEC 0.1.7 whole, on this package's ldpc and PyMatching;
-its `LICENSE` is beside it, and each modified file says so at its top.
+its `LICENSE` is beside it, and each modified file says so at its top. `tests/panqec_port/` is
+PanQEC's test suite and its data (`tests/panqec_port/data/`), modified the same way and under the
+same MIT licence.
 
 ## QUITS
 
@@ -182,9 +184,12 @@ graph in PyMatching 2.4.0's and 2.2.2's neighbour orders (their `driver/user_gra
 `src/pm_exact/LICENSE`, each file marked as modified. `src/pm_exact/diagram.rs` and the
 `animate` command in `python/stabilizer_qec/pymatching.py` port PyMatching 2.4.0's `animate`
 (`diagram/mwpm_diagram.cc`, `diagram/animation_main.cc`), under the same notice.
-`tests/pymatching_port/animate/` (written by `tools/pymatching_animate_fixtures.py`) records the
-frames, messages and exit codes of PyMatching 2.4.0's `animate` (its macOS arm64 wheel, and its
-C++ command line built from its sdist), which the tests compare against.
+`tests/pymatching_port/animate/` records the frames, messages and exit codes of PyMatching 2.4.0's
+`animate` (its macOS arm64 wheel, and its C++ command line built from its sdist), which the tests
+compare against. `tools/pymatching_animate_fixtures.py` writes its `<case>.json.gz` and
+`messages.json` files. `large_tie_frame.svg` is not written by it: it is a separate capture (commit
+655b29c) that `test_large_halfway_coordinate_frame` reads, described there as a PyMatching 2.4.0
+macOS arm64 audit fixture.
 
 ## Tesseract
 
@@ -242,7 +247,11 @@ Copyright 2023-2024 The qLDPC Authors and Infleqtion Inc. (portions authored bef
 
 `python/stabilizer_qec/qldpc/` is qLDPC 0.4.1's package, and `tests/qldpc_port/` its tests, with
 their imports pointed at this package's Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract
-(and qldpc at stabilizer_qec.qldpc).
+(and qldpc at stabilizer_qec.qldpc). `python/stabilizer_qec/qldpc/circuits/noise_model.py` also takes
+portions from tqec's `utils/noise_model.py`, which tqec recovered from Gidney (2022),
+https://doi.org/10.5281/zenodo.7487893, under CC BY 4.0
+(https://creativecommons.org/licenses/by/4.0/legalcode); those portions stay under CC BY 4.0, as
+the tqec section gives.
 
 ## CUDA-Q QEC
 

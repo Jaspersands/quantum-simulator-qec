@@ -5,7 +5,8 @@ Run from the repository root, with Node, pandoc, matplotlib and Google Chrome:
     python3 tools/report.py            # everything
     python3 tools/report.py --no-pdf   # skip the PDF
 
-Every number in the report comes from the committed data, never typed by hand:
+The tables and figures in the report come from the committed data through the placeholders
+below; the few figures quoted in its prose are typed from that data:
 
 - ``{{name}}`` is a value computed here from a file in ``data/`` (or from the
   fits ``tools/lambda.mjs`` makes of them);

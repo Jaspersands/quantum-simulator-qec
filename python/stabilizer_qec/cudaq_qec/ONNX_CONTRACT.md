@@ -72,7 +72,7 @@ ORT's topological order fuses. Shapes are inferred from the graph's inputs and i
 through the supported operators; graph `value_info` is not read, so where only it would give
 ORT a shape, the port does not fuse. Other ORT graph rewrites are not emulated.
 
-Exact ORT agreement is tested for the existing fixed recordings in `models/ort_outputs.npz`
+Exact ORT agreement is tested for the existing fixed recordings in `tests/cudaq_qec_port/models/ort_outputs.npz`
 (ORT 1.31.0 CPU on macOS arm64), among them MatMul + Add past one K block, fused and not, and
 products whose twice-rounded sums would differ; the CUDA-Q surface model's 30 recorded PyTorch
 outputs are checked to absolute tolerance 1e-4. Neither establishes arbitrary graph/CPU

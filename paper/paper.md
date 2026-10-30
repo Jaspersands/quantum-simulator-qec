@@ -26,7 +26,7 @@ occurred. Studying a code means three steps: simulating its circuits under noise
 circuit into a detector error model (the list of independent faults and the checks each one
 flips), and decoding the sampled syndromes. `stabilizer-qec` does all three in one Rust engine.
 The same engine is a Rust crate, a typed Python package with one abi3 wheel for every CPython
-from 3.9 on, and a WebAssembly module that drives an interactive explainer in the browser
+from 3.9 on and a free-threaded CPython 3.14 wheel, and a WebAssembly module that drives an interactive explainer in the browser
 (<https://qcompiler.jaspersands.com>).
 
 It reads and writes Stim's circuit and error-model formats [@gidney2021stim], so circuits move
@@ -56,7 +56,7 @@ vector can hold. Earlier work treats code capacity by free fermions [@bravyi2018
 returns outcome probabilities of Clifford circuits with small errors [@miller2025efficient], or
 estimates one idling memory's logical channel [@leblond2025logical]. Tsim [@haenel2026tsim]
 samples circuits with a few non-Clifford gates at any size, at a cost exponential in their
-number. None samples and decodes circuits with coherent noise on every gate.
+number. These comparisons are selected, not an exhaustive literature audit or a universal novelty claim.
 
 # Statement of need
 
@@ -71,8 +71,8 @@ rate is quietly wrong, and nothing flags it.
 `stabilizer-qec` is for researchers and students who want that whole pipeline in one place,
 with every stage checked against the reference implementation of that stage. It is also for
 readers who learn by running code: the website's figures execute the same engine in the
-reader's browser, and three tutorials take a circuit through to a threshold plot, real-time
-decoding, and codes beyond the surface code.
+reader's browser, and nine tutorials, three of which take a circuit through to a threshold plot,
+real-time decoding, and codes beyond the surface code.
 
 # State of the field
 
@@ -103,8 +103,8 @@ shape it.
 
 *Reference tools as oracles.* Every stage has a test that compares it with its reference tool,
 not just a test of its own outputs. Error models must equal Stim's fault for fault, decomposed
-and not. On 15 circuits the largest relative probability difference is $1.1\times10^{-15}$.
-They are also checked on random circuits that use all 49 of Stim's one- and two-qubit gates.
+and not. On 15 circuits the largest relative probability difference is $1.0\times10^{-15}$.
+They are also checked on random circuits that use all 46 of Stim's one- and two-qubit unitary gates.
 The engine's own matcher must tie PyMatching's: there were 13 disagreements in 600,000 shots,
 and every one was a tie between equal-weight corrections. The ports must give their sources'
 answers: the PyMatching port's edges, predictions and weights equal PyMatching 2.4.0's on
@@ -131,14 +131,14 @@ experiments, 27.5 million shots) [@google2023suppressing; @google2025quantum], a
 That anchors its decoders to hardware rather than only to its own noise model.
 
 Correctness is enforced beyond the comparisons. A randomized run of 20,000 generated and
-mutated circuits and models drives every parser, builder, sampler and decoder; inputs may be
+mutated circuits and models drives the parsers, builders and samplers and the decoders built on a model (the matcher of `src/sparse/`, belief-matching, BP+OSD and the window decoders), not `Matching`'s matcher; inputs may be
 refused, but nothing may panic. Fuzzing covers the parsers. The Python test suite runs on
 Python 3.9 to 3.14 on Linux, macOS and Windows. Benchmarks against Stim and PyMatching run in
 continuous integration, which fails a change that doubles a speed ratio.
 
 # Research impact statement
 
-The package is published on PyPI and crates.io under the MIT licence. It plugs into sinter's
+The package is published on PyPI and crates.io under the MIT and Apache-2.0 licences (MIT for the code written here; the parts ported from other projects keep their own licences, listed in THIRD_PARTY_NOTICES.md). It plugs into sinter's
 threshold sweeps as a set of custom decoders. Its results are reproducible: a technical report
 in the repository fills every number from committed data, which the scripts in `tools/`
 regenerate. The report contains findings of its own:

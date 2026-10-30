@@ -56,8 +56,8 @@ and whether they flipped the logical qubit. Two questions decide whether it is a
   that falls behind never catches up.
 
 This report describes an engine built to answer both. It covers how the engine works, how it is
-checked, and what it measures. Every number below is read from a file committed with the source,
-and the build fails if one is missing. The same engine drives an interactive explainer that runs
+checked, and what it measures. The tables and figures below are read from files committed with the source, and the build
+fails if one is missing; the few figures quoted in the prose are typed from those files. The same engine drives an interactive explainer that runs
 it in the reader's browser, at [qcompiler.jaspersands.com](https://qcompiler.jaspersands.com).
 
 The work is organised around three references the field already trusts:
@@ -857,6 +857,8 @@ them in the release's review:
 - `data/gpu/`: sampling and BP on the GPU against the CPU (`tools/gpu_bench.py`);
 - `data/surgery/leakage.json`: the lattice-surgery CNOT's threshold under leakage
   (`tools/surgery_leakage.py`);
+- `data/coherent/` (`validate.json`, `sweep.json`, `capacity.json`): the coherent sampler's tables
+  (`tools/coherent.py`);
 - `data/bench/runs.json`: the decoder benchmarks (`tools/bench.py --record`).
 
 The report fails to build if a value it quotes is missing. To regenerate the data:
@@ -882,6 +884,9 @@ node tools/lambda.mjs                                  # every fit
 .venv/bin/python tools/clifford_t.py distill           # and distillation
 .venv/bin/python tools/gpu_bench.py                    # sampling and BP on the GPU
 .venv/bin/python tools/surgery_leakage.py              # the lattice-surgery CNOT under leakage
+.venv/bin/python tools/coherent.py validate            # the coherent sampler against exact answers
+.venv/bin/python tools/coherent.py sweep               # surface-code memory under over-rotation
+.venv/bin/python tools/coherent.py capacity            # code capacity
 .venv/bin/python tools/bench.py --record               # the decoder benchmarks
 .venv/bin/python tools/readme_tables.py --write        # the README's tables from the data
 python3 tools/report.py                                # this report
