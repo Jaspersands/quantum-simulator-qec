@@ -28,6 +28,15 @@ def test_saved_ignored_detector_ties_keep_equal_weights_and_stable_predictions()
         p, weight = fresh.predict_weighted_obs_flips_from_dets_bit_packed(rows[k])
         assert p.tolist() == r["port_prediction"] == batch_p[k].tolist()
         assert float(weight) == r["port_weight"] == r["reference_weight"] == float(batch_w[k])
+
+
+def test_saved_ignored_detector_ties_differ_from_the_recorded_reference():
+    """Each saved tie's prediction is the port's, which differs from the one Chromobius's macOS
+    arm64 build recorded for it (equal weights, two liftings)."""
+    dem = sq.DetectorErrorModel(DATA["ignored_dem"])
+    decoder = chromobius.compile_decoder_for_dem(dem)
+    for r in DATA["ignored"]:
+        assert decoder.predict_obs_flips_from_dets_bit_packed(np.array(r["dets"], dtype=np.uint8)).tolist() == r["port_prediction"]
         assert r["port_prediction"] != r["reference_prediction"]
 
 
