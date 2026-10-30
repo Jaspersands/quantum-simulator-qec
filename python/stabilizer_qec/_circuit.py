@@ -319,6 +319,8 @@ class Circuit:
 
     def get_detector_coordinates(self, only: Any = None) -> dict:
         """The coordinates of every detector, or of the indices in ``only``."""
+        if isinstance(only, (int, np.integer)):
+            only = [only]
         if only is None:
             wanted = list(range(self.num_detectors))
         else:
@@ -1576,6 +1578,8 @@ class DetectorErrorModel:
 
     def get_detector_coordinates(self, only: Any = None) -> dict:
         """Each detector's coordinates (an empty list for none), or those in ``only``."""
+        if isinstance(only, (int, np.integer)):
+            only = [only]
         n = self.num_detectors
         wanted = set(range(n)) if only is None else {int(k) for k in only}
         for k in wanted:

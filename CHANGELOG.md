@@ -36,6 +36,8 @@ policy for its documented items.
 - A negative or too-large `batch_size` or `num_qubits` in `FlipSimulator`, a negative `set_num_qubits`
   argument and a negative detector index in `get_detector_coordinates` raise `ValueError`, not
   `OverflowError`; a negative index's message says it is negative.
+- `Circuit.get_detector_coordinates` and `DetectorErrorModel.get_detector_coordinates` take a single
+  index, as Stim's do, not only an iterable of them (which raised `TypeError`).
 
 ## 2.2.0 — 2026-10-30
 

@@ -392,3 +392,12 @@ def test_a_negative_detector_index_is_named_as_negative():
         sq.DetectorErrorModel("error(0.1) D0\ndetector(1, 2) D0\n").get_detector_coordinates([-1])
     with pytest.raises(ValueError, match="Detector index -1 is negative"):
         sq.Circuit("H 0\nM 0\nDETECTOR rec[-1]\n").get_detector_coordinates([-1])
+
+
+def test_a_single_detector_index_is_a_list_of_one():
+    """get_detector_coordinates takes one index as Stim does, as a list of one."""
+    c = sq.Circuit("H 0\nM 0\nDETECTOR(5, 6) rec[-1]\nDETECTOR(7, 8) rec[-1]\n")
+    d = sq.DetectorErrorModel("error(0.1) D0\ndetector(5, 6) D0\ndetector(7, 8) D1\n")
+    for model in (c, d):
+        assert model.get_detector_coordinates(1) == model.get_detector_coordinates([1]) == {1: [7.0, 8.0]}
+        assert model.get_detector_coordinates(np.int64(0)) == {0: [5.0, 6.0]}
