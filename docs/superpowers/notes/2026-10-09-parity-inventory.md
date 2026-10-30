@@ -316,7 +316,7 @@ This is an inventory of selected comparisons, not an exhaustive literature, nove
 universal-compatibility claim. Performance applies only to its recorded circuits and API paths.
 
 - the coherent sampler at circuit level, with a whole selected completed-kernel class sum in floating-point arithmetic (2.2) wherever the planned tables fit the entry budget; numerical accuracy remains finite-tested and old pre-proposal-correction measurements are archival (past it, and in the joint sampler, a kernel of more than twelve generators is truncated as in 2.1);
-- Stim-identical DEMs with correlated matching ≤ 1.0× PyMatching time;
+- Stim-identical DEMs with correlated matching at about 1.0× PyMatching time (1.03 on Apple silicon in the 2.2.0 run in `data/bench/runs.json`);
 - bit-identical ports of ldpc's OSD/LSD (LSD's merge orders walked where ldpc's own vary), Relay-BP and Tesseract's search in one package, PyMatching's sparse blossom transliterated (2.2), and on it Chromobius's construction with its weights bit for bit and its predictions (recorded macOS corpora agree; other equal-weight liftings can differ on every platform);
 - gross-code logical measurement by gauging with exact ILP distances;
 - the browser site that runs everything in WASM.
