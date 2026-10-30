@@ -22,6 +22,8 @@ policy for its documented items.
 - The PECOS `DensityMatrix` and `ProcessMatrix` simulators raise `ValueError` for a NaN or infinite
   angle on `PhaseRot`, `CRZ`, `CRX` and `CRY`, as they already did for `RX`, `RZ` and `RZZ`, instead
   of returning a NaN state.
+- `stabilizer-qec panqec analyze` runs: it raised `AttributeError` on any data it could read, because
+  the command called a method `Analysis` does not have.
 
 ## 2.2.0 — 2026-10-30
 
