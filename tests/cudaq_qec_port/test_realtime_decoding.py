@@ -3,6 +3,7 @@
 # test_realtime_decoding_negative.py and test_decoding_config.py's configure tests; Apache License
 # 2.0), re-typed and adapted: the kernel-side calls (enqueue_syndromes, get_corrections,
 # reset_decoder) run on the host here, fed measurements this package samples.
+import copy
 import warnings
 
 import numpy as np
@@ -263,6 +264,36 @@ def test_sliding_window_decodes_a_layer_a_round():
     for m in circuit.compile_sampler(seed=3).sample(100).astype(np.uint8):
         stream(m, rounds)
         assert qec.get_corrections(0, 1, True) == [offline_prediction(offline, m2d, O, m)]
+
+
+def test_a_copy_mid_stream_leaves_the_original_its_rounds():
+    # A copy taken after two rounds, finished, leaves the original to finish on the same rounds as a fresh decoder.
+    rounds = 5
+    ctx, circuit = repetition(rounds)
+    dem, m2d, _ = ctx.full_component()
+    H = np.asarray(dem.detector_error_matrix)
+    args = {"window_size": 2, "step_size": 1, "num_syndromes_per_round": 2, "error_rate_vec": list(dem.error_rates), "inner_decoder_name": "multi_error_lut", "inner_decoder_params": {"lut_error_depth": 2}}
+
+    def fresh():
+        return qec.get_decoder("sliding_window", H, **args)
+
+    shots = circuit.compile_sampler(seed=3).sample(40).astype(np.uint8)
+    dets = np.array([[np.bitwise_xor.reduce(m[row]) for row in m2d] for m in shots], dtype=np.float64)
+    layers = fresh().get_num_detector_layers()
+    offsets = [fresh().get_layer_offset(r) for r in range(layers + 1)]
+
+    def feed(decoder, lo, hi):
+        out = None
+        for r in range(lo, hi):
+            out = decoder.decode_batch([d[offsets[r] : offsets[r + 1]] for d in dets])
+        return out
+
+    want = [r.result for r in feed(fresh(), 0, layers)]
+    original = fresh()
+    feed(original, 0, 2)
+    feed(copy.copy(original), 2, layers)
+    got = [r.result for r in feed(original, 2, layers)]
+    assert np.array_equal(np.array(got), np.array(want))
 
 
 def test_stim_dem_path(tmp_path):

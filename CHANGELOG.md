@@ -27,6 +27,7 @@ policy for its documented items.
   `qec_code=` and `decoders=`, keep working.
 - A decoder YAML that starts with a UTF-8 byte order mark, as some Windows editors save it, now reads; before, its first key failed with "missing required key 'id'".
 - A `trt_decoder` whose model has a dynamic dimension in an output's place past the first (the batch not leading the output) now fails to build with "Failed to build TensorRT engine"; before, it built with a negative output size and every decode failed.
+- `copy.copy` of a `sliding_window` decoder mid-stream gives a copy with its own round buffers; before, the copy and the original shared them, and the original's later corrections could be wrong.
 
 ## 2.2.0 — 2026-10-30
 
