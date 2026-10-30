@@ -1762,7 +1762,9 @@ row. This stopping rule uses the weighted rate variance; it is not a threshold o
   non-Clifford gate) gets the joint sampler of the next section; amplitude damping and feedback
   go to the state vector.
 - Leakage-aware decoding here is herald-driven reweighting (`LeakageAwareDecoder`, see the
-  lattice-surgery leakage results); deltakit-stim's Local Clustering Decoder is not ported.
+  lattice-surgery leakage results); the Local Clustering Decoder of Ziad et al. is implemented here
+  as `LocalClustering`, whose leakage map is `LocalClustering.from_circuit`. deltakit-stim, which
+  cites that decoder, ships none.
 
 Tutorial 05 runs all of it.
 
