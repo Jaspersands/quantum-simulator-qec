@@ -41,8 +41,8 @@ TesseractDetectorOrderMethod = Literal["bfs", "index", "coordinate"]
 class TesseractDecoder(ErrorDecoder, BatchObservableDecoder):
     """Wrapper for the Tesseract search-based decoder.
 
-    Requires the optional ``tesseract-decoder`` package, which can be installed with
-    ``pip install 'qldpc[tesseract]'``.
+    Tesseract is bundled in ``stabilizer_qec`` (as ``stabilizer_qec.tesseract_decoder``), so it
+    needs no separate install.
 
     Tesseract natively decodes a binary Stim detector error model.  A binary parity-check matrix is
     converted to a detector error model with one error mechanism per matrix column.  The
@@ -228,8 +228,7 @@ def _get_decoder_tesseract(
         A :class:`~qldpc.decoders.external.tesseract.TesseractDecoder`, which infers errors and
         predicts observable flips natively.
 
-    Tesseract requires the optional ``tesseract-decoder`` package, which can be installed with
-    ``pip install 'qldpc[tesseract]'``.
+    Tesseract is bundled in ``stabilizer_qec``, so it needs no separate install.
     """
     return TesseractDecoder(pcm_or_dem, **decoder_args)
 
@@ -329,17 +328,15 @@ def tesseract_preset(
 
 
 def _get_tesseract() -> Any:
-    """Import the optional Tesseract package or raise an actionable error."""
+    """Import the bundled Tesseract decoder or raise an actionable error."""
     try:
         tesseract_decoder = __import__("stabilizer_qec.tesseract_decoder", fromlist=["_"])
     except ModuleNotFoundError as error:
         if error.name != "stabilizer_qec.tesseract_decoder":
             raise
         raise ModuleNotFoundError(
-            "The Tesseract decoder requires the optional 'tesseract-decoder' package.  Install it"
-            " with `pip install 'qldpc[tesseract]'`.  The pinned release publishes wheels for"
-            " CPython 3.12-3.14 on macOS arm64 and Linux x86-64; for other environments, see"
-            " https://github.com/quantumlib/tesseract-decoder#installation"
+            "The bundled Tesseract decoder (stabilizer_qec.tesseract_decoder) is missing from this"
+            " installation: reinstall stabilizer-qec."
         ) from error
     return tesseract_decoder
 

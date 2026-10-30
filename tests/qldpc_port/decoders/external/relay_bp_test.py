@@ -54,7 +54,7 @@ def test_relay_bp(toy_problem: ToyProblem) -> None:
 
     with (
         unittest.mock.patch.dict("sys.modules", {"stabilizer_qec.relay_bp": None}),
-        pytest.raises(ImportError, match="Failed to import relay-bp"),
+        pytest.raises(ImportError, match="bundled Relay-BP module"),
     ):
         _get_error_decoder(np.array([[]]), decoder=decoders.relay_bp())
 

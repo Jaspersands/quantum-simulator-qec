@@ -29,6 +29,9 @@ policy for its documented items.
 - A real Stim detector error model, or one of its instructions, read by this package (and by the
   ports that take one) keeps each probability exactly. Stim's text prints 16 significant digits,
   which dropped the last bit of about a quarter of random probabilities.
+- The Tesseract and Relay-BP decoders' docstrings and import errors no longer tell the user to
+  install a `qldpc[tesseract]` or `qldpc[relay-bp]` extra, which this package does not define:
+  both backends are bundled in `stabilizer_qec`, and the errors say to reinstall it.
 
 ## 2.2.0 — 2026-10-30
 
