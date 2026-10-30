@@ -296,7 +296,7 @@ def test_check_matrices_with_stored_zeros():
     p = np.full(n, 0.05)
     obs = np.ones((1, n), dtype=np.uint8)
     for cls, kw in (("MinSumBPDecoderF64", dict(max_iter=30)), ("RelayDecoderF64", dict(pre_iter=10, num_sets=6, set_max_iter=10, seed=1))):
-        for matrix in (h, h.tocsc(), dense):
+        for matrix in (h, h.tocsc(), dense, np.matrix(dense)):
             t, m = getattr(relay_bp, cls)(matrix, p, **kw), getattr(ours, cls)(matrix, p, **kw)
             for x, y in zip(t.decode_detailed_batch(dets), m.decode_detailed_batch(dets)):
                 assert same(x, y), (cls, type(matrix))

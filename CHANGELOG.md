@@ -21,6 +21,8 @@ policy for its documented items.
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
 - `stabilizer_qec.relay_bp.stim.sinter.utils` imports on Python 3.9: its `X | None` annotations
   are no longer evaluated where it is defined.
+- Relay-BP and min-sum decoders take an `np.matrix` check matrix with an even entry, as relay_bp does;
+  it raised `TypeError`.
 
 ## 2.2.0 — 2026-10-30
 

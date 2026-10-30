@@ -44,6 +44,7 @@ def _sparse_bits(matrix: Any) -> Tuple[int, int, List[List[int]], Any, Optional[
     if isinstance(m, np.ndarray):
         if m.ndim != 2:
             raise TypeError("Input must be a numpy array or scipy sparse matrix (csr_matrix or csc_matrix)")
+        m = np.asarray(m)  # a plain array: indexing an np.matrix with arrays stays two-dimensional
         rows, cols = m.shape
         col_of, row_of = np.nonzero(m.T)  # column by column, each column's rows in order
         indices, data, indptr = row_of, m[row_of, col_of], np.searchsorted(col_of, np.arange(cols + 1))
