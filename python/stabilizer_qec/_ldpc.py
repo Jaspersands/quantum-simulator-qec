@@ -3,10 +3,14 @@
 every BP schedule (parallel, serial, serial-relative, random serial) and input type (a syndrome
 or a received vector), bit for bit.
 
-Errors are ldpc's, type and message (its messages' runs of spaces included). A few things are
-looser than ldpc 2's classes: positional ``error_rate``/``error_channel``, integers where a float
-is typed, NumPy scalars, and sequences where a list is typed are taken where ldpc's Cython
-signatures refuse them. Its v1 classes (``bp_decoder``, ``bposd_decoder``) are held to ldpc's
+Where both refuse an input, the error is ldpc's, type and message (its messages' runs of spaces
+included). A few things are looser than ldpc 2's classes: positional ``error_rate``/``error_channel``,
+integers where a float is typed, NumPy scalars, and sequences where a list is typed are taken where
+ldpc's Cython signatures refuse them. Three things are stricter, or decode differently, where ldpc
+decodes: a received vector on a non-square check matrix under BP+LSD and BP+OSD is refused;
+``BpFlipDecoder`` refuses a negative ``flip_iterations`` and ``pflip_frequency``, which ldpc takes;
+and a syndrome entry other than 0 or 1 gives a correction that differs from ldpc's, the difference
+depending on the decoder. Its v1 classes (``bp_decoder``, ``bposd_decoder``) are held to ldpc's
 exact types and one positional argument. And ``BpOsdDecoder.decoding`` returns the OSD decoding
 (in ldpc it raises ``AttributeError``)."""
 
