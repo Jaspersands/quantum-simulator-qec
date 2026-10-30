@@ -219,7 +219,7 @@ def test_mod2(seed):
     b = (a @ x) % 2
     assert np.array_equal(ours.mod2.gauss_elimination_rows(a.copy()), qec_util.mod2.gauss_elimination_rows(a.copy()))
     mine = ours.mod2.solve_linear_system(a, b)
-    assert np.array_equal((a @ mine) % 2, b)
+    assert np.array_equal((a @ mine) % 2, b) and mine.dtype == np.uint8
     basis = [[0, 1], [1, 2], [2, 3]]
     assert ours.mod2.decompose_into_basis([0, 2], basis) in ([0, 1],)
     try:
@@ -230,7 +230,7 @@ def test_mod2(seed):
         theirs = qec_util.mod2.solve_linear_system(a, b)
     except IndexError:
         return  # qec-util overruns its rows on wide systems of full rank; the port does not
-    assert np.array_equal(mine, np.array(theirs))
+    assert np.array_equal(mine, np.array(theirs)) and mine.dtype == np.array(theirs).dtype
     assert ours.mod2.decompose_into_basis([0, 2], basis) == qec_util.mod2.decompose_into_basis([0, 2], basis)
 
 

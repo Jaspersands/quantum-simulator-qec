@@ -42,6 +42,8 @@ policy for its documented items.
   qec-util ports do; it raised `TypeError` for them.
 - `samplers.sample_failures` runs on NumPy 1.21 to 1.24, which the package declares; its output
   check used `numpy.dtypes`, which those versions lack, so every call raised `AttributeError`.
+- `mod2.solve_linear_system`, and `decompose_into_basis` on NumPy inputs, return `uint8` arrays as
+  qec-util does; they returned `int64`.
 
 ## 2.2.0 — 2026-10-30
 

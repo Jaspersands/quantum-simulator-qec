@@ -146,6 +146,8 @@ def solve_linear_system(
         import galois
 
         x = galois.GF2(x)
+    else:
+        x = x.astype(np.uint8)  # qec-util's dtype
 
     return x
 
