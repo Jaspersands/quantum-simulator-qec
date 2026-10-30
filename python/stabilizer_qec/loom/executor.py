@@ -241,7 +241,7 @@ class Converter:
     def convert(self, interpreted_eka: Optional[InterpretationStep] = None, *, step: Optional[InterpretationStep] = None):
         return self.convert_circuit(_step_argument(interpreted_eka, step).final_circuit)
 
-    def convert_circuit(self, circuit: Circuit):
+    def convert_circuit(self, input_circuit: Circuit):
         raise NotImplementedError
 
 
@@ -324,11 +324,11 @@ class EkaToStimConverter(Converter):
         return lines, qmap, {c: i for c, i in cmap.items() if i is not None}, counter
 
     @staticmethod
-    def emit_detectors_and_observables(step: InterpretationStep, records: dict[Channel, int], offset: int = 0) -> list[str]:
-        by_label = {c.label: c for c in step.final_circuit.channels}
+    def emit_detectors_and_observables(input_istep: InterpretationStep, rec_dict: dict[Channel, int], measurement_offset: int = 0) -> list[str]:
+        by_label = {c.label: c for c in input_istep.final_circuit.channels}
         out: list[str] = []
-        for det in step.detectors:
-            targets = [f"rec[{records[by_label[f'{m[0]}_{m[1]}']] - offset}]" for m in det.measurements if isinstance(m, tuple) and f"{m[0]}_{m[1]}" in by_label]
+        for det in input_istep.detectors:
+            targets = [f"rec[{rec_dict[by_label[f'{m[0]}_{m[1]}']] - measurement_offset}]" for m in det.measurements if isinstance(m, tuple) and f"{m[0]}_{m[1]}" in by_label]
             args: list[str] = []
             if "space_coordinates" in det.labels and "time_coordinate" in det.labels:
                 coords = eka_to_stim_coordinates(tuple(det.labels["space_coordinates"]))
@@ -336,14 +336,14 @@ class EkaToStimConverter(Converter):
             if "color" in det.labels:
                 args.append(str(det.labels["color"]))
             out.append(f"DETECTOR({', '.join(args)}) {' '.join(targets)}" if args else f"DETECTOR {' '.join(targets)}")
-        for i, obs in enumerate(step.logical_observables):
-            targets = [f"rec[{records[by_label[f'{m[0]}_{m[1]}']] - offset}]" for m in obs.measurements if isinstance(m, tuple) and f"{m[0]}_{m[1]}" in by_label]
+        for i, obs in enumerate(input_istep.logical_observables):
+            targets = [f"rec[{rec_dict[by_label[f'{m[0]}_{m[1]}']] - measurement_offset}]" for m in obs.measurements if isinstance(m, tuple) and f"{m[0]}_{m[1]}" in by_label]
             out.append(f"OBSERVABLE_INCLUDE({i}) {' '.join(targets)}")
         return out
 
-    def convert_circuit(self, circuit: Circuit, error_models: Optional[Sequence[CircuitErrorModel]] = None, with_ticks: bool = False) -> StimProgram:
+    def convert_circuit(self, input_circuit: Circuit, error_models: Optional[Sequence[CircuitErrorModel]] = None, with_ticks: bool = False) -> StimProgram:
         error_models, with_ticks = _models_and_ticks(error_models, with_ticks)
-        lines, qmap, records, counter = self.emit_circuit_program(circuit, error_models=error_models, with_ticks=with_ticks)
+        lines, qmap, records, counter = self.emit_circuit_program(input_circuit, error_models=error_models, with_ticks=with_ticks)
         return StimProgram("\n".join(_fuse(lines)), qmap, records, counter)
 
     def convert(self, interpreted_eka: Optional[InterpretationStep] = None, error_models: Optional[Sequence[CircuitErrorModel]] = None, with_ticks: bool = False, *, step: Optional[InterpretationStep] = None) -> StimProgram:
@@ -444,14 +444,14 @@ class EkaToQasmConverter(Converter):
             return "\n".join([f"{o} {q[0]};" for o in ops[:-1]] + [f"{ops[-1]} {q[0]} -> {cl[0]};"])
         return "\n".join(f"{o} {q[0]};" for o in ops)
 
-    def convert_circuit(self, circuit: Circuit) -> tuple[str, dict[Channel, int], dict[Channel, int]]:
+    def convert_circuit(self, input_circuit: Circuit) -> tuple[str, dict[Channel, int], dict[Channel, int]]:
         program = ["OPENQASM 3.0;", 'include "stdgates.inc";']
-        if (not circuit.circuit and circuit.name not in self.ops) or not circuit.channels:
+        if (not input_circuit.circuit and input_circuit.name not in self.ops) or not input_circuit.channels:
             return "# empty input", {}, {}
-        init, qmap, cmap = self.emit_init_instructions(circuit)
+        init, qmap, cmap = self.emit_init_instructions(input_circuit)
         program.append("// Init registers")
         program.extend(init)
-        program.extend(self.emit_circuit_program(circuit, qmap, cmap).splitlines())
+        program.extend(self.emit_circuit_program(input_circuit, qmap, cmap).splitlines())
         return "\n".join(program), qmap, cmap
 
     @staticmethod
@@ -501,12 +501,12 @@ class EkaToCudaqConverter(Converter):
             return "\n".join(f"{o}({', '.join(q)})" for o in op)
         return f"{op}({', '.join(q)})"
 
-    def convert_circuit(self, circuit: Circuit) -> tuple[str, dict[Channel, str], dict[Channel, str]]:
-        if (not circuit.circuit and circuit.name not in self.ops) or not circuit.channels:
+    def convert_circuit(self, input_circuit: Circuit) -> tuple[str, dict[Channel, str], dict[Channel, str]]:
+        if (not input_circuit.circuit and input_circuit.name not in self.ops) or not input_circuit.channels:
             return "# empty input", {}, {}
-        init, qmap, cmap = self.emit_init_instructions(circuit)
+        init, qmap, cmap = self.emit_init_instructions(input_circuit)
         lines = list(init)
-        lines.extend(self.emit_circuit_program(circuit, qmap, cmap).splitlines())
+        lines.extend(self.emit_circuit_program(input_circuit, qmap, cmap).splitlines())
         return "\n".join(lines), qmap, cmap
 
     @staticmethod
@@ -564,15 +564,15 @@ class EkaToPennylaneConverter(Converter):
             return "\n".join([f"{ops[0]}({q[0]}, reset=True)"] + [f"{self._prefixed(o)}({q})" for o in ops[1:]])
         return "\n".join(f"{self._prefixed(o)}({q})" for o in ops)
 
-    def convert_circuit(self, circuit: Circuit) -> tuple[str, dict[Channel, int], dict[Channel, str]]:
+    def convert_circuit(self, input_circuit: Circuit) -> tuple[str, dict[Channel, int], dict[Channel, str]]:
         lines = ["# PennyLane Program Generated from Eka"]
-        if (not circuit.circuit and circuit.name not in self.ops) or not circuit.channels:
+        if (not input_circuit.circuit and input_circuit.name not in self.ops) or not input_circuit.channels:
             return "# empty input", {}, {}
-        init, qmap, cmap = self.emit_init_instructions(circuit)
+        init, qmap, cmap = self.emit_init_instructions(input_circuit)
         lines.append("# Initialize Wires from Eka quantum channels Ids")
         lines.extend(init)
         lines.append("")
-        lines.extend(self.emit_circuit_program(circuit, qmap, cmap).splitlines())
+        lines.extend(self.emit_circuit_program(input_circuit, qmap, cmap).splitlines())
         return "\n".join(lines), qmap, cmap
 
     @staticmethod
@@ -623,12 +623,12 @@ class EkaToMimiqConverter(Converter):
         targets = ", ".join(map(str, q + cl))
         return "\n".join(f"{self.circuit_varname}.push({self.mimiq_import_prefix}{o}, {targets})" for o in (op if isinstance(op, list) else [op]))
 
-    def convert_circuit(self, circuit: Circuit) -> tuple[str, dict[Channel, int], dict[Channel, int]]:
-        if (not circuit.circuit and circuit.name not in self.ops) or not circuit.channels:
+    def convert_circuit(self, input_circuit: Circuit) -> tuple[str, dict[Channel, int], dict[Channel, int]]:
+        if (not input_circuit.circuit and input_circuit.name not in self.ops) or not input_circuit.channels:
             return "# empty input", {}, {}
-        init, qmap, cmap = self.emit_init_instructions(circuit)
+        init, qmap, cmap = self.emit_init_instructions(input_circuit)
         lines = ["# Mimiq Program Generated from Eka"] + init + [""]
-        for layer in Circuit.unroll(circuit):
+        for layer in Circuit.unroll(input_circuit):
             for op in layer:
                 if op.name not in self.ops:
                     raise ValueError(f"Unsupported operation: {op.name}")
@@ -704,12 +704,12 @@ class EkaToGuppylangConverter(Converter):
             return ""
         return "\n".join(f"{o}({q[0]})" for o in ops)
 
-    def convert_circuit(self, circuit: Circuit) -> tuple[str, dict[Channel, str], dict[Channel, str]]:
-        if (not circuit.circuit and circuit.name not in self.ops) or not circuit.channels:
+    def convert_circuit(self, input_circuit: Circuit) -> tuple[str, dict[Channel, str], dict[Channel, str]]:
+        if (not input_circuit.circuit and input_circuit.name not in self.ops) or not input_circuit.channels:
             return "", {}, {}
-        init, qmap, cmap = self.emit_init_instructions(circuit)
+        init, qmap, cmap = self.emit_init_instructions(input_circuit)
         lines = list(init)
-        lines.extend(self.emit_circuit_program(circuit, qmap, cmap).splitlines())
+        lines.extend(self.emit_circuit_program(input_circuit, qmap, cmap).splitlines())
         lines.append("for e in q:")
         lines.append(f"   {self.quantum_prefix}discard(e) ")
         return "\n".join(lines), qmap, cmap

@@ -1101,18 +1101,18 @@ def interpret_operation(eka: Eka, step: InterpretationStep, op: Operation, same_
     return step
 
 
-def cleanup_final_step(step: InterpretationStep) -> InterpretationStep:
+def cleanup_final_step(final_step: InterpretationStep) -> InterpretationStep:
     """The final circuit: every time slice padded to its longest member, channels sorted by
     label."""
     full: list[tuple[Circuit, ...]] = []
-    for timeslice in step.intermediate_circuit_sequence:
+    for timeslice in final_step.intermediate_circuit_sequence:
         span = max(c.duration for c in timeslice)
         full.append(tuple(timeslice))
         full.extend([()] * (span - 1))
     channels = sorted({ch for ts in full for c in ts for ch in c.channels}, key=lambda ch: ch.label)
-    step.final_circuit = Circuit(name="Final circuit", circuit=tuple(full), channels=channels) if full else Circuit(name="Final circuit")
-    step.channel_dict = {ch.id: ch for ch in step.channel_dict.values() if ch in step.final_circuit.channels}
-    return step
+    final_step.final_circuit = Circuit(name="Final circuit", circuit=tuple(full), channels=channels) if full else Circuit(name="Final circuit")
+    final_step.channel_dict = {ch.id: ch for ch in final_step.channel_dict.values() if ch in final_step.final_circuit.channels}
+    return final_step
 
 
 def interpret_eka(eka: Eka, debug_mode: bool = True) -> InterpretationStep:

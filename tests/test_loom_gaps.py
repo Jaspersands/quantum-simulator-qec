@@ -730,6 +730,19 @@ def test_a_finished_interpretation_step_refuses_changes():
     assert "c" not in step.cbit_counter
 
 
+def test_loom_keyword_names_are_accepted():
+    import inspect
+
+    p = PauliOperator("X", ((0, 0),))
+    assert p.commutes_with(other_operator=p) is True
+    step = rep_memory()
+    assert loom.EkaToStimConverter().convert_circuit(input_circuit=step.final_circuit).text
+    assert loom.Operation.fromdict(data_dict=loom.LogicalX("a").asdict()) == loom.LogicalX("a")
+    assert loom.Eka.fromdict(data_dict=Eka(Lattice.linear((4,))).asdict()) == Eka(Lattice.linear((4,)))
+    emit = inspect.signature(loom.EkaToStimConverter.emit_detectors_and_observables)
+    assert list(emit.parameters) == ["input_istep", "rec_dict", "measurement_offset"]
+
+
 def test_block_history_refusals_name_block_labels():
     from stabilizer_qec.loom.interpreter import InterpretationStep
 

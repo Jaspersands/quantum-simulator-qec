@@ -393,11 +393,11 @@ class PauliOperator:
     def pauli_at(self, qubit: Coord) -> str:
         return self.pauli[self.data_qubits.index(tuple(qubit))] if tuple(qubit) in self.data_qubits else "I"
 
-    def commutes_with(self, other: "PauliOperator") -> bool:
-        if not isinstance(other, PauliOperator):
-            raise ValueError(f"Expected PauliOperator object, got {type(other)} instead.")
+    def commutes_with(self, other_operator: "PauliOperator") -> bool:
+        if not isinstance(other_operator, PauliOperator):
+            raise ValueError(f"Expected PauliOperator object, got {type(other_operator)} instead.")
         mine = dict(zip(self.data_qubits, self.pauli))
-        theirs = dict(zip(other.data_qubits, other.pauli))
+        theirs = dict(zip(other_operator.data_qubits, other_operator.pauli))
         anticommuting = sum(1 for q in mine.keys() & theirs.keys() if mine[q] != theirs[q])
         return anticommuting % 2 == 0
 
@@ -773,8 +773,8 @@ class Operation:
         return d
 
     @classmethod
-    def fromdict(cls, data: dict) -> "Operation":
-        data = dict(data)
+    def fromdict(cls, data_dict: dict) -> "Operation":
+        data = dict(data_dict)
         name = data.pop("__name__", None)
         if not name:
             raise ValueError("No Operation name found in the data, the Operation cannot be loaded.")
@@ -1171,10 +1171,10 @@ class Eka:
         return {"lattice": self.lattice.asdict(), "blocks": [b.asdict() for b in self.blocks], "operations": [[op.asdict() for op in step] for step in self.operations]}
 
     @classmethod
-    def fromdict(cls, data: dict, block_class: Optional[type] = None) -> "Eka":
+    def fromdict(cls, data_dict: dict, block_class: Optional[type] = None) -> "Eka":
         """An Eka from its dict (Loom's ``asdict``); ``block_class`` builds the blocks
         (``RotatedSurfaceCode`` for Loom's surface-code experiments)."""
         klass = block_class or Block
-        blocks = [klass.fromdict(b) for b in data.get("blocks", [])]
-        operations = [[Operation.fromdict(op) for op in step] for step in data.get("operations", [])]
-        return cls(Lattice.fromdict(data["lattice"]), blocks, operations)
+        blocks = [klass.fromdict(b) for b in data_dict.get("blocks", [])]
+        operations = [[Operation.fromdict(op) for op in step] for step in data_dict.get("operations", [])]
+        return cls(Lattice.fromdict(data_dict["lattice"]), blocks, operations)
