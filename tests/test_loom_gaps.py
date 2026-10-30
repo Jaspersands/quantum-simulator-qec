@@ -688,6 +688,16 @@ def test_a_noisy_repetition_chain_decodes(name):
 
 
 
+# ---------------------------------------------------------------------------------------------
+# Loom's construction-time refusals, keyword names and messages
+# ---------------------------------------------------------------------------------------------
+
+
+def labelled_block(label):
+    return Block(unique_label=label, stabilizers=[Stabilizer("ZZ", ((1, 0), (2, 0)), ancilla_qubits=((1, 1),))],
+                 logical_x_operators=[PauliOperator("XX", ((1, 0), (2, 0)))], logical_z_operators=[PauliOperator("Z", ((1, 0),))])
+
+
 def test_int_fields_read_integral_floats_and_numeric_strings_as_loom_does():
     assert loom.MeasureBlockSyndromes("a", n_cycles=2.0).n_cycles == 2
     assert loom.MeasureBlockSyndromes("a", n_cycles="2").n_cycles == 2
@@ -718,6 +728,18 @@ def test_a_finished_interpretation_step_refuses_changes():
     with pytest.raises(ValueError, match="Cannot change properties of the final InterpretationStep"):
         step.append_detectors_MUT([])
     assert "c" not in step.cbit_counter
+
+
+def test_block_history_refusals_name_block_labels():
+    from stabilizer_qec.loom.interpreter import InterpretationStep
+
+    step = InterpretationStep([labelled_block("q1")])
+    gone = labelled_block("q2")
+    step.update_block_history_and_evolution_MUT(new_blocks=[gone])
+    step.update_block_history_and_evolution_MUT(old_blocks=[gone])
+    with pytest.raises(RuntimeError) as refused:
+        step.update_block_history_and_evolution_MUT(old_blocks=[gone])
+    assert "['q2']" in str(refused.value) and gone.uuid not in str(refused.value)
 
 
 def test_syndrome_circuit_names_and_paulis_as_loom_does():

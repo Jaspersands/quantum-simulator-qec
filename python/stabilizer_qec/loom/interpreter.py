@@ -138,14 +138,15 @@ class BlockHistory:
     def block_uuids_at_index(self, index: int) -> set[str]:
         return set(self._by_timestamp[self._timestamps[index]])
 
-    def update_blocks(self, timestamp: int, old_blocks: set[str], new_blocks: set[str]) -> None:
+    def update_blocks(self, timestamp: int, old_blocks: set[str], new_blocks: set[str], labels: Optional[dict[str, str]] = None) -> None:
+        names = labels or {}
         current = self.blocks_at(timestamp)
         missing = old_blocks - current
         if missing:
-            raise RuntimeError(f"Failed to update block history. Some old_blocks are not present in the current block configuration: {sorted(missing)}.")
+            raise RuntimeError(f"Failed to update block history. Some old_blocks are not present in the current block configuration: {sorted(names.get(u, u) for u in missing)}.")
         seen = new_blocks & self._all
         if seen:
-            raise RuntimeError(f"Failed to update block history. Some new_blocks have already been present in the block history: {sorted(seen)}.")
+            raise RuntimeError(f"Failed to update block history. Some new_blocks have already been present in the block history: {sorted(names.get(u, u) for u in seen)}.")
         updated = (current - old_blocks) | new_blocks
         if timestamp not in self._by_timestamp:
             bisect.insort(self._timestamps, timestamp)
@@ -240,7 +241,8 @@ class InterpretationStep:
             if len(arg) != len({b.uuid for b in arg}):
                 raise ValueError("All blocks in new_blocks/old_blocks must have distinct UUIDs.")
         self.block_registry.update({b.uuid: b for b in new_blocks})
-        self.block_history.update_blocks(self.get_timestamp(), {b.uuid for b in old_blocks}, {b.uuid for b in new_blocks})
+        labels = {uuid: block.unique_label for uuid, block in self.block_registry.items()}
+        self.block_history.update_blocks(self.get_timestamp(), {b.uuid for b in old_blocks}, {b.uuid for b in new_blocks}, labels)
         if old_blocks and new_blocks and update_evolution:
             for nb in new_blocks:
                 self.block_evolution[nb.uuid] = tuple(b.uuid for b in old_blocks)
