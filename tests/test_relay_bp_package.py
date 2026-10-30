@@ -6,6 +6,7 @@ parallel, from known errors), the Relay log and the sinter decoders."""
 
 from __future__ import annotations
 
+import copy
 import importlib
 import os
 import pathlib
@@ -112,6 +113,16 @@ def test_batches_and_observable_runner():
     assert np.array_equal(tr.compute_observables(errors[0]), mr.compute_observables(errors[0]))
     assert same(tr.decode_detailed(dets[0]), mr.decode_detailed(dets[0]))
     assert np.array_equal(tr.decode_observables(dets[1]), mr.decode_observables(dets[1]))
+    # copy.copy and copy.deepcopy give decoders of their own: decoding through a copy leaves the
+    # original's next decodes as a fresh decoder's.
+    for copier in (copy.copy, copy.deepcopy):
+        a = ours.RelayDecoderF64(h, p, num_sets=20, set_max_iter=10, seed=5)
+        fresh = ours.RelayDecoderF64(h, p, num_sets=20, set_max_iter=10, seed=5)
+        twin = copier(a)
+        assert twin._x is not a._x
+        for x in dets[:10]:
+            twin.decode_detailed(x)
+        assert all(same(a.decode_detailed(x), fresh.decode_detailed(x)) for x in dets[:4])
 
 
 def test_relay_log(tmp_path: pathlib.Path, monkeypatch):

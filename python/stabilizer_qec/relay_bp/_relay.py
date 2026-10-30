@@ -237,6 +237,17 @@ class _Decoder:
                 for line in self._x.log_lines():
                     f.write(line + "\n")
 
+    def __copy__(self) -> "_Decoder":
+        """A decoder on a copy of this one's engine as it is now, so that decoding on either
+        leaves the other's state (its random memory strengths) where it was."""
+        new = object.__new__(type(self))
+        new.__dict__.update(self.__dict__)
+        new._x = self._x.copy()
+        return new
+
+    def __deepcopy__(self, memo: dict) -> "_Decoder":
+        return self.__copy__()
+
     def decode(self, detectors: Any) -> np.ndarray:
         """The correction for one shot's detectors."""
         return np.asarray(self._run(detectors)[0], dtype=np.uint8)

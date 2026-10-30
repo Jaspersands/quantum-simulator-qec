@@ -23,6 +23,8 @@ policy for its documented items.
   are no longer evaluated where it is defined.
 - Relay-BP and min-sum decoders take an `np.matrix` check matrix with an even entry, as relay_bp does;
   it raised `TypeError`.
+- `copy.copy` and `copy.deepcopy` of a relay_bp decoder give a decoder with its own engine: decoding
+  through the copy no longer advances the original's random memory strengths.
 
 ## 2.2.0 — 2026-10-30
 
