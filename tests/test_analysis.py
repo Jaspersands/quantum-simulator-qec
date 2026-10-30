@@ -51,6 +51,15 @@ def test_merging_batches_in_a_file_keeps_its_totals(tmp_path):
     assert after[3]["seconds"] == pytest.approx(before[3]["seconds"], abs=1e-5)
 
 
+def test_sample_failures_runs_without_numpy_dtypes(monkeypatch):
+    """numpy.dtypes is NumPy 1.25 and newer, and the package declares numpy 1.21: sample_failures
+    checks its outputs' dtypes without it, so it runs where the attribute is absent."""
+    c = sq.Circuit.generated("repetition_code:memory", distance=3, rounds=2, after_clifford_depolarization=0.1)
+    m = c.detector_error_model(decompose_errors=True)
+    monkeypatch.setattr(np, "dtypes", None)  # attribute access fails, as on a NumPy without it
+    ours.samplers.sample_failures(m, sq.Matching(m), max_samples=300, batch_size=100, verbose=0)
+
+
 def _flips(errors):
     """The detectors and observables a set of model errors flips together."""
     dets, obs = set(), set()

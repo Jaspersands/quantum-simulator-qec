@@ -40,6 +40,8 @@ policy for its documented items.
   its exponent numbers with no decimal point (`1e-06`) as strings, which made the arrays strings.
 - `dem_instrs.merge_instrs` takes Stim's `DemInstruction` objects, as the 2.1.0 notes say the
   qec-util ports do; it raised `TypeError` for them.
+- `samplers.sample_failures` runs on NumPy 1.21 to 1.24, which the package declares; its output
+  check used `numpy.dtypes`, which those versions lack, so every call raised `AttributeError`.
 
 ## 2.2.0 — 2026-10-30
 
