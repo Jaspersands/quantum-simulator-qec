@@ -352,6 +352,14 @@ def test_unsupported_gates_say_so():
             sq.Circuit(text)
 
 
+def test_records_before_the_start_are_refused_by_the_tableau_simulator():
+    # As Stim: a lookback past the start of the record is an error, not a gate that does nothing.
+    with pytest.raises(ValueError, match="before the beginning of time"):
+        sq.TableauSimulator().cx(sq.target_rec(-1), 0)
+    with pytest.raises(ValueError, match="before the beginning of time"):
+        sq.TableauSimulator().do(sq.Circuit("CX rec[-1] 0"))
+
+
 def test_anti_hermitian_products_are_taken_but_not_run():
     # As Stim: the circuit holds MPP X0*Z0 (and prints it, and counts its record); simulating
     # or analysing it is the error.
