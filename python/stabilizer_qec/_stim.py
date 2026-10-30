@@ -16,7 +16,7 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Sequence, Tupl
 import numpy as np
 
 from . import _core
-from ._util import seed_of
+from ._util import count, seed_of
 
 _UNITS = {0: 1 + 0j, 1: 1j, 2: -1 + 0j, 3: complex(-0.0, -1.0)}
 
@@ -804,7 +804,7 @@ class TableauSimulator:
         return self._s.num_qubits
 
     def set_num_qubits(self, new_num_qubits: int) -> None:
-        self._s.set_num_qubits(int(new_num_qubits))
+        self._s.set_num_qubits(count(new_num_qubits, "new_num_qubits"))
 
     # Running things.
     def do(self, circuit_or_pauli_string: Any) -> None:

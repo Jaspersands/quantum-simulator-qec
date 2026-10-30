@@ -366,3 +366,29 @@ def test_heavy_rustworkx_edges_are_left_out_with_pymatchings_warning():
     assert said == ["Weight -20000000.000000 of edge (1, 2) exceeds maximum edge weight 16777215 and has not been added to the matching graph."]
     assert m.num_edges == 3 and [w["weight"] for _, _, w in m.edges()] == [1.0, 1.0, 7.0]
     assert m.decode([1, 0, 0, 1]).tolist() == [0, 0, 0, 1]
+
+
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: sq.FlipSimulator(batch_size=-1),
+        lambda: sq.FlipSimulator(batch_size=2**70),
+        lambda: sq.FlipSimulator(batch_size=1, num_qubits=-1),
+        lambda: sq.TableauSimulator().set_num_qubits(-1),
+        lambda: sq.TableauSimulator().set_num_qubits(2**70),
+        lambda: sq.DetectorErrorModel("error(0.1) D0\ndetector(1, 2) D0\n").get_detector_coordinates([-1]),
+        lambda: sq.Circuit("H 0\nM 0\nDETECTOR rec[-1]\n").get_detector_coordinates([-1]),
+    ],
+)
+def test_out_of_range_sizes_and_indices_are_value_errors(make):
+    """A negative or too-large size or detector index raises ValueError, as the rest of the
+    facade does, not the OverflowError the extension's conversion gives."""
+    with pytest.raises(ValueError):
+        make()
+
+
+def test_a_negative_detector_index_is_named_as_negative():
+    with pytest.raises(ValueError, match="Detector index -1 is negative"):
+        sq.DetectorErrorModel("error(0.1) D0\ndetector(1, 2) D0\n").get_detector_coordinates([-1])
+    with pytest.raises(ValueError, match="Detector index -1 is negative"):
+        sq.Circuit("H 0\nM 0\nDETECTOR rec[-1]\n").get_detector_coordinates([-1])

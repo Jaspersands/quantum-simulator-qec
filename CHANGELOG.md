@@ -33,6 +33,9 @@ policy for its documented items.
 - `TableauSimulator`, `FlipSimulator` and `DensityMatrixSimulator` refuse a seed that is negative, not an
   integer, or 2**64 or more, as the sampler does; they used to take -1, 1.5, '7' and 2**64 + 5 as
   other seeds.
+- A negative or too-large `batch_size` or `num_qubits` in `FlipSimulator`, a negative `set_num_qubits`
+  argument and a negative detector index in `get_detector_coordinates` raise `ValueError`, not
+  `OverflowError`; a negative index's message says it is negative.
 
 ## 2.2.0 — 2026-10-30
 

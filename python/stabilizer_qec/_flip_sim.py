@@ -11,7 +11,7 @@ from typing import Any, List, Optional, Union
 import numpy as np
 
 from . import _core, _stim
-from ._util import call
+from ._util import call, count
 
 _PAULIS = {"I": 0, "_": 0, "X": 1, "Y": 2, "Z": 3, 0: 0, 1: 1, 2: 2, 3: 3}
 
@@ -41,7 +41,7 @@ class FlipSimulator:
     __slots__ = ("_s",)
 
     def __init__(self, *, batch_size: int, disable_stabilizer_randomization: bool = False, num_qubits: int = 0, seed: Optional[int] = None) -> None:
-        self._s = _core.FlipSimCore(int(batch_size), int(num_qubits), not disable_stabilizer_randomization, _stim._seed(seed))
+        self._s = _core.FlipSimCore(count(batch_size, "batch_size"), count(num_qubits, "num_qubits"), not disable_stabilizer_randomization, _stim._seed(seed))
 
     # Sizes.
     @property

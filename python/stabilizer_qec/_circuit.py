@@ -323,6 +323,8 @@ class Circuit:
             wanted = list(range(self.num_detectors))
         else:
             wanted = sorted({int(k) for k in only})
+            if wanted and wanted[0] < 0:
+                raise ValueError(f"Detector index {wanted[0]} is negative")
         return dict(call(_core.circuit_detector_coordinates, self._stim_exact_text(), wanted))
 
     def count_determined_measurements(self, *, unknown_input: bool = False) -> int:
@@ -1578,7 +1580,8 @@ class DetectorErrorModel:
         wanted = set(range(n)) if only is None else {int(k) for k in only}
         for k in wanted:
             if not 0 <= k < n:
-                raise ValueError(f"Detector index {k} is too big. The detector error model has {n} detectors)")
+                what = "negative" if k < 0 else "too big"
+                raise ValueError(f"Detector index {k} is {what}. The detector error model has {n} detectors)")
         found: dict = {}
         order = sorted(wanted)
 
