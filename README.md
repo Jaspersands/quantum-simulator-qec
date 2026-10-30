@@ -2127,8 +2127,9 @@ whole circuit that flip an observable and set off no detector. It is measured th
   takes 0.64 to 0.66 s of user time and a 144 to 148 MB peak footprint, against Stim's 4.25 to
   4.54 s and 530 MB;
 - `DetectorErrorModel.distance()`: an integer program over every fault that can happen
-  (probability above 0), which proves the distance exactly when it finishes (scipy's HiGHS). When it does not, the best solution it
-  found is still a real undetectable logical error, and so an upper bound.
+  (probability above 0), which proves the distance exactly when it finishes (scipy's HiGHS). When it does not, `distance()` raises `RuntimeError` with the weight of the best solution it
+  found in its message. That solution is a real undetectable logical error, so the weight is an
+  upper bound; `method="search"` returns one as a value.
 
 The graph-like search is Stim's own algorithm and returns Stim's own faults: its model text and
 its explained errors equal Stim's character for character (on Stim's generated codes, 300
