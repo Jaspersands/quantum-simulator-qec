@@ -19,7 +19,7 @@ authors:
     family-names: Sands
 version: 2.2.0
 doi: 10.5281/zenodo.23212075
-date-released: 2026-10-24
+date-released: 2026-10-30
 # CFF reads a list of licences as a choice (OR), but the Apache-2.0 parts stay Apache-2.0, so the
 # field names this project's own licence and the abstract says the whole is MIT AND Apache-2.0, as
 # pyproject.toml and Cargo.toml do.

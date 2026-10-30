@@ -8,7 +8,7 @@ release removes it; behaviour changes in a minor release only to correct it, and
 is named under **Changed** or **Fixed**. The Rust crate is versioned on its own, under the same
 policy for its documented items.
 
-## 2.2.0 — 2026-10-24
+## 2.2.0 — 2026-10-30
 
 The coherent sampler sums the selected completed kernel in floating-point arithmetic when
 its contraction plan fits the entry budget, where 2.1 summed each shot's whole class only
