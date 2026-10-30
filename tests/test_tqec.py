@@ -1,6 +1,8 @@
 """The block-graph port (`stabilizer_qec.tqec`): tqec's gallery, correlation surfaces, port
 filling, rotations, JSON and Collada files, and the compile to this package's surgery engine.
-The differential tests run when tqec is installed."""
+The differential tests run when tqec is installed. No CI job installs tqec, so the 12 tests marked
+``needs_tqec`` skip there. The port follows tqec 0.2.0 with tqecd 0.2.1, the pair the fixtures were
+recorded with (``tools/tqec_fixtures.py``)."""
 
 from __future__ import annotations
 
