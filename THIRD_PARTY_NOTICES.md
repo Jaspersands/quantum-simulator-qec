@@ -242,7 +242,11 @@ Copyright 2023-2024 The qLDPC Authors and Infleqtion Inc. (portions authored bef
 
 `python/stabilizer_qec/qldpc/` is qLDPC 0.4.1's package, and `tests/qldpc_port/` its tests, with
 their imports pointed at this package's Stim, sinter, ldpc, PyMatching, relay_bp and Tesseract
-(and qldpc at stabilizer_qec.qldpc).
+(and qldpc at stabilizer_qec.qldpc). `python/stabilizer_qec/qldpc/circuits/noise_model.py` also takes
+portions from tqec's `utils/noise_model.py`, which tqec recovered from Gidney (2022),
+https://doi.org/10.5281/zenodo.7487893, under CC BY 4.0
+(https://creativecommons.org/licenses/by/4.0/legalcode); those portions stay under CC BY 4.0, as
+the tqec section gives.
 
 ## CUDA-Q QEC
 
