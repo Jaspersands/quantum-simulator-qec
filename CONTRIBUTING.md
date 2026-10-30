@@ -22,7 +22,8 @@ pytest tests                             # the Python package, against the refer
 ```
 
 The site's WebAssembly engine is `cargo build --release --target wasm32-unknown-unknown
---no-default-features`, copied to the repository root; `node tools/site-tests.mjs` checks it.
+--no-default-features`, copied to the repository root; `node tools/wasm-smoke.mjs stabilizer_qec.wasm`
+checks it, and `node tools/site-tests.mjs` tests the pure site modules.
 
 ## Conventions
 
