@@ -98,6 +98,16 @@ def test_mobility_where_deltakit_stalls():
     assert abs(b[2] - 0.2) < 0.005 and abs(b[1] - 0.02) < 0.005, b
 
 
+def test_mobility_alone_where_both_qubits_leaked_stalls_in_deltakit():
+    # The docstring's case: mobility only, both qubits leaked. Deltakit's heralds read 0.3 each;
+    # this package's read 0.25 (qubit 1, the first detector) and 0.35 (qubit 0).
+    text = "R 0 1\nLEAKAGE(0.3) 0 1\nCX(0, 0, 0.5, 0.5) 0 1\nHERALD_LEAKAGE_EVENT 0 1\nDETECTOR rec[-1]\nDETECTOR rec[-2]"
+    shots = 200_000
+    a, b = _rates(ours, text, shots, 11), _rates(dk, text, shots, 11)
+    assert abs(a[0] - 0.25) < 0.005 and abs(a[1] - 0.35) < 0.005, a
+    assert abs(b[0] - 0.30) < 0.005 and abs(b[1] - 0.30) < 0.005, b
+
+
 def test_without_tags_keeps_deltakits_instructions():
     text = "R 0 1\nLEAKAGE(0.1) 0\nCX(0.1, 0.2, 0.3, 0.4) 0 1\nHERALD_LEAKAGE_EVENT(0.01) 0\nRL 1\nS[a] 0\nM 0\nDETECTOR rec[-1]\nDETECTOR rec[-2]"
     a, b = dk.Circuit(text).without_tags(), ours.Circuit(text).without_tags()
