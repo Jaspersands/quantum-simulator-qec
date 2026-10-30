@@ -502,7 +502,9 @@ the d = 3 memory-X circuit under SD6 decoded into logical errors, and one under 
   noise channel can express, not by the fault's own halves, and it keeps faults that share a
   symptom but split differently apart.
 
-The decomposition now reproduces Stim's error analyzer. Each composite channel's combinations are
+The decomposition now reproduces Stim's error analyzer on every model in check 1b, save one
+deliberate difference: a fault whose split would not add up to its own observables is kept whole
+(see [Stim's Python API](#stims-python-api)). Each composite channel's combinations are
 split using that channel's own single-detector and irreducible two-detector combinations, and
 anything left over goes through Stim's global pass. Check 1b is the result. None of this reached
 the site: the bug lived only in the new code, and the exhaustive single-fault check caught it on
