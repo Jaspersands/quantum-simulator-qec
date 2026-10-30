@@ -956,10 +956,11 @@ class Circuit:
         return call(self._c.num_non_clifford_gates)
 
     def compile_exact_sampler(self, *, seed: Union[int, None] = None) -> "ExactSampler":
-        """An exact sampler: the full state vector (up to 24 qubits in use), running every
-        instruction, Clifford or not, including the tagged rotations, T, U3 and amplitude damping
-        (``I_ERROR[R_Z(theta=0.01)] 0``, ``I[T] 0``). Noise channels are drawn as quantum
-        trajectories. Its ``sample`` has the detector sampler's signature."""
+        """An exact sampler: the full state vector (up to 24 qubits, counting any declared with
+        ``QUBIT_COORDS``), running every instruction, Clifford or not, including the tagged
+        rotations, T, U3 and amplitude damping (``I_ERROR[R_Z(theta=0.01)] 0``, ``I[T] 0``). Noise
+        channels are drawn as quantum trajectories. Its ``sample`` has the detector sampler's
+        signature."""
         return ExactSampler(self, seed)
 
     def compile_coherent_sampler(self, *, order: int = 3, seed: Union[int, None] = None, pairs: bool = False, max_complete: int = 50_000, max_contraction: int = 65536) -> "CoherentSampler":

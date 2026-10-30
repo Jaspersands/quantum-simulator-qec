@@ -1644,8 +1644,8 @@ literature audit or a universal novelty/advantage claim.
   - Past 50,000 rotations (`max_complete`) the completion is skipped and the sampler warns.
     `kernel_complete` is then False, and interference between distant faults is left out.
 - **`Circuit.compile_exact_sampler`** and **`Circuit.exact_distribution`** run the full state
-  vector, up to 24 qubits in use. They handle `I[T]`, `I[U3(…)]` and amplitude damping as well;
-  this is the oracle.
+  vector, up to 24 qubits, counting any declared with `QUBIT_COORDS`. They handle `I[T]`, `I[U3(…)]`
+  and amplitude damping as well; this is the oracle.
 - **`Circuit.twirled(merge=…)`** gives the twirl (the gates kept as they are), or the
   coherence-aware model with equivalent rotations added up before twirling, as a decoder's prior;
   a tagged gate at a Clifford angle is the Clifford gate there, and a non-Clifford gate is never
