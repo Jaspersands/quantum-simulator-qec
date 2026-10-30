@@ -540,8 +540,8 @@ written for `stim` runs with `import stabilizer_qec as stim`. Two suites check i
 
 Where Stim's output depends on its random number generator, results agree in distribution, not
 bit for bit. Four differences are deliberate and documented: products Stim parses but cannot
-run (anti-Hermitian Pauli products, writes to the measurement record) are refused when the
-circuit is built rather than when it runs; `diagram("interactive")` opens the circuit in Crumble
+run (anti-Hermitian Pauli products, writes to the measurement record such as CX, CY or XCZ feedback
+into a `rec[-k]` or `sweep[k]` target) are refused when the circuit is built rather than when it runs; `diagram("interactive")` opens the circuit in Crumble
 from algassert.com rather than embedding Crumble's code; with `decompose_errors=True`, a
 fault Stim would split into pieces of its channel whose observables do not add up to its own is
 left whole (Stim's split changes what the fault does to the observables: on ldpc's [[4,2,2]]
