@@ -1818,7 +1818,8 @@ The 40 recorded graph circuits and 4,200 random comparisons are finite checks; I
 II_ERROR are absent from that 40-circuit corpus. `tsim.Circuit.tcount` now builds an unrolled
 Python graph, incurs graph memory/time and propagates its refusals (sweep targets, malformed
 tags, unsupported products and invalid lookbacks); 2.1 used the fast core count still available
-on `sq.Circuit`. Two repeated scans were removed, without a universal graph-cost bound. Lazy
+on `sq.Circuit`. Tsim's count also leaves out coherent errors (`I_ERROR` rotations), which
+`sq.Circuit.tcount` counts, so the two disagree on circuits with them. Two repeated scans were removed, without a universal graph-cost bound. Lazy
 correlated-chain integer indexing works beyond `sys.maxsize` outcomes, while Python `len`
 overflows and whole-array conversion/iteration is refused. T/T_DAG/TPP suffix metadata is not
 retained (`S[T:x] 0` prints `T 0`). Unknown tags left inert by the core remain inert in the
