@@ -186,7 +186,10 @@ impl<N: RelayNum> RelayCore<N> {
             return Err(format!("the memory strengths' range is too narrow to sample: the width of ({lo}, {hi}) is under 1e-9 of its larger end"));
         }
         if let Some(g) = &config.gammas {
-            if g.is_empty() || g.iter().any(|row| row.len() != columns.len()) {
+            if g.is_empty() && config.legs > 0 {
+                return Err(format!("explicit memory strengths need at least one row of {} (one per fault) for the legs to run", columns.len()));
+            }
+            if g.iter().any(|row| row.len() != columns.len()) {
                 return Err(format!("explicit memory strengths need rows of {} (one per fault)", columns.len()));
             }
         }
