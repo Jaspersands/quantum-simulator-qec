@@ -24,6 +24,9 @@ policy for its documented items.
   of returning a NaN state.
 - `stabilizer-qec panqec analyze` runs: it raised `AttributeError` on any data it could read, because
   the command called a method `Analysis` does not have.
+- `XCubeMatchingDecoder` returns instead of looping forever when its matching weights go negative
+  (the error model's X and Y rates together past one half, at a high error rate): its walk over the
+  matched pairs stops when it comes back to a state it has been in.
 
 ## 2.2.0 — 2026-10-30
 
