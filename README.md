@@ -1213,7 +1213,8 @@ It is checked four ways:
   ones, which have nothing to window), 50,000 shots each, parallel windows with correlated matching
   give the same Λ as global correlated matching. ε rises by under 1% of itself.
 - **The buffer matters, and d is enough.** At d = 5 the study also ran buffers of d/2 and 2d. A buffer
-  of 3 rounds raises ε₅ to 0.694% plain and 0.460% correlated, about 2.5% worse. A buffer of 10 gives
+  of 3 rounds raises ε₅ to 0.694% plain (about 1.3% worse than the d = 5 buffer)
+  and 0.460% correlated (about 1.8% worse). A buffer of 10 gives
   0.684% and 0.451%, the same as d = 5.
 - **Simulated SD6 agrees.** At p = 0.3% and 0.5%, d = 3, 5, 7, 50 rounds and 20,000 shots, every
   windowed decoder's failures are within 1.6% of the global decoder's on the same shots
