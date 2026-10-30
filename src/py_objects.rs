@@ -927,7 +927,7 @@ fn lanes_for(device: &str, sampler: &BatchSampler) -> PyResult<Option<crate::lan
             }
             #[cfg(not(feature = "gpu"))]
             {
-                Err(err("device 'gpu' needs the package built with its gpu feature (pip install stabilizer-qec[gpu])".to_string()))
+                Err(err("device 'gpu' needs the package built with its gpu feature (this build lacks it; build with --features gpu)".to_string()))
             }
         }
         other => Err(err(format!("device must be 'cpu', 'cpu-lanes' or 'gpu', not {other:?}"))),
@@ -2190,7 +2190,7 @@ impl PyBp {
                 }
                 #[cfg(not(feature = "gpu"))]
                 {
-                    return Err(err("device 'gpu' needs the package built with its gpu feature (pip install stabilizer-qec[gpu])".to_string()));
+                    return Err(err("device 'gpu' needs the package built with its gpu feature (this build lacks it; build with --features gpu)".to_string()));
                 }
             }
             other => return Err(err(format!("device must be 'cpu-f32' or 'gpu', not {other:?}"))),
