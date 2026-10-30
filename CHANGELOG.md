@@ -405,7 +405,9 @@ contraction width (`CoherentSampler.contraction_width`).
   methods (`scratch`, `decode`, `decode_to_edges`, `decode_to_matched_pairs`, the four-argument
   `decode_packed`, and `Decoded`) are deprecated, in favour of `decode_with`,
   `decode_to_edges_with`, `decode_to_matched_pairs_with` and `decode_packed_with`, each taking a
-  workspace from `mwpm()`.
+  workspace from `mwpm()`. `UserGraph::from_dem` now keeps each piece's targets as written,
+  repeats included, as PyMatching does, where 2.1 sorted them and cancelled repeats: an edge's
+  endpoints can come in the other order, and a piece naming a target twice gives a self-loop.
 - **Chromobius.** A colour-code model is refused as Chromobius refuses it, with its messages: a
   detector declared without a fourth coordinate that is a whole number from −1 to 5
   (`detector D0` among them), which 2.1 decoded as uncoloured; an error naming a detector no
