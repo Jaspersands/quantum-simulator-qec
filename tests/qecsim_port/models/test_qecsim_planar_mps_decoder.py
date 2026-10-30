@@ -100,9 +100,9 @@ def test_planar_mps_decoder_sample_recovery(error_pauli):
 @pytest.mark.parametrize('mode, rtol', [
     ('c', 1e-3),  # contract by column.
     ('r', 1e-3),  # contract by row.
-    ('a', 0),  # averaged, zero tolerance. Tolerance should be zero because of symmetry between 'r' and 'c' modes.
+    # averaged, zero tolerance. Tolerance should be zero because of symmetry between 'r' and 'c' modes.
+    pytest.param('a', 0, marks=pytest.mark.xfail(strict=False, reason='fails on qecsim 1.0b9 too (case [a-0])')),
 ])
-@pytest.mark.xfail(strict=False, reason='fails on qecsim 1.0b9 too (case [a-0])')
 def test_planar_mps_decoder_cosets_probability_inequality(mode, rtol):
     code = PlanarCode(13, 13)
     decoder = PlanarMPSDecoder(chi=16, mode=mode)
@@ -126,9 +126,9 @@ def test_planar_mps_decoder_cosets_probability_inequality(mode, rtol):
 @pytest.mark.parametrize('mode, rtol', [
     ('c', 1e-0),  # contract by column, tolerance is O(1). Tolerance is consistent with BSV results.
     ('r', 1e-0),  # contract by row, tolerance is O(1). Tolerance is consistent with BSV results.
-    ('a', 0),  # averaged, zero tolerance. Tolerance should be zero because of symmetry between 'r' and 'c' modes.
+    # averaged, zero tolerance. Tolerance should be zero because of symmetry between 'r' and 'c' modes.
+    pytest.param('a', 0, marks=pytest.mark.xfail(strict=False, reason='fails on qecsim 1.0b9 too (case [a-0])')),
 ])
-@pytest.mark.xfail(strict=False, reason='fails on qecsim 1.0b9 too (case [a-0])')
 def test_planar_mps_decoder_cosets_probability_inequality_bsv(mode, rtol):
     code = PlanarCode(25, 25)
     decoder = PlanarMPSDecoder(chi=5, mode=mode)
