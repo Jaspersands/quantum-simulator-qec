@@ -153,6 +153,16 @@ def test_append_writes_tsims_gates():
         tsim.Circuit("R_X 0")
 
 
+def test_append_takes_a_bare_pauli_string_as_one_product():
+    # Stim's and Tsim's append take a Pauli string as one product target, as a list of one does.
+    stim = pytest.importorskip("stim")
+    want = str(stim.Circuit("SPP X0*Z1"))
+    for targets in (stim.PauliString("XZ"), [stim.PauliString("XZ")]):
+        c = tsim.Circuit()
+        c.append("SPP", targets)
+        assert str(c) == want
+
+
 def test_append_matches_tsim(real):
     stim = pytest.importorskip("stim")
     pauli = [

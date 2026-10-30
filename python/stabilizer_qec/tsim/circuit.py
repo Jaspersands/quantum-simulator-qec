@@ -499,6 +499,8 @@ class Circuit(_Base):
                 call(self._c.append_text, native)
             return
         name = canonical_gate(name)
+        if type(targets).__name__ == "PauliString":  # a Pauli product is one target, as in a list of one
+            targets = [targets]
         if not isinstance(tag, str):
             raise TypeError(f"tag must be a str, not {type(tag).__name__}")
         if name in ("CCZ", "CCX"):
