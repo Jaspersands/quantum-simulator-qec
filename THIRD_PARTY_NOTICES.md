@@ -110,7 +110,9 @@ Copyright (c) 2022 PanQEC (Eric Huang and contributors). MIT License. Source:
 https://github.com/panqec/panqec
 
 `python/stabilizer_qec/panqec/` is PanQEC 0.1.7 whole, on this package's ldpc and PyMatching;
-its `LICENSE` is beside it, and each modified file says so at its top.
+its `LICENSE` is beside it, and each modified file says so at its top. `tests/panqec_port/` is
+PanQEC's test suite and its data (`tests/panqec_port/data/`), modified the same way and under the
+same MIT licence.
 
 ## QUITS
 
