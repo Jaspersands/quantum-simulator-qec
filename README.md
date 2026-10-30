@@ -1177,8 +1177,8 @@ It is checked four ways:
 | Willow d = 5 | parallel, correlated | 17 µs | 4 cores | 34 µs | 83 µs |
 | Willow d = 7 | parallel, plain | 31 µs | 4 cores | 58 µs | 122 µs |
 | Willow d = 7 | parallel, correlated | 65 µs | 8 cores | 114 µs | 236 µs |
-| SD6 d = 5, 10⁶ rounds | parallel, plain | 7.7 µs | 1 core (4 for 18 µs) | 34 µs (18 µs on 4) | 129 µs (40 µs on 4) |
-| SD6 d = 5, 10⁶ rounds | parallel, correlated | 16 µs | 2 cores (8 for 32 µs) | 82 µs (32 µs on 8) | 318 µs (72 µs on 8) |
+| SD6 d = 5, 10⁶ rounds | parallel, plain | 7.7 µs | 1 core (2 for 18 µs) | 34 µs (18 µs on 2) | 129 µs (40 µs on 2) |
+| SD6 d = 5, 10⁶ rounds | parallel, correlated | 16 µs | 2 cores (4 for 32 µs) | 82 µs (32 µs on 4) | 318 µs (72 µs on 4) |
 
 - **Sliding windows** keep up only at d = 3, with either matcher. Everywhere else one core is too
   slow, which is exactly why parallel windows exist.
