@@ -144,6 +144,17 @@ def test_v1_decoders_and_soft_info_bposd():
     assert dec.osd_method == "OSD_CS" and hard.sum() == 2
 
 
+@pytest.mark.parametrize("p", [2.0, -0.1, float("nan")])
+def test_error_probability_outside_the_unit_interval_is_as_ldpc(p):
+    # ldpc takes any number for the error rate; the posteriors are then NaN, and it decodes as usual.
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    syndrome = np.array([1, 0], dtype=np.uint8)
+    want = ldpc.BpDecoder(pcm, error_rate=p)
+    got = ours.BpDecoder(pcm, error_rate=p)
+    assert np.array_equal(np.asarray(got.decode(syndrome)), np.asarray(want.decode(syndrome)))
+    assert np.array_equal(np.asarray(got.log_prob_ratios), np.asarray(want.log_prob_ratios), equal_nan=True)
+
+
 def test_every_module_imports():
     failed = []
     for m in pkgutil.walk_packages(ours.__path__, "stabilizer_qec.ldpc."):

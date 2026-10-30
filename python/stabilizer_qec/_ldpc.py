@@ -118,13 +118,10 @@ def _osd_order_arg(order: Any) -> None:
 
 
 def _probability(p: Any) -> float:
-    # ldpc takes any number; one outside [0, 1] only makes its posteriors NaN.
+    # ldpc takes any number; one outside [0, 1] (or NaN) only makes its posteriors NaN.
     if isinstance(p, (str, bytes)) or p is None:
         raise TypeError(f"must be real number, not {type(p).__name__}")
-    p = float(p)
-    if not 0.0 <= p <= 1.0:
-        raise ValueError(f"an error probability is between 0 and 1, not {p}")
-    return p
+    return float(p)
 
 
 # Fewer shots than this go to the cpu-f32 path on the gpu device (the bits are the same; a GPU
