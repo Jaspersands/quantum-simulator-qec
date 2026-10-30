@@ -116,6 +116,12 @@ def test_batches_and_observable_runner():
     assert np.array_equal(tr.compute_observables(errors[0]), mr.compute_observables(errors[0]))
     assert same(tr.decode_detailed(dets[0]), mr.decode_detailed(dets[0]))
     assert np.array_equal(tr.decode_observables(dets[1]), mr.decode_observables(dets[1]))
+    # An observable decode's converged and iterations are read-only, as relay_bp's are.
+    result = mr.from_errors_decode_observables_detailed_batch(errors[:1], progress_bar=False)[0]
+    with pytest.raises(AttributeError):
+        result.converged = not result.converged
+    with pytest.raises(AttributeError):
+        result.iterations = -1
     # copy.copy and copy.deepcopy give decoders of their own: decoding through a copy leaves the
     # original's next decodes as a fresh decoder's.
     for copier in (copy.copy, copy.deepcopy):

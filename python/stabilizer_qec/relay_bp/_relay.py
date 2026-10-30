@@ -398,18 +398,26 @@ class ObservableDecodeResult:
     ``iterations``, the physical result when asked for, and when decoded from a known error,
     whether the logical outcome was wrong and how (otherwise ``None``)."""
 
-    __slots__ = ("observables_", "converged", "iterations", "_truth", "_physical")
+    __slots__ = ("observables_", "_converged", "_iterations", "_truth", "_physical")
 
     def __init__(self, observables: np.ndarray, result: DecodeResult, truth: Optional[dict], include: bool) -> None:
         self.observables_ = observables
-        self.converged = result.success
-        self.iterations = result.iterations
+        self._converged = result.success
+        self._iterations = result.iterations
         self._truth = truth
         self._physical = result if include else None
 
     @property
     def observables(self) -> np.ndarray:
         return self.observables_.copy()
+
+    @property
+    def converged(self) -> bool:
+        return self._converged
+
+    @property
+    def iterations(self) -> int:
+        return self._iterations
 
     def _t(self, key: str) -> Optional[bool]:
         return None if self._truth is None else self._truth[key]

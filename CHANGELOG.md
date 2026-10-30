@@ -25,6 +25,8 @@ policy for its documented items.
   it raised `TypeError`.
 - `copy.copy` and `copy.deepcopy` of a relay_bp decoder give a decoder with its own engine: decoding
   through the copy no longer advances the original's random memory strengths.
+- `ObservableDecodeResult.converged` and `.iterations` are read-only, as relay_bp's are; assigning
+  them used to succeed.
 
 ## 2.2.0 — 2026-10-30
 
