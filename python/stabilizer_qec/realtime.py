@@ -667,6 +667,8 @@ def serve(decoder: Any, *, tcp: Optional[str] = None, stdio: bool = False, worke
         host, _, port = tcp.rpartition(":")
         if not host or not port:
             raise ValueError(f"tcp must be 'host:port', not {tcp!r}")
+        if host.startswith("[") and host.endswith("]"):  # an IPv6 address in brackets
+            host = host[1:-1]
 
         class Handler(socketserver.StreamRequestHandler):
             def handle(self) -> None:
@@ -674,7 +676,10 @@ def serve(decoder: Any, *, tcp: Optional[str] = None, stdio: bool = False, worke
 
         Handler.timeout = timeout
 
-        with _Server((host, int(port)), Handler) as server:
+        class Server(_Server):
+            address_family = socket.AF_INET6 if ":" in host else socket.AF_INET
+
+        with Server((host, int(port)), Handler) as server:
             if ready is not None:
                 ready(server)
             server.serve_forever()

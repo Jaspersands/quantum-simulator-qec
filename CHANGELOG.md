@@ -39,6 +39,8 @@ policy for its documented items.
   still cannot be served; the ERROR says why.
 - `serve` refuses a STATS, RESET or BYE frame that declares a payload from its header, before buffering
   the payload; it used to read and ignore up to 256 MiB of it.
+- `serve` binds an IPv6 address given as `::1:0` or `[::1]:0` (`--tcp` and `tcp=` alike); before, the
+  bind failed with a name-resolution error.
 
 ## 2.2.0 — 2026-10-30
 

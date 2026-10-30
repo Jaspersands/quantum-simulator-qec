@@ -188,6 +188,42 @@ def test_serve_cli_arguments(memory, tmp_path, capsys):
         make_decoder("nope", circuit=c)
 
 
+def _ipv6_loopback() -> bool:
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
+            s.bind(("::1", 0))
+        return True
+    except OSError:
+        return False
+
+
+@pytest.mark.skipif(not _ipv6_loopback(), reason="no IPv6 loopback address")
+@pytest.mark.parametrize("tcp", ["::1:0", "[::1]:0"])
+def test_serve_binds_an_ipv6_address(memory, tcp):
+    c, dets, obs = memory
+    m = sq.Matching(c.detector_error_model(decompose_errors=True))
+    bound = {}
+    started = threading.Event()
+
+    def ready(server):
+        bound["server"] = server
+        started.set()
+
+    thread = threading.Thread(target=serve, args=(m,), kwargs=dict(tcp=tcp, ready=ready, timeout=10.0), daemon=True)
+    thread.start()
+    assert started.wait(10)
+    host, port = bound["server"].server_address[:2]
+    try:
+        assert host == "::1"
+        with DecoderClient.connect(host, port) as client:
+            assert np.array_equal(client.decode_batch(dets[:3]), m.decode_batch(dets[:3]))
+    finally:
+        bound["server"].shutdown()
+        thread.join(10)
+
+
 def test_cudaq_qec_host_api(memory):
     import stabilizer_qec.cudaq_qec as qec
 
