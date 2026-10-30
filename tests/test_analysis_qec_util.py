@@ -44,14 +44,14 @@ def norm(x):
 
 def both(module: str, name: str, make_args):
     """``name`` from ``module`` run on Stim's objects and on ours; outcomes normalised (an
-    exception's type, where one is raised)."""
+    exception's type and message, where one is raised)."""
     out = []
     for lib, mk in ((qec_util, stim), (ours, sq)):
         fn = getattr(getattr(lib, module), name)
         try:
             out.append(norm(fn(*make_args(mk))))
         except Exception as e:  # noqa: BLE001 - the same failure is the expectation
-            out.append(("raised", type(e).__name__))
+            out.append(("raised", type(e).__name__, str(e)))
     return out
 
 
@@ -87,9 +87,16 @@ def test_circuit_text_tools():
         a, b = both("circuits", "format_rec_targets", lambda mk: (mk.Circuit(text),))
         assert a == b
         if isinstance(a, str):
-            qubits = {f"Q{q}": q for q in range(c.num_qubits)}
+            qubits = {f"q{q}": q for q in range(c.num_qubits)}
             x, y = both("circuits", "format_to_rec_targets", lambda mk: (a, qubits))
             assert x == y
+    # Rec targets that format_rec_targets formats (none of TASKS' circuits has one it can), so
+    # format_to_rec_targets gets real output to read, with the qubit names it formats.
+    rec = "M 0\nDETECTOR rec[-1]\nCX rec[-1] 1\nM 1"
+    a, b = both("circuits", "format_rec_targets", lambda mk: (mk.Circuit(rec),))
+    assert a == b and isinstance(a, str)
+    x, y = both("circuits", "format_to_rec_targets", lambda mk: (a, {"q0": 0, "q1": 1}))
+    assert x == y and isinstance(x, str)
     c = stim.Circuit.generated("repetition_code:memory", distance=3, rounds=2)
     a, b = both("circuits", "redefine_observables", lambda mk: (mk.Circuit(str(c)), {0: [0, 1]}))
     assert a == b
