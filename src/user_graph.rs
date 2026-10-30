@@ -618,11 +618,14 @@ impl UserDecoder {
             }
             Ok(w as f64 / g.normalising_constant)
         } else {
+            // As wide as the caller's output, so that every fault id it holds is written, as the
+            // single-shot decode writes them when its count is the same.
+            let len = g.num_observables.max(out.len() * 8);
             let mut bytes = Vec::new();
-            bytes.try_reserve_exact(g.num_observables).map_err(|e| format!("cannot allocate observable output: {e}"))?;
-            bytes.resize(g.num_observables, 0u8);
+            bytes.try_reserve_exact(len).map_err(|e| format!("cannot allocate observable output: {e}"))?;
+            bytes.resize(len, 0u8);
             let w = mwpm.decode_into(events, &mut bytes)?;
-            for (k, &b) in bytes.iter().enumerate() {
+            for (k, &b) in bytes.iter().enumerate().take(out.len() * 8) {
                 out[k / 8] |= (b & 1) << (k % 8);
             }
             Ok(w as f64 / g.normalising_constant)

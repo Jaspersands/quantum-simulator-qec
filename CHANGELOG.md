@@ -21,6 +21,8 @@ policy for its documented items.
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
 - A node index of 2^64 − 1 given to `Matching.add_edge`, `add_boundary_edge` or `set_boundary_nodes`
   is refused with a `ValueError`, where it was an internal error.
+- `decode_batch` on a graph with more than 64 fault ids writes every fault id its output holds, as
+  `decode` does, where a fault id past the count the decoder was built with was dropped.
 
 ## 2.2.0 — 2026-10-30
 
