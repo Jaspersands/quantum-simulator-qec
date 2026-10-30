@@ -909,7 +909,7 @@ def _matching(correlated: bool) -> Callable:
         inst = Instance.from_model(model, merge=False)
         m = Matching.from_detector_error_model(model, enable_correlations=correlated)
         if correlated:
-            m._check_correlations(True)  # a model the correlated matcher cannot take is refused here, as its decodes refuse
+            m._check_correlations(True, lambda: m.decode(np.zeros(m.num_detectors, dtype=np.uint8)))  # a model the correlated matcher cannot take is refused here, as its decodes refuse
         index: dict = {}
         for j, (dets, _, _) in enumerate(inst.faults):
             index.setdefault((dets[0], dets[1] if len(dets) == 2 else -1), j)
