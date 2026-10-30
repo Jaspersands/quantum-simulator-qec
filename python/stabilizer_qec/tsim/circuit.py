@@ -244,7 +244,8 @@ def _lane_scan(circuit: Any) -> tuple:
     ``TPP Z0*Z0`` none) and a product rotation's identity letters name none (``pauli=X_``, ``I`` or
     ``_``), an ``MPAD``'s targets are bits, and -2 is the output qubit. What the builders can refuse
     is read from the instructions: a Pauli product (``SPP``, ``SPP_DAG``, ``MPP``, a product rotation
-    ``I[R_PAULI(...)]`` or ``II[R_PAULI(...)]``, a pair rotation ``II[R_ZZ(...)]``) or a sweep bit; a
+    ``I[R_PAULI(...)]`` or ``II[R_PAULI(...)]``, a pair rotation ``II[R_ZZ(...)]``), an
+    ``OBSERVABLE_INCLUDE`` of Pauli targets or a sweep bit; a
     tag that only names one (``H[SPP]``, the coherent error ``I_ERROR[R_PAULI(...)]``) is not one. A
     loop's body is read twice (its second pass shows a reset after the first pass's operations)."""
     first_is_reset: dict = {}
@@ -261,6 +262,8 @@ def _lane_scan(circuit: Any) -> tuple:
             name, tag, targets = item[1], item[2], item[4]
             if name in ("DETECTOR", "OBSERVABLE_INCLUDE"):
                 found[0] = True
+                if name == "OBSERVABLE_INCLUDE" and not all(_stim.GateTarget._raw(v).is_measurement_record_target for v in targets):
+                    found[1] = True  # Tsim's graph refuses an OBSERVABLE_INCLUDE of Pauli targets
                 continue
             if _large_angle(tag):
                 found[0] = True
