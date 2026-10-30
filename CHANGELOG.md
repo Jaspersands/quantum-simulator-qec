@@ -282,8 +282,11 @@ contraction width (`CoherentSampler.contraction_width`).
   `num_items`. `EstimatorResult` draws the QDK's report: `_repr_html_`, `summary` and slices as
   text with their HTML, `diagram`, a batch's `plot`, and qsharp_widgets 1.33.1's space and scatter
   charts as SVG (`space_chart()`, `scatter_chart()`). They are checked against 40 recorded
-  results, plain and with markdown, and the charts against the widgets' own functions run in node,
-  to 4 ulps. `QECScheme.SURFACE_CODE` and `FLOQUET_CODE` are in. Kept from 2.1: `EstimatorError`
+  results, plain and with markdown, and the recorded charts against the widgets' own functions run in
+  node, to 4 ulps of each drawn number on macOS arm64, where the widgets were recorded (on other
+  platforms, where that is not measured, the bound is in ulps of the chart's operands). A scatter
+  chart of a fresh frontier estimate, outside the recorded set, was 28 ulps off the widget's on
+  macOS arm64. `QECScheme.SURFACE_CODE` and `FLOQUET_CODE` are in. Kept from 2.1: `EstimatorError`
   and `QSharpError` are `ValueError`s (the QDK's `EstimatorError` derives from BaseException
   alone), and `LogicalCounts.estimate` takes any object with `as_dict` (a batch when it
   `has_items`, else its one dictionary; the QDK refuses an `EstimatorInputParamsItem` with a
