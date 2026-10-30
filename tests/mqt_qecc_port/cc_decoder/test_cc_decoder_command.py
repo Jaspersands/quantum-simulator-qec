@@ -51,6 +51,13 @@ def test_command_is_listed() -> None:
     assert "mqt.qecc.cc-decoder" in _cli.help_for("commands")
 
 
+def test_help_topic_is_the_scripts() -> None:
+    text = _cli.help_for("mqt.qecc.cc-decoder")
+    assert text.startswith("usage: stabilizer-qec mqt.qecc.cc-decoder ")
+    assert "distance" in text and "error_rate" in text and "--nr_sims" in text
+    assert "--out" not in text
+
+
 def test_python_dash_m(tmp_path) -> None:
     proc = subprocess.run(
         [sys.executable, "-m", "stabilizer_qec.mqt_qecc.cc_decoder", "3", "0.1", "--nr_sims", "1", "--results_dir", str(tmp_path)],

@@ -685,3 +685,97 @@ def test_a_noisy_repetition_chain_decodes(name):
     d, o = circuit.compile_detector_sampler(seed=5).sample(2000, separate_observables=True)
     predicted = sq.Matching.from_detector_error_model(dem).decode_batch(d)
     assert (predicted != o).any(axis=1).mean() < 0.03
+
+
+# ---------------------------------------------------------------------------------------------
+# Loom's construction-time refusals, keyword names and messages
+# ---------------------------------------------------------------------------------------------
+
+
+def labelled_block(label):
+    return Block(unique_label=label, stabilizers=[Stabilizer("ZZ", ((1, 0), (2, 0)), ancilla_qubits=((1, 1),))],
+                 logical_x_operators=[PauliOperator("XX", ((1, 0), (2, 0)))], logical_z_operators=[PauliOperator("Z", ((1, 0),))])
+
+
+def test_int_fields_read_integral_floats_and_numeric_strings_as_loom_does():
+    assert loom.MeasureBlockSyndromes("a", n_cycles=2.0).n_cycles == 2
+    assert loom.MeasureBlockSyndromes("a", n_cycles="2").n_cycles == 2
+    assert loom.MeasureLogicalX("a", logical_qubit=1.0).logical_qubit == 1
+    assert loom.Grow("a", loom.Direction.LEFT, 2.0).length == 2
+    assert loom.Split("a", ("b", "c"), loom.Orientation.HORIZONTAL, 2.0).split_position == 2
+    with pytest.raises(ValueError):
+        loom.MeasureBlockSyndromes("a", n_cycles=2.5)
+    with pytest.raises(ValueError):
+        loom.MeasureBlockSyndromes("a", n_cycles="x")
+    with pytest.raises(ValueError):
+        loom.Grow("a", loom.Direction.LEFT, "2")
+
+
+def test_malformed_operations_and_circuits_are_refused_at_construction():
+    for make in (lambda: loom.MeasureLogicalX(None, 0), lambda: loom.LogicalX(input_block_name=5),
+                 lambda: loom.MeasureLogicalX("a", logical_qubit="x"), lambda: loom.LogicalMeasurement(blocks="ab", observable="ZZ"),
+                 lambda: loom.SyndromeCircuit("XQ")):
+        with pytest.raises(ValueError):
+            make()
+
+
+def test_a_finished_interpretation_step_refuses_changes():
+    step = rep_memory()
+    assert step.is_frozen
+    with pytest.raises(ValueError, match="Cannot change properties of the final InterpretationStep"):
+        step.get_new_cbit_MUT("c")
+    with pytest.raises(ValueError, match="Cannot change properties of the final InterpretationStep"):
+        step.append_detectors_MUT([])
+    assert "c" not in step.cbit_counter
+
+
+def test_loom_keyword_names_are_accepted():
+    import inspect
+
+    p = PauliOperator("X", ((0, 0),))
+    assert p.commutes_with(other_operator=p) is True
+    step = rep_memory()
+    assert loom.EkaToStimConverter().convert_circuit(input_circuit=step.final_circuit).text
+    assert loom.Operation.fromdict(data_dict=loom.LogicalX("a").asdict()) == loom.LogicalX("a")
+    assert loom.Eka.fromdict(data_dict=Eka(Lattice.linear((4,))).asdict()) == Eka(Lattice.linear((4,)))
+    emit = inspect.signature(loom.EkaToStimConverter.emit_detectors_and_observables)
+    assert list(emit.parameters) == ["input_istep", "rec_dict", "measurement_offset"]
+
+
+def test_enum_values_refused_with_loom_message():
+    for cls, value in ((loom.Direction, "X"), (loom.Orientation, "x"), (loom.ResourceState, "x"), (loom.FourBodySchedule, "x")):
+        with pytest.raises(ValueError, match=re.escape(f"`{value.lower()}` is an invalid input for enum `{cls.__name__}`.")):
+            cls(value)
+    assert loom.Direction("TOP") is loom.Direction.TOP
+
+
+def test_rotated_surface_code_refuses_a_lattice_in_loom_words():
+    with pytest.raises(ValueError, match=re.escape("of type LatticeType.LINEAR.")):
+        loom.RotatedSurfaceCode.create(3, 3, Lattice.linear((5,)), unique_label="x")
+
+
+def test_block_history_refusals_name_block_labels():
+    from stabilizer_qec.loom.interpreter import InterpretationStep
+
+    step = InterpretationStep([labelled_block("q1")])
+    gone = labelled_block("q2")
+    step.update_block_history_and_evolution_MUT(new_blocks=[gone])
+    step.update_block_history_and_evolution_MUT(old_blocks=[gone])
+    with pytest.raises(RuntimeError) as refused:
+        step.update_block_history_and_evolution_MUT(old_blocks=[gone])
+    assert "['q2']" in str(refused.value) and gone.uuid not in str(refused.value)
+
+
+def test_syndrome_circuit_names_and_paulis_as_loom_does():
+    assert loom.SyndromeCircuit("XXXX").name == "SyndromeCircuit"
+    assert loom.SyndromeCircuit("XXXX", name="MyCircuit").name == "mycircuit"
+    with pytest.raises(ValueError, match=re.escape("Invalid pauli: Q. Must be one of ['X', 'Y', 'Z'].")):
+        loom.SyndromeCircuit("XQ")
+
+
+def test_detector_and_error_model_reprs_read_as_loom_does():
+    assert repr(loom.Detector(syndromes=())) == "Detector(Syndromes: (), Labels: {})"
+    cem = loom.HomogeneousTimeIndependentCEM(circuit=loom.Circuit("zz", circuit=[[loom.Circuit("h", channels=[Channel(label="a")])]]),
+                                             error_type=loom.ErrorType.DEPOLARIZING1, application_mode=loom.ApplicationMode.AFTER_GATE, error_probability=0.0)
+    assert repr(cem).startswith("HomogeneousTimeIndependentCEM(circuit=")
+    assert "is_time_dependent=" in repr(cem) and "application_mode=" in repr(cem)

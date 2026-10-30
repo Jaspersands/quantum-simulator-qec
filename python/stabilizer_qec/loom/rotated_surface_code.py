@@ -40,7 +40,7 @@ class RotatedSurfaceCode(Block):
         lattice; ``x_boundary`` horizontal puts the X boundaries top and bottom; the default
         logicals are the top row (X when the X boundary is horizontal) and the left column."""
         if lattice.lattice_type != LatticeType.SQUARE_2D:
-            raise ValueError(f"The creation of rotated surface code blocks is currently only supported for 2D square lattices. Instead the lattice is of type {lattice.lattice_type}.")
+            raise ValueError(f"The creation of rotated surface code blocks is currently only supported for 2D square lattices. Instead the lattice is of type LatticeType.{LatticeType(lattice.lattice_type).name}.")
         if not isinstance(position, tuple) or any(not isinstance(x, int) for x in position):
             raise ValueError(f"`position` must be a tuple of integers. Got '{position}' instead.")
         if len(position) != lattice.n_dimensions:

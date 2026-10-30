@@ -52,7 +52,8 @@ class MWPM2D(object):
 
     def decode(self, measurements, error_params=None):
         """
-        Takes measurement results and outputs a result.
+        Takes measurement results and outputs a result: a StdOutput (its simplified syndromes), a dict keyed by
+        location (as run_circuit returns) or the syndromes themselves. A dict keyed by time raises TypeError.
 
         logic_range identifies over what part of self.logic we are decoding over.
         """
@@ -61,6 +62,9 @@ class MWPM2D(object):
         # output's, {}, as the empty set.)
         if hasattr(measurements, 'simplified'):
             measurements = measurements.simplified(True)
+        elif isinstance(measurements, dict) and any(isinstance(v, (set, dict)) for v in measurements.values()):
+            # A plain dict keyed by time (a StdOutput's own dict) has no syndromes among its keys.
+            raise TypeError('decode takes a StdOutput or a dict keyed by location, not a dict keyed by time')
         syndromes = set(measurements)
 
         tuple_key = frozenset(syndromes)

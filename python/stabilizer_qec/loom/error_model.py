@@ -255,7 +255,9 @@ class CircuitErrorModel:
         raise FrozenInstanceError(f"cannot delete field {name!r}")
 
     def __repr__(self) -> str:
-        return f"{type(self).__name__}(error_type={self.error_type}, application_mode={self.application_mode}, is_time_dependent={self.is_time_dependent}, gate_durations={self.gate_durations})"
+        fields = [("circuit", self.circuit), ("error_type", self.error_type), ("is_time_dependent", self.is_time_dependent), ("application_mode", self.application_mode),
+                  ("gate_durations", self.gate_durations), ("gate_error_probabilities", self.gate_error_probabilities), ("global_time_error_probability", self.global_time_error_probability)]
+        return f"{type(self).__name__}(" + ", ".join(f"{name}={value!r}" for name, value in fields) + ")"
 
     def update_gate_durations(self, gate_durations: dict[str, float]) -> "CircuitErrorModel":
         """A copy of the model with new gate durations, its gate and tick times recomputed."""

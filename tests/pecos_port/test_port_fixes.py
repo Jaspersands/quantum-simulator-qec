@@ -159,6 +159,17 @@ def test_gatewise_two_qubit_error_set_on_numpy_2(after):
         assert a not in gates['X'] or b in gates['X']
 
 
+def test_measure_without_collapse_draws_the_default_outcome():
+    # forced_outcome=-1, the gates' default, draws a random measurement's outcome, with or without collapse.
+    for sim in SIMS:
+        state = sim(1)
+        state.run_gate('H', {0})
+        assert state.run_gate('measure Z', {0}, collapse=False).get(0, 0) in (0, 1)
+        assert state.run_gate('measure Z', {0}, collapse=False, forced_outcome=0) == {}
+        with pytest.raises(Exception):
+            state.run_gate('measure Z', {0}, collapse=False, forced_outcome=2)
+
+
 @pytest.mark.parametrize('gen', ['DepolarGen', 'XGen', 'ZGen', 'XZGen'])
 def test_error_gens_phenomenological(gen):
     # Data errors before each logical instruction and errors before measurements, nothing else (PECOS raised KeyError).

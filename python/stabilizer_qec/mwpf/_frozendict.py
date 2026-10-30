@@ -23,9 +23,15 @@ class frozendict(dict):
 
     __slots__ = ("_hash",)
 
-    def __init__(self, *args, **kwargs):
+    def __new__(cls, *args, **kwargs):
+        self = dict.__new__(cls)
         dict.__init__(self, *args, **kwargs)
         self._hash = None
+        return self
+
+    def __init__(self, *args, **kwargs):
+        # The contents are set by __new__, so calling __init__ again changes nothing.
+        pass
 
     def __hash__(self):
         if self._hash is None:
@@ -43,8 +49,15 @@ class frozendict(dict):
     def copy(self):
         return self
 
+    @classmethod
+    def fromkeys(cls, keys, value=None):
+        return cls({key: value for key in keys})
+
     def __or__(self, other):
         return type(self)({**self, **other})
+
+    def __ior__(self, other):
+        return self | other
 
     def set(self, key, value):
         return type(self)({**self, key: value})
@@ -78,7 +91,7 @@ class frozendict(dict):
     def __delitem__(self, key):
         raise TypeError(f"'{type(self).__name__}' object doesn't support item deletion")
 
-    clear = pop = popitem = update = __ior__ = _read_only
+    clear = pop = popitem = update = _read_only
 
 
 class FrozenList(MutableSequence):
@@ -140,6 +153,12 @@ class FrozenList(MutableSequence):
     def insert(self, pos, item):
         self._check()
         self._items.insert(pos, item)
+
+    def index(self, item):
+        try:
+            return self._items.index(item)
+        except ValueError:
+            raise ValueError(f"{item!r} is not in list") from None
 
     def __repr__(self):
         return f"<FrozenList(frozen={self._frozen}, {self._items!r})>"

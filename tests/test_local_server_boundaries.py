@@ -200,6 +200,14 @@ def test_fusion_invalid_utf8_has_bounded_error(tmp_path, capsys):
 
 
 @isolated_server_test
+def test_fusion_nul_byte_is_missing_file_like_static_file(tmp_path):
+    with fusion_server(tmp_path) as port:
+        status, _, body = request(port, 'GET', '/data/x%00.txt')
+        assert (status, b'File does not exist.' in body) == (404, True)
+        assert request(port, 'GET', '/data/missing')[0] == 404
+
+
+@isolated_server_test
 def test_fusion_ranges_close_handles_and_keep_conditionals(tmp_path):
     (tmp_path / 'a.txt').write_bytes(b'abcdef')
     gc.collect()

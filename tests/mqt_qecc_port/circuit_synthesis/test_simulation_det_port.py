@@ -100,7 +100,9 @@ def test_plus_with_x_error_verification_first_is_refused(steane: CSSCode, plus_p
 
 
 def test_doc_example_runs(steane: CSSCode, zero_prep) -> None:
-    # MQT's StatePrep.md example, at fewer shots: one fault never fails it, so p_L is below p.
+    # MQT's StatePrep.md example, at fewer shots, with the circuit as a Qiskit circuit: the documented call
+    # passes the CNOTCircuit itself, which this simulator refuses with a TypeError (a known gap, listed in the
+    # parity inventory's M2 row). One fault never fails it, so p_L is below p.
     sp, verifications = zero_prep
     np.random.seed(1)
     sim = NoisyDFTStatePrepSimulator(sp.circ.to_qiskit_circuit(), verifications, steane, noise.E1_1)

@@ -106,6 +106,33 @@ policy for its documented items.
   bound host (403 otherwise), so a page reached by DNS rebinding cannot read the data folder. It
   serves each request on its own thread, so an idle connection no longer blocks the shutdown in
   `open_visualizer`.
+- The Fusion Blossom visualizer's `/data/` route answers 404 `File does not exist.` for a path with
+  a NUL byte, as fusion_blossom does, where it answered 403 `Access denied.`.
+- The `beliefmatching` and `relay-bp` extras install scipy, which those modules import; before, no
+  extra provided it, so a base install failed with `ModuleNotFoundError` on import.
+- Loom's operations read an integral float or, for `n_cycles` and `logical_qubit`, a numeric string in
+  their int fields as Loom does, and refuse other values at construction (`n_cycles=2.0` built and then
+  failed in the interpreter). They also refuse a non-str block name, a bare str as a `LogicalMeasurement`'s
+  blocks, and a `SyndromeCircuit` with a Pauli letter other than X, Y or Z.
+- A finished Loom interpretation refuses its `*_MUT` methods with Loom's "Cannot change properties of the
+  final InterpretationStep" error, where it accepted changes.
+- Loom's keyword names replace the port's where they differed (`other_operator`, `input_circuit`,
+  `input_istep`, `rec_dict`, `measurement_offset`, `final_step`, `data_dict`), so Loom-style keyword calls work.
+- Loom's messages for an invalid `Direction`, `Orientation`, `ResourceState` or `FourBodySchedule` value, for a
+  non-square lattice in `RotatedSurfaceCode.create`, and for a block removed twice name the value or the block
+  label; a default `SyndromeCircuit` is named `SyndromeCircuit`, not lower-cased; `repr` of `Detector` and
+  `CircuitErrorModel` follows Loom's.
+- `stabilizer-qec help mqt.qecc.cc-decoder` prints the cc decoder's own usage (distance, error rate and its
+  flags), not a usage line with `--out` and no positionals.
+- `from stabilizer_qec.mwpf import *` exports MWPF's names and the helpers' own, and no longer rebinds the
+  caller's `stim`, `np`, `json`, `random` and `time` to this package's modules.
+- The `frozendict` and `FrozenList` that `stabilizer_qec.mwpf` vendors match frozendict 2.4 and frozenlist 1.8:
+  `frozendict.fromkeys` returns a `frozendict`, `|=` returns a new one, a second `__init__` changes nothing,
+  and `FrozenList.index` raises `ValueError` naming the missing item.
+- `pySparseSim`'s `measure Z` with `collapse=False` and the default `forced_outcome=-1` draws the outcome of a
+  random measurement, as `collapse=True` and `cySparseSim` do, where it raised.
+- `MWPM2D.decode` raises `TypeError` for a plain dict keyed by time (a `StdOutput`'s own dict), where it returned
+  an empty recovery because the time keys were read as syndromes.
 
 ## 2.2.0 — 2026-10-30
 
