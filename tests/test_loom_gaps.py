@@ -743,6 +743,13 @@ def test_loom_keyword_names_are_accepted():
     assert list(emit.parameters) == ["input_istep", "rec_dict", "measurement_offset"]
 
 
+def test_enum_values_refused_with_loom_message():
+    for cls, value in ((loom.Direction, "X"), (loom.Orientation, "x"), (loom.ResourceState, "x"), (loom.FourBodySchedule, "x")):
+        with pytest.raises(ValueError, match=re.escape(f"`{value.lower()}` is an invalid input for enum `{cls.__name__}`.")):
+            cls(value)
+    assert loom.Direction("TOP") is loom.Direction.TOP
+
+
 def test_block_history_refusals_name_block_labels():
     from stabilizer_qec.loom.interpreter import InterpretationStep
 

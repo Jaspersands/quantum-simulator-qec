@@ -41,6 +41,18 @@ class _CaseInsensitive(str, Enum):
         return str(self.value)
 
 
+class _LoomEnum(_CaseInsensitive):
+    """An enum whose refused value reads as Loom's ``enum_missing`` message."""
+
+    @classmethod
+    def _missing_(cls, value):
+        member = super()._missing_(value)
+        if member is None and isinstance(value, str):
+            allowed = ", ".join(str(m.value) for m in cls)
+            raise ValueError(f"`{value.lower()}` is an invalid input for enum `{cls.__name__}`. Only the following values are allowed as an input: {allowed}.")
+        return member
+
+
 class SingleQubitPauliEigenstate(_CaseInsensitive):
     ZERO = "0"
     ONE = "1"
@@ -62,7 +74,7 @@ class SingleQubitPauliEigenstate(_CaseInsensitive):
         return 1 if self in (SingleQubitPauliEigenstate.ZERO, SingleQubitPauliEigenstate.PLUS, SingleQubitPauliEigenstate.PLUS_I) else -1
 
 
-class Orientation(_CaseInsensitive):
+class Orientation(_LoomEnum):
     HORIZONTAL = "horizontal"
     VERTICAL = "vertical"
 
@@ -78,7 +90,7 @@ class Orientation(_CaseInsensitive):
         return Orientation.VERTICAL if self == Orientation.HORIZONTAL else Orientation.HORIZONTAL
 
 
-class Direction(_CaseInsensitive):
+class Direction(_LoomEnum):
     LEFT = "left"
     RIGHT = "right"
     TOP = "top"
@@ -138,7 +150,7 @@ class DiagonalDirection(_CaseInsensitive):
         return iter(self.components)
 
 
-class ResourceState(_CaseInsensitive):
+class ResourceState(_LoomEnum):
     T = "t"
     S = "s"
 
@@ -147,7 +159,7 @@ class ResourceState(_CaseInsensitive):
         return float(expectation[basis.upper()])
 
 
-class FourBodySchedule(_CaseInsensitive):
+class FourBodySchedule(_LoomEnum):
     """The order a weight-4 stabilizer's data qubits are entangled in: an N or a Z drawn
     through the plaquette (arXiv:1404.3747, III B)."""
 
