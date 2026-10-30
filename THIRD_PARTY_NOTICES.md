@@ -77,7 +77,7 @@ fixes an index overrun in `mod2.solve_linear_system`. Each file says so at its t
 
 ## deltakit
 
-deltakit-circuit, deltakit-core, deltakit-decode and deltakit-explorer: Copyright Riverlane.
+deltakit-circuit, deltakit-core, deltakit-decode and deltakit-explorer: Copyright (c) 2025 Riverlane Ltd and contributors.
 Licensed under the Apache License, Version 2.0 (`LICENSES/Apache-2.0.txt`). Source:
 https://github.com/Deltakit/deltakit
 
@@ -172,7 +172,7 @@ relay_bp's, each file marked as modified.
 
 ## PyMatching
 
-Copyright 2022 Oscar Higgott. Licensed under the Apache License, Version 2.0
+Copyright 2022 PyMatching Contributors. Licensed under the Apache License, Version 2.0
 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/oscarhiggott/PyMatching
 
 The matching graph built by hand (`src/user_graph.rs`), its weight discretisation and the
@@ -193,7 +193,7 @@ macOS arm64 audit fixture.
 
 ## Tesseract
 
-Copyright 2025 Google LLC. Licensed under the Apache License, Version 2.0
+Copyright 2025-2026 Google LLC. Licensed under the Apache License, Version 2.0
 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/quantumlib/tesseract-decoder
 
 The search decoder (`src/search.rs`) ports Tesseract's A* search (`src/tesseract.cc`,
@@ -229,7 +229,9 @@ Its Möbius matching runs on `src/pm_exact/` in PyMatching 2.2.2's neighbour ord
 notice above). `tests/data/chromobius_cli_reference.json.gz` (written by
 `tools/chromobius_cli_reference.py`) records the outputs and messages of Chromobius 1.1.1's
 program, built from source with Stim 1320ad7 and PyMatching 2.2.2, on 184 cases, which the tests
-compare against.
+compare against. `tests/data/chromobius_cli_edges.json.gz` (read by `tests/test_chromobius_edge_cases.py`)
+records outputs of Chromobius 1.1.1, pinned, on macOS arm64, for equal-weight ties and recovery
+cases, from audit scripts that are not committed; it is not a cross-platform claim.
 
 ## beliefmatching
 
@@ -551,7 +553,9 @@ Copyright (c) 2017 Frommi; MIT, Zlib or Apache-2.0) it uses written out in `src/
 Ophir Lojkine and rust-or; MIT) in `src/mwpf/lp.rs`. `src/mwpf/cli_help.rs` holds the help texts MWPF's command line prints.
 `python/stabilizer_qec/mwpf/` is its Python package and `tests/mwpf_port/` its tests.
 `src/mwpf/visualize/standalone.html` is the visualizer MWPF's macOS wheels embed (its `visualize/`
-built by Vite; each platform's wheels embed their own build), which bundles Vue, three.js, TroisJS and Tweakpane (each under the MIT License).
+built by Vite; each platform's wheels embed their own build), which bundles Vue 3.5.12, three.js
+r169, Tweakpane 4.0.4, Prism, Sizzle 2.3.10 and a lodash-derived `Hash` class, which has no
+banner of its own (each library under the MIT License).
 
 ## HiGHS
 

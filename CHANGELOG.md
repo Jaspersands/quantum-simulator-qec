@@ -584,8 +584,11 @@ contraction width (`CoherentSampler.contraction_width`).
   `num_items`. `EstimatorResult` draws the QDK's report: `_repr_html_`, `summary` and slices as
   text with their HTML, `diagram`, a batch's `plot`, and qsharp_widgets 1.33.1's space and scatter
   charts as SVG (`space_chart()`, `scatter_chart()`). They are checked against 40 recorded
-  results, plain and with markdown, and the charts against the widgets' own functions run in node,
-  to 4 ulps. `QECScheme.SURFACE_CODE` and `FLOQUET_CODE` are in. Kept from 2.1: `EstimatorError`
+  results, plain and with markdown, and the recorded charts against the widgets' own functions run in
+  node, to 4 ulps of each drawn number on macOS arm64, where the widgets were recorded (on other
+  platforms, where that is not measured, the bound is in ulps of the chart's operands). A scatter
+  chart of a fresh frontier estimate, outside the recorded set, was 28 ulps off the widget's on
+  macOS arm64. `QECScheme.SURFACE_CODE` and `FLOQUET_CODE` are in. Kept from 2.1: `EstimatorError`
   and `QSharpError` are `ValueError`s (the QDK's `EstimatorError` derives from BaseException
   alone), and `LogicalCounts.estimate` takes any object with `as_dict` (a batch when it
   `has_items`, else its one dictionary; the QDK refuses an `EstimatorInputParamsItem` with a
@@ -707,7 +710,9 @@ contraction width (`CoherentSampler.contraction_width`).
   methods (`scratch`, `decode`, `decode_to_edges`, `decode_to_matched_pairs`, the four-argument
   `decode_packed`, and `Decoded`) are deprecated, in favour of `decode_with`,
   `decode_to_edges_with`, `decode_to_matched_pairs_with` and `decode_packed_with`, each taking a
-  workspace from `mwpm()`.
+  workspace from `mwpm()`. `UserGraph::from_dem` now keeps each piece's targets as written,
+  repeats included, as PyMatching does, where 2.1 sorted them and cancelled repeats: an edge's
+  endpoints can come in the other order, and a piece naming a target twice gives a self-loop.
 - **Chromobius.** A colour-code model is refused as Chromobius refuses it, with its messages: a
   detector declared without a fourth coordinate that is a whole number from −1 to 5
   (`detector D0` among them), where 2.1 refused one with one to three coordinates or an invalid
@@ -731,7 +736,9 @@ contraction width (`CoherentSampler.contraction_width`).
     that constant height, and for a callable, one saying the height must be a `LinearFunction`.
     Each is followed by a sentence pointing at the engine, which still takes numbers and
     callables at a distance: `compile_block_graph(g, distance, block_temporal_height=...)` and
-    `BlockGraph.compile`. The engine now also takes NumPy integers, which 2.1 refused, as
+    `BlockGraph.compile`. The class `TopologicalComputationGraph(graph, block_temporal_height=...)`
+    refuses a number or a callable the same way, with a TQECError, where 2.1's constructor took
+    both. The engine now also takes NumPy integers, which 2.1 refused, as
     heights and as the distance (see Fixed); a float or bool distance is a TQECError (2.1
     raised a TypeError for a float).
   - `CompiledBlockGraph.generate_stim_circuit` (on `compile_block_graph(g, distance)`) wrote
