@@ -77,7 +77,7 @@ fixes an index overrun in `mod2.solve_linear_system`. Each file says so at its t
 
 ## deltakit
 
-deltakit-circuit, deltakit-core, deltakit-decode and deltakit-explorer: Copyright Riverlane.
+deltakit-circuit, deltakit-core, deltakit-decode and deltakit-explorer: Copyright (c) 2025 Riverlane Ltd and contributors.
 Licensed under the Apache License, Version 2.0 (`LICENSES/Apache-2.0.txt`). Source:
 https://github.com/Deltakit/deltakit
 
@@ -168,7 +168,7 @@ relay_bp's, each file marked as modified.
 
 ## PyMatching
 
-Copyright 2022 Oscar Higgott. Licensed under the Apache License, Version 2.0
+Copyright 2022 PyMatching Contributors. Licensed under the Apache License, Version 2.0
 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/oscarhiggott/PyMatching
 
 The matching graph built by hand (`src/user_graph.rs`), its weight discretisation and the
@@ -186,7 +186,7 @@ C++ command line built from its sdist), which the tests compare against.
 
 ## Tesseract
 
-Copyright 2025 Google LLC. Licensed under the Apache License, Version 2.0
+Copyright 2025-2026 Google LLC. Licensed under the Apache License, Version 2.0
 (`LICENSES/Apache-2.0.txt`). Source: https://github.com/quantumlib/tesseract-decoder
 
 The search decoder (`src/search.rs`) ports Tesseract's A* search (`src/tesseract.cc`,
