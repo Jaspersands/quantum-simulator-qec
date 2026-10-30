@@ -212,6 +212,12 @@ fn bernoulli_xor(p1: f64, p2: f64) -> f64 {
     p1 * (1.0 - p2) + p2 * (1.0 - p1)
 }
 
+/// The number of nodes that holds node `n` (its index plus one), or an error for the largest
+/// index, which no count of nodes reaches.
+pub(crate) fn node_count(n: usize) -> Result<usize, String> {
+    n.checked_add(1).ok_or_else(|| format!("node index {n} is too large: no graph has that many nodes"))
+}
+
 impl UserGraph {
     pub fn new(num_nodes: usize, num_fault_ids: usize) -> UserGraph {
         UserGraph { adjacency: vec![Vec::new(); num_nodes], edges: Vec::new(), boundary: BTreeSet::new(), num_fault_ids, all_have_probabilities: true, implied: Vec::new() }
@@ -346,7 +352,7 @@ impl UserGraph {
     }
 
     pub(crate) fn add_edge_changed(&mut self, node1: usize, node2: usize, fault_ids: &[usize], weight: f64, p: f64, how: Merge) -> Result<bool, String> {
-        self.ensure_nodes(node1.max(node2) + 1);
+        self.ensure_nodes(node_count(node1.max(node2))?);
         match self.find(node1, Some(node2)) {
             Some(e) => self.merge(e, fault_ids, weight, p, how),
             None => {
@@ -368,7 +374,7 @@ impl UserGraph {
     }
 
     pub(crate) fn add_boundary_edge_changed(&mut self, node: usize, fault_ids: &[usize], weight: f64, p: f64, how: Merge) -> Result<bool, String> {
-        self.ensure_nodes(node + 1);
+        self.ensure_nodes(node_count(node)?);
         match self.find(node, None) {
             Some(e) => self.merge(e, fault_ids, weight, p, how),
             None => {
@@ -841,6 +847,17 @@ mod tests {
         assert_eq!(g.edges[0].fault_ids, vec![1]);
         // As PyMatching: only a new edge counts its fault ids, not a merge.
         assert_eq!(g.num_fault_ids(), 3);
+    }
+
+    #[test]
+    fn the_largest_node_index_is_refused_without_growing_the_graph() {
+        let mut g = UserGraph::new(0, 0);
+        assert!(g.add_edge(usize::MAX, 0, &[], 1.0, -1.0, Merge::Disallow).is_err());
+        assert!(g.add_edge(0, usize::MAX, &[], 1.0, -1.0, Merge::Disallow).is_err());
+        assert!(g.add_boundary_edge(usize::MAX, &[], 1.0, -1.0, Merge::Disallow).is_err());
+        assert_eq!((g.num_nodes(), g.num_edges()), (0, 0));
+        assert_eq!(node_count(usize::MAX - 1), Ok(usize::MAX));
+        assert!(node_count(usize::MAX).is_err());
     }
 
     #[test]

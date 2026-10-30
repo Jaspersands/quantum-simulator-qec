@@ -179,3 +179,18 @@ def test_core_batch_checked_products_and_zero_width_capacity():
         g.decode_batch(b"", 2**63, 0, 1)
     assert g.decode_batch(b"", 0, 0, 1) == (b"", b"")
     assert g.decode([]) == (b"", 0)
+
+
+def test_largest_node_index_is_a_value_error_not_an_internal_one():
+    m = sq.Matching()
+    big = 2**64 - 1
+    with pytest.raises(ValueError, match="too large"):
+        m.add_edge(big, 0)
+    with pytest.raises(ValueError, match="too large"):
+        m.add_edge(0, big)
+    with pytest.raises(ValueError, match="too large"):
+        m.add_boundary_edge(big)
+    with pytest.raises(ValueError, match="too large"):
+        m.set_boundary_nodes({big})
+    assert m.num_nodes == 0 and m.num_edges == 0
+

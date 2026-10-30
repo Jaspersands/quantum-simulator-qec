@@ -19,6 +19,8 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- A node index of 2^64 − 1 given to `Matching.add_edge`, `add_boundary_edge` or `set_boundary_nodes`
+  is refused with a `ValueError`, where it was an internal error.
 
 ## 2.2.0 — 2026-10-30
 
