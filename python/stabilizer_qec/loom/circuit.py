@@ -341,7 +341,7 @@ class SyndromeCircuit:
     Loom's default."""
 
     pauli: str
-    name: str = "SyndromeCircuit"
+    name: Optional[str] = None
     circuit: Optional[Circuit] = None
     uuid: str = field(default_factory=lambda: str(uuid4()))
 
@@ -351,11 +351,14 @@ class SyndromeCircuit:
         for p in self.pauli:
             if p not in "XYZ":
                 raise ValueError(f"Invalid pauli: {p}. Must be one of ['X', 'Y', 'Z'].")
-        if not self.name:
-            raise ValueError("A syndrome circuit needs a name.")
-        # Loom keeps circuit names in lower case (its applicators look them up as "xxxx",
-        # "left-xx", ...).
-        self.name = self.name.lower()
+        if self.name is None:
+            self.name = "SyndromeCircuit"
+        else:
+            if not self.name:
+                raise ValueError("A syndrome circuit needs a name.")
+            # Loom keeps the names given to circuits in lower case (its applicators look them up as
+            # "xxxx", "left-xx", ...); its default name is not lowered.
+            self.name = self.name.lower()
         if self.circuit is None:
             self.circuit = default_circuit(self.pauli)
 

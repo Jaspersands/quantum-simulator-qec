@@ -708,3 +708,10 @@ def test_malformed_operations_and_circuits_are_refused_at_construction():
                  lambda: loom.SyndromeCircuit("XQ")):
         with pytest.raises(ValueError):
             make()
+
+
+def test_syndrome_circuit_names_and_paulis_as_loom_does():
+    assert loom.SyndromeCircuit("XXXX").name == "SyndromeCircuit"
+    assert loom.SyndromeCircuit("XXXX", name="MyCircuit").name == "mycircuit"
+    with pytest.raises(ValueError, match=re.escape("Invalid pauli: Q. Must be one of ['X', 'Y', 'Z'].")):
+        loom.SyndromeCircuit("XQ")
