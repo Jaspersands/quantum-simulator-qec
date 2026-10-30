@@ -132,6 +132,18 @@ def mismatches(names, tmp_path, compare):
     return bad
 
 
+HELP_CASES = sorted(n for n, c in CASES.items() if c["args"] and c["returncode"] == 0 and c["args"][0] not in ("predict", "benchmark", "describe_decoder"))
+
+
+def test_help_cases_are_all_recorded_here():
+    assert HELP_CASES == sorted(["help help", "help --help", "help -help", "help -h", "help ignores the rest"])
+
+
+@pytest.mark.parametrize("name", HELP_CASES)
+def test_help_case_matches_the_recorded_output(tmp_path, name):
+    assert mismatches([name], tmp_path, lambda n, got, want: got == want) == []
+
+
 def test_every_command_is_recorded():
     commands = {c["args"][0] if c["args"] else "" for c in CASES.values()}
     assert {"predict", "benchmark", "describe_decoder", "help", ""} <= commands
