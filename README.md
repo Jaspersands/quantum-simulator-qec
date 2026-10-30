@@ -2305,7 +2305,8 @@ Willow. The sizes are illustrations of scale:
 
 `report/report.md` is the source. `python3 tools/report.py` builds `report/report.html`, which
 is served with the site, and `report/report.pdf`, printed from it by headless Chrome. It needs
-Node, pandoc, matplotlib and Chrome.
+Node, pandoc, matplotlib and Chrome. Chrome is the macOS app by default; set `CHROME` to another
+binary (for example `google-chrome` or `chromium` on Linux). `--no-pdf` skips the PDF.
 
 - **Numbers.** None is typed by hand. `{{name}}` is a value computed from a file in `data/`, or from
   the fits `tools/lambda.mjs --json` makes of them. `{{table:name}}` is a whole table built the same
