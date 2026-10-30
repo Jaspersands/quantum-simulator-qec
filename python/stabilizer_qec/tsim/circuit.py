@@ -398,7 +398,8 @@ class Circuit(_Base):
             raise TypeError("from_file() missing 1 required argument: 'filename'")
         if hasattr(source, "read"):
             return cls(source.read())
-        with open_file(source, encoding="utf-8") as f:
+        # Tsim's own open: a missing path is FileNotFoundError and a directory IsADirectoryError, not Stim's ValueError.
+        with open(source, encoding="utf-8") as f:
             return cls(f.read())
 
     def to_file(self, file: Any) -> None:

@@ -21,6 +21,8 @@ policy for its documented items.
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
 - Tsim's `Circuit.to_matrix` takes the exact ZX tensor for a rotation over 2^20 radians, where the engine's
   float angle lost up to 1e-5 in an entry (`R_Z(1000000000000.25)`).
+- `tsim.Circuit.from_file` raises the `OSError` of a missing path or a directory, as Tsim does, and an unknown
+  gate is named as written (`Gate not found: 'hh'`).
 
 ## 2.2.0 — 2026-10-30
 

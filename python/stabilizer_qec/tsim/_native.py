@@ -19,7 +19,7 @@ import math
 import re
 from typing import List, Optional
 
-from stabilizer_qec.tsim.utils.program_text import _product_rotation, _stored_radians
+from stabilizer_qec.tsim.utils.program_text import _TSIM_GATES, _product_rotation, _stored_radians
 
 _LINE = re.compile(r"^(\s*)(S|S_DAG|SPP|SPP_DAG|I)\[([^\]\n]*)\]\s+(.*?)\s*$")
 _GATE = re.compile(r"^(\s*)([A-Za-z][A-Za-z0-9_]*)(?=[\s\[(]|$)")
@@ -42,6 +42,16 @@ def canonical_gate(name: str) -> str:
         return gate_data(name).name
     except IndexError:
         return name
+
+
+def _is_stim_gate(name: str) -> bool:
+    from stabilizer_qec._stim import gate_data
+
+    try:
+        gate_data(name)
+    except IndexError:
+        return False
+    return True
 
 
 def _tsim_parameters(tag: str, instruction: str, number: int) -> Optional[tuple]:
@@ -180,7 +190,11 @@ def tsim_to_native(text: str) -> str:
         body, sep, comment = _split_comment(line)
         gate_match = _GATE.match(body)
         if gate_match:
-            name = canonical_gate(gate_match.group(2))
+            written = gate_match.group(2)
+            name = canonical_gate(written)
+            # An unknown gate is named as written, as Tsim names it (the core would upper-case it).
+            if name == written and written not in _TSIM_GATES and not _is_stim_gate(written):
+                raise ValueError(f"line {number}: Gate not found: {written!r} (an unsupported instruction)")
             body = body[:gate_match.start(2)] + name + body[gate_match.end(2):]
             line = body + (sep + comment if sep else "")
         m = _LINE.match(body)

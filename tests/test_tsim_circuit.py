@@ -102,6 +102,19 @@ def test_stim_to_shorthand_of_native_pairs_and_products():
     assert c.num_qubits == 4
 
 
+def test_from_file_and_unknown_gate_errors_are_tsims(tmp_path):
+    # Tsim's own open: the OSError of the path, not Stim's ValueError.
+    with pytest.raises(FileNotFoundError):
+        tsim.Circuit.from_file(tmp_path / "missing.stim")
+    with pytest.raises(IsADirectoryError):
+        tsim.Circuit.from_file(tmp_path)
+    # A gate name is reported as written, lower case included, and so is one that is not a gate.
+    for text in ("hh 0", "H 0\nxx 0 1"):
+        with pytest.raises(ValueError, match=r"Gate not found: '(hh|xx)'"):
+            tsim.Circuit(text)
+    assert str(tsim.Circuit("h 0\ncnot 0 1")) == "H 0\nCX 0 1"
+
+
 def test_from_file_reads_shorthand(tmp_path):
     path = tmp_path / "c.stim"
     path.write_text("R 0\nT 0\nR_X(0.25) 0\nM 0\n")
