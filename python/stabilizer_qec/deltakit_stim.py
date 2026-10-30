@@ -543,7 +543,7 @@ def _extra_gate(name: str) -> dict:
         "is_noisy_gate": e["is_noisy_gate"],
         "is_reset": e["is_reset"],
         "is_single_qubit_gate": True,
-        "is_symmetric_gate": False,
+        "is_symmetric_gate": True,
         "is_two_qubit_gate": False,
         "is_unitary": False,
         "produces_measurements": e["produces_measurements"],

@@ -57,7 +57,7 @@ def test_generated_circuits_with_leakage_equal():
 
 
 def test_gate_data_equal():
-    fields = ("name", "is_noisy_gate", "is_reset", "is_single_qubit_gate", "is_two_qubit_gate", "is_unitary", "produces_measurements", "num_parens_arguments_range", "takes_measurement_record_targets", "takes_pauli_targets")
+    fields = ("name", "is_noisy_gate", "is_reset", "is_single_qubit_gate", "is_two_qubit_gate", "is_symmetric_gate", "is_unitary", "produces_measurements", "num_parens_arguments_range", "takes_measurement_record_targets", "takes_pauli_targets")
     for name in ("LEAKAGE", "RELAX", "RL", "HERALD_LEAKAGE_EVENT", "CX", "CY", "CZ", "SQRT_XX", "SQRT_XX_DAG", "H", "M", "DEPOLARIZE2"):
         a, b = ours.gate_data(name), dk.gate_data(name)
         assert [getattr(a, f) for f in fields] == [getattr(b, f) for f in fields], name
