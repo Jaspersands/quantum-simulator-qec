@@ -1104,8 +1104,12 @@ def _legacy(argv: List[str]) -> Optional[List[str]]:
             value = argv[k + 1]
             rest = argv[:k] + argv[k + 2 :]
         rest = ["--shots", value or "1"] + rest
+    if name == "--gen" and not value and k + 1 < len(argv) and not argv[k + 1].startswith("-"):
+        value, rest = argv[k + 1], argv[:k] + argv[k + 2 :]  # `--gen CODE`, as `--gen=CODE`
     if command == "help":
         rest = [value] if value else rest[:1]
+    if name == "--gen" and value:  # `--gen=CODE` is `gen --code CODE`
+        rest = ["--code", value] + rest
     return [command] + rest
 
 

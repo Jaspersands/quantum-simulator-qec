@@ -164,6 +164,8 @@ def test_legacy_modes_and_deprecated_flags(files):
     both("--sample", "--in", str(det), "--frame0")
     both("--detect=2", "--in", str(det), "--prepend_observables", "--out_format", "dets")
     both("--detect", "--in", str(det), "--prepend_observables")
+    both("--gen=repetition_code", "--task", "memory", "--distance", "3", "--rounds", "2")
+    both("--gen", "surface_code", "--task", "rotated_memory_z", "--distance", "3", "--rounds", "2")
     both("detect", "--in", str(det), "--out_format", "dets", "--shots", "2")
     for bad in (["--prepend_observables", "--append_observables"], ["--append_observables", "--obs_out", str(files / "o")], ["--out_format", "dets", "--obs_out", str(files / "o")]):
         r = subprocess.run([sys.executable, "-m", "stabilizer_qec", "detect", "--in", str(det), *bad], capture_output=True)
