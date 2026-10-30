@@ -1486,8 +1486,6 @@ fn prior_inner(d: &Dem, kind: &str, inner: Option<&Bound<'_, PyAny>>) -> PyResul
     })
 }
 
-/// The AI pre-decoder: the layout of a model's detectors and faults on a grid, the network, its
-/// optimizer's state, and the model's sampler for training.
 /// PECOS's sparse stabilizer simulator (`stabilizer_qec::pecos_sparse`), which
 /// `stabilizer_qec.pecos`'s `SparseSim` wraps as PECOS's Cython wraps its C++.
 #[pyclass(name = "PecosSparseSim", module = "stabilizer_qec._core")]
@@ -1606,6 +1604,8 @@ impl PyPecosSparseSim {
     }
 }
 
+/// The AI pre-decoder: the layout of a model's detectors and faults on a grid, the network, its
+/// optimizer's state, and the model's sampler for training.
 #[pyclass(name = "PreDecoder", module = "stabilizer_qec._core")]
 pub struct PyPreDecoder {
     layout: crate::predecoder::Layout,
