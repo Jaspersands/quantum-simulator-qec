@@ -308,7 +308,8 @@ radians of exp(−iθP)).</li>
 
 <ul>
 <li>Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
-JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.</li>
+JAX's); deterministic values, models and noiseless probabilities are Tsim's, and so are matrices up to
+a global phase (a Clifford gate's phase is its decomposition's here, not Tsim's).</li>
 <li>An angle appended as an int prints as a float (<code>R_Z(1.0)</code>, Tsim <code>R_Z(1)</code>); a tag on an
 appended <code>T</code>, <code>T_DAG</code>, <code>TPP</code> or <code>TPP_DAG</code> is not kept. The suffix of a tagged input
 such as <code>S[T:x] 0</code> is also dropped (prints <code>T 0</code>, inverse <code>T_DAG 0</code>, where Tsim
@@ -715,7 +716,7 @@ reference run, which <code>use_detector_reference_sample</code> and
     </div>
     <a class="headerlink" href="#Circuit.to_matrix"></a>
     
-            <div class="docstring"><p>Convert circuit to matrix representation, as Tsim's <code><a href="#Circuit.to_matrix">to_matrix</a></code>: the map the
+            <div class="docstring"><p>Convert circuit to matrix representation, as Tsim's <code><a href="#Circuit.to_matrix">to_matrix</a></code> up to a global phase: the map the
 circuit's gates apply to the qubits Tsim's ZX graph has a lane for, those its instructions
 name, noise, identities and coordinates among them (a qubit no instruction names is dropped,
 so <code>R_ZZ(0.5) 0 2</code> is 4 × 4, and so is one that only a product that cancels on it names,
