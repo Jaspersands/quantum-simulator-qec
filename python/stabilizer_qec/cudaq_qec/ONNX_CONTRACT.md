@@ -101,8 +101,10 @@ reading O, so its exact binding errors are not promised for these accepted forms
 
 CSS matrix setters also retain dense array-like coercion with NumPy uint8 conversion (including
 nested lists); upstream's dense caster calls the object's `astype` method. Sparse setters
-validate CSR indices and offsets before calling SciPy normalization, preserve the caller's
-matrix, drop explicit zeros and sum duplicates as before. Negative indices raise RuntimeError,
+validate CSR offsets and dtypes before calling SciPy normalization, preserve the caller's
+matrix, drop explicit zeros and sum duplicates as before. Only the indices of stored nonzero
+entries are range-checked, since normalization drops the explicit zeros, so an explicit zero
+at a negative or out-of-range column is accepted. Negative indices raise RuntimeError,
 out-of-range columns and malformed CSR structure raise ValueError with reference-style
 messages. Validation before normalization intentionally avoids unsafe compiled indexing of
 malformed CSR storage.

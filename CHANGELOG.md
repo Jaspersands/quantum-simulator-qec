@@ -314,6 +314,8 @@ policy for its documented items.
   order changes with `PYTHONHASHSEED`, so the same `np.random.seed` picked different errors in each process.
 - `callbacks.PlotERVPerShot` and `callbacks.PrintERVPerShot` raise `NotImplementedError` when built,
   instead of an `AttributeError` partway through a run: the samplers here compute no ERV values.
+- A `CssCodes` matrix set from a scipy sparse matrix with an explicit zero at a negative or out-of-range
+  column is accepted, as scipy drops that entry. The setter rejected the matrix before normalising it.
 
 ### Not ported
 
