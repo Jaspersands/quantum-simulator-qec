@@ -535,7 +535,9 @@ Copyright (c) 2017 Frommi; MIT, Zlib or Apache-2.0) it uses written out in `src/
 Ophir Lojkine and rust-or; MIT) in `src/mwpf/lp.rs`. `src/mwpf/cli_help.rs` holds the help texts MWPF's command line prints.
 `python/stabilizer_qec/mwpf/` is its Python package and `tests/mwpf_port/` its tests.
 `src/mwpf/visualize/standalone.html` is the visualizer MWPF's macOS wheels embed (its `visualize/`
-built by Vite; each platform's wheels embed their own build), which bundles Vue, three.js, TroisJS and Tweakpane (each under the MIT License).
+built by Vite; each platform's wheels embed their own build), which bundles Vue 3.5.12, three.js
+r169, Tweakpane 4.0.4, Prism, Sizzle 2.3.10 and a lodash-derived `Hash` class, which has no
+banner of its own (each library under the MIT License).
 
 ## HiGHS
 
