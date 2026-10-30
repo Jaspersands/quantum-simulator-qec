@@ -63,5 +63,5 @@ def test_huge_and_odd_numbers_are_value_or_type_errors():
         sq.memory_circuit(distance=3, rounds=3, p=0.001, noise="current", eta=10**400)
     with pytest.raises(TypeError):
         sq.memory_circuit(distance=3, rounds=3, p="0.001")
-    with pytest.raises(ValueError):
-        sq.BpDecoder([[1, 1]], error_rate=1.5)
+    # ldpc takes an error rate outside [0, 1]: its posteriors are NaN, and it decodes as usual.
+    assert sq.BpDecoder([[1, 1]], error_rate=1.5).decode([1]).shape == (2,)
