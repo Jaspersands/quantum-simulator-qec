@@ -19,6 +19,8 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- Tsim's `Circuit.to_matrix` takes the exact ZX tensor for a rotation over 2^20 radians, where the engine's
+  float angle lost up to 1e-5 in an entry (`R_Z(1000000000000.25)`).
 
 ## 2.2.0 — 2026-10-30
 

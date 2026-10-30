@@ -129,6 +129,20 @@ def test_to_matrix_rules():
         assert equal_up_to_phase(c.to_matrix(endian=endian), c.to_tableau().to_unitary_matrix(endian=endian).astype(complex))
 
 
+def test_to_matrix_of_a_large_angle_is_exact():
+    # 1e12 is a multiple of 4, so 1e12 + 0.25 half-turns is the rotation by 0.25: R_Z(a) is diag(e^{-i a pi/2}, e^{i a pi/2}).
+    # The engine's float radians alone lose about 1e-5 here, so these take the exact ZX tensor.
+    rz = np.diag([np.exp(-1j * np.pi / 8), np.exp(1j * np.pi / 8)])
+    assert np.allclose(tsim.Circuit("R_Z(1000000000000.25) 0").to_matrix(), rz, atol=1e-12, rtol=0)
+    for text, reduced in (
+        ("R_Z(1000000000000.25) 0", "R_Z(0.25) 0"),
+        ("R_X(1000000000000.25) 0", "R_X(0.25) 0"),
+        ("R_ZZ(1000000000000.25) 0 1", "R_ZZ(0.25) 0 1"),
+        ("R_PAULI(1000000000000.25) X0*Z1", "R_PAULI(0.25) X0*Z1"),
+    ):
+        assert np.allclose(tsim.Circuit(text).to_matrix(), tsim.Circuit(reduced).to_matrix(), atol=1e-12, rtol=0), text
+
+
 def test_tcount_and_is_clifford():
     assert tsim.Circuit("H 0\nCNOT 0 1").tcount() == 0
     assert tsim.Circuit("H 0\nT 0\nT 1\nT 0").tcount() == 3

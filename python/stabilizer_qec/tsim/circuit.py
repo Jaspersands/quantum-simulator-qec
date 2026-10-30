@@ -90,6 +90,27 @@ _OUTPUT_QUBIT_GATES = frozenset({"MPP", "MXX", "MYY", "MZZ", "MPAD", "HERALDED_E
 # dispatch), as opposed to their refusals of products and sweep bits.
 _UNREAD_BY_TSIMS_BUILDERS = ("Could not parse instruction ", "Unknown gate: ")
 
+# The largest angle, in radians as the native tags write it, that the unitary engine's matrix keeps to
+# about 1e-10: its cos and sin of a larger angle lose the digits a float cannot hold, where the ZX tensor is exact.
+_ENGINE_ANGLE_LIMIT = 2.0**20
+
+
+def _large_angle(tag: Any) -> bool:
+    """Whether a native tag's rotation angle (``theta``, ``phi`` or ``lambda``) is beyond ``_ENGINE_ANGLE_LIMIT``.
+    A tag the core leaves inert keeps its text, and an angle that is not a number is no rotation's."""
+    if not tag:
+        return False
+    t = _NATIVE_TAG.match(tag)
+    args = _native_args(t.group(2)) if t and t.group(2) else None
+    for key in ("theta", "phi", "lambda"):
+        try:
+            if args and key in args and abs(float(args[key])) > _ENGINE_ANGLE_LIMIT:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 # A rotation's tag renamed so that the core's inverse leaves it alone (an unknown tag on I is inert),
 # the inverse's tag written by ``_rotations_inverted`` instead.
 _AS_INVERTED = "~stabilizer_qec_inverted"
@@ -212,7 +233,7 @@ def _lane_scan(circuit: Any) -> tuple:
     whether it has what Tsim's graph builders can refuse where the engine does not, and whether a
     product rotation names a qubit twice.
 
-    It needs the ZX tensor for any measurement or record target, or when a reset follows the first instruction that names a qubit and that
+    It needs the ZX tensor for any measurement or record target, for a rotation whose angle is beyond ``_ENGINE_ANGLE_LIMIT``, or when a reset follows the first instruction that names a qubit and that
     instruction is not a reset (an operation, noise, an identity or coordinates: Tsim's graph gives the
     qubit an input, where the engine counts only an operation as one), when there is a ``DETECTOR``
     or an ``OBSERVABLE_INCLUDE`` (an X spider of Tsim's graph, standing alone when it XORs no
@@ -241,6 +262,8 @@ def _lane_scan(circuit: Any) -> tuple:
             if name in ("DETECTOR", "OBSERVABLE_INCLUDE"):
                 found[0] = True
                 continue
+            if _large_angle(tag):
+                found[0] = True
             named = None  # the instruction's lanes, when they are not the qubits it targets
             if name in _PRODUCT_GATES:
                 found[1] = True
@@ -670,7 +693,8 @@ class Circuit(_Base):
         ``TICK`` are nothing. At most 2^22 entries (a unitary of 11 qubits).
 
         A circuit with a measurement, a detector or observable, a reset after a qubit's first
-        operation, feedback or a product rotation naming a qubit twice (``TPP X0*Y0*X0``) is Tsim's
+        operation, feedback, a rotation whose angle is over 2^20 radians (``R_Z(1000000000000.25)``, which the
+        engine's float cannot hold to 1e-10) or a product rotation naming a qubit twice (``TPP X0*Y0*X0``) is Tsim's
         ZX tensor of it (``tsim.zx.tensorfy``), contracted in
         numpy with every measurement outcome and error bit read as 0: a measurement is the
         identity on its qubit times 1/sqrt(2) (``H 0`` then ``M 0`` is [[.5, .5], [.5, -.5]]), a
