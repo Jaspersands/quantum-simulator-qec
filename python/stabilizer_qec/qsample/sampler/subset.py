@@ -43,7 +43,7 @@ class SubsetSampler:
         ----------
         protocol : Protocol
             The protocol to sample from
-        simulator : ChpSimulator or StatevectorSimulator
+        simulator : StabilizerSimulator or StatevectorSimulator
             The simulator used in sampling process
         p_max : dict
             Physical error rates per faulty partition group at which we sample

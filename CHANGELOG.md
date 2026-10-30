@@ -30,6 +30,14 @@ policy for its documented items.
   `getattr` with a default; using the gate still raises `NotImplementedError`.
 - A seeded `qsample` run repeats in another process: the error models drew from a set of strings, whose
   order changes with `PYTHONHASHSEED`, so the same `np.random.seed` picked different errors in each process.
+- `callbacks.PlotERVPerShot` and `callbacks.PrintERVPerShot` raise `NotImplementedError` when built,
+  instead of an `AttributeError` partway through a run: the samplers here compute no ERV values.
+
+### Not ported
+
+- qsample's non-Clifford gates and expectation values on `StatevectorSimulator` (it runs the Clifford
+  gates only), `SubsetSamplerERV`, `ChpSimulator`, and the `qsample.sim.*` modules: the one module
+  here is `stabilizer_qec.qsample.sim`.
 
 ## 2.2.0 — 2026-10-30
 

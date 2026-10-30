@@ -67,7 +67,10 @@ cnot = sq.surgery.cnot(5, merged=5, p=0.002)                             # a Cir
   against both and needing only numpy. Subset sampling gives a circuit's logical error rate at
   every noise scale, with its error and bounds, from one run
   (`analysis.subset_sampling.SubsetSampler`), and `stabilizer_qec.qsample` is qsample's
-  protocol-level dynamical subset sampling.
+  protocol-level dynamical subset sampling. Not ported from qsample: its non-Clifford gates and
+  expectation values (`StatevectorSimulator` runs the Clifford gates only), `SubsetSamplerERV`,
+  `ChpSimulator`, and its `qsample.sim.*` modules (the one module is `stabilizer_qec.qsample.sim`);
+  `PlotERVPerShot` and `PrintERVPerShot` raise `NotImplementedError`.
 - **Tutorials.** Nine notebooks in [`tutorials/`](tutorials/): [getting started](tutorials/01_getting_started.ipynb)
   (a circuit to a threshold plot), [decoders and real-time decoding](tutorials/02_decoders.ipynb),
   [codes beyond the surface code](tutorials/03_beyond_the_surface_code.ipynb),

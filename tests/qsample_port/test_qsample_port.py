@@ -184,6 +184,14 @@ def test_subset_sampler_takes_a_group_of_over_1029_fault_locations(ncnot):
 
 # Plots and rates
 
+def test_erv_callbacks_are_named_but_cannot_be_built():
+    # the samplers here compute no ERV values, so the two ERV callbacks have nothing to show
+    for callback in (qs.callbacks.PlotERVPerShot, qs.callbacks.PrintERVPerShot):
+        with pytest.raises(NotImplementedError):
+            callback()
+    assert not hasattr(qs, "SubsetSamplerERV") and not hasattr(qs, "ChpSimulator")
+
+
 def test_plot_stats_draws_with_one_and_with_two_error_groups():
     pytest.importorskip("matplotlib")
     import matplotlib
