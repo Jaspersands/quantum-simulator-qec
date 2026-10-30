@@ -1459,7 +1459,8 @@ from a schedule they optimise; each system here measures one operator.
   operators and both systems, reading out after memory cycles or right at the split.
 - A check whose whole support is read in its own basis closes its comparison with that reading:
   the flux checks at the split. A first version left them open, one detector per flux check
-  short; the Z-basis measurements were retaken on the corrected circuits.
+  short; the Z-basis measurements were to be retaken on the corrected circuits (the measured table
+  below is stamped with an engine commit that predates the fix).
 - The error model equals Stim's fault for fault.
 - The cycle writer's plain memory equals `bb_memory_circuit`'s error model, mechanism for
   mechanism.
@@ -1476,6 +1477,9 @@ from a schedule they optimise; each system here measures one operator.
 memory cycles, the data read. In the X basis the observables are the outcome and the 12 X
 logicals; in Z, the 11 Z logicals the measurement keeps, each carried through the edges. Circuit
 noise p = 0.3%, Bravyi et al.'s model, decoded by BP+OSD-CS of order 7 on the whole error model.
+The points were recorded at engine commit `1ba041f` (the stamp in `data/gross/logical.json`), which
+predates the flux-check fix (`5a7c17e`) and the OSD fix (`bd2ee4a`). They are not re-recorded here,
+and re-recording is pending for the next release.
 Beside each point, the memory of the same length:
 
 | operator | system | basis | T | shots | anything wrong | outcome wrong | memory, same length |
