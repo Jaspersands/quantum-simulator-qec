@@ -103,8 +103,8 @@ shape it.
 
 *Reference tools as oracles.* Every stage has a test that compares it with its reference tool,
 not just a test of its own outputs. Error models must equal Stim's fault for fault, decomposed
-and not. On 15 circuits the largest relative probability difference is $1.1\times10^{-15}$.
-They are also checked on random circuits that use all 49 of Stim's one- and two-qubit gates.
+and not. On 15 circuits the largest relative probability difference is $1.0\times10^{-15}$.
+They are also checked on random circuits that use all 46 of Stim's one- and two-qubit unitary gates.
 The engine's own matcher must tie PyMatching's: there were 13 disagreements in 600,000 shots,
 and every one was a tie between equal-weight corrections. The ports must give their sources'
 answers: the PyMatching port's edges, predictions and weights equal PyMatching 2.4.0's on
