@@ -174,6 +174,7 @@ def test_stats_reset():
     lsd = BpLsdDecoder(
         H, max_iter=1, error_rate=0.1, bp_method="min_sum", ms_scaling_factor=1.0
     )
+    assert lsd.statistics["lsd_method"] == 0  # ldpc's fresh decoder: no method until a decode
     lsd.set_do_stats(True)
     syndrome = np.array([1, 1, 0, 1])
     lsd.decode(syndrome)
