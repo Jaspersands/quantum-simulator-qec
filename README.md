@@ -606,7 +606,7 @@ loaders through them), the `stabilizer-qec` commands (`predict` and `count_mista
 them), and Tesseract's and Chromobius's programs; they are not preserved byte for byte, and
 `animate` passes over them in comments and tags, as Stim does. Chromobius's sinter decoder
 still refuses such a file in `decode_via_files` (a `UnicodeDecodeError`), where Stim's parser,
-and so Chromobius's, reads it. CLI abort text is pinned libc++abi wording on every host. Decimal precision follows the local
+and so Chromobius's, reads it. Chromobius's CLI abort text is pinned libc++abi wording on every host; Tesseract's is libc++'s on macOS and libstdc++'s elsewhere. Decimal precision follows the local
 architecture policy (16 digits macOS arm64/Windows, 19 non-Windows x86-64, 34 other ARM64);
 exact recorded text is checked only on macOS arm64. API lifting failures use the port's
 shot-indexed message and allow later valid calls, without copying native damaged state.
