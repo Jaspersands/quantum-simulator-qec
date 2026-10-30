@@ -28,6 +28,7 @@ policy for its documented items.
 - A decoder YAML that starts with a UTF-8 byte order mark, as some Windows editors save it, now reads; before, its first key failed with "missing required key 'id'".
 - A `trt_decoder` whose model has a dynamic dimension in an output's place past the first (the batch not leading the output) now fails to build with "Failed to build TensorRT engine"; before, it built with a negative output size and every decode failed.
 - `copy.copy` of a `sliding_window` decoder mid-stream gives a copy with its own round buffers; before, the copy and the original shared them, and the original's later corrections could be wrong.
+- Chromobius's `decode_via_files` raises `ValueError` ("Failed to open '...' for writing.") for an output it cannot write, and `TypeError` for a negative `num_shots` or `num_obs`, as Chromobius does; before, a missing directory raised `FileNotFoundError`, a negative `num_obs` wrote an empty file, and a negative `num_shots` raised numpy's `ValueError`.
 
 ## 2.2.0 — 2026-10-30
 
