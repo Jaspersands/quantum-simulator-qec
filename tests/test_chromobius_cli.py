@@ -339,6 +339,18 @@ def test_unmatchable_shot_message(tmp_path):
         facade.predict_obs_flips_from_dets_bit_packed(packed[2])
 
 
+def test_subnormal_fault_probability_is_not_refused_and_its_zero_event_weight_differs():
+    """A fault of probability 1e-320 (below the normal float range) is not refused. In small.dem
+    with that fault appended, every shot with detection events has a NaN weight, as Chromobius's
+    does, and the predictions agree; Chromobius gives the zero-event shot NaN too, where this port
+    gives 0.0 (the package docstring lists it)."""
+    dem = sq.DetectorErrorModel(FILES["small.dem"].decode().rstrip("\n") + "\nerror(1e-320) D0 D1\n")
+    rows = np.array([[0], [1], [2], [3]], dtype=np.uint8)
+    obs, weights = chromobius.compile_decoder_for_dem(dem).predict_weighted_obs_flips_from_dets_bit_packed(rows)
+    assert obs.tolist() == [[0], [1], [0], [1]]
+    assert weights[0] == 0.0 and np.isnan(weights[1:]).all()
+
+
 def test_integers_read_as_stims_uint64(tmp_path):
     """Hit and DETS indices are read as Stim's ``read_uint64`` reads them, in uint64_t
     arithmetic: a value that wraps past 2^64 without dropping below the step before it is read

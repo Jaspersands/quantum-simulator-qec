@@ -18,6 +18,10 @@ Where it differs from Chromobius:
 
 - A model with a fault of probability 1 is refused (Chromobius's weights are then NaN);
   probabilities above 1/2 are negative-weight edges, as in Chromobius.
+- A model whose matching weights are NaN (a fault of probability below the normal float range
+  can make them so: small.dem with ``error(1e-320) D0 D1`` appended has NaN weights on every
+  shot with detection events) gives its zero-event shot the weight 0.0, where Chromobius gives
+  NaN. The predictions agree.
 - A model declaring an observable past L63 that no error names (``logical_observable L64``) is
   refused with this package's 64-observable message, where Chromobius compiles it (its
   predictions past L63 are undefined). An error naming one is refused with Chromobius's
