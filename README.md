@@ -1484,7 +1484,7 @@ Beside each point, the memory of the same length:
   0.5% per merged cycle, against 0.008% per memory cycle. BP settles 78% of shots at twelve merged
   cycles, against 95% for the memory of the same 24 cycles.
 - **Fault distance, bounded above only.** An integer-programming search of each error model
-  (`tools/gross_ops.py fault`, two minutes per observable) finds undetectable logical faults of 10
+  (`tools/gross_ops.py fault --cap 120`, two minutes per observable) finds undetectable logical faults of 10
   faults in the merged circuits and 12 in the memory. So the fault distance is at most that; the
   search proves no lower bound, and it did not reach the memory's own bound of 10 that Bravyi et al.
   report. Before the flux checks closed their comparisons at the split, the same search found one
