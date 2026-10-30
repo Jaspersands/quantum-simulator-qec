@@ -55,6 +55,9 @@ differs:
   Chromobius's own result there is undefined (it reads its detectors' colours past the end of
   their table): another build or run can name another node or decode the record. This port
   refuses it the same way every time.
+- A closed output pipe (``predict ... | head -c 4``) ends the command with this package's
+  diagnostic, ``chromobius: [Errno 32] Broken pipe``, and exit status 1. Python ignores SIGPIPE,
+  so the command is not killed by the signal as a C++ program that keeps the default would be.
 """
 
 from __future__ import annotations

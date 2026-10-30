@@ -16,8 +16,10 @@ asked to reset them or the decoder is reset. A ``sliding_window`` decoder instea
 detector layer per round, its result coming with the last.
 
 Status codes and messages are CUDA-Q's. CUDA-Q warns through its logger; here a warning is a
-``RuntimeWarning``. The ``dispatch`` and ``transport`` settings are a decoding server's and do
-not change how these host decoders run (as in CUDA-Q's host library)."""
+``RuntimeWarning``, so Python's warning filters decide what shows: a repeated identical warning
+from one call site is shown once, as Python shows warnings, and CUDA-Q's line per occurrence on
+stderr is not reproduced. The ``dispatch`` and ``transport`` settings are a decoding server's and
+do not change how these host decoders run (as in CUDA-Q's host library)."""
 
 from __future__ import annotations
 

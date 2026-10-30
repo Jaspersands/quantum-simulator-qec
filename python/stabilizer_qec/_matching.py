@@ -420,6 +420,9 @@ class Matching:
         self._corr = None
 
     def ensure_num_fault_ids(self, min_num_fault_ids: int) -> None:
+        """Reserve room for at least this many fault ids. A decode whose output cannot be
+        allocated, as with a count near 2**63, raises MemoryError; PyMatching's from_networkx
+        given the same min_num_fault_ids builds, and its decode raises ValueError."""
         self._g.ensure_num_fault_ids(int(min_num_fault_ids))
 
     @property

@@ -1540,7 +1540,12 @@ class DetectorErrorModel:
 
     def rounded(self, digits: int) -> "DetectorErrorModel":
         """The same model with error probabilities rounded to ``digits`` decimal places."""
-        scale = 10 ** int(digits)
+        n = int(digits)
+        if n < 0:
+            raise TypeError(f"rounded() takes a non-negative number of digits, not {n}")
+        if n > 308:
+            raise ValueError(f"rounded() takes at most 308 digits, not {n}: a larger scale is not a float")
+        scale = 10 ** n
 
         def walk(items: list) -> list:
             out = []

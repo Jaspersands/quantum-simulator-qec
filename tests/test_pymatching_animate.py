@@ -35,6 +35,7 @@ import pytest
 
 from stabilizer_qec import DetectorErrorModel, pymatching
 from stabilizer_qec._cli import main as package_main
+from tesseract_platform_helpers import assert_dem_text
 
 FIXTURES = pathlib.Path(__file__).parent / "pymatching_port" / "animate"
 CASES = sorted(p.name[: -len(".json.gz")] for p in FIXTURES.glob("*.json.gz"))
@@ -252,7 +253,7 @@ def test_the_graph_is_the_files_text():
     assert "0.44442025079306513" not in rounded
     assert [round(math.log((1 - p) / p) * 999 / math.log(9)) for p in (0.44442025079306513, float("%.16g" % 0.44442025079306513))] == [101, 102]
     if sys.platform == "darwin":
-        assert rounded.rstrip("\n") == str(DetectorErrorModel(text))
+        assert_dem_text(rounded.rstrip("\n"), str(DetectorErrorModel(text)))
 
 
 def test_fixtures_agree_with_pymatchings_program():

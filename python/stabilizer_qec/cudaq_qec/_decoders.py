@@ -552,6 +552,16 @@ class _SlidingWindow(_NativeDecoder):
         self._mods: List[np.ndarray] = []
         self._results: List[List[Any]] = []
 
+    def __copy__(self) -> "_SlidingWindow":
+        """A copy that can carry on the same stream: the window decoding changes its round buffers
+        in place, so the copy gets its own."""
+        out = object.__new__(type(self))
+        out.__dict__.update(self.__dict__)
+        out._rounds = list(self._rounds)
+        out._mods = [m.copy() for m in self._mods]
+        out._results = [[ok, hard.copy()] for ok, hard in self._results]
+        return out
+
     def reset_decoder(self) -> None:
         self._reset()
 

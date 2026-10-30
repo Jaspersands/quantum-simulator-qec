@@ -31,6 +31,28 @@ def test_saved_ignored_detector_ties_keep_equal_weights_and_stable_predictions()
         assert r["port_prediction"] != r["reference_prediction"]
 
 
+def test_decode_via_files_refuses_an_unwritable_output_and_negative_counts(tmp_path):
+    # As Chromobius refuses them: an output it cannot write is a ValueError naming the path, and a
+    # negative count is a TypeError, raised before anything is written.
+    dem = sq.DetectorErrorModel(DATA["ignored_dem"])
+    dem_path = tmp_path / "m.dem"
+    dem_path.write_text(DATA["ignored_dem"], encoding="utf-8")
+    dets = tmp_path / "d.b8"
+    dets.write_bytes(bytes((dem.num_detectors + 7) // 8))
+    base = dict(num_shots=1, num_dets=dem.num_detectors, num_obs=dem.num_observables, dem_path=dem_path,
+                dets_b8_in_path=dets, tmp_dir=tmp_path)
+    decoder = chromobius.sinter_decoders()["chromobius"]
+    missing = tmp_path / "no_such_dir" / "o.b8"
+    with pytest.raises(ValueError) as e:
+        decoder.decode_via_files(obs_predictions_b8_out_path=missing, **base)
+    assert str(e.value) == f"Failed to open '{missing}' for writing."
+    out = tmp_path / "o.b8"
+    for count in ({"num_shots": -1}, {"num_obs": -1}):
+        with pytest.raises(TypeError, match="non-negative"):
+            decoder.decode_via_files(obs_predictions_b8_out_path=out, **{**base, **count})
+    assert not out.exists()
+
+
 def test_lifting_failure_does_not_corrupt_subsequent_shots():
     dem = sq.DetectorErrorModel(DATA["recovery_dem"])
     kept = chromobius.compile_decoder_for_dem(dem)

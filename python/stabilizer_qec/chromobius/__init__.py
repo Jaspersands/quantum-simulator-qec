@@ -184,6 +184,9 @@ class _ChromobiusSinterDecoder:
         another (sinter's file protocol)."""
         from .._circuit import DetectorErrorModel
 
+        if int(num_shots) < 0 or int(num_obs) < 0:
+            # (Chromobius's binding takes these as unsigned counts, and refuses a negative one as a TypeError.)
+            raise TypeError("decode_via_files(): num_shots and num_obs must be non-negative")
         # The model is read as UTF-8 text, whatever the locale (so a byte that is not UTF-8 is a
         # UnicodeDecodeError on every platform, as the README says, not text in Windows' code page).
         decoder = CompiledDecoder.from_dem(DetectorErrorModel(_pathlib.Path(str(dem_path)).read_text(encoding="utf-8")))
@@ -214,7 +217,10 @@ class _ChromobiusSinterDecoder:
             preds = decoder.predict_obs_flips_from_dets_bit_packed(rows)
             k = min(nob, preds.shape[1])
             out[:, :k] = preds[:, :k]
-        _pathlib.Path(str(obs_predictions_b8_out_path)).write_bytes(out.tobytes())
+        try:
+            _pathlib.Path(str(obs_predictions_b8_out_path)).write_bytes(out.tobytes())
+        except OSError:
+            raise ValueError(f"Failed to open '{obs_predictions_b8_out_path}' for writing.") from None
 
 
 def sinter_decoders() -> dict:

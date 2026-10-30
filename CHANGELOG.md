@@ -65,6 +65,16 @@ policy for its documented items.
   temporary file, as MWPF does, where it kept all of it in memory.
 - The visualizer's JSON writes a float from 1e-5 up to 1e-4 as a plain decimal, as serde_json does,
   where it wrote an exponent.
+- `DetectorErrorModel.rounded` refuses a negative digit count with `TypeError`, as Stim does, and a count
+  above 308 with `ValueError`; a negative count used to zero every probability silently, and a huge one
+  ran for an unbounded time before failing.
+- `cudaq_qec.css_matrices_from_code` takes the code as `code=` and `cudaq_qec.configure_decoders` takes a
+  `multi_decoder_config` as `config=`, the keyword names CUDA-Q gives them; the names this package had,
+  `qec_code=` and `decoders=`, keep working.
+- A decoder YAML that starts with a UTF-8 byte order mark, as some Windows editors save it, now reads; before, its first key failed with "missing required key 'id'".
+- A `trt_decoder` whose model has a dynamic dimension in an output's place past the first (the batch not leading the output) now fails to build with "Failed to build TensorRT engine"; before, it built with a negative output size and every decode failed.
+- `copy.copy` of a `sliding_window` decoder mid-stream gives a copy with its own round buffers; before, the copy and the original shared them, and the original's later corrections could be wrong.
+- Chromobius's `decode_via_files` raises `ValueError` ("Failed to open '...' for writing.") for an output it cannot write, and `TypeError` for a negative `num_shots` or `num_obs`, as Chromobius does; before, a missing directory raised `FileNotFoundError`, a negative `num_obs` wrote an empty file, and a negative `num_shots` raised numpy's `ValueError`.
 
 ## 2.2.0 — 2026-10-30
 

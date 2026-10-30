@@ -97,6 +97,23 @@ def test_chunk_form_parses_with_no_flat_matrices():
     assert len(config.H_sparse) == 0
 
 
+def test_a_leading_byte_order_mark_is_not_content():
+    # A document a Windows editor saved with a UTF-8 byte order mark reads as the same configuration.
+    plain = chunk_form_yaml(5).lstrip("\n")
+    with_bom = qec.decoder_config.from_yaml_str("\ufeff" + plain)
+    assert with_bom.to_yaml_str() == qec.decoder_config.from_yaml_str(plain).to_yaml_str()
+    flat = "id: 0\ntype: single_error_lut\nblock_size: 2\nsyndrome_size: 2\nH_sparse: [0, -1, 1, -1]\nO_sparse: [0, -1]\nD_sparse: [0, -1, 1, -1]\n"
+    assert qec.decoder_config.from_yaml_str("\ufeff\n" + flat).type == "single_error_lut"
+
+
+def test_phases_must_agree_on_the_observable_count_at_close():
+    # The first phase reads two observables and the bulk one, so the chunks cannot close.
+    text = chunk_form_yaml(5).replace("O_sparse: [ 0, -1 ]", "O_sparse: [ 0, -1, 1, -1 ]", 1)
+    config = qec.decoder_config.from_yaml_str(text)
+    with pytest.raises(RuntimeError, match=re.escape("Cannot close dem_chunks for decoder 0: dem_close_all: observable count mismatch at chunk 1")):
+        qec.expand_dem_chunks(config)
+
+
 def test_expand_dem_chunks_fills_the_flat_fields():
     config = qec.decoder_config.from_yaml_str(chunk_form_yaml(5))
     closed = qec.qecrt.config.expand_dem_chunks(config)
@@ -947,6 +964,44 @@ dem_chunks:
     closed = qec.expand_dem_chunks(config)
     assert closed.detector_error_matrix.shape == (4, 6)
     assert config.syndrome_size == 4 and config.block_size == 6
+
+
+def test_a_seam_spec_keeps_its_observables_through_text():
+    # A seam entry's O_sparse is read and written with the rest of the seam, and survives a round trip.
+    yaml = """
+id: 0
+type: single_error_lut
+dem_chunks:
+  seam: {from: next_round, to: prev_round}
+  connections: [{from: init, to: final}]
+  phases:
+    - name: init
+      spec:
+        num_faults: 3
+        seam_specs:
+          - name: prev_round
+            spec:
+              H_sparse: [0, 1, -1, 1, 2, -1]
+              O_sparse: [0, -1]
+          - name: next_round
+            spec:
+              H_sparse: [0, 1, -1, 1, 2, -1]
+        O_sparse: [0, -1]
+        error_rates: [0.1, 0.1, 0.1]
+    - name: final
+      spec:
+        num_faults: 3
+        H_sparse: [0, 1, -1, 1, 2, -1]
+        O_sparse: [0, -1]
+        error_rates: [0.1, 0.1, 0.1]
+"""
+    config = qec.decoder_config.from_yaml_str(yaml)
+    seams = config.dem_chunks.phases[0].spec.seam_specs
+    assert seams[0].spec.O_sparse == [0, -1] and seams[1].spec.O_sparse == []
+    text = config.to_yaml_str()
+    back = qec.decoder_config.from_yaml_str(text)
+    assert back.dem_chunks.phases[0].spec.seam_specs[0].spec.O_sparse == [0, -1]
+    assert back.to_yaml_str() == text
 
 
 def test_equality_and_copies_include_dem_chunks():

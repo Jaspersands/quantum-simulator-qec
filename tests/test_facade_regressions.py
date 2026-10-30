@@ -186,6 +186,17 @@ def test_model_tags_may_hold_a_hash():
     assert _dem.parse_items("# only\n\nerror(0.1) D0 L0 # c\n")[0].targets_copy() == [sq.DemTarget("D0"), sq.DemTarget("L0")]
 
 
+def test_rounded_refuses_a_negative_or_huge_digit_count():
+    # A negative count rounds to tens and zeroes every probability, so it is refused as Stim refuses it.
+    # Above 308 the scale 10**digits is not a float, and building that integer takes unbounded time for large counts.
+    d = sq.DetectorErrorModel("error(0.123) D0")
+    with pytest.raises(TypeError, match="non-negative"):
+        d.rounded(-1)
+    with pytest.raises(ValueError, match="at most 308"):
+        d.rounded(10**9)
+    assert str(d.rounded(308)) == "error(0.123) D0"
+
+
 def _counting(monkeypatch, module, name):
     calls = [0]
     real = getattr(module, name)

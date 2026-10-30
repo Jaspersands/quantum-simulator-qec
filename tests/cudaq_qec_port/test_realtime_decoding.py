@@ -3,6 +3,7 @@
 # test_realtime_decoding_negative.py and test_decoding_config.py's configure tests; Apache License
 # 2.0), re-typed and adapted: the kernel-side calls (enqueue_syndromes, get_corrections,
 # reset_decoder) run on the host here, fed measurements this package samples.
+import copy
 import warnings
 
 import numpy as np
@@ -89,6 +90,23 @@ def test_configure_status_codes():
         assert qec.configure_decoders(multi(b, a)) == 3
     b.id = 1
     assert qec.configure_decoders(multi(a, b)) == 0
+
+
+def test_cuda_q_keyword_names_are_accepted():
+    # CUDA-Q names these arguments code and config; this package's names keep working beside them.
+    code = qec.get_code("repetition", distance=3)
+    by_position, by_keyword = qec.css_matrices_from_code(code), qec.css_matrices_from_code(code=code)
+    assert np.array_equal(by_position.hz, by_keyword.hz) and np.array_equal(by_position.lz, by_keyword.lz)
+    assert np.array_equal(qec.css_matrices_from_code(qec_code=code).hx, by_keyword.hx)
+    with pytest.raises(TypeError):
+        qec.css_matrices_from_code(code, code=code)
+    a = tiny_lut()
+    assert qec.configure_decoders(config=multi(a)) == 0
+    assert qec.configure_decoders(multi(a)) == 0
+    with pytest.raises(TypeError):
+        qec.configure_decoders(multi(a), config=multi(a))
+    with pytest.raises(TypeError):
+        qec.configure_decoders()
 
 
 def test_configure_invalid_decoders_returns_4():
@@ -246,6 +264,36 @@ def test_sliding_window_decodes_a_layer_a_round():
     for m in circuit.compile_sampler(seed=3).sample(100).astype(np.uint8):
         stream(m, rounds)
         assert qec.get_corrections(0, 1, True) == [offline_prediction(offline, m2d, O, m)]
+
+
+def test_a_copy_mid_stream_leaves_the_original_its_rounds():
+    # A copy taken after two rounds, finished, leaves the original to finish on the same rounds as a fresh decoder.
+    rounds = 5
+    ctx, circuit = repetition(rounds)
+    dem, m2d, _ = ctx.full_component()
+    H = np.asarray(dem.detector_error_matrix)
+    args = {"window_size": 2, "step_size": 1, "num_syndromes_per_round": 2, "error_rate_vec": list(dem.error_rates), "inner_decoder_name": "multi_error_lut", "inner_decoder_params": {"lut_error_depth": 2}}
+
+    def fresh():
+        return qec.get_decoder("sliding_window", H, **args)
+
+    shots = circuit.compile_sampler(seed=3).sample(40).astype(np.uint8)
+    dets = np.array([[np.bitwise_xor.reduce(m[row]) for row in m2d] for m in shots], dtype=np.float64)
+    layers = fresh().get_num_detector_layers()
+    offsets = [fresh().get_layer_offset(r) for r in range(layers + 1)]
+
+    def feed(decoder, lo, hi):
+        out = None
+        for r in range(lo, hi):
+            out = decoder.decode_batch([d[offsets[r] : offsets[r + 1]] for d in dets])
+        return out
+
+    want = [r.result for r in feed(fresh(), 0, layers)]
+    original = fresh()
+    feed(original, 0, 2)
+    feed(copy.copy(original), 2, layers)
+    got = [r.result for r in feed(original, 2, layers)]
+    assert np.array_equal(np.array(got), np.array(want))
 
 
 def test_stim_dem_path(tmp_path):

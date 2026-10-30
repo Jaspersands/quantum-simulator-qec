@@ -674,6 +674,22 @@ def test_dynamic_dimensions_beyond_the_batch(tmp_path):
     assert str(e.value) == PREFIX + "Failed to build TensorRT engine"
 
 
+def test_a_dynamic_output_dimension_past_the_first_fails_the_build(tmp_path):
+    # The output [8, batch] has its batch in dimension 1, so the engine's output would be -8 elements.
+    W = np.arange(32, dtype=np.float32).reshape(8, 4) / 10
+    data = onnx_model(
+        [node("Reshape", ["x", "shape"], ["r"]), node("MatMul", ["W", "r"], ["y"])],
+        [value_info("x", FLOAT, ["batch", 4])],
+        [value_info("y", FLOAT, [8, "batch"])],
+        inits=[tensor("W", W, FLOAT), tensor("shape", np.array([4, -1], dtype=np.int64), INT64)],
+    )
+    path = write(tmp_path, "batch_last.onnx", data)
+    for batch_size in (1, 2):
+        with pytest.raises(RuntimeError) as e:
+            qec.get_decoder("trt_decoder", np.eye(4, dtype=np.uint8), onnx_load_path=path, batch_size=batch_size)
+        assert str(e.value) == PREFIX + "Failed to build TensorRT engine"
+
+
 def identity_of(tmp_path, dims, name="big.onnx"):
     data = onnx_model([node("Identity", ["x"], ["y"])], [value_info("x", FLOAT, dims)], [value_info("y", FLOAT, dims)])
     return write(tmp_path, name, data)
@@ -1236,10 +1252,6 @@ def test_realtime_predecoder_preserves_observable_output(tmp_path, global_matchi
     params = dict(onnx_load_path=path, batch_size=1, use_cuda_graph=False)
     if global_matching:
         params.update(global_decoder="pymatching", global_decoder_params={})
-    direct_params = dict(params)
-    if global_matching:
-        direct_params["global_decoder_params"] = {"O": O}
-    direct = qec.get_decoder("trt_decoder", H, O=O, **direct_params)
     dc = qec.decoder_config()
     dc.id, dc.type, dc.block_size, dc.syndrome_size = 0, "trt_decoder", 4, 3
     dc.H_sparse = [0, 1, -1, 1, 2, -1, 2, 3, -1]
@@ -1250,10 +1262,15 @@ def test_realtime_predecoder_preserves_observable_output(tmp_path, global_matchi
     config.decoders = [dc]
     try:
         assert qec.configure_decoders(config) == 0
-        for syndrome in ([1, 0, 0], [0, 0, 1], [1, 1, 1], [0, 0, 0]):
+        # By hand: y = x @ W is [x0, x0, x1, x2], so pre_L is x0 and the residual detectors are x. Without
+        # the global matching the answer is pre_L. With it, the answer also flips when the residual's minimum
+        # matching uses column 3 (the one O reads): [0, 0, 1] matches detector 2 to the boundary through it,
+        # while [1, 0, 0] (detector 0 to the boundary) and [1, 1, 0] (detectors 0 and 1 through column 1) do not.
+        # [1, 1, 1] is left out: two matchings of two edges flip it differently.
+        expected = [[1], [1], [1], [0]] if global_matching else [[1], [0], [1], [0]]
+        for syndrome, want in zip(([1, 0, 0], [0, 0, 1], [1, 1, 0], [0, 0, 0]), expected):
             qec.enqueue_syndromes(0, syndrome)
-            got = list(qec.get_corrections(0, 1, True))
-            assert got == (direct.decode(syndrome).result > 0.5).tolist()
+            assert list(qec.get_corrections(0, 1, True)) == want
     finally:
         qec.finalize_decoders()
 

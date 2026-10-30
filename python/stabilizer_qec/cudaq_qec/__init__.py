@@ -159,14 +159,21 @@ def _drop_queues(ids) -> None:
 _realtime._on_configure = _drop_queues
 
 
-def configure_decoders(decoders, *, workers: int = 1):
+def configure_decoders(decoders=None, *, config=None, workers: int = 1):
     """Configure real-time decoders. From a ``multi_decoder_config``, as CUDA-Q: the decoders it
     describes replace those configured before, and the status (0 when all were built) is
-    returned. Or this package's queue form: ``decoders`` a dict ``{id: decoder}`` or a list
-    (numbered from 0) of any decoders with ``decode_batch`` or ``decode`` (this package's, or a
-    ``Decoder``), each put behind a queue of ``workers`` threads; returns their ids."""
-    if isinstance(decoders, multi_decoder_config):
-        return _realtime.configure_decoders(decoders)
+    returned. It is given as ``config`` (CUDA-Q's keyword) or as ``decoders``. Or this package's
+    queue form: ``decoders`` a dict ``{id: decoder}`` or a list (numbered from 0) of any decoders
+    with ``decode_batch`` or ``decode`` (this package's, or a ``Decoder``), each put behind a
+    queue of ``workers`` threads; returns their ids."""
+    if config is None and isinstance(decoders, multi_decoder_config):
+        config, decoders = decoders, None
+    if config is not None:
+        if decoders is not None:
+            raise TypeError("configure_decoders(): give decoders or config, not both")
+        return _realtime.configure_decoders(config)
+    if decoders is None:
+        raise TypeError("configure_decoders() missing decoders or config")
     items = decoders.items() if isinstance(decoders, dict) else enumerate(decoders)
     ids = []
     for key, dec in items:

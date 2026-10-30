@@ -477,6 +477,9 @@ def test_model_and_circuit_text_and_reprs_print_numbers_as_stims():
             assert (str(a).replace("stabilizer_qec.", "stim."), repr(a).replace("stabilizer_qec.", "stim.")) == (str(b), repr(b))
     rounded = sq.DetectorErrorModel("error(0.019499) D0").rounded(3)
     assert repr(rounded) == repr(stim.DetectorErrorModel("error(0.019499) D0").rounded(3)).replace("stim.", "stabilizer_qec.")
+    for model in (sq.DetectorErrorModel("error(0.019499) D0"), stim.DetectorErrorModel("error(0.019499) D0")):
+        with pytest.raises(TypeError):
+            model.rounded(-1)
 
 
 @pytest.mark.parametrize("fmt, text", [("01", "0000\n0101\n"), ("hits", "\n1,3\n"), ("dets", "shot\nshot M1 M3\n")])
