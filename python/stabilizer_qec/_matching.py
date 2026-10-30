@@ -691,12 +691,13 @@ class Matching:
         dem = self._dem_text if self._corr is not None else None
         state = (self.num_nodes, self.num_fault_ids, sorted(self.boundary), self._g.edges(), dem)
         implied = self._g.implied_weights() if dem is None else []
+        state = state + (implied, self._g.all_edges_have_error_probabilities())
         if type(self) is Matching:
-            return (_rebuild, state + (implied,) if implied else state)
+            return (_rebuild, state)
         # A subclass is rebuilt as itself, with its own attributes, as PyMatching's copy keeps
         # them (its decode and the rest overridden as they were).
         extra = getattr(self, "__dict__", None)
-        return (_rebuild_as, (type(self),) + state + (implied,), dict(extra) if extra else None)
+        return (_rebuild_as, (type(self),) + state, dict(extra) if extra else None)
 
 
 def _rebuild_as(cls: type, *state: Any) -> Matching:
@@ -707,19 +708,27 @@ def _rebuild_as(cls: type, *state: Any) -> Matching:
     return out
 
 
-def _rebuild(num_nodes: int, num_fault_ids: int, boundary: list, edges: list, correlated_dem: Optional[str], implied: Any = ()) -> Matching:
+def _rebuild(num_nodes: int, num_fault_ids: int, boundary: list, edges: list, correlated_dem: Optional[str], implied: Any = (), all_probabilities: bool = True) -> Matching:
     if correlated_dem is not None:
         m = Matching.from_detector_error_model(correlated_dem, enable_correlations=True)
         m.ensure_num_fault_ids(num_fault_ids)
         return m
     m = Matching()
+    # The fault-id count is the one kept, and a merge raises it no further than PyMatching's does,
+    # so an edge whose fault ids a merge set past the count must come back without raising it:
+    # each edge is made with no fault ids (which raise no count), then given its own fault ids and
+    # weight by a replace (a merge, which raises none). The all-probabilities flag, cleared by an
+    # edge without a probability and never set again, is kept by the first edge's probability.
     g = _core.UserGraph(num_nodes, num_fault_ids)
     g.set_boundary(boundary)
-    for u, v, f, w, p in edges:
+    for k, (u, v, f, w, p) in enumerate(edges):
+        made = -1.0 if k == 0 and not all_probabilities else 0.0
         if v is None:
-            g.add_boundary_edge(u, f, w, p, "disallow")
+            g.add_boundary_edge(u, [], 1.0, made, "disallow")
+            g.add_boundary_edge(u, f, w, p, "replace")
         else:
-            g.add_edge(u, v, f, w, p, "disallow")
+            g.add_edge(u, v, [], 1.0, made, "disallow")
+            g.add_edge(u, v, f, w, p, "replace")
     # The weights a correlated load implied (kept by a graph changed since), which its scale counts.
     by_edge: Dict[int, list] = {}
     for e, u, v, w in implied:

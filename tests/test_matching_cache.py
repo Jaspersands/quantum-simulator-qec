@@ -63,6 +63,19 @@ def test_noop_preserves_correlations(how, boundary):
         restored.decode(syndrome, enable_correlations=True)
 
 
+def test_copies_keep_the_fault_id_count_and_probability_flag_after_a_merge_past_the_count():
+    m = sq.Matching()
+    m.add_edge(0, 1, fault_ids={0}, weight=5.0)
+    m.add_edge(0, 1, fault_ids={99}, weight=1.0, error_probability=0.1, merge_strategy="replace")
+    assert m.num_fault_ids == 1 and m.add_noise() is None
+    syndrome = np.array([1, 1], dtype=np.uint8)
+    for copy_of in (copy.deepcopy(m), pickle.loads(pickle.dumps(m))):
+        assert copy_of.num_fault_ids == 1
+        assert copy_of.add_noise() is None
+        assert np.array_equal(copy_of.decode(syndrome), m.decode(syndrome))
+        assert copy_of.decode(syndrome).shape == (1,)
+
+
 @pytest.mark.parametrize("built", [False, True])
 def test_capacity_error_is_catchable_and_object_remains_usable(built):
     m = square()

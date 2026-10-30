@@ -26,6 +26,8 @@ policy for its documented items.
 - The deprecated 2.1 `UserDecoder` methods (`decode`, `decode_to_edges`, `decode_to_matched_pairs`,
   `decode_packed`) cancel repeated detection events in pairs again, as 2.1 did, where 2.2 refused
   them.
+- A copied or pickled `Matching` keeps its fault-id count and its all-probabilities flag after a
+  merge set fault ids past the count, as the original does.
 
 ## 2.2.0 — 2026-10-30
 
