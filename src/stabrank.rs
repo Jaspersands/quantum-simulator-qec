@@ -477,7 +477,7 @@ fn factored(tab: &Tableau, split: &[Pauli], q: usize, w: usize) -> bool {
 
 /// The same for a shot's terms: some single-qubit Pauli on q is a stabilizer of the reference
 /// and every term has the same eigenvalue of it.
-fn factored_terms(tab: &Tableau, terms: &HashMap<Key, C>, q: usize, w: usize) -> bool {
+fn factored_terms(tab: &Tableau, terms: &BTreeMap<Key, C>, q: usize, w: usize) -> bool {
     [1u8, 2, 3].iter().any(|&c| {
         let p = Pauli::from_codes(w, &[(q, c)]);
         if tab.pivot(&p).is_some() {
@@ -897,7 +897,7 @@ const PHASES: [C; 4] = [C::ONE, C::I, C { re: -1.0, im: 0.0 }, C { re: 0.0, im: 
 pub struct Run {
     pub records: Vec<bool>,
     pub fired: Vec<bool>,
-    pub terms: HashMap<Key, C>,
+    pub terms: BTreeMap<Key, C>,
     pub frame: Pauli,
     pub prob: f64,
     /// Whether a forced outcome was impossible: the state is zero.
@@ -928,16 +928,16 @@ impl Run {
 /// Terms below this amplitude are dropped (their probability is below 1e-26).
 const EPS: f64 = 1e-13;
 
-fn add_term(map: &mut HashMap<Key, C>, key: Key, c: C) {
+fn add_term(map: &mut BTreeMap<Key, C>, key: Key, c: C) {
     let e = map.entry(key).or_insert(C::ZERO);
     *e = *e + c;
 }
 
-fn prune(map: &mut HashMap<Key, C>) {
+fn prune(map: &mut BTreeMap<Key, C>) {
     map.retain(|_, c| c.norm2() > EPS * EPS);
 }
 
-fn norm2(map: &HashMap<Key, C>) -> f64 {
+fn norm2(map: &BTreeMap<Key, C>) -> f64 {
     map.values().map(|c| c.norm2()).sum()
 }
 
@@ -949,7 +949,7 @@ impl Program {
         let mut shot = Run {
             records: Vec::with_capacity(self.num_measurements),
             fired: vec![false; self.twirl.len()],
-            terms: HashMap::from([(vec![0u64; w], C::ONE)]),
+            terms: BTreeMap::from([(vec![0u64; w], C::ONE)]),
             frame: Pauli::identity(w),
             prob: 1.0,
             dead: false,
@@ -1046,14 +1046,14 @@ impl Program {
     /// A run's final terms with its state brought to the frame `frame` — the state is
     /// frame · Σ c′_k D(k)|ref⟩ — and the trajectory's probability in their norm, so that two
     /// runs' overlap is the dot product of their terms. Empty for a dead run.
-    pub fn in_frame(&self, run: &Run, frame: &Pauli) -> HashMap<Key, C> {
+    pub fn in_frame(&self, run: &Run, frame: &Pauli) -> BTreeMap<Key, C> {
         if run.dead {
-            return HashMap::new();
+            return BTreeMap::new();
         }
         let scale = C::new(run.prob.sqrt(), 0.0);
         let mut q = frame.dagger();
         q.mul_assign(&run.frame);
-        let mut out: HashMap<Key, C> = HashMap::with_capacity(run.terms.len());
+        let mut out: BTreeMap<Key, C> = BTreeMap::new();
         if q.is_identity() {
             let phase = PHASES[q.k as usize] * scale;
             for (k, c) in &run.terms {
@@ -1073,7 +1073,7 @@ impl Program {
     /// A non-Clifford gate on the terms: U = Σ a_j P_j, conjugated by the frame (a_j signed by
     /// whether P_j anticommutes with it), each Pauli taking a term to its coset.
     fn branch(&self, step: usize, tab: &Tableau, shot: &mut Run, terms: &[(C, Pauli)], memo: &mut Memo) {
-        let mut out: HashMap<Key, C> = HashMap::with_capacity(shot.terms.len() * 2);
+        let mut out: BTreeMap<Key, C> = BTreeMap::new();
         let signs: Vec<bool> = terms.iter().map(|(_, p)| shot.frame.anticommutes(p)).collect();
         for (key, c) in &shot.terms {
             for (j, ((a, p), &flip)) in terms.iter().zip(&signs).enumerate() {
@@ -1109,8 +1109,8 @@ impl Program {
     /// Π_v D(k)|ref⟩ = D(k) g^{v ⊕ a_k} |ref′⟩ / √2 for the pivot's old stabilizer g, re-expressed
     /// in the new destabilizers.
     #[allow(clippy::too_many_arguments)]
-    fn rebase(&self, step: usize, terms: &HashMap<Key, C>, v: bool, delta: &[u64], old: &Tableau, g: &Pauli, tab: &Tableau, memo: &mut Memo) -> HashMap<Key, C> {
-        let mut out: HashMap<Key, C> = HashMap::with_capacity(terms.len());
+    fn rebase(&self, step: usize, terms: &BTreeMap<Key, C>, v: bool, delta: &[u64], old: &Tableau, g: &Pauli, tab: &Tableau, memo: &mut Memo) -> BTreeMap<Key, C> {
+        let mut out: BTreeMap<Key, C> = BTreeMap::new();
         let s2 = std::f64::consts::FRAC_1_SQRT_2;
         for (key, c) in terms {
             let s = v ^ parity_and(key, delta);

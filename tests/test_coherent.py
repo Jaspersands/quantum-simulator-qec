@@ -440,6 +440,36 @@ def test_weights_independent_of_threads():
     assert len(np.unique(a[2])) > 100
 
 
+def test_joint_sampler_weights_are_bitwise_reproducible_across_compiles():
+    """The joint sampler's per-shot sums run in a fixed key order, so two compiles with one seed
+    give the same weights bit for bit (a std HashMap's order differs from one map to the next)."""
+    txt = """R 0 1 2 3
+H 0 1 2 3
+I[T] 0 1 2 3
+I_ERROR[R_X(theta=0.3)] 0
+I_ERROR[R_Y(theta=0.2)] 1
+CX 0 1
+I[T] 1 2
+I_ERROR[R_Z(theta=0.45)] 2
+CX 2 3
+I[T] 0 3
+I_ERROR[R_X(theta=0.27)] 3
+H 0 1 2 3
+M 0 1 2 3
+DETECTOR rec[-1]
+DETECTOR rec[-2]
+DETECTOR rec[-3]
+DETECTOR rec[-4]
+OBSERVABLE_INCLUDE(0) rec[-1]
+"""
+    c = sq.Circuit(txt)
+    a = c.compile_coherent_sampler(seed=7).sample(300)
+    b = c.compile_coherent_sampler(seed=7).sample(300)
+    assert c.compile_coherent_sampler(seed=7).num_exact > 0
+    for x, y in zip(a, b):
+        assert np.array_equal(x, y)
+
+
 def test_max_contraction_is_a_count_and_past_2_to_the_31_it_is_2_to_the_31():
     """max_contraction is a non-negative integer (0 turns the contraction off). A budget past
     2^31 table entries is 2^31, as the core takes it, and no table spans 32 generators or more at

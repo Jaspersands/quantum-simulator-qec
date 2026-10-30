@@ -21,6 +21,9 @@ policy for its documented items.
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
 - `error() D0` in a detector error model is read with probability 0, as Stim reads it, instead of
   being refused; `error D0` with no parentheses is still refused.
+- The coherent sampler's weights for a seed are bitwise reproducible across compiles: its
+  stabilizer-rank term sums run in key order, not in a hash map's order, which had changed the
+  last bits.
 
 ## 2.2.0 — 2026-10-30
 
