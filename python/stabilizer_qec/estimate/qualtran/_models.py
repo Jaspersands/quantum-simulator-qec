@@ -561,7 +561,8 @@ class FifteenToOne(MagicStateFactory):
     of `p_fail` and `p_out` can differ from Qualtran's: `p_fail` agrees to about 1e-11 relative, and `p_out`
     (one minus a trace near 1) to about 1e-16 absolute, which is a large relative difference when `p_out` is
     itself near 1e-14 (a few percent at ``d_X=9, d_Z=5, d_m=3`` and a 1e-5 physical error). Everything else
-    here, `n_cycles` included, has given Qualtran's numbers exactly."""
+    here, `n_cycles` included, has given Qualtran's numbers exactly at the gate counts tested; at very large counts
+    `n_cycles` can differ in the last bits, through `p_fail`."""
 
     d_X: int
     d_Z: int
