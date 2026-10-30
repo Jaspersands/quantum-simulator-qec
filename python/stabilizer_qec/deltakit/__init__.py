@@ -14,6 +14,13 @@ circuit with leakage locally, on Deltakit's leakage model.
 The ``deltakit`` extra installs what Deltakit needs beyond this package (Python 3.11).
 """
 
+import sys as _sys
+
+if _sys.version_info < (3, 11):
+    raise ImportError(
+        f"stabilizer_qec.deltakit needs Python 3.11 or later, as Deltakit 0.10 does; this is Python {_sys.version_info[0]}.{_sys.version_info[1]}"
+    )
+
 __version__ = "0.10.2"
 
 
