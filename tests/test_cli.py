@@ -235,6 +235,15 @@ def test_main_returns_exit_codes(tmp_path, capsys):
     assert sq.main(command_line_args=["sample", "--help"]) == 0
 
 
+def test_flags_are_not_abbreviated_and_no_command_is_an_error(capsys):
+    """As Stim's: a flag is not taken for a unique prefix of another (`--dist` is no `--distance`),
+    and no command at all is an error that prints the help."""
+    assert sq.main(command_line_args=["gen", "--code", "repetition_code", "--task", "memory", "--dist", "3", "--rounds", "2"]) == 1
+    assert sq.main(command_line_args=[]) == 1
+    assert "No mode was given." in capsys.readouterr().err
+    assert ours("gen", "--code", "repetition_code", "--task", "memory", "--distance", "3", "--rounds", "2")
+
+
 def test_commands_print_to_a_stream_without_a_buffer(tmp_path, monkeypatch):
     """Where standard output is a text stream with no buffer (a notebook's, or a redirect's),
     the commands that print still print."""

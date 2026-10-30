@@ -95,6 +95,10 @@ class UsageError(Exception):
 
 
 class _Parser(argparse.ArgumentParser):
+    def __init__(self, **kwargs) -> None:
+        # Stim's flags are not abbreviated: `--dist` is an unrecognized argument, not `--distance`.
+        super().__init__(allow_abbrev=False, **kwargs)
+
     def error(self, message: str) -> None:  # an exit code of 1, as Stim's
         raise UsageError(message)
 
@@ -1111,14 +1115,11 @@ def main(argv: Optional[List[str]] = None, *, command_line_args: Optional[List[s
     if command_line_args is not None:
         argv = list(command_line_args)
     argv = sys.argv[1:] if argv is None else list(argv)
-    if not argv:
-        argv = ["help"]
-    if argv[0].startswith("-"):
-        legacy = _legacy(argv)
-        if legacy is None:
-            print("No mode was given.\n\n" + help_for(""), file=sys.stderr)
-            return 1
-        argv = legacy
+    if argv and argv[0].startswith("-"):
+        argv = _legacy(argv)
+    if not argv:  # no command, as Stim's: the help, and an exit code of 1
+        print("No mode was given.\n\n" + help_for(""), file=sys.stderr)
+        return 1
     command, rest = argv[0], argv[1:]
     if command == "sinter":
         from .sinter._command._main import main as sinter_main
