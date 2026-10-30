@@ -16,7 +16,7 @@ from tesseract_platform_helpers import stim_number
 
 stim = pytest.importorskip("stim", minversion="1.16")
 
-QLDPC = ("scipy", "galois", "sympy", "cvxpy", "networkx", "diskcache", "platformdirs")
+QLDPC = ("scipy", "galois", "sympy", "cvxpy", "networkx", "diskcache", "platformdirs", "pyperclip", "tqdm")
 DELTAKIT = ("scipy", "networkx", "matplotlib", "pandas", "galois", "uncertainties", "pathos", "plotly", "gql")
 
 
