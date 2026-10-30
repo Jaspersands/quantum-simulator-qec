@@ -96,7 +96,9 @@ def test_batches_and_observable_runner():
     dets = (errors @ h.T % 2).astype(np.uint8)
     t, m = relay_bp.RelayDecoderF64(h, p, num_sets=20, set_max_iter=10, seed=5), ours.RelayDecoderF64(h, p, num_sets=20, set_max_iter=10, seed=5)
     assert np.array_equal(t.decode_batch(dets), m.decode_batch(dets))
-    for x, y in zip(t.decode_detailed_batch(dets), m.decode_detailed_batch(dets)):
+    want, got = t.decode_detailed_batch(dets), m.decode_detailed_batch(dets)
+    assert len(want) == len(got) == len(dets)
+    for x, y in zip(want, got):
         assert same(x, y)
     # A batch's result owns its row: keeping one does not keep the batch's arrays alive.
     kept = ours.RelayDecoderF64(h, p, num_sets=20, set_max_iter=10, seed=5).decode_detailed_batch(dets)[0]
@@ -107,11 +109,15 @@ def test_batches_and_observable_runner():
         assert np.array_equal(tr.decode_observables_batch(dets, parallel=parallel, **kw), mr.decode_observables_batch(dets, parallel=parallel, **kw))
         assert np.array_equal(tr.decode_batch(dets, parallel=parallel, **kw), mr.decode_batch(dets, parallel=parallel, **kw))
         assert np.array_equal(tr.from_errors_decode_observables_batch(errors, parallel=parallel, **kw), mr.from_errors_decode_observables_batch(errors, parallel=parallel, **kw))
-        for x, y in zip(tr.from_errors_decode_observables_detailed_batch(errors, parallel=parallel, **kw), mr.from_errors_decode_observables_detailed_batch(errors, parallel=parallel, **kw)):
+        want, got = tr.from_errors_decode_observables_detailed_batch(errors, parallel=parallel, **kw), mr.from_errors_decode_observables_detailed_batch(errors, parallel=parallel, **kw)
+        assert len(want) == len(got) == len(errors)
+        for x, y in zip(want, got):
             for attr in ("converged", "iterations", "error_detected", "error_mismatch_detected", "unconverged_no_error", "better_decoding_quality_error", "worse_decoding_quality_error"):
                 assert getattr(x, attr) == getattr(y, attr), attr
             assert np.array_equal(x.observables, y.observables) and same(x.physical_decode_result, y.physical_decode_result)
-        for x, y in zip(tr.decode_observables_detailed_batch(dets, parallel=parallel, **kw), mr.decode_observables_detailed_batch(dets, parallel=parallel, **kw)):
+        want, got = tr.decode_observables_detailed_batch(dets, parallel=parallel, **kw), mr.decode_observables_detailed_batch(dets, parallel=parallel, **kw)
+        assert len(want) == len(got) == len(dets)
+        for x, y in zip(want, got):
             assert x.error_detected is None and y.error_detected is None and np.array_equal(x.observables, y.observables)
     assert np.array_equal(tr.compute_observables(errors[0]), mr.compute_observables(errors[0]))
     assert same(tr.decode_detailed(dets[0]), mr.decode_detailed(dets[0]))
@@ -318,11 +324,15 @@ def test_check_matrices_with_stored_zeros():
     for cls, kw in (("MinSumBPDecoderF64", dict(max_iter=30)), ("RelayDecoderF64", dict(pre_iter=10, num_sets=6, set_max_iter=10, seed=1))):
         for matrix in (h, h.tocsc(), dense, np.matrix(dense)):
             t, m = getattr(relay_bp, cls)(matrix, p, **kw), getattr(ours, cls)(matrix, p, **kw)
-            for x, y in zip(t.decode_detailed_batch(dets), m.decode_detailed_batch(dets)):
+            want, got = t.decode_detailed_batch(dets), m.decode_detailed_batch(dets)
+            assert len(want) == len(got) == len(dets)
+            for x, y in zip(want, got):
                 assert same(x, y), (cls, type(matrix))
             tr = relay_bp.ObservableDecoderRunner(getattr(relay_bp, cls)(matrix, p, **kw), obs)
             mr = ours.ObservableDecoderRunner(getattr(ours, cls)(matrix, p, **kw), obs)
-            for x, y in zip(tr.from_errors_decode_observables_detailed_batch(errors, progress_bar=False), mr.from_errors_decode_observables_detailed_batch(errors, progress_bar=False)):
+            want, got = tr.from_errors_decode_observables_detailed_batch(errors, progress_bar=False), mr.from_errors_decode_observables_detailed_batch(errors, progress_bar=False)
+            assert len(want) == len(got) == len(errors)
+            for x, y in zip(want, got):
                 assert (x.error_detected, x.error_mismatch_detected, x.converged) == (y.error_detected, y.error_mismatch_detected, y.converged)
                 assert np.array_equal(x.observables, y.observables)
 
