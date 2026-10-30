@@ -234,6 +234,7 @@ def test_main_returns_exit_codes(tmp_path, capsys):
     assert sq.main(command_line_args=["gen", "--code", "repetition_code", "--task", "memory", "--rounds", "2", "--distance", "2", "--out", str(path)]) == 0
     assert path.read_text().startswith("# Generated repetition_code circuit.")
     assert sq.main(command_line_args=["gen", "--code", "nope"]) == 1
+    assert sq.main(command_line_args=["gen", "--code", "repetition_code", "--task", "memory", "--rounds", "2", "--distance", str(2**40)]) == 1
     assert sq.main(command_line_args=["sample", "--help"]) == 0
 
 

@@ -21,6 +21,7 @@ policy for its documented items.
   does not parse runs the lines after that one, as Stim's does, instead of dropping the block.
 - The `hits` and `dets` shot readers take only ASCII digits: `1_0`, `+3`, ` 4` and Unicode digits are
   refused as Stim refuses them (they were read as indices).
+- A number too big for the core's integers (`gen --distance 2**40`, `diagram --tick` past 2**64) is reported as an error with exit code 1, not a traceback.
 - The legacy `--gen=CODE` (or `--gen CODE`) invocation runs `gen --code CODE`, as Stim's; it failed for the missing `--code`.
 - The command line takes no abbreviated flags (`--dist` is an unrecognized argument, not `--distance`),
   and with no command it prints the help after "No mode was given." and exits 1, as Stim's (it exited 0).

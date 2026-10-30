@@ -1158,7 +1158,7 @@ def main(argv: Optional[List[str]] = None, *, command_line_args: Optional[List[s
     except UsageError as ex:
         print(f"stabilizer-qec {command}: {ex}", file=sys.stderr)
         return 1
-    except (ValueError, TypeError, OSError) as ex:
+    except (ValueError, TypeError, OverflowError, OSError) as ex:  # (a number too big for a C int, say)
         print(f"stabilizer-qec {command}: {ex}", file=sys.stderr)
         return 1
     except SystemExit as ex:  # argparse's own --help
