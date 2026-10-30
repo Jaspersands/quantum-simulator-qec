@@ -256,6 +256,11 @@ def test_an_edit_while_another_thread_decodes_says_so():
     # The extension refuses an edit while a decode on another thread holds the graph; the refusal
     # has to say why, not only that the graph is borrowed.
     class Borrowed:
+        # A decode on another thread holds the graph shared, so its reads still succeed (the
+        # boundary is read before an edit); only edits are refused.
+        def boundary(self):
+            return []
+
         def add_edge(self, *args):
             raise RuntimeError("Already borrowed")
 
