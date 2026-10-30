@@ -545,6 +545,38 @@ def test_cli_dem_out_without_usable_shots(shots, tmp_path, capsys):
     assert (code, err) == (0, "") and (tmp_path / "o3.dem").read_text() == "error(0) D0 L0\nerror[t](0) D0 D1\nerror(0) D1 L1\ndetector(0, 0) D0\ndetector(1, 0) D1\n"
 
 
+def test_cli_dem_out_write_failure_is_an_output_error(tmp_path, capsys, monkeypatch):
+    # A write that fails after the model file opened is reported as the output's error (exit 1),
+    # not as a failure to open it.
+    from stabilizer_qec.tesseract_decoder import __main__ as cli
+
+    (tmp_path / "s.dem").write_text(SMALL_DEM)
+    (tmp_path / "s.01").write_text("1000\n0110\n")
+    real_open = open
+
+    class Full:
+        def __init__(self, f):
+            self.f = f
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.f.close()
+            return False
+
+        def write(self, text):
+            raise OSError(errno.ENOSPC, os.strerror(errno.ENOSPC))
+
+    def fake_open(path, *args, **kwargs):
+        f = real_open(path, *args, **kwargs)
+        return Full(f) if os.path.basename(str(path)) == "o.dem" else f
+
+    monkeypatch.setattr(cli, "open", fake_open, raising=False)
+    code, out, err = run(["--dem", tmp_path / "s.dem", "--in", tmp_path / "s.01", "--in-format", "01", "--in-includes-appended-observables", "--dem-out", tmp_path / "o.dem"], capsys)
+    assert (code, err) == (1, f"tesseract: {OSError(errno.ENOSPC, os.strerror(errno.ENOSPC))}\n")
+
+
 def test_cli_reads_models_with_non_utf8_comment_bytes(tmp_path, capsys):
     # Stim reads a model's or circuit's bytes and passes over those in a comment, so Tesseract's
     # program reads such a file; here a byte that is not UTF-8 is replaced, as the Chromobius

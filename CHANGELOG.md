@@ -27,6 +27,8 @@ policy for its documented items.
   and with no command it prints the help after "No mode was given." and exits 1, as Stim's (it exited 0).
 - The command line's commands that print (`help`, `sample`, `repl`, ...) write to a standard output with no
   buffer, such as a notebook's or a redirect's, instead of raising `AttributeError`.
+- `tesseract_decoder`'s `--dem-out` reports a failed write or close as the output's error (`tesseract: ...`,
+  exit 1), not as `Failed to open`.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.

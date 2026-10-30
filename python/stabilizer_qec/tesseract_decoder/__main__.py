@@ -895,10 +895,11 @@ def _decode(a: _Args, dem: Any, sources: Any, dets: np.ndarray, obs: np.ndarray,
         # (With no shot to count from, every estimate is 0/0: Tesseract writes error(nan).)
         estimate = _dem_from_counts_text(original, error_use, shots - state["errors"] if has_obs else shots)
         try:
-            with open(a.dem_out_fname, "w", encoding="utf-8") as f:
-                f.write(estimate + "\n")
+            f = open(a.dem_out_fname, "w", encoding="utf-8")
         except OSError:
             raise _Abort("Failed to open " + a.dem_out_fname) from None
+        with f:  # (a failed write or close is an error of the output, reported as one)
+            f.write(estimate + "\n")
     final = True
     if a.stats_out_fname:
         stats = {
