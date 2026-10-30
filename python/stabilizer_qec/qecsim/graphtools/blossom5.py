@@ -95,6 +95,9 @@ def mwpm_ids(edges):
 
     * Node ids are assumed to form a contiguous set of non-negative integers starting at zero, e.g.  {0, 1, ...}.
     * All nodes are assumed to participate in at least one edge.
+    * A graph with no perfect matching raises ValueError up to 512 nodes. Past 512 nodes, when Fusion Blossom finds no
+      perfect matching, the result is NetworkX's maximum-cardinality matching instead, which is not perfect, and no
+      error is raised.
 
     :param edges: Edges as [(node_id, node_id, weight), ...].
     :type edges: list of (int, int, int)

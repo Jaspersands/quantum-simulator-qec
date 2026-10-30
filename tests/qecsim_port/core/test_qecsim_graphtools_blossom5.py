@@ -139,6 +139,15 @@ def test_blossom5_mwpm_ids_past_512_nodes():
         assert len(blossom5.mwpm_ids(edges + extra)) == n_mates
 
 
+def test_blossom5_mwpm_ids_without_a_perfect_matching_raises_up_to_512_nodes():
+    import pytest
+
+    # a 3-node path and a 4-node star: the dense matcher's ValueError (past 512 nodes, see the test above)
+    for edges in ([(0, 1, 1), (1, 2, 1)], [(0, 1, 1), (0, 2, 1), (0, 3, 1)]):
+        with pytest.raises(ValueError, match="perfect matching"):
+            blossom5.mwpm_ids(edges)
+
+
 def test_blossom5_run_ftp_rotated_planar_13(monkeypatch):
     # qecsim's run-ftp example, `run-ftp -r5 "rotated_planar(13,13)" 13 ...`, matches graphs of thousands of nodes.
     import numpy as np
