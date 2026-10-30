@@ -21,7 +21,7 @@ Submitting is done by the author, from their own account, at
 
 **The software (JOSS's review checklist).**
 
-- [x] An OSI licence (MIT, `LICENSE`).
+- [x] An OSI licence (MIT AND Apache-2.0: `LICENSE` and `LICENSES/Apache-2.0.txt`).
 - [x] A public repository with an issue tracker.
 - [x] Installation instructions, and a package on PyPI and crates.io.
 - [x] Example usage (README, `tutorials/`, the API guide).
