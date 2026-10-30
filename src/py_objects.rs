@@ -175,16 +175,16 @@ impl PyCircuit {
     /// The circuit's faults explained (see `Circuit::explain_errors`): per explained error,
     /// (Stim's text, its terms, its locations), targets as (text, coordinates).
     #[pyo3(signature = (filter=None, reduce=false))]
-    fn explain(&self, py: Python<'_>, filter: Option<PyRef<'_, PyDem>>, reduce: bool) -> PyResult<Vec<PyExplained>> {
+    fn explain(slf: &Bound<'_, Self>, py: Python<'_>, filter: Option<PyRef<'_, PyDem>>, reduce: bool) -> PyResult<Vec<PyExplained>> {
+        let circuit = slf.try_borrow()?.circuit.clone();
         let filter = filter.map(|f| f.dem.clone());
-        let circuit = &self.circuit;
         let out = py.detach(move || circuit.explain_errors(filter.as_ref(), reduce)).map_err(api_err)?;
         Ok(out.into_iter().map(explained_tuple).collect())
     }
 
     /// The graph-like distance's faults, explained (see `Circuit::shortest_graphlike_error`).
-    fn shortest_graphlike(&self, py: Python<'_>, ignore: bool, canonicalize: bool) -> PyResult<Vec<PyExplained>> {
-        let circuit = &self.circuit;
+    fn shortest_graphlike(slf: &Bound<'_, Self>, py: Python<'_>, ignore: bool, canonicalize: bool) -> PyResult<Vec<PyExplained>> {
+        let circuit = slf.try_borrow()?.circuit.clone();
         let out = py.detach(move || circuit.shortest_graphlike_error(ignore, canonicalize)).map_err(api_err)?;
         Ok(out.into_iter().map(explained_tuple).collect())
     }
@@ -193,8 +193,8 @@ impl PyCircuit {
     /// `max_memory_bytes` (None: half the machine's memory; see
     /// `Circuit::search_for_undetectable_logical_errors_with_budget`).
     #[pyo3(signature = (max_symptoms, max_degree, no_increase, canonicalize, max_memory_bytes=None))]
-    fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool, max_memory_bytes: Option<usize>) -> PyResult<Vec<PyExplained>> {
-        let circuit = &self.circuit;
+    fn search_undetectable(slf: &Bound<'_, Self>, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, canonicalize: bool, max_memory_bytes: Option<usize>) -> PyResult<Vec<PyExplained>> {
+        let circuit = slf.try_borrow()?.circuit.clone();
         let budget = max_memory_bytes.unwrap_or_else(crate::distance::default_memory_budget);
         let out = py.detach(move || circuit.search_for_undetectable_logical_errors_with_budget(max_symptoms, max_degree, no_increase, canonicalize, budget)).map_err(api_err)?;
         Ok(out.into_iter().map(explained_tuple).collect())
@@ -261,8 +261,9 @@ impl PyCircuit {
 
     /// The noiseless reference run's measurement record (the one the converter compares with),
     /// as one b8 row.
-    fn reference_sample<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
-        let inner = &self.circuit.inner;
+    fn reference_sample<'py>(slf: &Bound<'_, Self>, py: Python<'py>) -> PyResult<Bound<'py, PyBytes>> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let inner = &circuit.inner;
         let qubits = crate::batch_sampler::Counts::of(&inner.instrs).map_err(err)?.qubits;
         let bits = py.detach(|| crate::m2d::reference(inner, qubits));
         let mut row = vec![0u8; bits.len().div_ceil(8)];
@@ -278,8 +279,9 @@ impl PyCircuit {
     /// `device`: "cpu" (64 shots a word), "cpu-lanes" (32 shots a word, integer draws: the
     /// GPU's reference) or "gpu".
     #[pyo3(signature = (seed, skip_reference, device="cpu"))]
-    fn measurement_sampler(&self, py: Python<'_>, seed: u64, skip_reference: bool, device: &str) -> PyResult<PyMeasurementSampler> {
-        let inner = &self.circuit.inner;
+    fn measurement_sampler(slf: &Bound<'_, Self>, py: Python<'_>, seed: u64, skip_reference: bool, device: &str) -> PyResult<PyMeasurementSampler> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let inner = &circuit.inner;
         let sampler = BatchSampler::new(inner).map_err(err)?;
         let lanes = lanes_for(device, &sampler)?;
         let reference = if skip_reference {
@@ -320,15 +322,17 @@ impl PyCircuit {
     }
 
     /// The stabilizer-rank sampler: Clifford+T circuits at any qubit count.
-    fn stabilizer_rank_sampler(&self, py: Python<'_>, seed: u64) -> PyResult<PyStabilizerRankSampler> {
-        let inner = &self.circuit.inner;
+    fn stabilizer_rank_sampler(slf: &Bound<'_, Self>, py: Python<'_>, seed: u64) -> PyResult<PyStabilizerRankSampler> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let inner = &circuit.inner;
         let program = py.detach(|| crate::stabrank::Program::new(inner)).map_err(err)?;
         Ok(PyStabilizerRankSampler { program, seed, next: 0.into(), peak: 0.into() })
     }
 
     /// `exact_distribution` by the stabilizer-rank engine.
-    fn stabilizer_rank_distribution(&self, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
-        let program = crate::stabrank::Program::new(&self.circuit.inner).map_err(err)?;
+    fn stabilizer_rank_distribution(slf: &Bound<'_, Self>, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let program = crate::stabrank::Program::new(&circuit.inner).map_err(err)?;
         let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
         Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
     }
@@ -355,16 +359,18 @@ impl PyCircuit {
     }
 
     /// The circuit's unitary: (n, 2^n × 2^n complex128 entries, row-major).
-    fn unitary_matrix<'py>(&self, py: Python<'py>, little_endian: bool) -> PyResult<(usize, Bound<'py, PyBytes>)> {
-        let inner = &self.circuit.inner;
+    fn unitary_matrix<'py>(slf: &Bound<'_, Self>, py: Python<'py>, little_endian: bool) -> PyResult<(usize, Bound<'py, PyBytes>)> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let inner = &circuit.inner;
         let (n, m) = py.detach(|| crate::statevec::unitary_matrix(inner, little_endian)).map_err(err)?;
         Ok((n, PyBytes::new(py, &le_f64(m.iter().flat_map(|c| [c.re, c.im])))))
     }
 
     /// Tsim's matrix: (n, k, 2^n × 2^k complex128 entries, row-major), unused qubits dropped
     /// and a qubit reset first an output alone.
-    fn tsim_matrix<'py>(&self, py: Python<'py>, little_endian: bool) -> PyResult<(usize, usize, Bound<'py, PyBytes>)> {
-        let inner = &self.circuit.inner;
+    fn tsim_matrix<'py>(slf: &Bound<'_, Self>, py: Python<'py>, little_endian: bool) -> PyResult<(usize, usize, Bound<'py, PyBytes>)> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let inner = &circuit.inner;
         let (n, k, m) = py.detach(|| crate::statevec::tsim_matrix(inner, little_endian)).map_err(err)?;
         Ok((n, k, PyBytes::new(py, &le_f64(m.iter().flat_map(|c| [c.re, c.im])))))
     }
@@ -372,57 +378,64 @@ impl PyCircuit {
     /// The coherent sampler: the twirl, reweighted by the interference it leaves out.
     #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, max_complete=crate::coherent::kernel::MAX_COMPLETE, max_contraction=crate::coherent::kernel::MAX_CONTRACTION))]
     #[allow(clippy::too_many_arguments)]
-    fn coherent_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, max_complete: usize, max_contraction: usize) -> PyResult<PyCoherentSampler> {
+    fn coherent_sampler(slf: &Bound<'_, Self>, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, max_complete: usize, max_contraction: usize) -> PyResult<PyCoherentSampler> {
+        let circuit = slf.try_borrow()?.circuit.clone();
         let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete, max_contraction };
-        let inner = &self.circuit.inner;
+        let inner = &circuit.inner;
         let sampler = py.detach(|| crate::coherent::sampler::CoherentSampler::new(inner, options)).map_err(err)?;
         Ok(PyCoherentSampler { sampler, seed, next: 0.into() })
     }
 
     /// The joint sampler: non-Clifford gates exact, coherent errors twirled and reweighted.
     #[pyo3(signature = (seed, order=3, max_cluster=12, quads=true, hops=1, pairs=false, max_complete=crate::coherent::kernel::MAX_COMPLETE))]
-    fn joint_sampler(&self, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, pairs: bool, max_complete: usize) -> PyResult<PyJointSampler> {
+    fn joint_sampler(slf: &Bound<'_, Self>, py: Python<'_>, seed: u64, order: usize, max_cluster: usize, quads: bool, hops: usize, pairs: bool, max_complete: usize) -> PyResult<PyJointSampler> {
+        let circuit = slf.try_borrow()?.circuit.clone();
         let options = crate::coherent::kernel::CoherentOptions { order, max_cluster, quads, hops, max_complete, ..Default::default() };
-        let inner = &self.circuit.inner;
+        let inner = &circuit.inner;
         let sampler = py.detach(|| crate::coherent::joint::JointSampler::new(inner, options).map(|s| s.with_pairs(pairs))).map_err(err)?;
         Ok(PyJointSampler { sampler, seed, next: 0.into() })
     }
 
     /// The joint sampler's exact distribution with the whole kernel, for small circuits:
     /// (detection events, observable flips, probability).
-    fn joint_distribution(&self, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
-        let inner = &self.circuit.inner;
+    fn joint_distribution(slf: &Bound<'_, Self>, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let inner = &circuit.inner;
         let d = py.detach(|| crate::coherent::joint::JointSampler::with_whole_kernel(inner).and_then(|s| s.exact_distribution(max_branches))).map_err(err)?;
         Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
     }
 
     /// `exact_distribution` with the leaked-measurement rule chosen.
-    fn exact_distribution_leaky(&self, py: Python<'_>, max_branches: usize, reads_one: bool) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
-        let mut program = crate::statevec::Program::new(&self.circuit.inner).map_err(err)?;
+    fn exact_distribution_leaky(slf: &Bound<'_, Self>, py: Python<'_>, max_branches: usize, reads_one: bool) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let mut program = crate::statevec::Program::new(&circuit.inner).map_err(err)?;
         program.leaked_reads_one = reads_one;
         let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
         Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
     }
 
     /// Every outcome's exact probability: (detection events, observable flips, probability).
-    fn exact_distribution(&self, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
-        let program = crate::statevec::Program::new(&self.circuit.inner).map_err(err)?;
+    fn exact_distribution(slf: &Bound<'_, Self>, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let program = crate::statevec::Program::new(&circuit.inner).map_err(err)?;
         let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
         Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
     }
 
     /// The final density matrix over qubits 0..n (n, its entries as complex128 bytes),
     /// records averaged away.
-    fn density_matrix<'py>(&self, py: Python<'py>, max_branches: usize) -> PyResult<(usize, Bound<'py, PyBytes>)> {
-        let program = crate::density::DensityProgram::with_layout(&self.circuit.inner, true, crate::statevec::Outcomes::StateOnly).map_err(err)?;
+    fn density_matrix<'py>(slf: &Bound<'_, Self>, py: Python<'py>, max_branches: usize) -> PyResult<(usize, Bound<'py, PyBytes>)> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let program = crate::density::DensityProgram::with_layout(&circuit.inner, true, crate::statevec::Outcomes::StateOnly).map_err(err)?;
         let rho = py.detach(|| program.final_state(None, max_branches)).map_err(err)?;
         Ok((rho.num_qubits(), density_bytes(py, &rho)))
     }
 
     /// `exact_distribution` by the density matrix: noise channels applied whole, branching only
     /// on records.
-    fn density_distribution(&self, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
-        let program = crate::density::DensityProgram::new(&self.circuit.inner).map_err(err)?;
+    fn density_distribution(slf: &Bound<'_, Self>, py: Python<'_>, max_branches: usize) -> PyResult<Vec<(Vec<bool>, u64, f64)>> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let program = crate::density::DensityProgram::new(&circuit.inner).map_err(err)?;
         let d = py.detach(|| program.distribution(max_branches)).map_err(err)?;
         Ok(d.into_iter().map(|((dets, obs), p)| (dets, obs, p)).collect())
     }
@@ -430,8 +443,9 @@ impl PyCircuit {
     /// The perturbative expansion to `order` faults: (the number of detectors, each outcome as
     /// its flipped detectors then the number of detectors plus each flipped observable, with its
     /// weight, one number or, with `degree`, a polynomial's coefficients up to x^degree).
-    fn perturbative_distribution(&self, py: Python<'_>, order: usize, degree: Option<usize>, max_terms: usize) -> PyResult<(usize, Vec<(Vec<u32>, Vec<f64>)>)> {
-        let sites = crate::perturb::sites(&self.circuit.inner).map_err(err)?;
+    fn perturbative_distribution(slf: &Bound<'_, Self>, py: Python<'_>, order: usize, degree: Option<usize>, max_terms: usize) -> PyResult<(usize, Vec<(Vec<u32>, Vec<f64>)>)> {
+        let circuit = slf.try_borrow()?.circuit.clone();
+        let sites = crate::perturb::sites(&circuit.inner).map_err(err)?;
         let out = py.detach(|| crate::perturb::expand(&sites.sites, order, degree, max_terms)).map_err(err)?;
         Ok((sites.num_detectors, out))
     }
@@ -848,16 +862,16 @@ impl PyDem {
 
     /// The graph-like distance's faults as a model (see
     /// `DetectorErrorModel::shortest_graphlike_error`).
-    fn shortest_graphlike(&self, py: Python<'_>, ignore: bool) -> PyResult<PyDem> {
-        let dem = &self.dem;
+    fn shortest_graphlike(slf: &Bound<'_, Self>, py: Python<'_>, ignore: bool) -> PyResult<PyDem> {
+        let dem = slf.try_borrow()?.dem.clone();
         Ok(PyDem { dem: py.detach(move || dem.shortest_graphlike_error(ignore)).map_err(api_err)?, edits: 0 })
     }
 
     /// Stim's search for undetectable logical errors on the model, its sets within
     /// `max_memory_bytes` (None: half the machine's memory).
     #[pyo3(signature = (max_symptoms, max_degree, no_increase, max_memory_bytes=None))]
-    fn search_undetectable(&self, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, max_memory_bytes: Option<usize>) -> PyResult<PyDem> {
-        let dem = &self.dem;
+    fn search_undetectable(slf: &Bound<'_, Self>, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, max_memory_bytes: Option<usize>) -> PyResult<PyDem> {
+        let dem = slf.try_borrow()?.dem.clone();
         let budget = max_memory_bytes.unwrap_or_else(crate::distance::default_memory_budget);
         Ok(PyDem { dem: py.detach(move || dem.search_for_undetectable_logical_errors_with_budget(max_symptoms, max_degree, no_increase, budget)).map_err(api_err)?, edits: 0 })
     }
@@ -2470,19 +2484,25 @@ impl PyBpLsd {
     /// statistics are left as they were.
     #[pyo3(signature = (syndrome, max_paths, target=None))]
     #[allow(clippy::type_complexity)]
-    fn merge_order_outcomes(&mut self, syndrome: Vec<u8>, max_paths: usize, target: Option<Vec<u8>>) -> PyResult<(Vec<Vec<u32>>, usize, usize, bool)> {
-        checked_syndrome(&syndrome, self.num_checks)?;
-        if let Some(t) = &target {
-            if t.len() != self.dec.bp.num_vars {
-                return Err(err(format!("{} target bits for {} bits", t.len(), self.dec.bp.num_vars)));
+    fn merge_order_outcomes(slf: &Bound<'_, Self>, py: Python<'_>, syndrome: Vec<u8>, max_paths: usize, target: Option<Vec<u8>>) -> PyResult<(Vec<Vec<u32>>, usize, usize, bool)> {
+        // The search runs on copies of the decoder and its scratch, so no borrow of this object
+        // is held while the GIL is released. The copy's statistics are not kept, and the
+        // serial schedule is left as it was.
+        let (dec, mut work) = {
+            let me = slf.try_borrow()?;
+            checked_syndrome(&syndrome, me.num_checks)?;
+            if let Some(t) = &target {
+                if t.len() != me.dec.bp.num_vars {
+                    return Err(err(format!("{} target bits for {} bits", t.len(), me.dec.bp.num_vars)));
+                }
             }
-        }
-        let stats = std::mem::take(&mut self.work.stats);
-        let do_stats = std::mem::replace(&mut self.work.do_stats, false);
-        self.work.record = false;
-        let found = self.dec.merge_order_outcomes(&syndrome, max_paths, target.as_deref(), &mut self.work);
-        self.work.stats = stats;
-        self.work.do_stats = do_stats;
+            (me.dec.clone(), me.work.clone())
+        };
+        work.stats = Default::default();
+        work.do_stats = false;
+        work.record = false;
+        let found = py.detach(move || dec.merge_order_outcomes(&syndrome, max_paths, target.as_deref(), &mut work));
+        slf.try_borrow_mut()?.work.record = false;
         Ok((found.corrections.iter().map(|c| bits(c)).collect(), found.paths, found.departures, found.complete))
     }
 }
@@ -2509,6 +2529,18 @@ impl PyFlip {
         let mut d = vec![0u8; self.n];
         let out = self.dec.decode(&syndrome, &mut d);
         Ok((bits(&d), out.converged, out.iterations))
+    }
+
+    /// The random source's state (see `Flip::rng_words`).
+    fn rng_state(&self) -> Vec<u32> {
+        self.dec.rng_words()
+    }
+
+    fn set_rng_state(&mut self, state: Vec<u32>) -> PyResult<()> {
+        if !self.dec.set_rng_words(&state) {
+            return Err(err("a flip decoder's generator is 624 words and a position up to 624".to_string()));
+        }
+        Ok(())
     }
 }
 

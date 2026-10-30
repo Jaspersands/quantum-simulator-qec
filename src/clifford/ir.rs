@@ -285,7 +285,7 @@ pub fn escape_tag(tag: &str) -> String {
     s
 }
 
-fn unescape_tag(tag: &str) -> Result<String, String> {
+pub(crate) fn unescape_tag(tag: &str) -> Result<String, String> {
     let mut s = String::new();
     let mut it = tag.chars();
     while let Some(c) = it.next() {

@@ -82,6 +82,21 @@ def test_lsd_decoder_arguments_and_pickling():
     assert np.array_equal(pickle.loads(pickle.dumps(flip)).decode(s), flip.decode(s))
 
 
+def test_bp_flip_copy_carries_on_its_random_flips():
+    rng = np.random.default_rng(11)
+    m, n = 12, 24
+    pcm = np.zeros((m, n), dtype=np.uint8)
+    for j in range(n):
+        pcm[rng.choice(m, 2, replace=False), j] = 1
+    flip = sq.BpFlipDecoder(pcm, error_rate=0.1, pflip_frequency=1, pflip_seed=3)
+    shots = [((pcm.astype(int) @ (rng.random(n) < 0.1)) % 2).astype(np.uint8) for _ in range(60)]
+    for s in shots[:30]:
+        flip.decode(s)
+    copy = pickle.loads(pickle.dumps(flip))
+    for s in shots[30:]:
+        assert np.array_equal(copy.decode(s), flip.decode(s))
+
+
 def graphs(seed: int, count: int):
     """Matching-like matrices: each column has one check (the boundary) or two."""
     rng = np.random.default_rng(seed)

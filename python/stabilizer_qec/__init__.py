@@ -192,7 +192,8 @@ this package's decoders under `sq_` names.
   An error model folds the loops that repeat, as Stim folds them, so a d = 11 memory of 10,000
   rounds is analysed in a tenth of a second. The m2d converter holds a circuit unrolled, up to
   `2**24` instructions and targets; the sampler runs loops without unrolling them. Generated
-  circuits are written out round by round, up to 10,000 rounds.
+  circuits are written out round by round with no limit on rounds, and their distance is at most
+  1001.
 - **Stability.** Semantic versioning under the compatibility policy in the repository's
   CONTRIBUTING.md: everything importable from `stabilizer_qec` without a leading underscore
   keeps its names and signatures through every 2.x release, and behaviour changes in a minor

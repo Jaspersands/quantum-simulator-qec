@@ -12,6 +12,22 @@ policy for its documented items.
 
 ### Fixed
 
+- A circuit's or detector error model's `explain`, `shortest_graphlike`, `search_undetectable` and
+  sampler or distribution methods no longer hold the circuit borrowed while they run without the
+  GIL: an `append_text` or `append_circuit` on another thread raised "Already borrowed" for as
+  long as one ran, and now waits for it. Each method takes a copy of the circuit or model.
+- A circuit or detector error model with a tag escape Stim does not know (`X[a\b] 0`,
+  `error[a\b](0.1) D0`) is refused when it is built, as Stim refuses it. A circuit with one used to
+  build and then raise from `str`, `len`, indexing and pickling; a model with one built silently.
+- A fresh `BpLsdDecoder` reports `lsd_method` 0 in its statistics, as ldpc's does, where it reported 3
+  until its first decode.
+- The refusal of a model past 64 observables now says that the Python matching decoder without
+  correlations takes any number. 2.2.0's note listed matching among the decoders that take at most
+  64; correlated matching still does.
+- A copied `BpFlipDecoder` carries on the random tie flips of the original. Its pickled copy
+  restarted them from `pflip_seed`, so its later decodes could differ from the original's.
+- BP+LSD's merge-order search (`_merge_order_outcomes`) releases the GIL, so other threads run
+  while it does. It runs on a copy of the decoder.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.

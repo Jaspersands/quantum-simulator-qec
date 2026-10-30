@@ -165,9 +165,12 @@ pub struct Search {
     /// The visualizer's lines, when asked for.
     trace: std::sync::Mutex<Vec<String>>,
     log: std::sync::Mutex<Vec<String>>,
-    /// Per retained fault, the observables it flips: `obs_words` 64-bit words each (observable
-    /// k is bit k % 64 of word k / 64), as many as the model's observables need (at least one).
-    obs: Vec<u64>,
+    /// Per retained fault, the observables it flips, as their indices in
+    /// `obs[obs_start[f]..obs_start[f + 1]]`, so a fault stores what it flips, whatever the
+    /// model's observable count.
+    obs: Vec<u32>,
+    obs_start: Vec<usize>,
+    /// How many 64-bit words a set of observables takes (at least one).
     obs_words: usize,
 }
 
@@ -474,6 +477,19 @@ pub struct Found {
     pub low_confidence: bool,
 }
 
+/// The indices of the set bits of `words` (bit k % 64 of word k / 64), ascending.
+fn bit_indices(words: &[u64]) -> Vec<u32> {
+    let mut out = Vec::new();
+    for (w, &x) in words.iter().enumerate() {
+        let mut x = x;
+        while x != 0 {
+            out.push((w * 64 + x.trailing_zeros() as usize) as u32);
+            x &= x - 1;
+        }
+    }
+    out
+}
+
 impl Search {
     /// The decoder for a flat model with the given configuration (`orders` already
     /// generated; at least one). `wide`, when given, is each fault's observables in full
@@ -487,14 +503,10 @@ impl Search {
             Some(_) => dem.num_observables.div_ceil(64).max(1),
             None => 1,
         };
-        let observables = |k: usize, m: &crate::dem::Mechanism| -> Vec<u64> {
+        let observables = |k: usize, m: &crate::dem::Mechanism| -> Vec<u32> {
             match wide {
-                None => vec![m.observables],
-                Some(wide) => {
-                    let mut w = wide[k].0.clone();
-                    w.resize(words, 0);
-                    w
-                }
+                None => bit_indices(&[m.observables]),
+                Some(wide) => bit_indices(&wide[k].0),
             }
         };
         // Merge faults with the same detectors and observables (in first-seen order), then
@@ -502,8 +514,8 @@ impl Search {
         // its intermediate models.
         let mut model_to_merged = Vec::with_capacity(dem.mechanisms.len());
         // (cost, or the probability itself where nothing is merged; detectors; observables).
-        let mut merged: Vec<(f64, Vec<u32>, Vec<u64>)> = Vec::new();
-        let mut by_symptom: HashMap<(Vec<u32>, Vec<u64>), usize> = HashMap::new();
+        let mut merged: Vec<(f64, Vec<u32>, Vec<u32>)> = Vec::new();
+        let mut by_symptom: HashMap<(Vec<u32>, Vec<u32>), usize> = HashMap::new();
         for (k, m) in dem.mechanisms.iter().enumerate() {
             if !(0.0..=1.0).contains(&m.p) {
                 return Err(format!("a fault has probability {}, outside [0, 1]", m.p));
@@ -525,7 +537,8 @@ impl Search {
             }
         }
         let mut faults = Vec::new();
-        let mut table = Vec::new();
+        let mut obs_index: Vec<u32> = Vec::new();
+        let mut obs_start = vec![0];
         let mut merged_to_fault = vec![usize::MAX; merged.len()];
         for (k, (c, dets, obs)) in merged.into_iter().enumerate() {
             // The merged model stores probabilities: written back and read again.
@@ -533,7 +546,8 @@ impl Search {
             if p > 0.0 {
                 merged_to_fault[k] = faults.len();
                 faults.push(Fault { cost: cost_of(p), detectors: dets });
-                table.extend_from_slice(&obs);
+                obs_index.extend_from_slice(&obs);
+                obs_start.push(obs_index.len());
             }
         }
         let mut fault_to_model = vec![usize::MAX; faults.len()];
@@ -543,13 +557,18 @@ impl Search {
                 fault_to_model[f] = model;
             }
         }
-        Self::assemble(n, faults, (table, words), fault_to_model, model_to_fault, config)
+        Self::assemble(n, faults, (obs_index, obs_start, words), fault_to_model, model_to_fault, config)
     }
 
     /// A search over faults given directly (cost, detectors, observables), none merged or
     /// dropped; the faults are their own model faults.
     pub fn from_faults(num_detectors: usize, faults: Vec<(f64, Vec<u32>, u64)>, config: SearchConfig) -> Result<Search, String> {
-        let table: Vec<u64> = faults.iter().map(|f| f.2).collect();
+        let mut obs_index: Vec<u32> = Vec::new();
+        let mut obs_start = vec![0];
+        for f in &faults {
+            obs_index.extend(bit_indices(&[f.2]));
+            obs_start.push(obs_index.len());
+        }
         let faults: Vec<Fault> = faults
             .into_iter()
             .map(|(cost, mut detectors, _)| {
@@ -561,10 +580,10 @@ impl Search {
             return Err(format!("a fault sets off detector {:?}, beyond {num_detectors}", f.detectors.last()));
         }
         let ids: Vec<usize> = (0..faults.len()).collect();
-        Self::assemble(num_detectors, faults, (table, 1), ids.clone(), ids, config)
+        Self::assemble(num_detectors, faults, (obs_index, obs_start, 1), ids.clone(), ids, config)
     }
 
-    fn assemble(n: usize, faults: Vec<Fault>, (obs, obs_words): (Vec<u64>, usize), fault_to_model: Vec<usize>, model_to_fault: Vec<usize>, config: SearchConfig) -> Result<Search, String> {
+    fn assemble(n: usize, faults: Vec<Fault>, (obs, obs_start, obs_words): (Vec<u32>, Vec<usize>, usize), fault_to_model: Vec<usize>, model_to_fault: Vec<usize>, config: SearchConfig) -> Result<Search, String> {
         let mut d2e: Vec<Vec<u32>> = vec![Vec::new(); n];
         for (ei, f) in faults.iter().enumerate() {
             for &d in &f.detectors {
@@ -621,7 +640,7 @@ impl Search {
                 }
             }
         }
-        Ok(Search { num_detectors: n, faults, fault_to_model, model_to_fault, d2e, neighbors, config, mandatory, optional, reactivate, trace: std::sync::Mutex::new(Vec::new()), log: std::sync::Mutex::new(Vec::new()), obs, obs_words })
+        Ok(Search { num_detectors: n, faults, fault_to_model, model_to_fault, d2e, neighbors, config, mandatory, optional, reactivate, trace: std::sync::Mutex::new(Vec::new()), log: std::sync::Mutex::new(Vec::new()), obs, obs_start, obs_words })
     }
 
     /// `get_detcost`: detector `d`'s cheapest share of an unblocked fault through it.
@@ -838,8 +857,17 @@ impl Search {
 
     /// The faults the search works with, after merging and dropping those of probability 0:
     /// (cost, detectors, observables in `observable_words` words).
-    pub fn retained(&self) -> impl Iterator<Item = (f64, &[u32], &[u64])> + '_ {
-        self.faults.iter().zip(self.obs.chunks_exact(self.obs_words)).map(|(f, o)| (f.cost, f.detectors.as_slice(), o))
+    pub fn retained(&self) -> impl Iterator<Item = (f64, &[u32], Vec<u64>)> + '_ {
+        self.faults.iter().enumerate().map(|(f, fault)| (fault.cost, fault.detectors.as_slice(), self.fault_observables(f)))
+    }
+
+    /// Retained fault `f`'s observables, in `observable_words` words.
+    fn fault_observables(&self, f: usize) -> Vec<u64> {
+        let mut out = vec![0; self.obs_words];
+        for &k in &self.obs[self.obs_start[f]..self.obs_start[f + 1]] {
+            out[k as usize / 64] ^= 1u64 << (k % 64);
+        }
+        out
     }
 
     /// How many 64-bit words a set of observables takes here (observable k is bit k % 64 of
@@ -868,12 +896,11 @@ impl Search {
     /// `observables` into `out` (`observable_words` long), which it overwrites.
     pub fn observables_into(&self, found: &[usize], out: &mut [u64]) {
         out.fill(0);
-        let w = self.obs_words;
         for &m in found {
             let f = self.model_to_fault[m];
             if f < self.faults.len() {
-                for (o, x) in out.iter_mut().zip(&self.obs[f * w..(f + 1) * w]) {
-                    *o ^= x;
+                for &k in &self.obs[self.obs_start[f]..self.obs_start[f + 1]] {
+                    out[k as usize / 64] ^= 1u64 << (k % 64);
                 }
             }
         }
@@ -1208,5 +1235,19 @@ mod tests {
         let config = SearchConfig { beam: None, beam_climbing: false, no_revisit: false, queue_limit: None, orders: vec![vec![0]], detector_penalty: 0.0, merge_errors: true, flavour: Flavour::native(), sparsify: None, visualize: false, verbose: false };
         let s = Search::new(&narrow, None, config).unwrap();
         assert_eq!((s.retained().count(), s.observable_words(), s.observables(&[0])), (1, 1, vec![2]));
+    }
+
+    /// A fault stores the observables it flips, not one word for each of the model's observables:
+    /// a model with an observable 1,000 places in one fault keeps one index for it.
+    #[test]
+    fn storage_follows_what_each_fault_flips() {
+        let program = crate::dem_program::DemProgram::parse("error(0.1) D0 L1000\nerror(0.1) D1 L1\nerror(0.1) D2").unwrap();
+        let (dem, wide) = program.to_dem_wide().unwrap();
+        let config = SearchConfig { beam: None, beam_climbing: false, no_revisit: false, queue_limit: None, orders: vec![vec![0, 1, 2]], detector_penalty: 0.0, merge_errors: true, flavour: Flavour::native(), sparsify: None, visualize: false, verbose: false };
+        let s = Search::new(&dem, Some(&wide), config).unwrap();
+        assert_eq!((s.retained().count(), s.observable_words(), s.obs.len()), (3, 16, 2));
+        let mut bits = vec![0u64; 16];
+        s.observables_into(&[0], &mut bits);
+        assert_eq!((bits[15], s.observables(&[0, 1])[0]), (1 << 40, 2));
     }
 }

@@ -473,6 +473,7 @@ pub struct BpLsd {
 }
 
 /// One decode's state; one per thread.
+#[derive(Clone)]
 pub struct BpLsdWork {
     pub bp: BpWork,
     /// The serial schedule's order and generator, kept from decode to decode.
@@ -616,7 +617,7 @@ impl BpLsd {
     }
 
     pub fn work(&self) -> BpLsdWork {
-        BpLsdWork { bp: self.bp.work(), serial: SerialState::new(self.columns.len()), before: None, correction: vec![0; self.columns.len()], ties: 0, record: false, cluster_bits: Vec::new(), do_stats: false, stats: LsdStats { lsd_method: 3, ..LsdStats::default() } }
+        BpLsdWork { bp: self.bp.work(), serial: SerialState::new(self.columns.len()), before: None, correction: vec![0; self.columns.len()], ties: 0, record: false, cluster_bits: Vec::new(), do_stats: false, stats: LsdStats::default() }
     }
 
     /// Decode a syndrome (one byte per check); the correction is left in `w.correction`.

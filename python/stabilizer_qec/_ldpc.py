@@ -1073,6 +1073,20 @@ class BpFlipDecoder(BpDecoderBase):
         # (ldpc's raises AttributeError.)
         return self._decoding.astype(int)
 
+    def __reduce__(self) -> tuple:
+        # The flip's random stream goes with the copy, as the serial schedule's does.
+        with self._lock:
+            rebuild, args, state = super().__reduce__()
+            state["_flip_rng"] = call(self._flip.rng_state)
+        return rebuild, args, state
+
+    def __setstate__(self, state: dict) -> None:
+        state = dict(state)
+        flip_rng = state.pop("_flip_rng", None)
+        super().__setstate__(state)
+        if flip_rng is not None:
+            call(self._flip.set_rng_state, flip_rng)
+
 
 class LsdDecoder(_LsdOptions):
     """Localised statistics decoding alone, given each bit's weight (lower: likelier), as

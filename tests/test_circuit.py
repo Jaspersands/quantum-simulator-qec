@@ -78,3 +78,15 @@ def test_dem_text_round_trip(d3):
     assert (again == dem) == exact_text
     assert dem.copy() == dem and pickle.loads(pickle.dumps(dem)) == dem
     assert (again.num_detectors, again.num_observables, again.num_errors) == (dem.num_detectors, 1, dem.num_errors)
+
+
+@pytest.mark.parametrize("tag", ["a\\b", "a\\\\", "a\\"])
+def test_tags_with_escapes_stim_refuses_are_refused_at_construction(tag):
+    with pytest.raises(ValueError, match="Unrecognized escape sequence"):
+        sq.Circuit(f"X[{tag}] 0")
+    with pytest.raises(ValueError, match="Unrecognized escape sequence"):
+        sq.DetectorErrorModel(f"error[{tag}](0.1) D0")
+
+
+def test_tags_with_stim_escapes_still_parse():
+    assert str(sq.Circuit(r"X[a\n] 0")) == r"X[a\n] 0"

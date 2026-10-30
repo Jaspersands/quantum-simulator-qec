@@ -462,7 +462,8 @@ fn name_end(line: &str) -> usize {
 pub(crate) type Split<'a> = (String, &'a str, Vec<f64>, Vec<&'a str>);
 
 /// Split `NAME[tag](a, b) t1 t2` into its name (upper-cased), tag (empty for none), arguments
-/// and targets. The tag is kept as written, Stim's escapes (`\B`, `\C`, `\n`, `\r`) included.
+/// and targets. The tag is kept as written, Stim's escapes (`\B`, `\C`, `\n`, `\r`) included, and
+/// an escape Stim does not know is an error.
 /// Shared with the `.dem` reader, whose lines have the same shape.
 pub(crate) fn split_instruction(line: &str) -> Result<Split<'_>, String> {
     let name_end = name_end(line);
@@ -478,6 +479,7 @@ pub(crate) fn split_instruction(line: &str) -> Result<Split<'_>, String> {
             return Err(format!("{name}: a tag cannot span lines"));
         }
         tag = &inner[..close];
+        crate::clifford::ir::unescape_tag(tag).map_err(|e| format!("{name}: {e}"))?;
         rest = &inner[close + 1..];
         if rest.starts_with(|c: char| !(c.is_whitespace() || c == '(')) {
             return Err(format!("{name}[{tag}]: the tag must be followed by arguments or a space"));
