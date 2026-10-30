@@ -37,6 +37,8 @@ policy for its documented items.
 - `serve` answers a DECODE with a clear ERROR when the decoder's batch result holds error frames (a
   CUDA-Q QEC result with `.result` and no predictions), instead of a numpy shape error. Such decoders
   still cannot be served; the ERROR says why.
+- `serve` refuses a STATS, RESET or BYE frame that declares a payload from its header, before buffering
+  the payload; it used to read and ignore up to 256 MiB of it.
 
 ## 2.2.0 — 2026-10-30
 

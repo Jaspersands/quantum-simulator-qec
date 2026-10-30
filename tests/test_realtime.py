@@ -297,6 +297,39 @@ def test_a_decoder_of_error_frames_is_refused_with_a_clear_error():
         queue.close()
 
 
+def test_server_refuses_a_payload_on_a_frame_that_takes_none_before_reading_it(memory):
+    """A STATS, RESET or BYE frame with a payload is refused at once, from its header: the server does not wait for
+    the payload (which is not sent here) to buffer it."""
+    import socket
+
+    c, dets, obs = memory
+    m = sq.Matching(c.detector_error_model(decompose_errors=True))
+    bound = {}
+    started = threading.Event()
+
+    def ready(server):
+        bound["server"] = server
+        started.set()
+
+    thread = threading.Thread(target=serve, args=(m,), kwargs=dict(tcp="127.0.0.1:0", ready=ready, timeout=30.0), daemon=True)
+    thread.start()
+    assert started.wait(10)
+    host, port = bound["server"].server_address[:2]
+    try:
+        for kind in (Protocol.STATS, Protocol.RESET, Protocol.BYE):
+            s = socket.create_connection((host, port), timeout=10)
+            f = s.makefile("rb")
+            Protocol.read(f)  # HELLO
+            t0 = time.perf_counter()
+            s.sendall(Protocol.HEADER.pack(Protocol.MAGIC, Protocol.VERSION, kind, 0, 0, 1 << 20))
+            reply_kind, _, _, body = Protocol.read(f)
+            assert reply_kind == Protocol.ERROR and b"takes no payload" in body and time.perf_counter() - t0 < 5
+            s.close()
+    finally:
+        bound["server"].shutdown()
+        thread.join(10)
+
+
 def test_reset_leaves_no_statistics_from_running_batches():
     gate = threading.Event()
 

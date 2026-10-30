@@ -603,6 +603,8 @@ class _Session:
                     stride = _b8_stride(self.nd)
                     if kind == Protocol.DECODE and (shots > self.max_shots or length != shots * stride):
                         raise ValueError(f"DECODE of {shots} shots needs {shots * stride} bytes of b8 syndromes (at most {self.max_shots} shots), got {length}")
+                    if kind in (Protocol.STATS, Protocol.RESET, Protocol.BYE) and length:
+                        raise ValueError(f"{Protocol.NAMES[kind]} takes no payload, got {length} bytes")
                     if length > Protocol.MAX_FRAME:
                         raise ValueError(f"frame too long ({length} bytes; at most {Protocol.MAX_FRAME})")
                     payload = Protocol.read_payload(reader, length)
