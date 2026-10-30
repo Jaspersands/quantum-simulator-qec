@@ -1798,7 +1798,8 @@ row. This stopping rule uses the weighted rate variance; it is not a threshold o
   The archived larger-distance circuit-level ESS rows do not establish current scaling.
 - The coherent sampler takes Pauli rotations as its errors. A circuit with T gates (or any
   non-Clifford gate) gets the joint sampler of the next section; amplitude damping and feedback
-  go to the state vector.
+  go to the state vector. A coherent error at a Clifford angle is run as its gate, not expanded into
+  its Pauli: n repeats of one give n(n-1)/2 kernel generators, and a shot's cost grows steeply with n.
 - Leakage-aware decoding here is herald-driven reweighting (`LeakageAwareDecoder`, see the
   lattice-surgery leakage results); the Local Clustering Decoder of Ziad et al. is implemented here
   as `LocalClustering`, whose leakage map is `LocalClustering.from_circuit`. deltakit-stim, which
