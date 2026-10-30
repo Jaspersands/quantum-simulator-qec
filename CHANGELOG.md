@@ -19,6 +19,8 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- The 2.0.0 note's "Deltakit 0.10 whole" left out deltakit-compile 0.1.0 and deltakit-visualise
+  0.4.0, which the deltakit 0.10.2 distribution requires and this package does not port.
 
 ## 2.2.0 — 2026-10-30
 
