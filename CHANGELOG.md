@@ -896,11 +896,12 @@ contraction width (`CoherentSampler.contraction_width`).
 
 These remain, each in the README and the inventory:
 
-- **Loom's if/else circuits** (`IfElseCircuit` and its `BoolOp` conditions). The file that
-  defines them in el-loom 0.4.0, `src/loom/eka/ifelse_circuit.py`, alone among Loom's files
+- **Loom's if/else circuits** (`IfElseCircuit` and its `BoolOp` conditions). `IfElseCircuit` is
+  defined in el-loom 0.4.0's `src/loom/eka/ifelse_circuit.py`, which alone among Loom's files
   carries a notice that prohibits its use, distribution and reproduction without Entropica Labs'
-  express written consent, in place of the Apache-2.0 header. A port, and fixtures recorded by
-  running it, need that consent.
+  express written consent, in place of the Apache-2.0 header. Its `BoolOp` conditions are defined
+  in `src/loom/eka/utilities/enums.py`, under the Apache-2.0 header. A port of `IfElseCircuit`, and
+  fixtures recorded by running it, need that consent.
 - **tqec's Y cubes.** tqec 0.2.0 has none: it raises `NotImplementedError("Y cube is not
   implemented.")`, and so does this package.
 - **Tsim's shots, bit for bit.** Tsim draws its noise with numpy's PCG64, channel by simplified

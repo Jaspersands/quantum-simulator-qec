@@ -245,9 +245,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   T and S state injection, transversal Hadamard and the auxiliary CNOT; the repetition chain, Shor,
   Steane and five-qubit codes) interpreted to circuits gate for gate as Loom writes them, with
   Loom's validator on this package's tableau simulator, its circuit error models, and exporters to
-  Stim, OpenQASM 3, PennyLane, CUDA-Q, Mimiq and Guppy. Loom's if/else circuits are not ported: the
-  one file that defines them carries a notice that prohibits its use, distribution and reproduction
-  without Entropica Labs' consent.
+  Stim, OpenQASM 3, PennyLane, CUDA-Q, Mimiq and Guppy. Loom's if/else circuits are not ported:
+  `IfElseCircuit` is defined in the one file that carries a notice prohibiting its use,
+  distribution and reproduction without Entropica Labs' consent, and its `BoolOp` conditions are
+  in Apache-2.0 `src/loom/eka/utilities/enums.py`.
 - **The other estimators, to the bit**: Qualtran's surface-code cost models
   (`stabilizer_qec.estimate`: Gidney–Fowler's and Beverland et al.'s schemes, the CCZ-to-2T and
   15-to-1 factories with Litinski's density-matrix error model, Litinski's data blocks, rotation
