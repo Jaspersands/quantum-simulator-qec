@@ -12,9 +12,12 @@ import pathlib
 import queue
 import re
 import shutil
+import socket
+import struct
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -478,6 +481,21 @@ def test_serve_fallback_refusals(served):
     assert "KeyError: 'NoSuchScheme'" in log and "Exception on /update [POST]" in log
     assert any(line.startswith("Traceback (most recent call last):") for line in log.splitlines())
     assert served.request("update", list(GIDNEY))[0] == 200  # the server still runs
+
+
+def test_serve_fallback_a_dropped_client_is_not_reported(served):
+    """A client that resets its connection before the answer to its POST is written is not an error for the
+    server to report (Dash's server reports none): no traceback on stderr, and the server still answers."""
+    host, port = urllib.parse.urlsplit(served.url).netloc.rsplit(":", 1)
+    body = json.dumps(list(GIDNEY)).encode()
+    for _ in range(3):
+        sock = socket.create_connection((host, int(port)), timeout=60)
+        sock.sendall(b"POST /update HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % len(body) + body)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))  # close sends a reset
+        sock.close()
+    assert served.request("update", list(GIDNEY))[0] == 200
+    time.sleep(0.5)  # the dropped requests' threads may still be writing their answers
+    assert "Traceback" not in served.stderr_path.read_text()
 
 
 UNENCODABLE = """

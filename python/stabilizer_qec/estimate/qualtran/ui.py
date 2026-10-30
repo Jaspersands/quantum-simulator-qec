@@ -755,6 +755,12 @@ def _page_server(host: str, port: int):
     class Server(ThreadingHTTPServer):
         address_family = socket.AF_INET6 if ":" in host else socket.AF_INET
 
+        def handle_error(self, request, client_address):
+            # a client that has gone away is not reported, as Dash's server does not report one
+            if isinstance(sys.exc_info()[1], ConnectionError):
+                return
+            super().handle_error(request, client_address)
+
     return Server((host, port), Handler)
 
 

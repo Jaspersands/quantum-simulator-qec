@@ -28,6 +28,8 @@ policy for its documented items.
   not as one line with the newlines escaped as `\x0a`.
 - The standard-library page's number inputs send their value when a spin button changes it, as Dash's do,
   not only on Enter or on leaving the input.
+- The standard-library page server prints no traceback when a client drops its connection before the
+  answer, as Dash's server prints none; other errors are still reported.
 
 ## 2.2.0 — 2026-10-30
 
