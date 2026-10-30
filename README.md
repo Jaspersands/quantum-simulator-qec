@@ -2060,7 +2060,9 @@ it, three patches held as memories for the CNOT's 4d rounds:
 - **Correlated matching matters most here.** At d = 7, p = 0.3%, plain matching fails 11.5% against
   correlated's 5.6%.
 - **Window decoding loses almost nothing.** Decoded by parallel windows at d = 5, p = 0.3%, it fails
-  11.27% and 12.88% against 11.27% and 12.70% decoded whole.
+  11.27% and 12.88% against 11.27% and 12.70% decoded whole. The whole-decoded figures are that run's
+  own shots (`windowed/cnot/d5/p0.003` in `data/surgery/programs.json`), so they differ from the
+  table's run by sampling.
 
 **Merges in a row.** k Z⊗Z measurements on the same two patches, each over d merged rounds:
 
