@@ -409,7 +409,9 @@ class BpDecoderBase:
         and where it converges the answer is the codeword, BP's error taken off the vector. Where
         it does not, ldpc hands OSD, LSD or union-find the vector itself, read as a syndrome, with
         BP's posteriors, so the answer is then an error whose syndrome is the vector. The vector's
-        length is checked as a syndrome's, so the matrix must be square. None for a syndrome;
+        length is checked as a syndrome's, so the matrix must be square. (ldpc's BpLsd and BpOsd decode a
+        length-2 vector on a 2 by 3 matrix to [0, 0, 0], which does not reproduce that vector's syndrome;
+        here it is refused.) None for a syndrome;
         else (the vector's bits, their syndrome, the vector's dtype)."""
         if self._input != "received_vector":
             return None

@@ -972,7 +972,9 @@ def cmd_help(a) -> None:
 def cmd_repl(a) -> None:
     """Stim's REPL: each instruction (a REPEAT block once it closes) runs as soon as it's read,
     on a tableau simulator; each instruction that measures prints its results as 0s and 1s
-    and a newline. An instruction that fails is reported (in red) and skipped."""
+    and a newline. An instruction that fails is reported (in red) and skipped. Each operation reads
+    the whole measurement record twice to find its new bits, so its cost is linear in the number of
+    measurements so far."""
     from ._circuit import Circuit
     from ._stim import TableauSimulator
 

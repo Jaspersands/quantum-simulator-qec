@@ -295,6 +295,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   website CRLF is compared as LF, with raw upstream body/length and installed LF resource checks. A percent-encoded slash is a further limit: `GET /%2Fdata/x.txt`
   returns 200 here, since the server decodes it to `//` and the port collapses that, while the live
   upstream returns 404. These are explicit limits on raw live-response parity.
+  The page's scripts and stylesheets come from jsDelivr, unpkg and Google Fonts with no `integrity`
+  attributes (no SRI hashes), as the upstream page has them, so a compromised file on those hosts
+  would run in the origin that serves the data folder. The page is kept byte for byte, so it stays
+  unhashed.
   The helper binds when run, uses the latest process-wide serve root and needs `server_close()`
   after shutdown to release its socket. The serve root (cwd and any symlinks in it) is resolved
   when `serve()` is called, so ETags use the resolved path and differ from fusion_blossom's for
@@ -1455,7 +1459,8 @@ from a schedule they optimise; each system here measures one operator.
   operators and both systems, reading out after memory cycles or right at the split.
 - A check whose whole support is read in its own basis closes its comparison with that reading:
   the flux checks at the split. A first version left them open, one detector per flux check
-  short; the Z-basis measurements were retaken on the corrected circuits.
+  short; the Z-basis measurements were to be retaken on the corrected circuits (the measured table
+  below is stamped with an engine commit that predates the fix).
 - The error model equals Stim's fault for fault.
 - The cycle writer's plain memory equals `bb_memory_circuit`'s error model, mechanism for
   mechanism.
@@ -1472,6 +1477,9 @@ from a schedule they optimise; each system here measures one operator.
 memory cycles, the data read. In the X basis the observables are the outcome and the 12 X
 logicals; in Z, the 11 Z logicals the measurement keeps, each carried through the edges. Circuit
 noise p = 0.3%, Bravyi et al.'s model, decoded by BP+OSD-CS of order 7 on the whole error model.
+The points were recorded at engine commit `1ba041f` (the stamp in `data/gross/logical.json`), which
+predates the flux-check fix (`5a7c17e`) and the OSD fix (`bd2ee4a`). They are not re-recorded here,
+and re-recording is pending for the next release.
 Beside each point, the memory of the same length:
 
 | operator | system | basis | T | shots | anything wrong | outcome wrong | memory, same length |
@@ -1575,7 +1583,10 @@ cluster's faults in `ldpc`'s order; Relay-BP on the gross code with explicit str
 strengths and no memory, correction, convergence and iteration count; colour-code matching on
 annotated colour codes (d = 3 to 9) and Chromobius's own test code, the Möbius matching's
 weight on every shot and the predictions; the search on surface, colour and gross-code models
-with Tesseract's defaults, literal orders and beam climbing, the faults found. All four decoder sections below were re-recorded with the actual final 2.2.0 wheel.
+with Tesseract's defaults, literal orders and beam climbing, the faults found. The four decoder sections below are recorded in `data/decoders/check.json` (version 2.2.0) at commit
+`011b01c` (2026-10-23), which records no machine or wheel. Decoder sources changed after that commit,
+so the table is not from the final sources and is not re-recorded here; re-recording is pending for the
+next release.
 A BP+LSD difference counts as a tie only when the reference's correction is among the actual
 merge-order outcomes searched by `tools/decoder_check.py`; it is not a blanket tie waiver.
 The table reports the finite recorded corpus and its actual installed reference versions:
@@ -1587,8 +1598,8 @@ The table reports the finite recorded corpus and its actual installed reference 
 | Colour-code matching | Chromobius 1.1.1 | 17 | 340,000 | 340,000 | 0 | 0 | 0.72 |
 | Search decoder | Tesseract 0.1.1.dev20261013012529 | 12 | 30,000 | 30,000 | 0 | 0 | 1.04 |
 
-The time is this package's over the reference's on the same shots, one thread, Apple M2 Pro,
-both decoders built beforehand. Tutorial 04 runs every decoder on a colour code and the gross
+The time is this package's over the reference's on the same shots, one thread, on an Apple M2 Pro
+(the machine is not recorded in `check.json`), both decoders built beforehand. Tutorial 04 runs every decoder on a colour code and the gross
 code. On the gross code BP+LSD fails more often than BP+OSD, as `ldpc`'s own pair does on the
 same matrix.
 
@@ -1787,7 +1798,8 @@ row. This stopping rule uses the weighted rate variance; it is not a threshold o
   The archived larger-distance circuit-level ESS rows do not establish current scaling.
 - The coherent sampler takes Pauli rotations as its errors. A circuit with T gates (or any
   non-Clifford gate) gets the joint sampler of the next section; amplitude damping and feedback
-  go to the state vector.
+  go to the state vector. A coherent error at a Clifford angle is run as its gate, not expanded into
+  its Pauli: n repeats of one give n(n-1)/2 kernel generators, and a shot's cost grows steeply with n.
 - Leakage-aware decoding here is herald-driven reweighting (`LeakageAwareDecoder`, see the
   lattice-surgery leakage results); the Local Clustering Decoder of Ziad et al. is implemented here
   as `LocalClustering`, whose leakage map is `LocalClustering.from_circuit`. deltakit-stim, which

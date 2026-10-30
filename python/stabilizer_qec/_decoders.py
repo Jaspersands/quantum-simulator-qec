@@ -111,7 +111,7 @@ class UnionFind(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> np.ndarray:
-        """As ``Matching.decode_batch``. A shot no correction explains raises ``ValueError``."""
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``). A shot no correction explains raises ``ValueError``."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
         preds, failed = call(self._x.decode_batch, packed, n, threads)
         _failed(failed, "no correction explains its detection events (an odd cluster with no boundary)")
@@ -166,7 +166,7 @@ class BeliefMatching(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
-        """As ``Matching.decode_batch``; ``return_converged`` also returns, per shot, whether
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``); ``return_converged`` also returns, per shot, whether
         BP's own correction was used."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
         preds, _weights, conv, failed = call(self._x.decode_batch, packed, n, threads)
@@ -220,7 +220,7 @@ class BpOsd(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
-        """As ``Matching.decode_batch``; ``return_converged`` also returns, per shot, whether
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``); ``return_converged`` also returns, per shot, whether
         BP converged before OSD."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
         preds, conv = call(self._x.decode_batch, packed, n, threads)
@@ -324,7 +324,7 @@ class BpLsd(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
-        """As ``Matching.decode_batch``; ``return_converged`` also returns, per shot, whether
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``); ``return_converged`` also returns, per shot, whether
         BP converged before LSD."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
         preds, flags = call(self._x.decode_batch, packed, n, threads)
@@ -393,7 +393,7 @@ class AmbiguityClustering(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Any:
-        """As ``Matching.decode_batch``. ``return_converged`` also returns, per shot, whether BP
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``). ``return_converged`` also returns, per shot, whether BP
         explained it alone; ``return_stats`` returns, per shot, the blocks, the ambiguous blocks
         and the solutions searched in them (an int array of shape (shots, 3))."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
@@ -454,7 +454,7 @@ class CollisionClustering(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Any:
-        """As ``Matching.decode_batch``; ``return_stats`` also returns, per shot, the rounds of
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``); ``return_stats`` also returns, per shot, the rounds of
         growth and the pairs of events compared (an int array of shape (shots, 2)). A shot no
         correction explains raises ``ValueError``."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
@@ -535,7 +535,7 @@ class LocalClustering(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Any:
-        """As ``Matching.decode_batch``. ``heralds``: per shot, which triggers of the
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``). ``heralds``: per shot, which triggers of the
         adaptivity map fired (shape (shots, triggers)); their edges are pre-grown.
         ``return_stats`` also returns, per shot, the rounds of growth, the stage passes the
         controller ran (the hardware's time steps) and the edges pre-grown (an int array of
@@ -835,7 +835,7 @@ class LeakageAwareDecoder(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Any:
-        """As ``Matching.decode_batch``, with the shots' triggers: ``heralds`` (shape (shots,
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``), with the shots' triggers: ``heralds`` (shape (shots,
         measurement records)), ``leakage_flags`` (shape (shots, heralds)), and, where the shots
         are the circuit's own detectors, the detectors reading a herald. ``return_raised`` also
         returns how many priors each shot raised. A shot no correction explains raises
@@ -1085,7 +1085,7 @@ class SubgraphDecoder(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> np.ndarray:
-        """As ``Matching.decode_batch``: each subgraph's inner decoder on its detectors' columns,
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``): each subgraph's inner decoder on its detectors' columns,
         their predictions combined by exclusive or."""
         import inspect
 
@@ -1218,7 +1218,7 @@ class RelayBp(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
-        """As ``Matching.decode_batch``; ``return_converged`` also returns, per shot, whether a
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``); ``return_converged`` also returns, per shot, whether a
         leg converged (where none did, the prediction is from the first leg's last guess)."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
         preds, conv = call(self._x.decode_batch, packed, n, threads)
@@ -1273,7 +1273,7 @@ class ColorMatching(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
-        """As ``Matching.decode_batch``; ``return_weights`` also returns each shot's Möbius
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``); ``return_weights`` also returns each shot's Möbius
         matching weight (as ``chromobius``'s ``predict_weighted_obs_flips_from_dets_bit_packed``)."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
         preds, weights, status, failed, _tours = call(self._x.decode_batch, packed, n, threads)
@@ -1379,7 +1379,7 @@ class SearchDecoder(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Any:
-        """As ``Matching.decode_batch``; ``return_weights`` also returns each shot's found cost
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``); ``return_weights`` also returns each shot's found cost
         (Σ −ln(p/(1 − p)) over its faults), ``return_low_confidence`` whether the search gave
         up (then the prediction is no flips)."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
@@ -1456,7 +1456,7 @@ class WindowMatching(_DemDecoder):
         bit_packed_predictions: bool = False,
         threads: int = 1,
     ) -> Union[np.ndarray, tuple[np.ndarray, np.ndarray]]:
-        """As ``Matching.decode_batch``; ``return_timings`` also returns each window's decode
+        """As ``Matching.decode_batch``, but its shots must be bool or integers (a nonzero entry reads as 1; a float array raises ``TypeError``); ``return_timings`` also returns each window's decode
         time per shot in seconds (shots × windows)."""
         packed, n, threads = self._shots(shots, bit_packed_shots, threads)
         preds, unexplained, times, failed = call(self._x.decode_batch, packed, n, threads, bool(return_timings))

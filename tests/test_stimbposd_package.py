@@ -4,7 +4,9 @@ on the recorded reference (tests/data/stimbposd_reference.json.gz, recorded by
 tools/stimbposd_reference.py, which replays stimbposd's decoders from its source on real ldpc)
 and, where they install, on real ldpc, Stim and beliefmatching here, or on stimbposd itself.
 Also its check matrices, its batch options and its sinter decoders. (stimbposd's own tests,
-run on the port, are in tests/stimbposd_port.)"""
+run on the port, are in tests/stimbposd_port.) No CI job installs stimbposd or bposd, so
+test_against_stimbposd_itself runs only where stimbposd 0.2.0 is installed, and nothing here compares
+this port with the bposd package."""
 
 from __future__ import annotations
 

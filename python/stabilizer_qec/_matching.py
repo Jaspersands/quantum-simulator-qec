@@ -610,8 +610,10 @@ class Matching:
         threads: int = 1,
     ) -> Any:
         """Shots (shots × detectors, uint8 0/1 or bool; or bit-packed rows) to predictions
-        (shots × fault ids, uint8; or bit-packed), as PyMatching's ``decode_batch``; with
-        ``return_weights``, each shot's matching weight too. ``threads = 0`` uses every core."""
+        (shots × fault ids, uint8; or bit-packed), as PyMatching's ``decode_batch``. Other numeric
+        entries are cast to uint8 and then read as bool, as PyMatching reads them: 256 reads as 0,
+        0.5 as 0 and 1.0 as 1. With ``return_weights``, each shot's matching weight too.
+        ``threads = 0`` uses every core."""
         shots = np.asarray(shots)
         if shots.ndim != 2:
             raise ValueError(f"`shots` array should have two dimensions, not {shots.ndim}")
@@ -739,6 +741,11 @@ class Matching:
         return f"<stabilizer_qec.Matching object with {m} detector{'s' if m != 1 else ''}, {b} boundary node{'s' if b != 1 else ''}, and {e} edge{'s' if e != 1 else ''}>"
 
     def __reduce__(self) -> tuple:
+        """A copy (pickle, copy, deepcopy) is rebuilt from the graph's edges at the fault-id count it has
+        now, with the default decoder settings. The search-graph flag of a kept decoder is set in Rust and
+        is not visible from Python, so the copy's decoder is built afresh (on the search graph whenever the
+        count is above 64). On ties it can therefore pick another matching than the original, which keeps
+        the path it was built on when ensure_num_fault_ids widened it."""
         dem = self._dem_text if self._corr is not None else None
         state = (self.num_nodes, self.num_fault_ids, sorted(self.boundary), self._g.edges(), dem)
         implied = self._g.implied_weights() if dem is None else []

@@ -6,6 +6,11 @@
 """Module for communicating with the GAP computer algebra system.
 
 See https://www.gap-system.org.
+
+GAP packages are installed under ``GAP_ROOT``, the ``gap`` directory inside the ``stabilizer_qec``
+package (``<site-packages>/stabilizer_qec/gap`` when installed; qLDPC's own layout puts it at
+``<site-packages>/gap``). ``require_package`` clones each package into ``GAP_ROOT/pkg``, and the
+executable backend starts GAP with ``GAP_ROOT`` as its root.
 """
 
 from __future__ import annotations
