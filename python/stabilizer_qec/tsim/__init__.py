@@ -12,7 +12,8 @@
   ``stim.Circuit`` or ``stabilizer_qec.Circuit`` (Tsim's tagged Stim read as its gates); what
   Tsim's methods return is a ``tsim.Circuit`` (``copy``, slices, ``*``, ``flattened``,
   ``without_noise``, ``inverse``, ...), and ``stim_circuit`` a plain ``stabilizer_qec.Circuit``.
-  ``tcount``, ``is_clifford`` and ``inverse`` are Tsim's; ``to_matrix`` is Tsim's map on the
+  ``tcount`` and ``inverse`` are Tsim's, and ``is_clifford`` is Tsim's up to the tolerance under
+  "Where it differs"; ``to_matrix`` is Tsim's map on the
   qubits the circuit names, a state column when every qubit is reset first, and, of a circuit
   with measurements, detectors or observables (one that XORs no measurement is a factor of 2),
   resets after a qubit's first operation, feedback, noise on a qubit before its reset or a
@@ -64,6 +65,10 @@ Where it differs from Tsim:
 
 - Shots and noise draws are this package's, equal to Tsim's in distribution (Tsim's are
   JAX's); deterministic values, models, matrices and noiseless probabilities are Tsim's.
+- ``is_clifford`` and ``stim_circuit``'s expansion of rotations take an angle within 1e-9 (in
+  units of π/4) of a multiple of π/4 as that Clifford angle, so ``R_Z(0.5000000001)`` is Clifford
+  here and ``stim_circuit`` writes it as ``SPP Z0``. Tsim reads the literal's exact half-turn
+  fraction and calls it Clifford when the denominator is at most 2.
 - An angle appended as an int prints as a float (``R_Z(1.0)``, Tsim ``R_Z(1)``); a tag on an
   appended ``T``, ``T_DAG``, ``TPP`` or ``TPP_DAG`` is not kept. The suffix of a tagged input
   such as ``S[T:x] 0`` is also dropped (prints ``T 0``, inverse ``T_DAG 0``, where Tsim
