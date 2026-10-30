@@ -2524,6 +2524,18 @@ impl PyFlip {
         let out = self.dec.decode(&syndrome, &mut d);
         Ok((bits(&d), out.converged, out.iterations))
     }
+
+    /// The random source's state (see `Flip::rng_words`).
+    fn rng_state(&self) -> Vec<u32> {
+        self.dec.rng_words()
+    }
+
+    fn set_rng_state(&mut self, state: Vec<u32>) -> PyResult<()> {
+        if !self.dec.set_rng_words(&state) {
+            return Err(err("a flip decoder's generator is 624 words and a position up to 624".to_string()));
+        }
+        Ok(())
+    }
 }
 
 /// `ldpc`'s union-find decoder on a check matrix given by its columns.

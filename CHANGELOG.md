@@ -24,6 +24,8 @@ policy for its documented items.
 - The refusal of a model past 64 observables now says that the Python matching decoder without
   correlations takes any number. 2.2.0's note listed matching among the decoders that take at most
   64; correlated matching still does.
+- A copied `BpFlipDecoder` carries on the random tie flips of the original. Its pickled copy
+  restarted them from `pflip_seed`, so its later decodes could differ from the original's.
 - `conformance.check` and `conformance.audit` no longer need scipy for subjects that do not use
   it (`matching`, `fusion_blossom`, `search_exact` and the rest): the ldpc port, which needs
   scipy, is imported when one of its decoders is built, not whenever the subjects are listed.

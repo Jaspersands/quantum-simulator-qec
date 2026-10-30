@@ -37,6 +37,22 @@ impl Flip {
 
     /// `std::uniform_real_distribution<double>(0, 1)` over mt19937, as libc++ and libstdc++
     /// draw it: two outputs, the second the high word.
+    /// The random source's state (`Mt19937::words`), for a copy to carry on from.
+    pub fn rng_words(&self) -> Vec<u32> {
+        self.rng.words()
+    }
+
+    /// Restores a state `rng_words` gave; false for anything else.
+    pub fn set_rng_words(&mut self, words: &[u32]) -> bool {
+        match crate::cpp_random::Mt19937::from_words(words) {
+            Some(rng) => {
+                self.rng = rng;
+                true
+            }
+            None => false,
+        }
+    }
+
     fn random_double(&mut self) -> f64 {
         let r = 4_294_967_296.0f64;
         let s = f64::from(self.rng.next_u32()) + f64::from(self.rng.next_u32()) * r;
