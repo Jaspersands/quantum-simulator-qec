@@ -1708,7 +1708,8 @@ sum missed part of the interference. 2.2 contracts its class (width 3) and reads
 
 **Measured** (`tools/coherent.py`): the rotated surface code's X memory over d rounds, under circuit
 noise p = 0.2% and a coherent Z over-rotation by θ on every data qubit after every tick, against
-the same circuit twirled. The last column decodes the same shots on the merged model:
+the same circuit twirled. The second-to-last column (coherent, decoded knowing) decodes the same shots on the merged model;
+the last is the effective sample size kept:
 
 | d | θ | coherent | twirl | coherent ÷ twirl | coherent, decoded knowing | sample size kept |
 |---|---|---|---|---|---|---|
