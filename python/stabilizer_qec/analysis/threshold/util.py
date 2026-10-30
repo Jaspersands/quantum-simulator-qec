@@ -59,8 +59,9 @@ def save_fit_information(
 
     Notes
     -----
-    The file is YAML, written by pyyaml when it is installed and otherwise as JSON (which
-    YAML readers read too).
+    The file is YAML, written by pyyaml when it is installed and otherwise as JSON. A JSON file
+    is read by pyyaml as YAML except for numbers in exponent form with no decimal point (1e-06),
+    which it reads as strings; ``load_fit_information`` converts them back.
     """
     # ensure that they are np.ndarrays
     popt, pcov = np.array(popt), np.array(pcov)
@@ -102,8 +103,9 @@ def load_fit_information(
 
     Notes
     -----
-    The file is YAML, written by pyyaml when it is installed and otherwise as JSON (which
-    YAML readers read too).
+    The file is YAML, written by pyyaml when it is installed and otherwise as JSON. A JSON file
+    is read by pyyaml as YAML except for numbers in exponent form with no decimal point (1e-06),
+    which it reads as strings; the arrays are converted to floats here, whichever parser read them.
     """
     with open(file_name, "r") as file:
         text = file.read()
@@ -117,10 +119,10 @@ def load_fit_information(
         data = yaml.safe_load(text)
 
     samples_thr = data["bootstrap_thresholds"]
-    samples_thr = np.array(samples_thr) if samples_thr is not None else samples_thr
+    samples_thr = np.array(samples_thr, dtype=float) if samples_thr is not None else samples_thr
     return (
         data["fit_func_name"],
-        np.array(data["popt"]),
-        np.array(data["pcov"]),
+        np.array(data["popt"], dtype=float),
+        np.array(data["pcov"], dtype=float),
         samples_thr,
     )

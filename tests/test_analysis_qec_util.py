@@ -4,6 +4,8 @@ their models and sampled data: the same circuits, models, instructions, matrices
 from __future__ import annotations
 
 import random
+import sys
+import unittest.mock
 
 import numpy as np
 import pytest
@@ -409,6 +411,20 @@ def test_fit_files_round_trip(tmp_path):
     for lib in libs:
         name, p, c, boot = lib.threshold.load_fit_information(tmp_path / "f.txt")
         assert name == "poly-2" and np.allclose(p, popt) and np.allclose(c, pcov) and np.allclose(boot, [0.01, 0.011])
+
+
+def test_fit_file_written_without_pyyaml_loads_as_numbers(tmp_path):
+    # Without pyyaml the file is JSON, and pyyaml reads its exponent floats with no decimal point
+    # (1e-06) as strings: the arrays load as floats whichever parser reads the file.
+    popt = np.array([1e-06, 2.5e-05, 0.2, 2.0, 30.0])
+    pcov = np.diag([1e-06, 2.5e-05, 1e-06, 1e-06, 1e-06])
+    boot = np.array([1e-06, 0.011])
+    with unittest.mock.patch.dict(sys.modules, {"yaml": None}):
+        ours.threshold.save_fit_information(tmp_path / "f.txt", "poly-2", popt, pcov, boot)
+    name, p, c, b = ours.threshold.load_fit_information(tmp_path / "f.txt")
+    assert name == "poly-2"
+    assert p.dtype == c.dtype == b.dtype == float
+    assert np.array_equal(p, popt) and np.array_equal(c, pcov) and np.array_equal(b, boot)
 
 
 @pytest.mark.parametrize("task,d", [("surface_code:rotated_memory_z", 3), ("repetition_code:memory", 5), ("surface_code:rotated_memory_x", 5)])

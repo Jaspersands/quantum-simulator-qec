@@ -36,6 +36,8 @@ policy for its documented items.
   as `RelayDecoderF32()`), not the private base class `_Relay`.
 - `get_threshold`'s bootstrap draws from numpy's global random generator, as qec-util's does, so
   `np.random.seed` makes its intervals repeat; they were unseeded before.
+- `load_fit_information` returns float arrays for a fit file written without pyyaml. PyYAML read
+  its exponent numbers with no decimal point (`1e-06`) as strings, which made the arrays strings.
 
 ## 2.2.0 — 2026-10-30
 
