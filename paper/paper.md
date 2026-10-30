@@ -56,7 +56,7 @@ vector can hold. Earlier work treats code capacity by free fermions [@bravyi2018
 returns outcome probabilities of Clifford circuits with small errors [@miller2025efficient], or
 estimates one idling memory's logical channel [@leblond2025logical]. Tsim [@haenel2026tsim]
 samples circuits with a few non-Clifford gates at any size, at a cost exponential in their
-number. None samples and decodes circuits with coherent noise on every gate.
+number. These comparisons are selected, not an exhaustive literature audit or a universal novelty claim.
 
 # Statement of need
 
