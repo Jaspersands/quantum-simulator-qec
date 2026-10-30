@@ -432,7 +432,9 @@ contraction width (`CoherentSampler.contraction_width`).
     that constant height, and for a callable, one saying the height must be a `LinearFunction`.
     Each is followed by a sentence pointing at the engine, which still takes numbers and
     callables at a distance: `compile_block_graph(g, distance, block_temporal_height=...)` and
-    `BlockGraph.compile`. The engine now also takes NumPy integers, which 2.1 refused, as
+    `BlockGraph.compile`. The class `TopologicalComputationGraph(graph, block_temporal_height=...)`
+    refuses a number or a callable the same way, with a TQECError, where 2.1's constructor took
+    both. The engine now also takes NumPy integers, which 2.1 refused, as
     heights and as the distance (see Fixed); a float or bool distance is a TQECError (2.1
     raised a TypeError for a float).
   - `CompiledBlockGraph.generate_stim_circuit` (on `compile_block_graph(g, distance)`) wrote
