@@ -378,7 +378,7 @@ both tools on every check below, down to floating-point rounding.
     2021): a two-qubit depolarizing channel after every CNOT, single-qubit depolarizing after every
     single-qubit gate and on every idle qubit, and flips on every reset and measurement.
 
-The old per-code paths are untouched, and every other number in this file still comes from them.
+The old per-code paths are untouched.
 
 **1. The error models are identical.** The comparison covers 15 circuits: Stim's own generated
 rotated memory experiment, and ours for both codes under both noise models, each at d = 3, 5 and 7
