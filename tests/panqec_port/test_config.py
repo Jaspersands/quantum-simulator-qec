@@ -18,3 +18,17 @@ def test_error_raised_if_panqec_dir_does_not_exist(monkeypatch):
 
 def test_dark_theme_known():
     assert type(PANQEC_DARK_THEME) is bool
+
+
+def test_default_output_dir_is_named_for_the_user(monkeypatch, tmp_path):
+    from stabilizer_qec.panqec import config
+    monkeypatch.setattr(config.tempfile, 'gettempdir', lambda: str(tmp_path))
+    monkeypatch.setattr(config.getpass, 'getuser', lambda: 'alice')
+    assert config._default_panqec_dir() == os.path.join(str(tmp_path), 'panqec-alice')
+    monkeypatch.setattr(config.getpass, 'getuser', lambda: 'bob')
+    assert config._default_panqec_dir() == os.path.join(str(tmp_path), 'panqec-bob')
+
+    def no_user_name():
+        raise OSError('no login name')
+    monkeypatch.setattr(config.getpass, 'getuser', no_user_name)
+    assert config._default_panqec_dir() == os.path.join(str(tmp_path), 'panqec')

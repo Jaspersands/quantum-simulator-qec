@@ -318,6 +318,8 @@ policy for its documented items.
   column is accepted, as scipy drops that entry. The setter rejected the matrix before normalising it.
 - A `BpFlipDecoder` with a negative `flip_iterations` runs no flipping pass, as ldpc's does, and decodes
   as plain BP. It raised `OverflowError`. A negative `pflip_frequency` is still refused.
+- PanQEC's default output directory, used when `PANQEC_DIR` is unset, is named for the user
+  (`panqec-<user>` in the temp dir), so two users on one host no longer share it.
 
 ### Not ported
 
