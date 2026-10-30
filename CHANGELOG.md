@@ -26,6 +26,8 @@ policy for its documented items.
   it already does for a symbolic gate count, instead of Python's `TypeError`.
 - The standard-library page server's `update` error traceback is written to stderr with its line breaks,
   not as one line with the newlines escaped as `\x0a`.
+- The standard-library page's number inputs send their value when a spin button changes it, as Dash's do,
+  not only on Enter or on leaving the input.
 
 ## 2.2.0 — 2026-10-30
 

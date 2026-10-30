@@ -146,6 +146,8 @@
     if (p.debounce === true) {
       input.addEventListener("blur", commit);
       input.addEventListener("keypress", function (e) { if (e.key === "Enter") commit(); });
+      // a spin button's step fires change and no blur or Enter; commit ignores a value it has already sent
+      input.addEventListener("change", commit);
     } else {
       input.addEventListener("input", commit);
     }

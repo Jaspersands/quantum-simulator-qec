@@ -607,6 +607,7 @@ def test_page_script_in_node(served, tmp_path):
         {"do": "type", "id": "error_budget", "text": "0.01", "commit": "enter"},
         {"do": "race", "first": {"do": "type", "id": qubits, "text": "100", "commit": "enter"}, "second": {"do": "type", "id": qubits, "text": "200", "commit": "enter"}},
         {"do": "radio", "id": "estimation_model", "value": ui._BEVERLAND_MODEL},
+        {"do": "spin", "id": "error_budget", "text": "0.02"},
     ]
     (tmp_path / "actions.json").write_text(json.dumps(actions))
     harness = pathlib.Path(__file__).parent / "qualtran_ui_page.js"
@@ -626,6 +627,8 @@ def test_page_script_in_node(served, tmp_path):
     beverland = two_hundred[:2] + [ui._BEVERLAND_MODEL] + two_hundred[3:]
     np.random.seed(SEED)  # the server's first draw from numpy's global random state: Gidney-Fowler's draw none
     want_beverland = _shown(ui.update(*beverland))
+    spun = beverland[:1] + [0.02] + beverland[2:]
+    want_spun = _shown(ui.update(*spun))  # the next draw from the same state, as the server's second Beverland answer
     want = [
         ([(first, 200)], _shown(ui.update(*first)), ["qubit-pie-chart"]),
         ([(over, 204)], _shown(ui.update(*first)), []),
@@ -633,6 +636,7 @@ def test_page_script_in_node(served, tmp_path):
         ([], _shown(ui.update(*budget)), []),
         ([(hundred, 200), (two_hundred, 200)], _shown(ui.update(*two_hundred)), ["qubit-pie-chart"]),
         ([(beverland, 200)], want_beverland, ["qubit-pie-chart", "runtime-plot"]),
+        ([(spun, 200)], want_spun, ["qubit-pie-chart", "runtime-plot"]),
     ]
     assert len(got["steps"]) == len(want)
     for step, (posts, outputs, resized) in zip(got["steps"], want):
