@@ -28,6 +28,7 @@ from __future__ import annotations
 import concurrent.futures
 import inspect
 import json
+import os
 import socket
 import socketserver
 import struct
@@ -337,20 +338,21 @@ class DecoderQueue:
         return f"DecoderQueue({self.name}, workers={self._workers}, pending={self.pending()})"
 
 
-_shared: Dict[int, "tuple[weakref.ref, DecoderQueue]"] = {}
+_shared: Dict[int, "tuple[weakref.ref, DecoderQueue, int]"] = {}
 _shared_lock = threading.Lock()
 
 
 def shared_queue(decoder: Any, workers: Optional[int] = None) -> DecoderQueue:
     """The queue ``decode_async`` uses for a decoder: one per decoder object, made on first use
     with ``workers`` threads (the machine's cores by default), closed and forgotten when the
-    decoder is garbage-collected."""
+    decoder is garbage-collected. A process forked from one that used the decoder makes its own:
+    the threads of the parent's queue do not exist in the child."""
     key = id(decoder)
+    pid = os.getpid()
     with _shared_lock:
         entry = _shared.get(key)
-        if entry is not None and entry[0]() is decoder:
+        if entry is not None and entry[0]() is decoder and entry[2] == pid:
             return entry[1]
-        import os
 
         def forget(k=key):
             with _shared_lock:
@@ -374,7 +376,7 @@ def shared_queue(decoder: Any, workers: Optional[int] = None) -> DecoderQueue:
             return target.decode_batch(shots, **kwargs)
 
         q = DecoderQueue(decode=decode, workers=workers or max(1, os.cpu_count() or 1), name=type(decoder).__name__)
-        _shared[key] = (ref, q)
+        _shared[key] = (ref, q, pid)
         return q
 
 
@@ -443,8 +445,10 @@ class Protocol:
     JSON with ``num_detectors``, ``num_observables``, ``decoder``), ``DECODE`` (b8 syndromes, one
     row per shot, the shot count in the header) answered by ``CORRECTIONS`` (b8 predictions),
     ``STATS`` answered by ``STATS_REPLY`` (JSON), ``RESET`` answered by ``OK``, ``BYE``, and
-    ``ERROR`` (JSON ``{"error": ...}``) for a request the server refuses, after which the
-    connection goes on."""
+    ``ERROR`` (JSON ``{"error": ...}``) for a request the server refuses. After a refused request's
+    contents the connection goes on; a refused frame header (bad magic or version, a length its kind
+    does not take, or over the cap) gets its ERROR and then the connection closes, since its payload
+    is not read."""
 
     MAGIC = b"SQRT"
     VERSION = 1
@@ -560,7 +564,7 @@ class _Session:
                 kwargs: Dict[str, Any] = {}
                 if "bit_packed_shots" in takes or "**" in takes:
                     kwargs["bit_packed_shots"] = True
-                else:  # a decoder of plain rows (CUDA-Q QEC's, say)
+                else:  # a decoder that takes plain 0/1 rows, not bit-packed ones
                     rows = np.unpackbits(rows, axis=1, bitorder="little")[:, : self.nd]
                 if "threads" in takes or "**" in takes:  # 0 too: every core, as the decoders read it
                     kwargs["threads"] = self.threads
@@ -568,6 +572,8 @@ class _Session:
                 out = self.queue.get_corrections(ticket)
                 if hasattr(out, "predictions"):  # a result object rather than an array
                     out = out.predictions
+                elif hasattr(out, "result"):  # a batch result of error frames (CUDA-Q QEC's): no predictions to serve
+                    raise ValueError("the decoder returned error frames (a result with .result and no .predictions), not observable predictions; it cannot be served")
                 out = np.asarray(out)
                 if out.ndim != 2 or out.shape[0] != shots:
                     raise ValueError(f"the decoder returned shape {out.shape} for {shots} shots")
@@ -599,6 +605,8 @@ class _Session:
                     stride = _b8_stride(self.nd)
                     if kind == Protocol.DECODE and (shots > self.max_shots or length != shots * stride):
                         raise ValueError(f"DECODE of {shots} shots needs {shots * stride} bytes of b8 syndromes (at most {self.max_shots} shots), got {length}")
+                    if kind in (Protocol.STATS, Protocol.RESET, Protocol.BYE) and length:
+                        raise ValueError(f"{Protocol.NAMES[kind]} takes no payload, got {length} bytes")
                     if length > Protocol.MAX_FRAME:
                         raise ValueError(f"frame too long ({length} bytes; at most {Protocol.MAX_FRAME})")
                     payload = Protocol.read_payload(reader, length)
@@ -654,11 +662,21 @@ def serve(decoder: Any, *, tcp: Optional[str] = None, stdio: bool = False, worke
         raise ValueError("serve over tcp='host:port' or stdio=True, one of the two")
     try:
         if stdio:
+            if sys.stdin is None or sys.stdout is None:
+                raise ValueError("stdin and stdout must both be open for stdio")
             session.run(sys.stdin.buffer, sys.stdout.buffer)
+            try:
+                sys.stdout.flush()
+            except BrokenPipeError:  # the reader has gone: the interpreter's last flush of stdout must not fail
+                devnull = os.open(os.devnull, os.O_WRONLY)
+                os.dup2(devnull, sys.stdout.fileno())
+                os.close(devnull)
             return
         host, _, port = tcp.rpartition(":")
         if not host or not port:
             raise ValueError(f"tcp must be 'host:port', not {tcp!r}")
+        if host.startswith("[") and host.endswith("]"):  # an IPv6 address in brackets
+            host = host[1:-1]
 
         class Handler(socketserver.StreamRequestHandler):
             def handle(self) -> None:
@@ -666,7 +684,10 @@ def serve(decoder: Any, *, tcp: Optional[str] = None, stdio: bool = False, worke
 
         Handler.timeout = timeout
 
-        with _Server((host, int(port)), Handler) as server:
+        class Server(_Server):
+            address_family = socket.AF_INET6 if ":" in host else socket.AF_INET
+
+        with Server((host, int(port)), Handler) as server:
             if ready is not None:
                 ready(server)
             server.serve_forever()
@@ -792,7 +813,8 @@ class DecoderClient:
 
         packed, n = rows_to_b8(shots, self.num_detectors, bit_packed_shots, "shots")
         stride = _b8_stride(self.num_detectors)
-        limit = max(1, self.max_shots)
+        # At most max_shots, and each piece's syndromes within the frame cap the server refuses past.
+        limit = max(1, min(self.max_shots, Protocol.MAX_FRAME // max(1, stride)))
         if n <= limit:
             kind, m, body = self._ask(Protocol.DECODE, packed, n)
             if kind != Protocol.CORRECTIONS or m != n:

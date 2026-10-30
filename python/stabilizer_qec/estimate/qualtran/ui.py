@@ -20,7 +20,9 @@ Plotly's default template, so colors, backgrounds and fonts can differ from the 
 Public layout builders and dependency lists always return lightweight mirrors, even with Dash
 installed. Mirrors expose ``.props`` and ``to_plotly_json()`` (dependencies expose their stored
 IDs/properties), not Dash's component attribute, mutation, serialization or callback APIs. They
-cannot be reused directly as Dash components or callback dependencies; `make_app` converts them.
+cannot be reused directly as Dash components or callback dependencies; `make_app` converts them. The
+module's ``html``, ``dcc``, ``Input``, ``Output`` and ``ALL`` are stand-ins of the same kind for Dash's
+``html``, ``dcc``, ``Input``, ``Output`` and ``ALL``, outside ``__all__``.
 Numerical parity was checked on finite recorded inputs; very large 15-to-1 gate counts can differ
 from Qualtran in the last bits of factory cycle counts and callback durations.
 
@@ -427,7 +429,9 @@ def update(physical_error_rate: float, error_budget: float, estimation_model: st
     """Updates the visualization: the app's nine outputs (the qubit pie chart; the runtime plot's style and
     figure; the magic-state count's name and value; the minimum factory count's style and value; the
     duration's style and value). ``algorithm_data`` is the qubits, measurements, Ts, Toffolis, rotations and
-    rotation depth, in that order; an input of None raises `PreventUpdate`."""
+    rotation depth, in that order. A None for the physical error rate, the error budget, an algorithm value or the
+    magic count raises `PreventUpdate`; a None estimation model computes the Beverland et al. model; a None QEC,
+    magic or rotation model name raises KeyError."""
     if any(x is None for x in [physical_error_rate, error_budget, *algorithm_data, magic_count]):
         raise PreventUpdate
 
@@ -741,13 +745,21 @@ def _page_server(host: str, port: int):
                 self._send(204)
                 return
             except Exception:
-                self.log_error("Exception on /update [POST]\n%s", traceback.format_exc())
+                self.log_error("Exception on /update [POST]")
+                # log_message escapes the newlines of its message, so the traceback is written as it is
+                print(traceback.format_exc(), end="", file=sys.stderr, flush=True)
                 self._refuse(500)
                 return
             self._send(200, body, "application/json")
 
     class Server(ThreadingHTTPServer):
         address_family = socket.AF_INET6 if ":" in host else socket.AF_INET
+
+        def handle_error(self, request, client_address):
+            # a client that has gone away is not reported, as Dash's server does not report one
+            if isinstance(sys.exc_info()[1], ConnectionError):
+                return
+            super().handle_error(request, client_address)
 
     return Server((host, port), Handler)
 

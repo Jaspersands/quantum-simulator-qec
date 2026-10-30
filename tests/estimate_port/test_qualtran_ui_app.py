@@ -12,9 +12,12 @@ import pathlib
 import queue
 import re
 import shutil
+import socket
+import struct
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -189,6 +192,8 @@ def test_dash_app_round_trip():
     assert client.post("/_dash-update-component", json=_dash_payload(GIDNEY[:1] + (None,) + GIDNEY[2:])).status_code == 204
     algorithm = [10, None, 10, 10, 10, 10]
     assert client.post("/_dash-update-component", json=_dash_payload(GIDNEY[:3] + (algorithm,) + GIDNEY[4:])).status_code == 204
+    # An error in update is not PreventUpdate, so Dash answers with its 500.
+    assert client.post("/_dash-update-component", json=_dash_payload(GIDNEY[:4] + ("NoSuchScheme",) + GIDNEY[5:])).status_code == 500
 
 
 def test_dash_app_against_qualtran():
@@ -472,8 +477,58 @@ def test_serve_fallback_refusals(served):
     assert served.request("layout.json", list(GIDNEY))[0] == 405 and served.request("update")[0] == 405
     status, _, body = served.request("update", list(GIDNEY[:4]) + ["NoSuchScheme"] + list(GIDNEY[5:]))
     assert status == 500 and b"NoSuchScheme" not in body
-    assert "KeyError: 'NoSuchScheme'" in served.stderr_path.read_text()
+    log = served.stderr_path.read_text()
+    assert "KeyError: 'NoSuchScheme'" in log and "Exception on /update [POST]" in log
+    assert any(line.startswith("Traceback (most recent call last):") for line in log.splitlines())
     assert served.request("update", list(GIDNEY))[0] == 200  # the server still runs
+
+
+def test_serve_fallback_request_guards(served):
+    """The page server's other guards: a POST body that is not JSON (415), a Content-Length of more than 20 characters
+    (400), OPTIONS answered with the methods a path takes, a method no handler has (405), and a request target that
+    does not parse (400)."""
+    host, port = urllib.parse.urlsplit(served.url).netloc.rsplit(":", 1)
+
+    def raw(method, target, headers=None):
+        conn = http.client.HTTPConnection(host, int(port), timeout=60)
+        try:
+            conn.putrequest(method, target, skip_accept_encoding=True)
+            for name, value in (headers or {}).items():
+                conn.putheader(name, value)
+            conn.endheaders()
+            response = conn.getresponse()
+            return response.status, response.getheader("Allow"), response.read()
+        finally:
+            conn.close()
+
+    assert raw("POST", "/update", {"Content-Type": "text/plain", "Content-Length": "5"})[0] == 415
+    assert raw("POST", "/update", {"Content-Type": "application/json", "Content-Length": "0" * 20 + "5"}) == (400, None, b"400 Bad Request: the Content-Length is too long\n")
+    assert raw("OPTIONS", "/update") == (200, "POST, OPTIONS", b"")
+    assert raw("OPTIONS", "/layout.json") == (200, "GET, HEAD, OPTIONS", b"")
+    assert raw("PUT", "/update", {"Content-Length": "0"})[:2] == (405, "POST, OPTIONS")
+    assert raw("DELETE", "/update")[:2] == (405, "POST, OPTIONS")
+    # http.client parses an absolute target itself, so a malformed one is sent as bytes.
+    with socket.create_connection((host, int(port)), timeout=60) as sock:
+        sock.sendall(b"GET http://[ HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+        reply = b""
+        while chunk := sock.recv(4096):
+            reply += chunk
+    assert reply.split(b"\r\n", 1)[0].split()[1:2] == [b"400"]
+
+
+def test_serve_fallback_a_dropped_client_is_not_reported(served):
+    """A client that resets its connection before the answer to its POST is written is not an error for the
+    server to report (Dash's server reports none): no traceback on stderr, and the server still answers."""
+    host, port = urllib.parse.urlsplit(served.url).netloc.rsplit(":", 1)
+    body = json.dumps(list(GIDNEY)).encode()
+    for _ in range(3):
+        sock = socket.create_connection((host, int(port)), timeout=60)
+        sock.sendall(b"POST /update HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n" % len(body) + body)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0))  # close sends a reset
+        sock.close()
+    assert served.request("update", list(GIDNEY))[0] == 200
+    time.sleep(0.5)  # the dropped requests' threads may still be writing their answers
+    assert "Traceback" not in served.stderr_path.read_text()
 
 
 UNENCODABLE = """
@@ -497,6 +552,7 @@ def test_serve_fallback_unencodable_answer(tmp_path):
         assert server.request("update", list(GIDNEY[:6]) + [2] + list(GIDNEY[7:])) == (500, "text/plain; charset=utf-8", b"500 Internal Server Error\n")
         log = server.stderr_path.read_text()
         assert "Exception on /update [POST]" in log and "TypeError: Object of type object is not JSON serializable" in log
+        assert any(line.startswith("Traceback (most recent call last):") for line in log.splitlines())
         status, kind, body = server.request("update", list(GIDNEY))
         assert (status, kind) == (200, "application/json") and json.loads(body) == _as_json(ui.update(*GIDNEY))
     finally:
@@ -602,6 +658,7 @@ def test_page_script_in_node(served, tmp_path):
         {"do": "type", "id": "error_budget", "text": "0.01", "commit": "enter"},
         {"do": "race", "first": {"do": "type", "id": qubits, "text": "100", "commit": "enter"}, "second": {"do": "type", "id": qubits, "text": "200", "commit": "enter"}},
         {"do": "radio", "id": "estimation_model", "value": ui._BEVERLAND_MODEL},
+        {"do": "spin", "id": "error_budget", "text": "0.02"},
     ]
     (tmp_path / "actions.json").write_text(json.dumps(actions))
     harness = pathlib.Path(__file__).parent / "qualtran_ui_page.js"
@@ -621,6 +678,8 @@ def test_page_script_in_node(served, tmp_path):
     beverland = two_hundred[:2] + [ui._BEVERLAND_MODEL] + two_hundred[3:]
     np.random.seed(SEED)  # the server's first draw from numpy's global random state: Gidney-Fowler's draw none
     want_beverland = _shown(ui.update(*beverland))
+    spun = beverland[:1] + [0.02] + beverland[2:]
+    want_spun = _shown(ui.update(*spun))  # the next draw from the same state, as the server's second Beverland answer
     want = [
         ([(first, 200)], _shown(ui.update(*first)), ["qubit-pie-chart"]),
         ([(over, 204)], _shown(ui.update(*first)), []),
@@ -628,6 +687,7 @@ def test_page_script_in_node(served, tmp_path):
         ([], _shown(ui.update(*budget)), []),
         ([(hundred, 200), (two_hundred, 200)], _shown(ui.update(*two_hundred)), ["qubit-pie-chart"]),
         ([(beverland, 200)], want_beverland, ["qubit-pie-chart", "runtime-plot"]),
+        ([(spun, 200)], want_spun, ["qubit-pie-chart", "runtime-plot"]),
     ]
     assert len(got["steps"]) == len(want)
     for step, (posts, outputs, resized) in zip(got["steps"], want):

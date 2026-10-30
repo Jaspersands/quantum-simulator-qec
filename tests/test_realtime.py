@@ -7,9 +7,13 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import signal
+import subprocess
 import sys
 import threading
 import time
+import warnings
 
 import numpy as np
 import pytest
@@ -172,6 +176,53 @@ def test_stdio_server_subprocess(memory, tmp_path):
         DecoderClient.spawn()
 
 
+_POSIX_STREAMS = pytest.mark.skipif(sys.platform == "win32", reason="closes the standard streams with sh")
+
+
+@_POSIX_STREAMS
+@pytest.mark.parametrize("redirect", ["<&-", ">&-"], ids=["stdin", "stdout"])
+def test_serve_stdio_with_a_closed_stream_is_a_usage_error(memory, tmp_path, redirect):
+    c, dets, obs = memory
+    path = tmp_path / "m.dem"
+    path.write_text(str(c.detector_error_model(decompose_errors=True)))
+    run = subprocess.run(["/bin/sh", "-c", f"exec '{sys.executable}' -m stabilizer_qec._cli serve --stdio --dem '{path}' {redirect}"], capture_output=True, text=True, timeout=120)
+    assert run.returncode == 1 and "must both be open" in run.stderr and "Traceback" not in run.stderr
+
+
+@_POSIX_STREAMS
+def test_serve_stdio_exits_quietly_when_its_reader_has_gone(memory, tmp_path):
+    c, dets, obs = memory
+    path = tmp_path / "m.dem"
+    path.write_text(str(c.detector_error_model(decompose_errors=True)))
+    p = subprocess.Popen([sys.executable, "-m", "stabilizer_qec._cli", "serve", "--stdio", "--dem", str(path)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        Protocol.read(p.stdout)  # HELLO
+        p.stdout.close()  # the reply to the request below has no reader
+        p.stdin.write(Protocol.pack(Protocol.STATS))
+        p.stdin.close()
+        rc = p.wait(60)
+    finally:
+        p.kill()
+    err = p.stderr.read()
+    assert rc == 0 and b"Exception ignored" not in err and b"Traceback" not in err
+
+
+@_POSIX_STREAMS
+def test_serve_stdio_ends_with_130_on_ctrl_c_without_a_traceback(memory, tmp_path):
+    c, dets, obs = memory
+    path = tmp_path / "m.dem"
+    path.write_text(str(c.detector_error_model(decompose_errors=True)))
+    p = subprocess.Popen([sys.executable, "-m", "stabilizer_qec._cli", "serve", "--stdio", "--dem", str(path)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        Protocol.read(p.stdout)  # HELLO: the server now waits for a request
+        p.send_signal(signal.SIGINT)
+        rc = p.wait(60)
+    finally:
+        p.kill()
+    err = p.stderr.read()
+    assert rc == 130 and b"Traceback" not in err
+
+
 def test_serve_cli_arguments(memory, tmp_path, capsys):
     c, dets, obs = memory
     path = tmp_path / "m.dem"
@@ -184,6 +235,42 @@ def test_serve_cli_arguments(memory, tmp_path, capsys):
         serve(sq.Matching(c.detector_error_model(decompose_errors=True)))
     with pytest.raises(ValueError):
         make_decoder("nope", circuit=c)
+
+
+def _ipv6_loopback() -> bool:
+    import socket
+
+    try:
+        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as s:
+            s.bind(("::1", 0))
+        return True
+    except OSError:
+        return False
+
+
+@pytest.mark.skipif(not _ipv6_loopback(), reason="no IPv6 loopback address")
+@pytest.mark.parametrize("tcp", ["::1:0", "[::1]:0"])
+def test_serve_binds_an_ipv6_address(memory, tcp):
+    c, dets, obs = memory
+    m = sq.Matching(c.detector_error_model(decompose_errors=True))
+    bound = {}
+    started = threading.Event()
+
+    def ready(server):
+        bound["server"] = server
+        started.set()
+
+    thread = threading.Thread(target=serve, args=(m,), kwargs=dict(tcp=tcp, ready=ready, timeout=10.0), daemon=True)
+    thread.start()
+    assert started.wait(10)
+    host, port = bound["server"].server_address[:2]
+    try:
+        assert host == "::1"
+        with DecoderClient.connect(host, port) as client:
+            assert np.array_equal(client.decode_batch(dets[:3]), m.decode_batch(dets[:3]))
+    finally:
+        bound["server"].shutdown()
+        thread.join(10)
 
 
 def test_cudaq_qec_host_api(memory):
@@ -265,6 +352,100 @@ def test_server_refuses_oversized_and_malformed_decode_before_reading_it(memory)
         thread.join(10)
 
 
+def test_a_decoder_of_error_frames_is_refused_with_a_clear_error():
+    """A decoder whose batch result is CUDA-Q QEC's BatchDecoderResult (error frames in ``result``, no predictions)
+    gets an ERROR that says so, on each DECODE, and the session goes on; a decoder returning an array is served."""
+    from stabilizer_qec.cudaq_qec._decoders import BatchDecoderResult
+
+    class ErrorFrames:
+        def decode_batch(self, syndromes):
+            return BatchDecoderResult(np.zeros((len(syndromes), 1)), np.ones(len(syndromes), dtype=bool))
+
+    class Predictions:
+        def decode_batch(self, syndromes):
+            return np.zeros((len(syndromes), 1), dtype=np.uint8)
+
+    payload = np.zeros((3, 1), dtype=np.uint8).tobytes()
+    queue = DecoderQueue(ErrorFrames())
+    try:
+        session = realtime._Session(queue, 4, 1, 0, 1 << 20)
+        for _ in range(2):
+            kind, _, _, body = Protocol.read(io.BytesIO(session.handle(Protocol.DECODE, 0, 3, payload)))
+            assert kind == Protocol.ERROR and "error frames" in json.loads(body)["error"] and "not observable predictions" in json.loads(body)["error"]
+    finally:
+        queue.close()
+    queue = DecoderQueue(Predictions())
+    try:
+        kind, _, _, body = Protocol.read(io.BytesIO(realtime._Session(queue, 4, 1, 0, 1 << 20).handle(Protocol.DECODE, 0, 3, payload)))
+        assert kind == Protocol.CORRECTIONS and body == b"\x00\x00\x00"
+    finally:
+        queue.close()
+
+
+def test_server_refuses_a_payload_on_a_frame_that_takes_none_before_reading_it(memory):
+    """A STATS, RESET or BYE frame with a payload is refused at once, from its header: the server does not wait for
+    the payload (which is not sent here) to buffer it."""
+    import socket
+
+    c, dets, obs = memory
+    m = sq.Matching(c.detector_error_model(decompose_errors=True))
+    bound = {}
+    started = threading.Event()
+
+    def ready(server):
+        bound["server"] = server
+        started.set()
+
+    thread = threading.Thread(target=serve, args=(m,), kwargs=dict(tcp="127.0.0.1:0", ready=ready, timeout=30.0), daemon=True)
+    thread.start()
+    assert started.wait(10)
+    host, port = bound["server"].server_address[:2]
+    try:
+        for kind in (Protocol.STATS, Protocol.RESET, Protocol.BYE):
+            s = socket.create_connection((host, port), timeout=10)
+            f = s.makefile("rb")
+            Protocol.read(f)  # HELLO
+            t0 = time.perf_counter()
+            s.sendall(Protocol.HEADER.pack(Protocol.MAGIC, Protocol.VERSION, kind, 0, 0, 1 << 20))
+            reply_kind, _, _, body = Protocol.read(f)
+            assert reply_kind == Protocol.ERROR and b"takes no payload" in body and time.perf_counter() - t0 < 5
+            s.close()
+    finally:
+        bound["server"].shutdown()
+        thread.join(10)
+
+
+def test_a_refused_frame_header_gets_its_error_and_then_the_connection_closes():
+    """A header the server cannot read (bad magic) is answered with its ERROR, after which the connection is closed
+    (its payload is never read, so the next frame could not be found); a refused request's contents leave it open."""
+    import socket
+
+    m = sq.Matching.from_detector_error_model(sq.memory_circuit(distance=3, rounds=2, p=0.01).detector_error_model(decompose_errors=True))
+    bound = {}
+    started = threading.Event()
+
+    def ready(server):
+        bound["server"] = server
+        started.set()
+
+    thread = threading.Thread(target=serve, args=(m,), kwargs=dict(tcp="127.0.0.1:0", ready=ready, timeout=10.0), daemon=True)
+    thread.start()
+    assert started.wait(10)
+    host, port = bound["server"].server_address[:2]
+    try:
+        s = socket.create_connection((host, port), timeout=10)
+        f = s.makefile("rb")
+        Protocol.read(f)  # HELLO
+        s.sendall(b"XXXX" + bytes(Protocol.HEADER.size - 4))
+        kind, _, _, body = Protocol.read(f)
+        assert kind == Protocol.ERROR and b"magic" in body
+        assert f.read(1) == b""  # closed after the ERROR
+        s.close()
+    finally:
+        bound["server"].shutdown()
+        thread.join(10)
+
+
 def test_reset_leaves_no_statistics_from_running_batches():
     gate = threading.Event()
 
@@ -302,6 +483,27 @@ def test_shared_queue_is_released_with_its_decoder(memory):
     del m
     gc.collect()
     assert all(entry[1] is not q for entry in realtime._shared.values())
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="needs os.fork")
+def test_decode_async_in_a_forked_child_after_a_use_in_the_parent(memory):
+    """A child of a process that has used decode_async on a decoder makes a queue of its own: the parent's queue has
+    no worker threads in the child, so a batch sent to it would never be decoded."""
+    c, dets, obs = memory
+    m = sq.Matching(c.detector_error_model(decompose_errors=True))
+    want = m.decode_batch(dets[:10])
+    assert np.array_equal(m.decode_async(dets[:10]).get(30), want)
+    with warnings.catch_warnings():  # the parent's pool threads are idle; the child does not use them
+        warnings.simplefilter("ignore", DeprecationWarning)
+        pid = os.fork()
+    if pid == 0:
+        code = 2
+        try:
+            code = 0 if np.array_equal(m.decode_async(dets[:10]).get(20), want) else 1
+        finally:
+            os._exit(code)
+    _, status = os.waitpid(pid, 0)
+    assert os.waitstatus_to_exitcode(status) == 0
 
 
 # ---------------------------------------------------------------------------------------------
@@ -360,6 +562,26 @@ def test_the_client_splits_a_batch_past_the_servers_cap(tmp_path):
     finally:
         client.close()
         got["server"].shutdown()
+
+
+def test_the_client_splits_a_batch_by_the_frame_cap_too():
+    """A piece's syndromes stay within the frame cap, whatever max_shots allows: 1,048,576 shots of 2100 detectors
+    (263 bytes each) go in pieces that each fit in Protocol.MAX_FRAME, where one frame of 275,775,488 bytes would be
+    refused."""
+    from stabilizer_qec.realtime import Protocol
+
+    client = realtime.DecoderClient.__new__(realtime.DecoderClient)
+    client.num_detectors, client.num_observables, client.max_shots = 2100, 1, 1 << 20
+    frames = []
+
+    def ask(kind, payload, shots):
+        frames.append((len(payload), shots))
+        return Protocol.CORRECTIONS, shots, bytes(shots)
+
+    client._ask = ask
+    out = client.decode_batch(np.zeros((1 << 20, 2100), dtype=np.uint8))
+    assert out.shape == (1 << 20, 1) and sum(s for _, s in frames) == 1 << 20
+    assert max(length for length, _ in frames) <= Protocol.MAX_FRAME and len(frames) == 2
 
 
 def test_a_silent_peer_does_not_hang_connect(tmp_path):

@@ -161,6 +161,31 @@ policy for its documented items.
   ticks they draw for every other range are unchanged.
 - A cycle-time formula that calls an unknown function reports an undefined name in the call's arguments first,
   as the QDK does: `foo(bar)` reports `bar`, not `foo`.
+- `azure_estimate` and `azure_estimator` leave out an empty `EstimatorQubitParams`, `EstimatorQecScheme` or
+  `EstimatorConstraints` object, as the QDK's `EstimatorParams` does, instead of raising the QDK's
+  parse error for it; a plain empty dict is still refused.
+- `AlgorithmSummary.from_bloq` raises the `ValueError` its docstring names for a symbolic qubit count, as
+  it already does for a symbolic gate count, instead of Python's `TypeError`.
+- The standard-library page server's `update` error traceback is written to stderr with its line breaks,
+  not as one line with the newlines escaped as `\x0a`.
+- The standard-library page's number inputs send their value when a spin button changes it, as Dash's do,
+  not only on Enter or on leaving the input.
+- The standard-library page server prints no traceback when a client drops its connection before the
+  answer, as Dash's server prints none; other errors are still reported.
+- `decode_async` in a process forked after a use of the same decoder makes a queue of its own; the
+  parent's queue had no worker threads in the child, so the child's batches never finished.
+- `DecoderClient.decode_batch` splits a batch so that each DECODE frame fits the server's 256 MiB cap, not
+  only its shot limit; a batch of wide syndromes used to be refused as one frame, closing the connection.
+- `serve` answers a DECODE with a clear ERROR when the decoder's batch result holds error frames (a
+  CUDA-Q QEC result with `.result` and no predictions), instead of a numpy shape error. Such decoders
+  still cannot be served; the ERROR says why.
+- `serve` refuses a STATS, RESET or BYE frame that declares a payload from its header, before buffering
+  the payload; it used to read and ignore up to 256 MiB of it.
+- `serve --stdio` with stdin or stdout closed is a one-line error with exit 1 (it was an AttributeError);
+  with its reader gone it exits 0 quietly (it was a flush error at exit, exit 120); Ctrl-C in any
+  `stabilizer-qec` command exits 130 without a traceback.
+- `serve` binds an IPv6 address given as `::1:0` or `[::1]:0` (`--tcp` and `tcp=` alike); before, the
+  bind failed with a name-resolution error.
 
 ## 2.2.0 — 2026-10-30
 

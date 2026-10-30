@@ -11,7 +11,9 @@
 // callback's nine outputs as the page shows them, the graphs resized and what the page wrote to the console.
 //
 // Actions: {"do": "load"}; {"do": "type", "id": ID, "text": TEXT, "commit": "enter" | "blur"}, as a user
-// typing TEXT into an input and pressing Enter or leaving it; {"do": "radio", "id": ID, "value": VALUE};
+// typing TEXT into an input and pressing Enter or leaving it; {"do": "spin", "id": ID, "text": TEXT}, as a
+// browser's spin button sets TEXT: the input fires input and change, with no blur or Enter;
+// {"do": "radio", "id": ID, "value": VALUE};
 // {"do": "race", "first": ACTION, "second": ACTION}, where the answer to the first's request is held back
 // until the second's has been answered and drawn.
 "use strict";
@@ -247,6 +249,11 @@ function act(action) {
     if (action.commit === "enter") input.dispatch("keypress", {key: "Enter"});
     else if (action.commit === "blur") input.dispatch("blur");
     else throw new Error(`commit ${action.commit}`);
+  } else if (action.do === "spin") {
+    const input = byId(action.id);
+    input.typed(action.text);
+    input.dispatch("input");
+    input.dispatch("change");
   } else if (action.do === "radio") {
     const group = byId(action.id);
     let options = [];

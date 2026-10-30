@@ -209,6 +209,27 @@ def test_estimate_takes_the_parameter_objects():
         counts.estimate(_set_qubit(az.EstimatorQubitParams(instruction_set="GateBased")))
 
 
+def test_azure_estimate_leaves_out_empty_section_objects_as_params_does():
+    """An empty qubit model, scheme or constraints object is left out of the job, as `EstimatorParams` leaves it out,
+    so `azure_estimate` gives the estimate of the defaults; a plain empty dict is still read as the QDK reads it."""
+    counts = az.LogicalCounts(num_qubits=37, t_count=1234, rotation_count=77, rotation_depth=20, ccz_count=50, measurement_count=999)
+    expected = counts.estimate(_params(az.EstimatorParams))
+    assert expected["physicalCounts"]["physicalQubits"] == 190570
+    assert az.azure_estimate(counts, az.EstimatorQubitParams(), az.EstimatorQecScheme(), 1e-3, az.EstimatorConstraints()).json == expected.json
+    assert az.azure_estimate(counts, qubit_params=az.EstimatorQubitParams()).json == expected.json
+    assert az.azure_estimate(counts, qec_scheme=az.EstimatorQecScheme()).json == expected.json
+    assert az.azure_estimator(counts, az.EstimatorQubitParams(), az.EstimatorQecScheme()).result_dict(az.ErrorBudget.partition(1e-3, counts))["physicalCounts"]["physicalQubits"] == 190570
+    with pytest.raises(az.QSharpError, match="^cannot parse JSON: 'missing field `name or instructionSet` at line 1 column 41'$"):
+        az.azure_estimate(counts, qubit_params={})
+
+
+@needs_qdk
+def test_azure_estimate_empty_sections_against_qdk_live():
+    counts = {"numQubits": 37, "tCount": 1234, "rotationCount": 77, "rotationDepth": 20, "cczCount": 50, "measurementCount": 999}
+    expected = qdk_estimator.LogicalCounts(counts).estimate(qdk_estimator.EstimatorParams()).json
+    assert az.azure_estimate(az.LogicalCounts.fromdict(counts), qdk_estimator.EstimatorQubitParams(), qdk_estimator.EstimatorQecScheme()).json == expected
+
+
 def _set_qubit(qubit):
     p = _params(az.EstimatorParams)
     p.qubit_params = qubit

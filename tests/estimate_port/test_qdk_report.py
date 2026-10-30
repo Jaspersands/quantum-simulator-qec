@@ -1,10 +1,12 @@
 """The QDK's report of an estimate as `stabilizer_qec.estimate.azure.EstimatorResult` draws it, against
 tests/estimate_port/qdk_reports.json.gz (recorded by tools/qdk_report_fixtures.py from qdk 1.33.1 and
 qsharp_widgets 1.33.1): for forty results (25 recorded estimates, a failed one, batches with failed, frontier
-and differing items) the HTML of ``_repr_html_()``, ``summary``, ``[:]`` and other slices and the diagrams, with
-what the QDK prints and the exceptions it raises, without markdown and with markdown and python-markdown-math;
-and the qsharp_widgets charts (the SpaceChart donut, the estimates overview's scatter chart, their colors, axis
-ticks and numbers as JavaScript writes them) against the widgets' own drawing, element by element."""
+and differing items) the HTML of ``_repr_html_()``, ``summary``, ``[:]`` and other slices, with what the QDK
+prints and the exceptions it raises, without markdown and with markdown and python-markdown-math. The diagrams'
+HTML is not compared with the recording, since it changes their attribute serialization; their JSON is checked
+against the original inputs instead. The qsharp_widgets charts (the SpaceChart donut, the estimates overview's
+scatter chart, their colors, axis ticks and numbers as JavaScript writes them) are compared with the widgets' own
+drawing, element by element."""
 
 from __future__ import annotations
 
@@ -572,6 +574,11 @@ def test_number_strings_are_javascripts():
 def test_color_map_and_ticks_are_the_widgets():
     assert [rep.color_map(n) for n in WIDGET["colors"]] == DRAWN["colors"]
     assert [rep.time_ticks(a, b) for a, b in WIDGET["time_ticks"]] == DRAWN["time_ticks"]
+    # The widget gives one tick for each of these ranges; its loop's stop test (i > 2) is what keeps it at one.
+    minute, hour = 60 * 10**9, 3600 * 10**9
+    assert [t["label"] for t in rep.time_ticks(1001, 21000)] == ["10 microseconds"]
+    assert [t["label"] for t in rep.time_ticks(minute + 1, 21 * minute)] == ["10 minutes"]
+    assert [t["label"] for t in rep.time_ticks(hour + 1, 21 * hour)] == ["10 hours"]
     assert [rep.integer_ticks(a, b) for a, b in WIDGET["integer_ticks"]] == DRAWN["integer_ticks"]
     # Where the widget never returns (a lower bound below 1: its first tick, 10^⌊log₁₀ min⌋ rounded, is 0, and
     # 0 × 10 stays 0), the port starts at 1.

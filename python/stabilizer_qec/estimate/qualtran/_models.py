@@ -160,7 +160,7 @@ class AlgorithmSummary:
         except ImportError as ex:
             raise ImportError("AlgorithmSummary.from_bloq counts the Bloq with Qualtran's resource counting, which needs Qualtran: pip install qualtran") from ex
         counts = get_cost_value(bloq, QECGatesCost())
-        qubits = int(get_cost_value(bloq, QubitCount()))
+        qubits = _plain_count("qubits", get_cost_value(bloq, QubitCount()))
         gates = _as_gate_counts(counts)
         return AlgorithmSummary(n_algo_qubits=qubits, n_logical_gates=gates)
 
@@ -561,7 +561,8 @@ class FifteenToOne(MagicStateFactory):
     of `p_fail` and `p_out` can differ from Qualtran's: `p_fail` agrees to about 1e-11 relative, and `p_out`
     (one minus a trace near 1) to about 1e-16 absolute, which is a large relative difference when `p_out` is
     itself near 1e-14 (a few percent at ``d_X=9, d_Z=5, d_m=3`` and a 1e-5 physical error). Everything else
-    here, `n_cycles` included, has given Qualtran's numbers exactly."""
+    here, `n_cycles` included, has given Qualtran's numbers exactly at the gate counts tested; at very large counts
+    `n_cycles` can differ in the last bits, through `p_fail`."""
 
     d_X: int
     d_Z: int
