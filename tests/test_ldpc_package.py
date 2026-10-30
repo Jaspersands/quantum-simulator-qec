@@ -226,6 +226,20 @@ def test_legacy_bposd_max_iter_is_a_c_int_as_ldpcs():
         assert ldpc_port.bposd_decoder(pcm, error_rate=0.1, max_iter=2**31 - 1).max_iter == 2**31 - 1
 
 
+def test_legacy_bposd_signature_is_ldpcs():
+    import inspect
+    import warnings
+
+    import stabilizer_qec.ldpc as ldpc_port
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        want = inspect.signature(ldpc.bposd_decoder)
+        got = inspect.signature(ldpc_port.bposd_decoder)
+    assert list(got.parameters) == list(want.parameters)
+    assert [p.default for p in got.parameters.values()] == [p.default for p in want.parameters.values()]
+
+
 def test_every_module_imports():
     failed = []
     for m in pkgutil.walk_packages(ours.__path__, "stabilizer_qec.ldpc."):
