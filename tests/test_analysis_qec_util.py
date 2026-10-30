@@ -367,6 +367,12 @@ def test_decay_model_without_lmfit_is_qec_utils():
             assert np.allclose(got, want, rtol=1e-7), case
             continue
         assert got["success"] == want["success"], case
+        if case == "max_nfev":
+            # Five evaluations stop MINPACK mid-search, where lmfit's own answer depends on the
+            # platform's floating point (macOS runners on Python 3.13 keep the starting 0.25 that
+            # others move from): what is promised is the stop, unsuccessful, with every parameter.
+            assert set(got) == set(want), case
+            continue
         for name in ("error_rate", "round_offset"):
             (v, e), (w, f) = got[name], want[name]
             assert v == pytest.approx(w, rel=1e-7, abs=1e-12), (case, name)
