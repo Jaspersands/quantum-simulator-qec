@@ -26,6 +26,9 @@ policy for its documented items.
 - A forked child no longer blocks on a `PreDecoder`'s lock when another thread was training that
   pre-decoder at the fork: the child's calls into it raise `RuntimeError: Already mutably
   borrowed` instead of hanging.
+- A real Stim detector error model, or one of its instructions, read by this package (and by the
+  ports that take one) keeps each probability exactly. Stim's text prints 16 significant digits,
+  which dropped the last bit of about a quarter of random probabilities.
 
 ## 2.2.0 — 2026-10-30
 
