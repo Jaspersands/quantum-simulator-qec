@@ -591,8 +591,9 @@ contraction width (`CoherentSampler.contraction_width`).
   matrix cannot install, none of it skipped: the Tsim tests against live Tsim, the sinter 1.16.0
   and relay-bp 0.2.2 differentials (both built from their sources), and PanQEC's slow tests
   (`PANQEC_RUNSLOW=1`); other matrices use reduced cases. The matrix no longer names
-  `relay-bp==0.2.2` or `qldpc==0.4.1`, which it could never install. This source change does not establish remote CI success. Valid scalar qsample comb
-  results again retain numpy.float64 rather than Python float.
+  `relay-bp==0.2.2` or `qldpc==0.4.1`, which it could never install.
+- **qsample comb.** Valid scalar results now return numpy.float64, where 2.0.0 and 2.1.0 returned a
+  Python float.
 
 - **Tsim.**
   - `to_matrix` gave the wrong shape for noise before a reset (`Z_ERROR(0.1) 1` then `R 1`
