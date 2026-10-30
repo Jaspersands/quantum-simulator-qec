@@ -180,9 +180,10 @@ class DecodeResult:
 
     def __init__(self, raw: tuple) -> None:
         correction, decoded, posterior, success, iterations, max_iter, quality = raw
-        self._decoding = np.asarray(correction, dtype=np.uint8)
-        self._decoded = np.asarray(decoded, dtype=np.uint8)
-        self._posterior = np.asarray(posterior, dtype=np.float64)
+        # (Copies: a batch's results are rows of its arrays, and a result must not keep them all alive.)
+        self._decoding = np.array(correction, dtype=np.uint8)
+        self._decoded = np.array(decoded, dtype=np.uint8)
+        self._posterior = np.array(posterior, dtype=np.float64)
         self._success, self._iterations, self._max_iter, self._quality = bool(success), int(iterations), int(max_iter), float(quality)
 
     @classmethod

@@ -98,6 +98,9 @@ def test_batches_and_observable_runner():
     assert np.array_equal(t.decode_batch(dets), m.decode_batch(dets))
     for x, y in zip(t.decode_detailed_batch(dets), m.decode_detailed_batch(dets)):
         assert same(x, y)
+    # A batch's result owns its row: keeping one does not keep the batch's arrays alive.
+    kept = ours.RelayDecoderF64(h, p, num_sets=20, set_max_iter=10, seed=5).decode_detailed_batch(dets)[0]
+    assert kept._decoding.base is None and kept._decoded.base is None and kept._posterior.base is None
     tr, mr = relay_bp.ObservableDecoderRunner(t, obs, True), ours.ObservableDecoderRunner(m, obs, True)
     kw = dict(progress_bar=False)
     for parallel in (False, True):
