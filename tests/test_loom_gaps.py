@@ -710,6 +710,16 @@ def test_malformed_operations_and_circuits_are_refused_at_construction():
             make()
 
 
+def test_a_finished_interpretation_step_refuses_changes():
+    step = rep_memory()
+    assert step.is_frozen
+    with pytest.raises(ValueError, match="Cannot change properties of the final InterpretationStep"):
+        step.get_new_cbit_MUT("c")
+    with pytest.raises(ValueError, match="Cannot change properties of the final InterpretationStep"):
+        step.append_detectors_MUT([])
+    assert "c" not in step.cbit_counter
+
+
 def test_syndrome_circuit_names_and_paulis_as_loom_does():
     assert loom.SyndromeCircuit("XXXX").name == "SyndromeCircuit"
     assert loom.SyndromeCircuit("XXXX", name="MyCircuit").name == "mycircuit"

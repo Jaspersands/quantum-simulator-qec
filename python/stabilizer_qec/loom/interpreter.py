@@ -211,6 +211,10 @@ class InterpretationStep:
     def create(cls, initial_blocks: Sequence[Block]) -> "InterpretationStep":
         return cls(initial_blocks)
 
+    def _check_mutable(self) -> None:
+        if self.is_frozen:
+            raise ValueError("Cannot change properties of the final InterpretationStep after the interpretation is finished.")
+
     # Blocks
     def get_block(self, label: str) -> Block:
         for uuid in self.block_history.blocks_at(self.get_timestamp()):
@@ -229,6 +233,7 @@ class InterpretationStep:
         return tuple(self.block_registry[u] for u in self.block_registry if u in uuids)
 
     def update_block_history_and_evolution_MUT(self, new_blocks: Sequence[Block] = (), old_blocks: Sequence[Block] = (), update_evolution: bool = True) -> None:
+        self._check_mutable()
         for arg in (new_blocks, old_blocks):
             if not all(isinstance(b, Block) for b in arg):
                 raise TypeError("All elements of new_blocks/old_blocks must be Block objects.")
@@ -242,6 +247,7 @@ class InterpretationStep:
 
     # Logical operator updates
     def update_logical_operator_updates_MUT(self, operator_type: str, logical_operator_id: str, new_updates: tuple[Cbit, ...], inherit_updates: bool) -> None:
+        self._check_mutable()
         if operator_type == "X":
             evolution, updates = self.logical_x_evolution, self.logical_x_operator_updates
         elif operator_type == "Z":
@@ -257,12 +263,14 @@ class InterpretationStep:
 
     # Channels, circuits and time
     def get_channel_MUT(self, label, channel_type=ChannelType.QUANTUM) -> Channel:
+        self._check_mutable()
         label = str(label)
         if label not in self.channel_dict:
             self.channel_dict[label] = Channel(type=ChannelType(channel_type), label=label)
         return self.channel_dict[label]
 
     def append_circuit_MUT(self, circuit: Circuit, same_timeslice: bool = False) -> None:
+        self._check_mutable()
         if not isinstance(circuit, Circuit):
             raise TypeError("The circuit must be a Circuit object")
         first_of_sessions = [s for s in self.composite_operation_session_stack if s.start_timeslice_index == len(self.intermediate_circuit_sequence)]
@@ -287,11 +295,13 @@ class InterpretationStep:
         return timestamp
 
     def get_new_cbit_MUT(self, register_name: str) -> Cbit:
+        self._check_mutable()
         count = self.cbit_counter.get(register_name, 0)
         self.cbit_counter[register_name] = count + 1
         return (register_name, count)
 
     def _pop_intermediate_circuit_MUT(self, length: int) -> tuple[tuple[Circuit, ...], ...]:
+        self._check_mutable()
         if length > len(self.intermediate_circuit_sequence):
             raise ValueError("The number of timeslices to pop exceeds the number of timeslices in the intermediate circuit sequence.")
         if length == 0:
@@ -302,9 +312,11 @@ class InterpretationStep:
         return popped
 
     def begin_composite_operation_session_MUT(self, same_timeslice: bool, circuit_name: str) -> None:
+        self._check_mutable()
         self.composite_operation_session_stack.append(CompositeOperationSession(len(self.intermediate_circuit_sequence), same_timeslice, circuit_name))
 
     def end_composite_operation_session_MUT(self) -> Circuit:
+        self._check_mutable()
         if not self.composite_operation_session_stack:
             raise ValueError("No composite operation session to end. Please begin a session first.")
         session = self.composite_operation_session_stack.pop()
@@ -319,6 +331,7 @@ class InterpretationStep:
 
     # Syndromes and detectors
     def append_syndromes_MUT(self, syndromes) -> None:
+        self._check_mutable()
         if isinstance(syndromes, Syndrome):
             syndromes = (syndromes,)
         syndromes = tuple(syndromes)
@@ -327,6 +340,7 @@ class InterpretationStep:
         self.syndromes += syndromes
 
     def append_detectors_MUT(self, detectors) -> None:
+        self._check_mutable()
         if isinstance(detectors, Detector):
             detectors = (detectors,)
         detectors = tuple(detectors)
@@ -363,9 +377,11 @@ class InterpretationStep:
         return tuple(cbit for l in last for cbit in l[0].measurements)
 
     def update_reset_single_qubit_stabilizers_MUT(self, block_id: str, new_single_qubit_stabilizers: set[Stabilizer]) -> None:
+        self._check_mutable()
         self._update_single(self.reset_single_qubit_stabilizers, block_id, new_single_qubit_stabilizers)
 
     def update_measured_single_qubit_stabilizers_MUT(self, block_id: str, new_single_qubit_stabilizers: set[Stabilizer]) -> None:
+        self._check_mutable()
         self._update_single(self.measured_single_qubit_stabilizers, block_id, new_single_qubit_stabilizers)
 
     def _update_single(self, store: dict[str, set[Stabilizer]], block_id: str, stabs: set[Stabilizer]) -> None:
