@@ -574,6 +574,11 @@ def test_number_strings_are_javascripts():
 def test_color_map_and_ticks_are_the_widgets():
     assert [rep.color_map(n) for n in WIDGET["colors"]] == DRAWN["colors"]
     assert [rep.time_ticks(a, b) for a, b in WIDGET["time_ticks"]] == DRAWN["time_ticks"]
+    # The widget gives one tick for each of these ranges; its loop's stop test (i > 2) is what keeps it at one.
+    minute, hour = 60 * 10**9, 3600 * 10**9
+    assert [t["label"] for t in rep.time_ticks(1001, 21000)] == ["10 microseconds"]
+    assert [t["label"] for t in rep.time_ticks(minute + 1, 21 * minute)] == ["10 minutes"]
+    assert [t["label"] for t in rep.time_ticks(hour + 1, 21 * hour)] == ["10 hours"]
     assert [rep.integer_ticks(a, b) for a, b in WIDGET["integer_ticks"]] == DRAWN["integer_ticks"]
     # Where the widget never returns (a lower bound below 1: its first tick, 10^⌊log₁₀ min⌋ rounded, is 0, and
     # 0 × 10 stays 0), the port starts at 1.
