@@ -63,6 +63,18 @@ def test_noop_preserves_correlations(how, boundary):
         restored.decode(syndrome, enable_correlations=True)
 
 
+def test_noop_boundary_nodes_preserve_correlations():
+    """Naming the boundary nodes a matching already has changes nothing, so correlated decoding
+    survives (PyMatching's does too); naming a different set refuses it until it is reloaded."""
+    m = sq.Matching(SQUARE_DEM, enable_correlations=True)
+    before = m.decode(SYNDROME, enable_correlations=True)
+    m.set_boundary_nodes(set(m.boundary))
+    assert np.array_equal(m.decode(SYNDROME, enable_correlations=True), before)
+    m.set_boundary_nodes({0})
+    with pytest.raises(ValueError, match="not been configured|Failed to find neighbor"):
+        m.decode(SYNDROME, enable_correlations=True)
+
+
 @pytest.mark.parametrize("built", [False, True])
 def test_capacity_error_is_catchable_and_object_remains_usable(built):
     m = square()

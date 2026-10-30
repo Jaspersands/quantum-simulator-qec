@@ -24,6 +24,9 @@ policy for its documented items.
 - The 2.2.0 Fusion Blossom note does not say that a blocking `helper.serve()` now returns `None`
   on Ctrl-C, where 2.1 raised `KeyboardInterrupt`: Bottle's `run()` catches the interrupt. Calling
   Bottle's server directly would restore 2.1's behaviour.
+- `Matching.set_boundary_nodes` with the boundary nodes a matching already has keeps correlated
+  decoding, as PyMatching does; it used to refuse `enable_correlations=True` until the matching
+  was reloaded. Naming a different set still refuses it.
 
 ## 2.2.0 — 2026-10-30
 
