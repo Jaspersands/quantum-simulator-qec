@@ -20,7 +20,9 @@ Plotly's default template, so colors, backgrounds and fonts can differ from the 
 Public layout builders and dependency lists always return lightweight mirrors, even with Dash
 installed. Mirrors expose ``.props`` and ``to_plotly_json()`` (dependencies expose their stored
 IDs/properties), not Dash's component attribute, mutation, serialization or callback APIs. They
-cannot be reused directly as Dash components or callback dependencies; `make_app` converts them.
+cannot be reused directly as Dash components or callback dependencies; `make_app` converts them. The
+module's ``html``, ``dcc``, ``Input``, ``Output`` and ``ALL`` are stand-ins of the same kind for Dash's
+``html``, ``dcc``, ``Input``, ``Output`` and ``ALL``, outside ``__all__``.
 Numerical parity was checked on finite recorded inputs; very large 15-to-1 gate counts can differ
 from Qualtran in the last bits of factory cycle counts and callback durations.
 
