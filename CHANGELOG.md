@@ -19,6 +19,8 @@ policy for its documented items.
 - With only numpy installed, the tests that need scipy (BP's single-precision check matrices,
   BP+LSD's merge orders, CUDA-Q's nv-qldpc-decoder, the model `distance` example) are skipped
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
+- The Fusion Blossom visualizer's `/data/` route answers 404 `File does not exist.` for a path with
+  a NUL byte, as fusion_blossom does, where it answered 403 `Access denied.`.
 
 ## 2.2.0 — 2026-10-30
 

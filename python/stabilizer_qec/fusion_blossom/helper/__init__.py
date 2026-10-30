@@ -1,7 +1,7 @@
 # Ported from fusion_blossom 0.2.13's helper.py (Yue Wu; MIT, see LICENSE here), modified for
-# stabilizer_qec: the website's files are read from this package's ``visualizer`` folder, and the
-# Bottle fusion_blossom embeds is the submodule ``helper.bottle`` (unchanged), not installed as the
-# modules ``bottle`` and ``helper``.
+# stabilizer_qec, among other changes: the website's files are read from this package's ``visualizer``
+# folder, and the Bottle fusion_blossom embeds is the submodule ``helper.bottle`` (unchanged), not
+# installed as the modules ``bottle`` and ``helper``. The module docstring below describes the server.
 """The visualizer website, its server (on ``helper.bottle``, the Bottle 0.14-dev web framework
 fusion_blossom embeds), and helpers for viewing a code or rendering a snapshot.
 
@@ -76,7 +76,10 @@ def serve(host='localhost', port=51665, data_folder=".", return_server=False, qu
             # Keep this original spelling for static_file: its repeated strip is idempotent.
             # Rewriting from candidate can expose a literal leading/trailing backslash on POSIX
             # that Bottle would strip again, changing the file after it passed this check.
-        except (ValueError, OSError):
+        except ValueError:
+            # A NUL byte makes realpath raise here; static_file treats such a name as missing.
+            abort(404, "File does not exist.")
+        except OSError:
             abort(403, "Access denied.")
         # Bottle opens a GET body before discovering an unsatisfiable Range. A HEAD preflight
         # preserves its conditional/Range decisions without opening that body on refused requests.
