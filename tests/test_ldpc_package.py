@@ -155,6 +155,17 @@ def test_error_probability_outside_the_unit_interval_is_as_ldpc(p):
     assert np.array_equal(np.asarray(got.log_prob_ratios), np.asarray(want.log_prob_ratios), equal_nan=True)
 
 
+@pytest.mark.parametrize("value", [1, np.float32(0.5)])
+def test_ms_scaling_factor_reads_back_as_a_float(value):
+    pcm = np.array([[1, 1, 0], [0, 1, 1]], dtype=np.uint8)
+    got = ours.BpDecoder(pcm, error_rate=0.1)
+    want = ldpc.BpDecoder(pcm, error_rate=0.1)
+    got.ms_scaling_factor = value
+    want.ms_scaling_factor = value
+    assert type(got.ms_scaling_factor) is float and type(want.ms_scaling_factor) is float
+    assert got.ms_scaling_factor == want.ms_scaling_factor
+
+
 def test_every_module_imports():
     failed = []
     for m in pkgutil.walk_packages(ours.__path__, "stabilizer_qec.ldpc."):

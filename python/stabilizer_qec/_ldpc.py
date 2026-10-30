@@ -340,8 +340,8 @@ class BpDecoderBase:
         # never reached).
         if isinstance(value, (str, bytes)) or not hasattr(value, "__float__"):
             raise TypeError(f"must be real number, not {type(value).__name__}")
-        self._scale = value
-        call(self._x.set_method, self._method, float(value))
+        self._scale = float(value)
+        call(self._x.set_method, self._method, self._scale)
 
     @property
     def omp_thread_count(self) -> int:
