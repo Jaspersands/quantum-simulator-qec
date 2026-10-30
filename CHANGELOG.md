@@ -21,6 +21,9 @@ policy for its documented items.
   instead of erroring. The fresh install of 2.2.0 from PyPI found them.
 - The 2.0.0 note's "Deltakit 0.10 whole" left out deltakit-compile 0.1.0 and deltakit-visualise
   0.4.0, which the deltakit 0.10.2 distribution requires and this package does not port.
+- The 2.2.0 Fusion Blossom note does not say that a blocking `helper.serve()` now returns `None`
+  on Ctrl-C, where 2.1 raised `KeyboardInterrupt`: Bottle's `run()` catches the interrupt. Calling
+  Bottle's server directly would restore 2.1's behaviour.
 
 ## 2.2.0 — 2026-10-30
 
