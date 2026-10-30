@@ -687,7 +687,6 @@ def test_a_noisy_repetition_chain_decodes(name):
     assert (predicted != o).any(axis=1).mean() < 0.03
 
 
-
 # ---------------------------------------------------------------------------------------------
 # Loom's construction-time refusals, keyword names and messages
 # ---------------------------------------------------------------------------------------------
@@ -772,3 +771,11 @@ def test_syndrome_circuit_names_and_paulis_as_loom_does():
     assert loom.SyndromeCircuit("XXXX", name="MyCircuit").name == "mycircuit"
     with pytest.raises(ValueError, match=re.escape("Invalid pauli: Q. Must be one of ['X', 'Y', 'Z'].")):
         loom.SyndromeCircuit("XQ")
+
+
+def test_detector_and_error_model_reprs_read_as_loom_does():
+    assert repr(loom.Detector(syndromes=())) == "Detector(Syndromes: (), Labels: {})"
+    cem = loom.HomogeneousTimeIndependentCEM(circuit=loom.Circuit("zz", circuit=[[loom.Circuit("h", channels=[Channel(label="a")])]]),
+                                             error_type=loom.ErrorType.DEPOLARIZING1, application_mode=loom.ApplicationMode.AFTER_GATE, error_probability=0.0)
+    assert repr(cem).startswith("HomogeneousTimeIndependentCEM(circuit=")
+    assert "is_time_dependent=" in repr(cem) and "application_mode=" in repr(cem)

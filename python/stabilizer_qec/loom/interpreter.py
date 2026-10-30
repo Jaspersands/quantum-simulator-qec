@@ -95,6 +95,9 @@ class Detector:
     syndromes: tuple[Syndrome, ...]
     labels: dict = field(default_factory=dict)
 
+    def __repr__(self) -> str:
+        return f"Detector(Syndromes: {self.syndromes}, Labels: {self.labels})"
+
     @property
     def measurements(self) -> tuple[Cbit, ...]:
         out: list[Cbit] = []
