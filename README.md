@@ -184,7 +184,8 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   matching; Λ fitted the way Google fits it, for ours and for every decoder Google published.
 - **Belief propagation and belief-matching**: BP whose posteriors equal the `ldpc` library's bit for
   bit, and belief-matching that equals the authors' own package shot for shot. Run on all of
-  Google's Sycamore and Willow data, where it makes Sycamore's d = 5 beat d = 3 as Google's does.
+  Google's Sycamore data and on the first 10,000 shots of each Willow experiment, where it makes
+  Sycamore's d = 5 beat d = 3 as Google's does.
 - **Real-time decoding**: sliding and parallel window decoders, plain and correlated, checked
   against global decoding on Google's data, with latency measured against Willow's 1.1 µs cycle and
   a million-round stream that keeps up on 4 cores at d = 5. Decoding as a service: `decode_async`
