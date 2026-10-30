@@ -719,10 +719,10 @@ the same flooder, alternating trees and blossom cycles, arenas that reuse the mo
 freed slot first, and the same extraction and path search. `Matching`, PyMatching's class here,
 uses it for plain decoding; Chromobius uses the 2.2.2 neighbour order (see
 [More decoders](#more-decoders) for its separate lifting ties). Checked
-shot by shot against PyMatching 2.4.0 on 950,000 shots of 19 models (surface codes d = 3 to 7
-at p = 0.001 to 0.02, colour-code Möbius graphs, repetition codes, unit and negative weights)
-and 600,000 of 3,000 hand-built graphs (merges, boundaries, zero and negative weights, more
-than 64 fault ids): 0 differences. It takes 1.00 to 1.04 times PyMatching's time
+shot by shot against PyMatching 2.4.0 on 18 models (surface codes d = 3 to 7
+at p = 0.001 to 0.02, colour-code Möbius graphs, repetition codes, unit and negative weights) at
+20,000 shots each, and on 400 hand-built graphs at 100 shots each (merges, boundaries, zero and
+negative weights, more than 64 fault ids): 0 differences. It takes 1.00 to 1.04 times PyMatching's time
 (`decode_batch` with weights, d = 5 memory over 5 rounds, 100,000 shots, one thread). One
 departure from the line-for-line copy is deliberate: a region's radius offset is 64-bit, where
 PyMatching 2.4.0's `compute_wrapped_radius` returns `int32_t`, so on a uniform chain of 131 or
