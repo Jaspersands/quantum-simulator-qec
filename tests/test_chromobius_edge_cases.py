@@ -44,3 +44,20 @@ def test_lifting_failure_does_not_corrupt_subsequent_shots():
             got = kept.predict_obs_flips_from_dets_bit_packed(row)
             fresh = chromobius.compile_decoder_for_dem(dem).predict_obs_flips_from_dets_bit_packed(row)
             assert got.tolist() == fresh.tolist() == r["result"]
+
+
+def test_sinter_decoder_refuses_data_whose_rows_are_not_adjacent_bytes():
+    """Chromobius's sinter decoder reads each row of bit-packed data in place: a view whose
+    row's bytes are strided, or a column-major array, is refused with Chromobius's message, an
+    empty batch too. Any integer dtype, contiguous, decodes to the same predictions."""
+    dem = sq.DetectorErrorModel(DATA["ignored_dem"])
+    rows = np.array([r["dets"] for r in DATA["ignored"]], dtype=np.uint8)
+    want = [r["port_prediction"] for r in DATA["ignored"]]
+    sinter = chromobius.sinter_decoders()["chromobius"].compile_decoder_for_dem(dem=dem)
+    assert sinter.decode_shots_bit_packed(bit_packed_detection_event_data=rows).tolist() == want
+    assert sinter.decode_shots_bit_packed(bit_packed_detection_event_data=rows.astype(np.uint16)).tolist() == want
+    wide = np.zeros((rows.shape[0], 2 * rows.shape[1]), dtype=np.uint8)
+    wide[:, ::2] = rows
+    for bad in (wide[:, ::2], np.asfortranarray(rows), rows[:0]):
+        with pytest.raises(ValueError, match="^bit_packed_detection_event_data.strides\\(1\\) != 1$"):
+            sinter.decode_shots_bit_packed(bit_packed_detection_event_data=bad)

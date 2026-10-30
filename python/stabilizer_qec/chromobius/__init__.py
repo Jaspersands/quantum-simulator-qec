@@ -151,14 +151,16 @@ class _ChromobiusSinterCompiledDecoder:
         data = bit_packed_detection_event_data
         if not isinstance(data, _np.ndarray) or data.ndim != 2:
             raise ValueError("bit_packed_detection_event_data.ndim() != 2")
-        # Chromobius's binding casts the data to bytes (any integer dtype, any layout); an
-        # empty batch it refuses, its stride then reading as 0.
-        if not data.shape[0]:
+        # Chromobius's binding casts the data to bytes (any integer dtype) and reads each row in
+        # place, so the bytes of a row must be adjacent: a strided or column-major view is
+        # refused, as is an empty batch (its stride reading as 0).
+        data = data.astype(_np.uint8, copy=False)
+        stride = data.strides[1] if data.shape[0] else 0
+        if stride != 1:
             raise ValueError("bit_packed_detection_event_data.strides(1) != 1")
-        data = _np.ascontiguousarray(data.astype(_np.uint8, copy=False))
         if data.shape[1] != self._decoder._num_detector_bytes:
             raise ValueError("bit_packed_detection_event_data.shape(1) != num_detector_bytes")
-        return self._decoder.predict_obs_flips_from_dets_bit_packed(data.astype(_np.uint8, copy=False))
+        return self._decoder.predict_obs_flips_from_dets_bit_packed(data)
 
 
 class _ChromobiusSinterDecoder:
