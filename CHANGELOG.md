@@ -42,6 +42,8 @@ policy for its documented items.
 - The `frozendict` and `FrozenList` that `stabilizer_qec.mwpf` vendors match frozendict 2.4 and frozenlist 1.8:
   `frozendict.fromkeys` returns a `frozendict`, `|=` returns a new one, a second `__init__` changes nothing,
   and `FrozenList.index` raises `ValueError` naming the missing item.
+- `pySparseSim`'s `measure Z` with `collapse=False` and the default `forced_outcome=-1` draws the outcome of a
+  random measurement, as `collapse=True` and `cySparseSim` do, where it raised.
 
 ## 2.2.0 — 2026-10-30
 

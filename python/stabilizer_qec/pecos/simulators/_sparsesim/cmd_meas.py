@@ -134,7 +134,8 @@ def meas_z(state: SparseSim,
             return nondeterministic_meas(state, qubit, anticom_stabs_col, anticom_destabs_col, forced_outcome)
 
         else:
-            if forced_outcome is not None:
+            # (stabilizer_qec: -1 draws the outcome here too, as in nondeterministic_meas; PECOS's raised.)
+            if forced_outcome is not None and forced_outcome != -1:
 
                 if forced_outcome == 0 or forced_outcome == 1:
                     meas_outcome = forced_outcome
