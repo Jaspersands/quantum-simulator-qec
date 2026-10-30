@@ -168,10 +168,11 @@ def get_threshold(
     num_failures = np.array(num_failures, dtype=np.float64)
     num_samples = np.array(num_samples, dtype=np.float64)
 
-    # Beta distributions (scipy.stats.beta in qec-util): their deviations, and draws below.
+    # Beta distributions (scipy.stats.beta in qec-util): their deviations, and draws below. The
+    # draws come from numpy's global generator, as scipy's rvs does in qec-util, so np.random.seed
+    # makes the bootstrap repeat.
     beta_a, beta_b = num_failures + 1, num_samples - num_failures + 1
     log_err_std = beta_std(beta_a, beta_b)
-    rng = np.random.default_rng()
 
     # run once with the given data to get a good params_guess and if
     # (1) num_samples_bootstrap = 0, or (2) file_name is not None
@@ -200,7 +201,7 @@ def get_threshold(
             fit_func,
             phys_err,
             distances,
-            log_err=rng.beta(beta_a, beta_b),
+            log_err=np.random.beta(beta_a, beta_b),
             p0=params_guess,
             sigma=log_err_std if weighted else None,
         )

@@ -34,6 +34,8 @@ policy for its documented items.
   both backends are bundled in `stabilizer_qec`, and the errors say to reinstall it.
 - An unknown Relay-BP backend option raises a `TypeError` that names the decoder asked for (such
   as `RelayDecoderF32()`), not the private base class `_Relay`.
+- `get_threshold`'s bootstrap draws from numpy's global random generator, as qec-util's does, so
+  `np.random.seed` makes its intervals repeat; they were unseeded before.
 
 ## 2.2.0 — 2026-10-30
 

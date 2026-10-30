@@ -193,6 +193,16 @@ def test_threshold_fit_without_scipy_is_scipys(monkeypatch):
     assert t == pytest.approx(theirs["zeros"][0], abs=1e-6) and lo == 0.0 and hi > 1.0
 
 
+def test_threshold_bootstrap_repeats_under_np_random_seed():
+    """The bootstrap draws from numpy's global generator, as qec-util's does, so np.random.seed
+    gives the same intervals twice."""
+    data = _threshold_data()
+    np.random.seed(7)
+    first = ours.threshold.get_threshold(data, num_samples_bootstrap=20)
+    np.random.seed(7)
+    assert ours.threshold.get_threshold(data, num_samples_bootstrap=20) == first
+
+
 def test_brentq_and_bounded_minimisation_are_scipys():
     optimize = pytest.importorskip("scipy.optimize")
 
