@@ -257,7 +257,7 @@ class _Decoder:
 
     def __getstate__(self) -> dict:
         state = self.__dict__.copy()
-        del state["_lock"]  # a lock is not copied or pickled; a copy gets its own
+        state.pop("_lock", None)  # a lock is not copied or pickled; a copy gets its own
         return state
 
     def __setstate__(self, state: dict) -> None:
