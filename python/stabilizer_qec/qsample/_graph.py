@@ -179,9 +179,11 @@ _DEFAULT_FUNCTIONS = {"int": int, "float": float, "str": str, "len": len, "abs":
 
 
 def simple_eval(expr: str, names: Any = None, functions: Optional[Dict[str, Callable]] = None) -> Any:
-    """Evaluates an expression as simpleeval's ``simple_eval`` does: literals, arithmetic,
-    comparisons, boolean logic, indexing, conditionals, and calls to ``functions`` only.
-    ``names`` is a dict, or a function of the ``ast.Name`` node."""
+    """Evaluates an expression in the subset of simpleeval's grammar that protocol checks use: literals,
+    arithmetic, comparisons, boolean logic, indexing, conditionals, and calls. A call names one of the
+    builtins in ``_DEFAULT_FUNCTIONS`` or one of ``functions``. This is not simpleeval: attribute access
+    is refused, a power has no size limit, and the builtins are always callable. ``names`` is a dict,
+    or a function of the ``ast.Name`` node."""
     funcs = {**_DEFAULT_FUNCTIONS, **(functions or {})}
 
     def name(node: ast.Name) -> Any:
