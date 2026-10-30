@@ -19,7 +19,7 @@ Performance Estimator of Codes On Surfaces (PECOS)
 
 A framework for developing, studying, and evaluating quantum error-correcting codes.
 
-(stabilizer_qec: PECOS 0.2.0, ported. Where PECOS has a bug, the port fixes it; each fix is marked where it is made.
+(stabilizer_qec: PECOS 0.2.0, ported. Where PECOS has a bug the port has found, the port fixes it, and each fix is marked where it is made; bugs the port has not found are not fixed.
 
 ``simulators.SparseSim`` is PECOS's C++ simulator (``cySparseSim``, here in Rust), which PECOS's source makes its
 default where it is compiled. PECOS 0.2.0 as installed from PyPI never has it (its wheel has no compiled C++, and its
