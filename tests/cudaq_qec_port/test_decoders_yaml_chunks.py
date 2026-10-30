@@ -97,6 +97,15 @@ def test_chunk_form_parses_with_no_flat_matrices():
     assert len(config.H_sparse) == 0
 
 
+def test_a_leading_byte_order_mark_is_not_content():
+    # A document a Windows editor saved with a UTF-8 byte order mark reads as the same configuration.
+    plain = chunk_form_yaml(5).lstrip("\n")
+    with_bom = qec.decoder_config.from_yaml_str("\ufeff" + plain)
+    assert with_bom.to_yaml_str() == qec.decoder_config.from_yaml_str(plain).to_yaml_str()
+    flat = "id: 0\ntype: single_error_lut\nblock_size: 2\nsyndrome_size: 2\nH_sparse: [0, -1, 1, -1]\nO_sparse: [0, -1]\nD_sparse: [0, -1, 1, -1]\n"
+    assert qec.decoder_config.from_yaml_str("\ufeff\n" + flat).type == "single_error_lut"
+
+
 def test_expand_dem_chunks_fills_the_flat_fields():
     config = qec.decoder_config.from_yaml_str(chunk_form_yaml(5))
     closed = qec.qecrt.config.expand_dem_chunks(config)

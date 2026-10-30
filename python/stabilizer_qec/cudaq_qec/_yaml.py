@@ -84,6 +84,8 @@ def _strip_comment(s: str) -> str:
 
 
 def _lines(text: str) -> List[_Line]:
+    if text.startswith("\ufeff"):
+        text = text[1:]  # (a UTF-8 byte order mark, which a text editor on Windows may write)
     out: List[_Line] = []
     started = False
     for no, raw in enumerate(text.split("\n"), 1):

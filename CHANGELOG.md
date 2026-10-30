@@ -25,6 +25,7 @@ policy for its documented items.
 - `cudaq_qec.css_matrices_from_code` takes the code as `code=` and `cudaq_qec.configure_decoders` takes a
   `multi_decoder_config` as `config=`, the keyword names CUDA-Q gives them; the names this package had,
   `qec_code=` and `decoders=`, keep working.
+- A decoder YAML that starts with a UTF-8 byte order mark, as some Windows editors save it, now reads; before, its first key failed with "missing required key 'id'".
 
 ## 2.2.0 — 2026-10-30
 
