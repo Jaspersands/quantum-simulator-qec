@@ -364,7 +364,8 @@ where the user put them, not from whatever directory the command runs in.
 Copyright (c) 2021 Joschka Roffe. Licensed under the MIT License (`python/stabilizer_qec/bposd/LICENSE`).
 Source: https://github.com/quantumgizmos/bp_osd
 
-`python/stabilizer_qec/bposd/` is bposd 2.1's package on this package's ldpc.
+`python/stabilizer_qec/bposd/` is bposd 2.1's package on this package's ldpc, with tqdm optional
+(its progress bar is a no-op when tqdm is missing).
 
 ## stimbposd
 

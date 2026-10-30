@@ -51,6 +51,15 @@ def test_merging_batches_in_a_file_keeps_its_totals(tmp_path):
     assert after[3]["seconds"] == pytest.approx(before[3]["seconds"], abs=1e-5)
 
 
+def test_sample_failures_runs_without_numpy_dtypes(monkeypatch):
+    """numpy.dtypes is NumPy 1.25 and newer, and the package declares numpy 1.21: sample_failures
+    checks its outputs' dtypes without it, so it runs where the attribute is absent."""
+    c = sq.Circuit.generated("repetition_code:memory", distance=3, rounds=2, after_clifford_depolarization=0.1)
+    m = c.detector_error_model(decompose_errors=True)
+    monkeypatch.setattr(np, "dtypes", None)  # attribute access fails, as on a NumPy without it
+    ours.samplers.sample_failures(m, sq.Matching(m), max_samples=300, batch_size=100, verbose=0)
+
+
 def _flips(errors):
     """The detectors and observables a set of model errors flips together."""
     dets, obs = set(), set()
@@ -191,6 +200,16 @@ def test_threshold_fit_without_scipy_is_scipys(monkeypatch):
     assert abs(t - theirs["poly-9"][0]) <= 1e-6 and lo == 0.0 and hi == math.inf
     t, lo, hi = mine["zeros"]
     assert t == pytest.approx(theirs["zeros"][0], abs=1e-6) and lo == 0.0 and hi > 1.0
+
+
+def test_threshold_bootstrap_repeats_under_np_random_seed():
+    """The bootstrap draws from numpy's global generator, as qec-util's does, so np.random.seed
+    gives the same intervals twice."""
+    data = _threshold_data()
+    np.random.seed(7)
+    first = ours.threshold.get_threshold(data, num_samples_bootstrap=20)
+    np.random.seed(7)
+    assert ours.threshold.get_threshold(data, num_samples_bootstrap=20) == first
 
 
 def test_brentq_and_bounded_minimisation_are_scipys():

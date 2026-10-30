@@ -273,6 +273,31 @@ policy for its documented items.
 - `inspect.signature` and `help` of the v1 `bposd_decoder` show ldpc's parameters, where they showed `(*args, **kwargs)`.
 - `BpLsdDecoder` and `LsdDecoder` take a negative `bits_per_step` as ldpc does (all the syndrome in one step), where they raised `OverflowError`.
 - `stabilizer_qec.tsim` and `stabilizer_qec.tqec` have a `__version__`, as the other ports do (0.1.5 and 0.2.0, Tsim's and tqec's).
+- The bposd port's `css_code` and `stab_code` no longer compile with invalid-escape warnings
+  (`\in` in their printed logical-membership lines); the printed text is unchanged.
+- A single-precision BP decoder refuses a `ms_scaling_factor` too large for float32 with its
+  `ValueError` alone, without numpy's overflow `RuntimeWarning` first.
+- A forked child no longer blocks on a `PreDecoder`'s lock when another thread was training that
+  pre-decoder at the fork: the child's calls into it raise `RuntimeError: Already mutably
+  borrowed` instead of hanging.
+- A real Stim detector error model, or one of its instructions, read by this package (and by the
+  ports that take one) keeps each probability exactly. Stim's text prints 16 significant digits,
+  which dropped the last bit of about a quarter of random probabilities.
+- The Tesseract and Relay-BP decoders' docstrings and import errors no longer tell the user to
+  install a `qldpc[tesseract]` or `qldpc[relay-bp]` extra, which this package does not define:
+  both backends are bundled in `stabilizer_qec`, and the errors say to reinstall it.
+- An unknown Relay-BP backend option raises a `TypeError` that names the decoder asked for (such
+  as `RelayDecoderF32()`), not the private base class `_Relay`.
+- `get_threshold`'s bootstrap draws from numpy's global random generator, as qec-util's does, so
+  `np.random.seed` makes its intervals repeat; they were unseeded before.
+- `load_fit_information` returns float arrays for a fit file written without pyyaml. PyYAML read
+  its exponent numbers with no decimal point (`1e-06`) as strings, which made the arrays strings.
+- `dem_instrs.merge_instrs` takes Stim's `DemInstruction` objects, as the 2.1.0 notes say the
+  qec-util ports do; it raised `TypeError` for them.
+- `samplers.sample_failures` runs on NumPy 1.21 to 1.24, which the package declares; its output
+  check used `numpy.dtypes`, which those versions lack, so every call raised `AttributeError`.
+- `mod2.solve_linear_system`, and `decompose_into_basis` on NumPy inputs, return `uint8` arrays as
+  qec-util does; they returned `int64`.
 
 ## 2.2.0 — 2026-10-30
 

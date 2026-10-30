@@ -1,5 +1,5 @@
 # Ported from bposd 2.1 (quantumgizmos/bp_osd; Joschka Roffe, MIT; see THIRD_PARTY_NOTICES.md), modified for stabilizer_qec:
-# its ldpc is this package's.
+# its ldpc is this package's, and tqdm is optional (a no-op progress bar when it is missing).
 import numpy as np
 from stabilizer_qec.ldpc import mod2
 try:
@@ -156,10 +156,10 @@ class stab_code:
             assert ((self.hx @ self.lz.T + self.hz @ self.lx.T).data % 2).any() == 0
         except AssertionError:
             valid_code = False
-            print(" -lx \in ker{hz} AND lz \in ker{hx}: Fail")
+            print(" -lx \\in ker{hz} AND lz \\in ker{hx}: Fail")
 
         if show_tests and valid_code:
-            print("\t-lx \in ker{hz} AND lz \in ker{hx}: Pass")
+            print("\t-lx \\in ker{hz} AND lz \\in ker{hx}: Pass")
 
         try:
             lx_lz = self.lx @ self.lz.T + self.lz @ self.lx.T

@@ -46,7 +46,9 @@ def text_of(obj: Any, kind: str, ours: type) -> str:
             from ._circuit import _stim_object_exact_text
 
             return _stim_object_exact_text(obj)
-        return str(obj)
+        from ._dem import stim_exact_text
+
+        return stim_exact_text(obj)
     raise TypeError(f"expected a str, stabilizer_qec.{ours.__name__} or stim.{kind}, not {type(obj).__name__}")
 
 
@@ -78,12 +80,11 @@ def ours(obj: Any, circuit: Any = None, dem: Any = None) -> Any:
         return circuit(_stim_object_exact_text(obj))  # Stim's own text rounds arguments to 6 digits
     if dem is None:
         from ._circuit import DetectorErrorModel as dem
+    from ._dem import stim_exact_text
+
     if t.__name__ == "DemInstruction":
-        # An instruction's text rounds its probabilities to 6 digits, a model's does not.
-        model = sys.modules[root].DetectorErrorModel()
-        model.append(obj)
-        return dem(str(model))[0]
-    return dem(str(obj))
+        return dem(stim_exact_text(obj))[0]
+    return dem(stim_exact_text(obj))
 
 
 def count(value: Any, name: str, least: int = 0) -> int:

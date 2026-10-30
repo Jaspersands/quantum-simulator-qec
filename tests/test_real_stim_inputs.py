@@ -16,7 +16,7 @@ from tesseract_platform_helpers import stim_number
 
 stim = pytest.importorskip("stim", minversion="1.16")
 
-QLDPC = ("scipy", "galois", "sympy", "cvxpy", "networkx", "diskcache", "platformdirs")
+QLDPC = ("scipy", "galois", "sympy", "cvxpy", "networkx", "diskcache", "platformdirs", "pyperclip", "tqdm")
 DELTAKIT = ("scipy", "networkx", "matplotlib", "pandas", "galois", "uncertainties", "pathos", "plotly", "gql")
 
 
@@ -38,17 +38,31 @@ def real_circuit(task="surface_code:rotated_memory_z", d=3, r=2):
     return stim.Circuit.generated(task, distance=d, rounds=r, after_clifford_depolarization=0.01, before_measure_flip_probability=0.01, after_reset_flip_probability=0.005)
 
 
+def exact_dem_text(model):
+    """A Stim model's text with each argument as repr, so every probability reads back exactly:
+    Stim's own text prints 16 significant digits."""
+    lines = []
+    for item in model:
+        if hasattr(item, "repeat_count"):
+            lines.append(f"repeat {item.repeat_count} {{\n{exact_dem_text(item.body_copy())}\n}}")
+        else:
+            args = ", ".join(repr(float(a)) for a in item.args_copy())
+            lines.append(" ".join([item.type + (f"({args})" if args else "")] + [str(t) for t in item.targets_copy()]))
+    return "\n".join(lines)
+
+
 def mine(x):
-    """This package's copy of a Stim object."""
-    return {"Circuit": sq.Circuit, "DetectorErrorModel": sq.DetectorErrorModel}[type(x).__name__](str(x))
+    """This package's copy of a Stim object, with a model's probabilities exact."""
+    if type(x).__name__ == "DetectorErrorModel":
+        return sq.DetectorErrorModel(exact_dem_text(x))
+    return sq.Circuit(str(x))
 
 
 def mine_instr(instr):
-    """This package's copy of a Stim instruction (read from a model's text: an instruction's own
-    rounds its probability to 6 digits)."""
+    """This package's copy of a Stim instruction, its probability exact."""
     m = stim.DetectorErrorModel()
     m.append(instr)
-    return sq.DetectorErrorModel(str(m))[0]
+    return sq.DetectorErrorModel(exact_dem_text(m))[0]
 
 
 def same(a, b):
@@ -330,3 +344,20 @@ def test_ours_leaves_everything_else_alone():
     for x in (stim.Circuit("H 0\nM(0.25) 0"), stim.DetectorErrorModel("error(0.125) D0 L0"), stim.DetectorErrorModel("error(0.125) D0 L0")[0]):
         y = ours(x)
         assert type(y).__module__.split(".")[0] == "stabilizer_qec" and str(y) == str(x)
+
+
+def test_ours_keeps_every_probability_bit_for_bit():
+    # Stim's text prints 16 significant digits, and a random probability can need 17: a model
+    # read from that text drifts. The same holds for a repeat block, and for an instruction.
+    from stabilizer_qec._util import ours
+
+    rng = np.random.default_rng(3)
+    model = stim.DetectorErrorModel()
+    for p in [*rng.random(2000), 1 / 3]:
+        model.append("error", [float(p)], [stim.DemTarget("D0"), stim.DemTarget("L0")])
+    got = [inst.args_copy() for inst in ours(model)]
+    assert got == [inst.args_copy() for inst in model]
+    block = stim.DetectorErrorModel("repeat 2 {\n  error(0.3333333333333333333) D0\n}")
+    assert [i.args_copy() for i in ours(block).flattened()] == [i.args_copy() for i in block.flattened()]
+    inst = stim.DemInstruction("error", [0.3333333333333333333], [stim.DemTarget("D0")])
+    assert ours(inst).args_copy() == inst.args_copy()

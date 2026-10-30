@@ -377,11 +377,11 @@ assert "stabilizer_qec.tesseract_decoder" not in sys.modules
 def test_tesseract_missing_dependency_error(monkeypatch: pytest.MonkeyPatch) -> None:
     """A missing backend produces an actionable error without hiding nested failures."""
     monkeypatch.setitem(sys.modules, "stabilizer_qec.tesseract_decoder", None)
-    with pytest.raises(ModuleNotFoundError, match=r"qldpc\[tesseract\]") as exc_info:
+    with pytest.raises(ModuleNotFoundError, match="bundled Tesseract decoder") as exc_info:
         _get_decoder_tesseract(np.eye(1, dtype=int))
     message = str(exc_info.value)
-    assert "CPython 3.12-3.14 on macOS arm64 and Linux x86-64" in message
-    assert "github.com/quantumlib/tesseract-decoder#installation" in message
+    assert "reinstall stabilizer-qec" in message
+    assert "pip install" not in message
 
     monkeypatch.delitem(sys.modules, "stabilizer_qec.tesseract_decoder")
     original_import = builtins.__import__

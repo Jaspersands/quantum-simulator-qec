@@ -4,7 +4,10 @@ and in numpy (the same, step for step, but for rounding), the paper's pipeline (
 corrections, then any decoder) and matching on the network's weights, and this package's
 weights for the rotated memory."""
 
+import os
 import pickle
+import threading
+import time
 
 import numpy as np
 import pytest
@@ -182,6 +185,29 @@ def test_calls_from_threads_wait_for_training():
         for j in jobs:
             j.result()
     assert p.steps == 4
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="fork is POSIX only")
+def test_a_fork_during_training_leaves_the_child_a_free_lock():
+    # Training holds the pre-decoder's lock for the whole run. A child forked then gets a fresh
+    # lock, where the one it inherited would be held by a thread it does not have.
+    pre = sq.PreDecoder(model(), hidden=(4,))
+    training = threading.Thread(target=pre.train, args=(400,), kwargs={"batch": 256, "seed": 1})
+    training.start()
+    try:
+        time.sleep(0.2)
+        assert training.is_alive(), "training finished before the fork"
+        pid = os.fork()
+        if pid == 0:
+            code = 1
+            try:
+                code = 0 if pre._lock.acquire(timeout=10) else 3
+            finally:
+                os._exit(code)
+        _, status = os.waitpid(pid, 0)
+        assert os.waitstatus_to_exitcode(status) == 0
+    finally:
+        training.join()
 
 
 @pytest.mark.parametrize("engine", ["rust", "numpy"])

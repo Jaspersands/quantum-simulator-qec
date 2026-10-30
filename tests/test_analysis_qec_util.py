@@ -4,6 +4,8 @@ their models and sampled data: the same circuits, models, instructions, matrices
 from __future__ import annotations
 
 import random
+import sys
+import unittest.mock
 
 import numpy as np
 import pytest
@@ -42,14 +44,14 @@ def norm(x):
 
 def both(module: str, name: str, make_args):
     """``name`` from ``module`` run on Stim's objects and on ours; outcomes normalised (an
-    exception's type, where one is raised)."""
+    exception's type and message, where one is raised)."""
     out = []
     for lib, mk in ((qec_util, stim), (ours, sq)):
         fn = getattr(getattr(lib, module), name)
         try:
             out.append(norm(fn(*make_args(mk))))
         except Exception as e:  # noqa: BLE001 - the same failure is the expectation
-            out.append(("raised", type(e).__name__))
+            out.append(("raised", type(e).__name__, str(e)))
     return out
 
 
@@ -85,9 +87,16 @@ def test_circuit_text_tools():
         a, b = both("circuits", "format_rec_targets", lambda mk: (mk.Circuit(text),))
         assert a == b
         if isinstance(a, str):
-            qubits = {f"Q{q}": q for q in range(c.num_qubits)}
+            qubits = {f"q{q}": q for q in range(c.num_qubits)}
             x, y = both("circuits", "format_to_rec_targets", lambda mk: (a, qubits))
             assert x == y
+    # Rec targets that format_rec_targets formats (none of TASKS' circuits has one it can), so
+    # format_to_rec_targets gets real output to read, with the qubit names it formats.
+    rec = "M 0\nDETECTOR rec[-1]\nCX rec[-1] 1\nM 1"
+    a, b = both("circuits", "format_rec_targets", lambda mk: (mk.Circuit(rec),))
+    assert a == b and isinstance(a, str)
+    x, y = both("circuits", "format_to_rec_targets", lambda mk: (a, {"q0": 0, "q1": 1}))
+    assert x == y and isinstance(x, str)
     c = stim.Circuit.generated("repetition_code:memory", distance=3, rounds=2)
     a, b = both("circuits", "redefine_observables", lambda mk: (mk.Circuit(str(c)), {0: [0, 1]}))
     assert a == b
@@ -165,6 +174,8 @@ def test_instruction_tools(seed):
     instr = rng.choice(errors)
     pair = [instr, stim.DemInstruction("error", [0.2], instr.targets_copy())]
     assert norm(qec_util.dem_instrs.merge_instrs(*pair)) == norm(ours.dem_instrs.merge_instrs(*(sq.DemInstruction(*_args(i)) for i in pair)))
+    # Stim's own instructions, as qec-util takes them
+    assert norm(ours.dem_instrs.merge_instrs(*pair)) == norm(qec_util.dem_instrs.merge_instrs(*pair))
     probs = [rng.random() * 0.4 for _ in range(4)]
     assert ours.dem_instrs.xor_probs(*probs) == qec_util.dem_instrs.xor_probs(*probs)
     assert ours.dem_instrs.xor_lists([1, 2, 3], [2, 5]) == qec_util.dem_instrs.xor_lists([1, 2, 3], [2, 5])
@@ -215,7 +226,7 @@ def test_mod2(seed):
     b = (a @ x) % 2
     assert np.array_equal(ours.mod2.gauss_elimination_rows(a.copy()), qec_util.mod2.gauss_elimination_rows(a.copy()))
     mine = ours.mod2.solve_linear_system(a, b)
-    assert np.array_equal((a @ mine) % 2, b)
+    assert np.array_equal((a @ mine) % 2, b) and mine.dtype == np.uint8
     basis = [[0, 1], [1, 2], [2, 3]]
     assert ours.mod2.decompose_into_basis([0, 2], basis) in ([0, 1],)
     try:
@@ -226,7 +237,7 @@ def test_mod2(seed):
         theirs = qec_util.mod2.solve_linear_system(a, b)
     except IndexError:
         return  # qec-util overruns its rows on wide systems of full rank; the port does not
-    assert np.array_equal(mine, np.array(theirs))
+    assert np.array_equal(mine, np.array(theirs)) and mine.dtype == np.array(theirs).dtype
     assert ours.mod2.decompose_into_basis([0, 2], basis) == qec_util.mod2.decompose_into_basis([0, 2], basis)
 
 
@@ -409,6 +420,20 @@ def test_fit_files_round_trip(tmp_path):
     for lib in libs:
         name, p, c, boot = lib.threshold.load_fit_information(tmp_path / "f.txt")
         assert name == "poly-2" and np.allclose(p, popt) and np.allclose(c, pcov) and np.allclose(boot, [0.01, 0.011])
+
+
+def test_fit_file_written_without_pyyaml_loads_as_numbers(tmp_path):
+    # Without pyyaml the file is JSON, and pyyaml reads its exponent floats with no decimal point
+    # (1e-06) as strings: the arrays load as floats whichever parser reads the file.
+    popt = np.array([1e-06, 2.5e-05, 0.2, 2.0, 30.0])
+    pcov = np.diag([1e-06, 2.5e-05, 1e-06, 1e-06, 1e-06])
+    boot = np.array([1e-06, 0.011])
+    with unittest.mock.patch.dict(sys.modules, {"yaml": None}):
+        ours.threshold.save_fit_information(tmp_path / "f.txt", "poly-2", popt, pcov, boot)
+    name, p, c, b = ours.threshold.load_fit_information(tmp_path / "f.txt")
+    assert name == "poly-2"
+    assert p.dtype == c.dtype == b.dtype == float
+    assert np.array_equal(p, popt) and np.array_equal(c, pcov) and np.array_equal(b, boot)
 
 
 @pytest.mark.parametrize("task,d", [("surface_code:rotated_memory_z", 3), ("repetition_code:memory", 5), ("surface_code:rotated_memory_x", 5)])

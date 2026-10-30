@@ -240,7 +240,7 @@ def sample_failures(
                 "Incorrect output type of the decoding failures, metrics, or post-selection: "
                 f"{type(var)}."
             )
-        if not isinstance(var.dtype, np.dtypes.BoolDType):
+        if var.dtype != np.dtype(bool):
             raise TypeError(
                 "Incorrect output type of the decoding failures, metrics, or post-selection: "
                 f"{type(var.dtype)}."

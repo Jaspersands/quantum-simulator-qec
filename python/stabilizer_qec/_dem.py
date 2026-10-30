@@ -358,3 +358,18 @@ def items_exact_text(items: List[Any]) -> str:
 def _exact_text_of(dem: Any) -> str:
     core = getattr(dem, "_d", None)
     return items_exact_text(parse_items(core.exact_text() if core is not None else str(dem)))
+
+
+def stim_exact_text(obj: Any) -> str:
+    """A Stim detector error model, instruction or repeat block as text with exact arguments:
+    Stim's own text rounds them to 16 significant digits, and a probability can need 17."""
+    if hasattr(obj, "repeat_count"):
+        tag = getattr(obj, "tag", "")
+        head = f"repeat{f'[{_escape_tag(tag)}]' if tag else ''} {obj.repeat_count}"
+        return f"{head} {{\n{stim_exact_text(obj.body_copy())}\n}}"
+    if hasattr(obj, "targets_copy"):
+        tag = getattr(obj, "tag", "")
+        args = ", ".join(_exact(a) for a in obj.args_copy())
+        head = obj.type + (f"[{_escape_tag(tag)}]" if tag else "") + (f"({args})" if args else "")
+        return " ".join([head] + [str(t) for t in obj.targets_copy()])
+    return "\n".join(stim_exact_text(i) for i in obj)

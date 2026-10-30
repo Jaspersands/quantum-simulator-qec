@@ -3,7 +3,8 @@
 """
 This module contains a simple graph object and functions for minimum weight perfect matching with a choice of backend.
 
-Possible matching backends are the NetworkX Python library and the Blossom V C++ library.
+Possible matching backends are this package's exact matchers, which stand in for the Blossom V C++ library
+(dense blossom up to 512 nodes, Fusion Blossom beyond; see blossom5), and the NetworkX Python library.
 
 See also :mod:`qecsim.graphtools.blossom5`
 """
@@ -26,7 +27,8 @@ def mwpm(graph):
 
     Notes:
 
-    * Attempts to use Blossom V C++ library but, if unavailable, falls back to NetworkX Python library.
+    * Uses this package's exact matchers (see blossom5). NetworkX runs only past 512 nodes, when Fusion Blossom finds no
+      perfect matching (see blossom5.mwpm_ids).
     * Behaviour is undefined if the graph contains the same edge in reverse order.
 
     :param graph: Graph of weighted edges between nodes, as {(a_node, b_node): weight, ...}.

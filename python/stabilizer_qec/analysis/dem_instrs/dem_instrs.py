@@ -281,6 +281,7 @@ def get_labels_from_detectors(
 def merge_instrs(*instrs: stim.DemInstruction) -> stim.DemInstruction:
     """Merges DEM error instructions or raises an error if they do not flip
     the same detectors and observables. Note that the decomposition information is removed."""
+    instrs = tuple(ours(i) for i in instrs)  # a Stim instruction, as the other getters take
     if any(not isinstance(i, stim.DemInstruction) for i in instrs):
         raise TypeError("At least one given instruction is not a stim.DemInstruction.")
     if any(i.type != "error" for i in instrs):

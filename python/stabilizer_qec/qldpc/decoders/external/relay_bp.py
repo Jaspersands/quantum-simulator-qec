@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import functools
+import re
 import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
@@ -32,7 +33,8 @@ from ..protocols import BatchErrorDecoder
 class RelayBPDecoder(BatchErrorDecoder):
     """Wrapper class for Relay-BP decoders, introduced in arXiv:2506.01779.
 
-    Requires ``relay_bp`` to be installed, for example via ``pip install 'qldpc[relay-bp]'``.
+    Relay-BP is bundled in ``stabilizer_qec`` (as ``stabilizer_qec.relay_bp``), so it needs no
+    separate install.
 
     This class first constructs a ``relay_bp.decoder.DynDecoder`` decoder by class name, such as
     ``RelayDecoderF32``; see ``help(relay_bp)`` for more options.  To enable parallelized decoding,
@@ -109,7 +111,8 @@ class RelayBPDecoder(BatchErrorDecoder):
             relay_bp = __import__("stabilizer_qec.relay_bp", fromlist=["_"])
         except ModuleNotFoundError:
             raise ModuleNotFoundError(
-                "Failed to import relay-bp.  Try installing 'qldpc[relay-bp]'"
+                "The bundled Relay-BP module (stabilizer_qec.relay_bp) is missing from this"
+                " installation: reinstall stabilizer-qec."
             )
         if not isinstance(name, str) or not hasattr(relay_bp, name):
             raise ValueError(
@@ -160,8 +163,13 @@ class RelayBPDecoder(BatchErrorDecoder):
         self.observable_error_matrix_transposed = scipy.sparse.csr_matrix(
             observable_error_matrix, dtype=np.uint8
         ).T.tocsr()
+        try:
+            backend = getattr(relay_bp, name)(pcm, np.asarray(error_priors), **decoder_args)
+        except TypeError as error:
+            # The backend's constructor names its private base class; name the decoder asked for.
+            raise TypeError(re.sub(r"\b_\w+\.__init__\(\)", f"{name}()", str(error))) from error
         self.decoder = relay_bp.ObservableDecoderRunner(
-            getattr(relay_bp, name)(pcm, np.asarray(error_priors), **decoder_args),
+            backend,
             observable_error_matrix,
             include_decode_result,
         )
