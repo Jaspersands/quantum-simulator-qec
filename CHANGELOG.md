@@ -27,6 +27,9 @@ policy for its documented items.
   through the copy no longer advances the original's random memory strengths.
 - `ObservableDecodeResult.converged` and `.iterations` are read-only, as relay_bp's are; assigning
   them used to succeed.
+- Beam climbing with `det_beam=-1` gives the ARM64 answer on every platform, where Tesseract's
+  remainder by zero is the dividend. Tesseract traps there on x86-64 (SIGFPE), so the 2.1.0 note
+  that a negative beam gives Tesseract's answers does not hold for that one case on x86-64.
 
 ## 2.2.0 — 2026-10-30
 
