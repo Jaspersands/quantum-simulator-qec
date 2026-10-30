@@ -582,6 +582,18 @@ def test_noise_models_against_tqec():
             assert str(stim.Circuit(str(getattr(tqec.NoiseModel, model)(0.001).noisy_circuit(c)))) == expected
 
 
+def test_compile_block_graph_takes_block_graph_by_keyword():
+    from stabilizer_qec.tqec import compile_block_graph
+
+    m = gallery.memory(Basis.Z)
+    assert str(compile_block_graph(block_graph=m).generate_stim_circuit(1)) == str(compile_block_graph(m).generate_stim_circuit(1))
+    assert str(compile_block_graph(block_graph=m, distance=3).circuit) == str(compile_block_graph(m, 3).circuit)
+    with pytest.raises(TQECError, match="block graph once"):
+        compile_block_graph(m, block_graph=m)
+    with pytest.raises(TQECError, match="block graph once"):
+        compile_block_graph()
+
+
 def test_tqecs_call_shape():
     from stabilizer_qec.tqec import FIXED_BOUNDARY_CONVENTION, FIXED_BULK_CONVENTION, LinearFunction, NoiseModel, TopologicalComputationGraph, compile_block_graph
 

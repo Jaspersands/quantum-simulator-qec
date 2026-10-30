@@ -26,6 +26,9 @@ policy for its documented items.
   before this change still cannot run after loading.
 - `callbacks.PlotStats` and `callbacks.SubsetRates` run again on NumPy 2 and matplotlib 3.11: they called
   `np.product`, which NumPy 2.0 removed, and popped matplotlib's artist lists, which have no `pop`.
+- `tqec.compile_block_graph` takes the graph as `block_graph=` too, as tqec's call does:
+  `compile_block_graph(block_graph=g)` raised `TypeError`. Give the graph once, as `graph` or as
+  `block_graph=`.
 - `StabilizerSimulator` reports a non-Clifford gate (`T`, `Rx`, `Ry`, `Rz`) as absent to `hasattr` and
   `getattr` with a default; using the gate still raises `NotImplementedError`.
 - A seeded `qsample` run repeats in another process: the error models drew from a set of strings, whose
