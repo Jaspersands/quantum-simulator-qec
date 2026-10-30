@@ -7,7 +7,7 @@
 // as a useless conversion; it is the macro's, not this code's.
 #![allow(clippy::useless_conversion)]
 
-use pyo3::exceptions::{PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyMemoryError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 
@@ -2952,7 +2952,7 @@ impl PyDemColorMatcher {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
         let dec = &self.dec;
-        let out = py.detach(|| crate::batch::color_shots(dec, packed, nd, shots, threads));
+        let out = py.detach(|| crate::batch::color_shots(dec, packed, nd, shots, threads)).map_err(|e| PyMemoryError::new_err(e))?;
         let failed: Vec<usize> = out.iter().enumerate().filter(|(_, x)| x.2 >= 2).map(|(s, _)| s).collect();
         let tours = failed.iter().map(|&s| out[s].3.as_ref().map(|t| t.to_vec())).collect();
         let status: Vec<u8> = out.iter().map(|x| x.2).collect();
@@ -3060,7 +3060,7 @@ impl PyDemSearch {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
         let dec = &self.dec;
-        let out = py.detach(|| crate::batch::search_shots(dec, packed, nd, shots, threads));
+        let out = py.detach(|| crate::batch::search_shots(dec, packed, nd, shots, threads)).map_err(|e| PyMemoryError::new_err(e))?;
         let gave_up: Vec<u8> = out.iter().map(|x| u8::from(x.2)).collect();
         Ok((PyBytes::new(py, &le_u64(out.iter().flat_map(|x| x.0.iter().copied()))), PyBytes::new(py, &le_f64(out.iter().map(|x| x.1))), PyBytes::new(py, &gave_up)))
     }
@@ -3073,7 +3073,7 @@ impl PyDemSearch {
         let nd = self.num_detectors;
         check_rows(packed.len(), nd.div_ceil(8), shots, nd, "detectors")?;
         let dec = &self.dec;
-        let out = py.detach(|| crate::batch::search_found(dec, packed, nd, shots, threads));
+        let out = py.detach(|| crate::batch::search_found(dec, packed, nd, shots, threads)).map_err(|e| PyMemoryError::new_err(e))?;
         Ok(out.into_iter().map(|(found, cost, micros)| (found.faults, found.low_confidence, cost, micros)).collect())
     }
 

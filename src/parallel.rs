@@ -42,6 +42,43 @@ pub fn parallel_with_stack<T: Send>(n: usize, threads: usize, stack: usize, work
     })
 }
 
+/// As `parallel`, for work whose results are reserved before they are made: the output is
+/// reserved for all `n` results first, and each thread's own results are its `work`'s to
+/// reserve. A failed reservation is the error (the first, in thread order); no thread panics
+/// or aborts on memory it cannot get.
+pub fn try_parallel<T: Send>(n: usize, threads: usize, work: impl Fn(Range<usize>) -> Result<Vec<T>, String> + Sync) -> Result<Vec<T>, String> {
+    try_run(n, threads, None, work)
+}
+
+/// As `try_parallel`, each thread with a stack of `stack` bytes (as `parallel_with_stack`).
+pub fn try_parallel_with_stack<T: Send>(n: usize, threads: usize, stack: usize, work: impl Fn(Range<usize>) -> Result<Vec<T>, String> + Sync) -> Result<Vec<T>, String> {
+    try_run(n, threads, Some(stack), work)
+}
+
+fn try_run<T: Send>(n: usize, threads: usize, stack: Option<usize>, work: impl Fn(Range<usize>) -> Result<Vec<T>, String> + Sync) -> Result<Vec<T>, String> {
+    let mut out: Vec<T> = Vec::new();
+    out.try_reserve_exact(n).map_err(|e| format!("cannot allocate {n} results: {e}"))?;
+    let threads = resolve_threads(threads, n);
+    let chunk = n.div_ceil(threads).max(1);
+    let parts: Vec<Result<Vec<T>, String>> = std::thread::scope(|scope| {
+        let work = &work;
+        let handles: Vec<_> = (0..threads)
+            .map(|t| {
+                let range = (t * chunk).min(n)..((t + 1) * chunk).min(n);
+                match stack {
+                    None => scope.spawn(move || work(range)),
+                    Some(size) => std::thread::Builder::new().stack_size(size).spawn_scoped(scope, move || work(range)).expect("a worker thread starts"),
+                }
+            })
+            .collect();
+        handles.into_iter().map(|h| h.join().expect("a worker thread panicked")).collect()
+    });
+    for part in parts {
+        out.extend(part?);
+    }
+    Ok(out)
+}
+
 /// `work(state, i)` for each `i` in `0..n`, each thread taking the next `i` as it finishes one
 /// (for work whose cost varies from item to item) with its own state, `init()` made once per
 /// thread; the results in order.
