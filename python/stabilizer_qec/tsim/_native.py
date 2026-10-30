@@ -184,7 +184,8 @@ def tsim_to_native(text: str) -> str:
     ``name(...)`` with arguments Tsim refuses (``I[R_Z(theta=0.3*pi*pi)] 0``, ``I[U3(theta=0.1*pi)] 0``)
     raises Tsim's error as this package's ``ValueError`` naming the line, and a half-turn rotation
     Tsim reads as no gate (``I[R_Z (theta=0.3*pi)] 0``, ``I[ R_Z(theta=0.3*pi)] 0``,
-    ``I[R_Z(theta=0.3*pi)#x] 0``) is the identity ``I 0`` (its tag, inert in Tsim, is not kept)."""
+    ``I[R_Z(theta=0.3*pi)#x] 0``) is the identity ``I 0`` (its tag, inert in Tsim, is not kept). A
+    correlated error with a combiner (``E(0.1) X0*Z1``) raises Tsim's error for its targets."""
     lines = []
     for number, line in enumerate(text.splitlines(), 1):
         body, sep, comment = _split_comment(line)
@@ -197,6 +198,9 @@ def tsim_to_native(text: str) -> str:
                 raise ValueError(f"line {number}: Gate not found: {written!r} (an unsupported instruction)")
             body = body[:gate_match.start(2)] + name + body[gate_match.end(2):]
             line = body + (sep + comment if sep else "")
+            # Tsim keeps a combiner in a correlated error's targets, and its graph builder refuses it.
+            if name in ("E", "ELSE_CORRELATED_ERROR") and "*" in re.sub(r"\[[^\]\n]*\]|\([^()\n]*\)", "", body[gate_match.start(2) + len(name):]):
+                raise ValueError("Invalid target: stim.GateTarget.combiner()")
         m = _LINE.match(body)
         if not m:
             lines.append(line)

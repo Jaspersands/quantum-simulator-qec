@@ -23,6 +23,8 @@ policy for its documented items.
   float angle lost up to 1e-5 in an entry (`R_Z(1000000000000.25)`).
 - `tsim.Circuit.from_file` raises the `OSError` of a missing path or a directory, as Tsim does, and an unknown
   gate is named as written (`Gate not found: 'hh'`).
+- `tsim.Circuit` refuses a `*` in an `E` or `ELSE_CORRELATED_ERROR` target with Tsim's
+  `Invalid target: stim.GateTarget.combiner()`, where it read the product as separate targets.
 
 ## 2.2.0 — 2026-10-30
 

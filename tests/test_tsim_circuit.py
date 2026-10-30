@@ -115,6 +115,15 @@ def test_from_file_and_unknown_gate_errors_are_tsims(tmp_path):
     assert str(tsim.Circuit("h 0\ncnot 0 1")) == "H 0\nCX 0 1"
 
 
+def test_combiners_in_correlated_errors_are_tsims_refusal():
+    # Tsim's graph refuses a combiner in E's targets; the star of a tag or a comment is no combiner.
+    for text in ("E(0.1) X0*Z1", "ELSE_CORRELATED_ERROR(0.1) X0*X1 Y2 Z3*X4", "X_ERROR(0.1) 0\nE(0.2) X0*Z1"):
+        with pytest.raises(ValueError, match=r"Invalid target: stim\.GateTarget\.combiner\(\)"):
+            tsim.Circuit(text)
+    assert str(tsim.Circuit("E[a*b](0.1) X0 Z1 # x*y")) == "E[a*b](0.1) X0 Z1"
+    assert sq.Circuit("E(0.1) X0*Z1").num_qubits == 2
+
+
 def test_from_file_reads_shorthand(tmp_path):
     path = tmp_path / "c.stim"
     path.write_text("R 0\nT 0\nR_X(0.25) 0\nM 0\n")
