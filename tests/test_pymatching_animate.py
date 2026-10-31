@@ -206,6 +206,27 @@ def test_a_long_file_is_read_only_to_its_first_shot(fmt, tmp_path):
         os.close(fd)
 
 
+@pytest.mark.parametrize("platform_name, binary", [("win32", False), ("linux", True)])
+def test_input_files_open_in_pymatchings_mode(platform_name, binary, tmp_path, monkeypatch):
+    """PyMatching opens ``--dets_in`` and ``--dem_in`` in text mode on Windows (without
+    O_BINARY) and in binary mode elsewhere. The flags are recorded; the file is read as before."""
+    path = tmp_path / "shot.01"
+    path.write_bytes(b"0\n")
+    real_open = os.open
+    seen = []
+
+    def record(p, flags, *args, **kwargs):
+        seen.append(flags)
+        return real_open(p, os.O_RDONLY)
+
+    monkeypatch.setattr(sys, "platform", platform_name)
+    monkeypatch.setattr(os, "O_BINARY", 0x8000, raising=False)
+    monkeypatch.setattr(os, "open", record)
+    fd = pymatching._find_open_file_argument("--dets_in", ["animate", "--dets_in", str(path)])
+    os.close(fd)
+    assert bool(seen[0] & 0x8000) == binary
+
+
 def test_stream_reads_as_stdio_does():
     """``getc`` and ``fread`` over a pipe: ``fread`` waits for its bytes across short reads, and
     the end, once reached, stays the end."""

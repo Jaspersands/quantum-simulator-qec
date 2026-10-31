@@ -35,8 +35,8 @@ and here). When a mobility draw lands on a leaked partner, it stalls: ``CX(0, 0,
 both qubits leaked at 0.3 reads its heralds at 0.30 and 0.30 there, and at 0.25 and 0.35 here
 (qubit 1 first). Spreading alone, mobility with only the control leaked, and every detector error
 model, agree. Decoded by matching without leakage awareness, Deltakit's bundled leakage circuits
-get other answers than PyMatching's on 6–31% of shots, every one a tie between equally light
-corrections (the heralds' edges weigh nothing), and logical error rates 4–5% apart either way.
+get other answers than PyMatching's on some shots, every one a tie between equally light
+corrections (the heralds' edges weigh nothing), and logical error rates differ either way.
 
 >>> import stabilizer_qec.deltakit_stim as stim
 >>> c = stim.Circuit("R 0\\nLEAKAGE(0.1) 0\\nHERALD_LEAKAGE_EVENT(0.01) 0\\nM 0\\nDETECTOR rec[-1]\\nDETECTOR rec[-2]")

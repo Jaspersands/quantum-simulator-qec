@@ -118,11 +118,12 @@ same MIT licence.
 
 ## QUITS
 
-Copyright (c) 2026 Mingyu Kang (QUITS: Kang, Lin, Yao and Gökduman). MIT License. Source:
-https://github.com/mkang315/QUITS
+Copyright (c) 2026 Mingyu Kang (QUITS: Kang, Lin, Yao and Gökduman). MIT License.
 
 `python/stabilizer_qec/quits/` is QUITS 1.2.0 whole, on this package's Stim and ldpc; its
-`LICENSE` is beside it, and each modified file says so at its top.
+`LICENSE` is beside it, and each modified file says so at its top. `tests/quits_port/` is QUITS's
+test suite, and `tests/quits_port/parity_check_matrices/` its parity-check matrices, modified the
+same way and under the same MIT licence.
 
 ## qsample
 

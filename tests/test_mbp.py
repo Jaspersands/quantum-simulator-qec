@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import pathlib
 import pickle
+import platform
 import sys
 
 import numpy as np
@@ -34,8 +35,8 @@ def test_equals_ldpcs_cpp(index):
         assert dec.decoding.tolist() == want["decoding"]
         assert (dec.converge, dec.iterations) == (want["converge"], want["iterations"])
         llr = np.array(want["llr"])
-        if sys.platform == "darwin":
-            # Recorded on macOS: the same libm, so the same bits.
+        if sys.platform == "darwin" and platform.machine() == "arm64":
+            # Recorded on arm64 macOS: the same libm, so the same bits.
             assert np.array_equal(dec.log_prob_ratios, llr, equal_nan=True)
         else:
             assert np.allclose(dec.log_prob_ratios, llr, rtol=1e-12, atol=1e-12, equal_nan=True)

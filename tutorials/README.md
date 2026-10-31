@@ -1,7 +1,8 @@
 # Tutorials
 
-Nine notebooks, each runnable top to bottom in a few seconds with `pip install stabilizer-qec
-matplotlib` (Stim and PyMatching, where installed, are compared against):
+Nine notebooks, each runnable top to bottom in well under a minute (05 and 07 take about 25
+seconds) with `pip install stabilizer-qec matplotlib` (Stim and PyMatching, where installed, are
+compared against):
 
 1. [Getting started](01_getting_started.ipynb): a surface-code memory from circuit to logical
    error rate: diagrams, the detector error model, sampling, matching, and a threshold plot.
