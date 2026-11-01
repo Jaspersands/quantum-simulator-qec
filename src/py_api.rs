@@ -363,7 +363,7 @@ fn stream_circuit_decode<'py>(
         other => return Err(err(format!("mode '{other}' is neither sliding nor parallel"))),
     };
     let c = circuit.engine();
-    let out = py.detach(|| crate::batch::stream_circuit(c, commit, buffer, mode, correlated, batches, seed, threads)).map_err(err)?;
+    let out = py.detach(|| crate::batch::stream_circuit(&c.inner, commit, buffer, mode, correlated, batches, seed, threads)).map_err(err)?;
     let bytes: Vec<u8> = out.times.iter().flat_map(|x| x.to_le_bytes()).collect();
     Ok((out.failures, out.shots, out.unexplained, PyBytes::new(py, &bytes), out.windows, out.seconds))
 }

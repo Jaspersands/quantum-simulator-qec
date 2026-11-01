@@ -15,7 +15,9 @@ policy for its documented items.
 - A circuit's or detector error model's `explain`, `shortest_graphlike`, `search_undetectable` and
   sampler or distribution methods no longer hold the circuit borrowed while they run without the
   GIL: an `append_text` or `append_circuit` on another thread raised "Already borrowed" for as
-  long as one ran, and now waits for it. Each method takes a copy of the circuit or model.
+  long as one ran. Circuits and models now sit behind a lock, and each read takes a snapshot of
+  one, so a read that overlaps an edit waits for it and does not raise (on free-threaded Python
+  it raised "Already mutably borrowed").
 - A circuit or detector error model with a tag escape Stim does not know (`X[a\b] 0`,
   `error[a\b](0.1) D0`) is refused when it is built, as Stim refuses it. A circuit with one used to
   build and then raise from `str`, `len`, indexing and pickling; a model with one built silently.
