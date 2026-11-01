@@ -20,6 +20,9 @@ policy for its documented items.
 - A detector error model's `shortest_graphlike_error` and `search_undetectable` no longer unroll the
   model again on every call. Since the GIL change above they ran on a copy that had not been
   unrolled, which made `shortest_graphlike_error` many times slower on a large model.
+  long as one ran. Circuits and models now sit behind a lock, and each read takes a snapshot of
+  one, so a read that overlaps an edit waits for it and does not raise (on free-threaded Python
+  it raised "Already mutably borrowed").
 - A circuit or detector error model with a tag escape Stim does not know (`X[a\b] 0`,
   `error[a\b](0.1) D0`) is refused when it is built, as Stim refuses it. A circuit with one used to
   build and then raise from `str`, `len`, indexing and pickling; a model with one built silently.
