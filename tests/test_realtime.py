@@ -208,11 +208,17 @@ def test_serve_stdio_exits_quietly_when_its_reader_has_gone(memory, tmp_path):
 
 
 @_POSIX_STREAMS
+def _default_sigint():
+    # A child inherits SIG_IGN from its parent, and then ignores Ctrl-C for good: the server must start
+    # with SIGINT at its default, whatever an earlier test in this process did to it.
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+
+
 def test_serve_stdio_ends_with_130_on_ctrl_c_without_a_traceback(memory, tmp_path):
     c, dets, obs = memory
     path = tmp_path / "m.dem"
     path.write_text(str(c.detector_error_model(decompose_errors=True)))
-    p = subprocess.Popen([sys.executable, "-m", "stabilizer_qec._cli", "serve", "--stdio", "--dem", str(path)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.Popen([sys.executable, "-m", "stabilizer_qec._cli", "serve", "--stdio", "--dem", str(path)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, preexec_fn=_default_sigint)
     try:
         Protocol.read(p.stdout)  # HELLO: the server now waits for a request
         p.send_signal(signal.SIGINT)
