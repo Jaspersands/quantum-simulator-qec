@@ -22,7 +22,7 @@ permissions:
 jobs:
   engine:
     name: Rust tests, WebAssembly and site
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
@@ -54,14 +54,14 @@ jobs:
 
   semver:
     name: The crate's API against its last release (cargo-semver-checks)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: obi1kenobi/cargo-semver-checks-action@v2
 
   msrv:
     name: The oldest Rust the crate supports (1.87)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.87
@@ -73,7 +73,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -99,33 +99,33 @@ jobs:
         working-directory: ${{ runner.temp }}
         run: python "$GITHUB_WORKSPACE/tools/smoke.py"
       - name: The gate table is what Stim's tableaus give
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: python tools/gen_gates.py --check
       - name: Quick cross-check against Stim and PyMatching
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: python tools/xcheck.py --quick
       - name: BP and belief-matching against ldpc and beliefmatching, exactly
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           python -m pip install ldpc==2.4.1 beliefmatching
           python tools/bp_check.py --quick
       - name: The 1.8 decoders against ldpc, IBM's relay_bp, Chromobius and Tesseract
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           python -m pip install scipy chromobius relay-bp
           python -m pip install tesseract-decoder==0.1.1.dev20261013012529
           python tools/decoder_check.py --quick
       - name: The gross code and BP+OSD against Bravyi et al.'s construction, Stim and ldpc
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: python tools/bb_check.py --quick
       - name: Lattice surgery against Stim and PyMatching
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: python tools/surgery.py check --quick
       - name: The gross code's logical measurement against Stim and ldpc
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: python tools/gross_ops.py check --quick
       - name: The tutorials run, and their notebooks are built from them
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-24.04'
         run: |
           python -m pip install matplotlib
           python tools/notebooks.py --check
@@ -146,7 +146,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-24.04, macos-latest, windows-latest]
         python: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v5
@@ -191,7 +191,7 @@ jobs:
   extended-regression:
     name: Extended 2.2 reference corpus (Python 3.12, Linux)
     needs: wheel
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -200,7 +200,7 @@ jobs:
           python-version: "3.12"
       - uses: actions/download-artifact@v5
         with:
-          name: wheel-ubuntu-latest
+          name: wheel-ubuntu-24.04
           path: dist
       - name: Install the wheel and required pinned references
         shell: bash
@@ -225,7 +225,7 @@ jobs:
   live-references:
     name: Live Tsim, sinter 1.16, relay-bp 0.2.2 and PanQEC's slow tests (Python 3.12, Linux)
     needs: wheel
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -235,7 +235,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/download-artifact@v5
         with:
-          name: wheel-ubuntu-latest
+          name: wheel-ubuntu-24.04
           path: dist
       - name: Install the wheel and the pinned references, sinter and relay-bp from their sources
         shell: bash
@@ -267,7 +267,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-24.04, macos-latest]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -305,7 +305,7 @@ jobs:
 
   fuzz:
     name: Fuzzing
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly

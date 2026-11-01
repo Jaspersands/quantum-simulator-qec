@@ -10,7 +10,7 @@ on:
     inputs:
       runners:
         description: The runners, as a JSON list
-        default: '["ubuntu-latest", "ubuntu-24.04-arm"]'
+        default: '["ubuntu-24.04", "ubuntu-24.04-arm"]'
       rustflags:
         description: RUSTFLAGS for the wheel (to measure, say, a target CPU)
         default: ""
@@ -35,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: ${{ fromJSON(inputs.runners || '["ubuntu-latest", "ubuntu-24.04-arm"]') }}
+        runner: ${{ fromJSON(inputs.runners || '["ubuntu-24.04", "ubuntu-24.04-arm"]') }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
@@ -75,7 +75,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: ${{ fromJSON(inputs.runners || '["ubuntu-latest", "ubuntu-24.04-arm"]') }}
+        runner: ${{ fromJSON(inputs.runners || '["ubuntu-24.04", "ubuntu-24.04-arm"]') }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
