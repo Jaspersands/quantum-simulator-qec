@@ -15,7 +15,11 @@ policy for its documented items.
 - A circuit's or detector error model's `explain`, `shortest_graphlike`, `search_undetectable` and
   sampler or distribution methods no longer hold the circuit borrowed while they run without the
   GIL: an `append_text` or `append_circuit` on another thread raised "Already borrowed" for as
-  long as one ran, and now waits for it. Each method takes a copy of the circuit or model.
+  long as one ran, and now waits for it. Each method takes a copy of the circuit, or a shared handle
+  on the model (so a model's unrolled form is kept between calls, as before).
+- A detector error model's `shortest_graphlike_error` and `search_undetectable` no longer unroll the
+  model again on every call. Since the GIL change above they ran on a copy that had not been
+  unrolled, which made `shortest_graphlike_error` many times slower on a large model.
 - A circuit or detector error model with a tag escape Stim does not know (`X[a\b] 0`,
   `error[a\b](0.1) D0`) is refused when it is built, as Stim refuses it. A circuit with one used to
   build and then raise from `str`, `len`, indexing and pickling; a model with one built silently.
