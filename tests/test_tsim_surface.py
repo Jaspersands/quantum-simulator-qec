@@ -181,10 +181,14 @@ def test_inverse_rejects_non_unitary_tags():
 # Tsim's test_dem.py.
 def test_dem_merges_equal_errors_whatever_their_tags():
     # Tsim's model has no tags: two X errors on one detector are one error of 0.1 + 0.1 - 2 * 0.1 * 0.1 = 0.18.
+    # The merge rounds to the binary64 one step above 0.18 (on Apple silicon and x86-64 Linux alike), and
+    # Stim's text of a number has 16 digits on Apple silicon but 19 on x86-64 Linux, so compare the numbers.
     text = "X_ERROR[a](0.1) 0\nX_ERROR[b](0.1) 0\nM 0\nDETECTOR rec[-1]"
-    assert str(tsim.Circuit(text).detector_error_model()) == "error(0.18) D0"
+    merged = list(tsim.Circuit(text).detector_error_model())
+    assert [(i.type, i.args_copy(), i.targets_copy()) for i in merged] == [("error", [0.18000000000000002], [sq.DemTarget("D0")])]
     # A stabilizer_qec.Circuit's model keeps Stim's tags.
-    assert str(sq.Circuit(text).detector_error_model()) == "error[a](0.1) D0\nerror[b](0.1) D0"
+    tagged = list(sq.Circuit(text).detector_error_model())
+    assert [(i.tag, i.args_copy(), i.targets_copy()) for i in tagged] == [("a", [0.1], [sq.DemTarget("D0")]), ("b", [0.1], [sq.DemTarget("D0")])]
 
 
 def test_dem_with_non_deterministic_observable():
