@@ -4,6 +4,7 @@ ldpc's own test suite runs against the port in tests/ldpc_port."""
 
 from __future__ import annotations
 
+import ctypes
 import importlib
 import pkgutil
 
@@ -222,7 +223,11 @@ def test_legacy_bposd_max_iter_is_a_c_int_as_ldpcs():
             ldpc.bposd_decoder(pcm, error_rate=0.1, max_iter=2**40)
         with pytest.raises(OverflowError) as got:
             ldpc_port.bposd_decoder(pcm, error_rate=0.1, max_iter=2**40)
-        assert str(got.value) == str(want.value)
+        # The port's wording is fixed on every platform. ldpc words it by its C long, which is 32 bits on Windows
+        # (there it says "Python int too large to convert to C long"), so the two are compared where a C long is 64.
+        assert str(got.value) == "value too large to convert to int"
+        if ctypes.sizeof(ctypes.c_long) == 8:
+            assert str(got.value) == str(want.value)
         assert ldpc_port.bposd_decoder(pcm, error_rate=0.1, max_iter=2**31 - 1).max_iter == 2**31 - 1
 
 
