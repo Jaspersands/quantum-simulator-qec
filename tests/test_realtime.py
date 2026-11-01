@@ -207,13 +207,14 @@ def test_serve_stdio_exits_quietly_when_its_reader_has_gone(memory, tmp_path):
     assert rc == 0 and b"Exception ignored" not in err and b"Traceback" not in err
 
 
-@_POSIX_STREAMS
 def _default_sigint():
     # A child inherits SIG_IGN from its parent, and then ignores Ctrl-C for good: the server must start
     # with SIGINT at its default, whatever an earlier test in this process did to it.
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
 
+# POSIX only: preexec_fn is not supported on Windows, and Popen.send_signal takes no SIGINT there.
+@_POSIX_STREAMS
 def test_serve_stdio_ends_with_130_on_ctrl_c_without_a_traceback(memory, tmp_path):
     c, dets, obs = memory
     path = tmp_path / "m.dem"

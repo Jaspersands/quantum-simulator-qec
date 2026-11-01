@@ -509,6 +509,12 @@ def _read(path: str) -> bytes:
         raise _Abort("Could not open the file: " + path) from None
 
 
+def _path_text(path: str) -> str:
+    """A path from the command line as its text, the bytes the OS gave read as UTF-8. Under an ASCII locale
+    Python keeps a non-ASCII byte as a surrogate escape, which the UTF-8 stats file cannot hold."""
+    return os.fsencode(path).decode("utf-8")
+
+
 class _NlohmannInt(int):
     """A JSON integer as nlohmann's parser keeps it: unsigned unless written with a sign or
     too large for 64 bits."""
@@ -907,10 +913,10 @@ def _decode(a: _Args, dem: Any, sources: Any, dets: np.ndarray, obs: np.ndarray,
     final = True
     if a.stats_out_fname:
         stats = {
-            "circuit_path": a.circuit_path, "dem_path": a.dem_path, "max_errors": a.max_errors, "sample_seed": a.sample_seed, "det_beam": a.det_beam,
+            "circuit_path": _path_text(a.circuit_path), "dem_path": _path_text(a.dem_path), "max_errors": a.max_errors, "sample_seed": a.sample_seed, "det_beam": a.det_beam,
             "det_penalty": a.det_penalty, "beam_climbing": a.beam_climbing, "no_revisit_dets": a.no_revisit_dets, "pqlimit": a.pqlimit, "num_det_orders": num_orders,
             "num_det_orders_per_generated_source": a.num_orders, "det_order_seed": a.det_order_seed,
-            "detector_orders_paths": [path for method, path in a.sources if method == "literal"], "total_time_seconds": state["time"],
+            "detector_orders_paths": [_path_text(path) for method, path in a.sources if method == "literal"], "total_time_seconds": state["time"],
             "num_errors": state["errors"] if has_obs else None, "num_low_confidence": state["low"], "num_shots": shots, "num_threads": a.num_threads,
             "multipass": a.multipass, "multipass_strategy": a.multipass_strategy, "multipass_num_passes": a.num_passes, "sample_num_shots": a.sample_num_shots,
             "sparsify_errors": a.sparsify_errors, "sparsify_base_degree": a.sparsify_base_degree, "sparsify_max_degree": a.sparsify_max_degree,
