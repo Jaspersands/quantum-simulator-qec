@@ -177,8 +177,8 @@ impl PyCircuit {
     #[pyo3(signature = (filter=None, reduce=false))]
     fn explain(slf: &Bound<'_, Self>, py: Python<'_>, filter: Option<PyRef<'_, PyDem>>, reduce: bool) -> PyResult<Vec<PyExplained>> {
         let circuit = slf.try_borrow()?.circuit.clone();
-        let filter = filter.map(|f| f.dem.clone());
-        let out = py.detach(move || circuit.explain_errors(filter.as_ref(), reduce)).map_err(api_err)?;
+        let filter = filter.map(|f| std::sync::Arc::clone(&f.dem));
+        let out = py.detach(move || circuit.explain_errors(filter.as_deref(), reduce)).map_err(api_err)?;
         Ok(out.into_iter().map(explained_tuple).collect())
     }
 
@@ -256,7 +256,7 @@ impl PyCircuit {
             .ignore_decomposition_failures(ignore_failures)
             .allow_gauge_detectors(allow_gauge)
             .block_decomposition_from_introducing_remnant_edges(block_remnants);
-        Ok(PyDem { dem: self.circuit.detector_error_model(&options).map_err(api_err)?, edits: 0 })
+        Ok(PyDem { dem: std::sync::Arc::new(self.circuit.detector_error_model(&options).map_err(api_err)?), edits: 0 })
     }
 
     /// The noiseless reference run's measurement record (the one the converter compares with),
@@ -795,7 +795,10 @@ impl PyStabilizerRankSampler {
 /// folded and unrolled once for a decoder.
 #[pyclass(name = "Dem", module = "stabilizer_qec._core")]
 pub struct PyDem {
-    dem: crate::api::DetectorErrorModel,
+    /// Shared, so a read that releases the GIL holds no borrow of this object, and the model's
+    /// unrolled form, once made, serves every later read (a copy would start without it). An
+    /// append copies the model only while a read still holds it.
+    dem: std::sync::Arc<crate::api::DetectorErrorModel>,
     /// How many times the model has been changed in place (`append_text`), as `PyCircuit`'s.
     edits: u64,
 }
@@ -821,7 +824,7 @@ impl PyDem {
 impl PyDem {
     #[new]
     fn new(text: &str) -> PyResult<Self> {
-        Ok(PyDem { dem: crate::api::DetectorErrorModel::parse(text).map_err(api_err)?, edits: 0 })
+        Ok(PyDem { dem: std::sync::Arc::new(crate::api::DetectorErrorModel::parse(text).map_err(api_err)?), edits: 0 })
     }
 
     #[getter]
@@ -851,7 +854,7 @@ impl PyDem {
     /// Appends the instructions of a piece of model text.
     fn append_text(&mut self, text: &str) -> PyResult<()> {
         self.edits += 1;
-        self.dem.append_text(text).map_err(api_err)
+        std::sync::Arc::make_mut(&mut self.dem).append_text(text).map_err(api_err)
     }
 
     /// How many times the model has been changed in place (see the field).
@@ -863,17 +866,17 @@ impl PyDem {
     /// The graph-like distance's faults as a model (see
     /// `DetectorErrorModel::shortest_graphlike_error`).
     fn shortest_graphlike(slf: &Bound<'_, Self>, py: Python<'_>, ignore: bool) -> PyResult<PyDem> {
-        let dem = slf.try_borrow()?.dem.clone();
-        Ok(PyDem { dem: py.detach(move || dem.shortest_graphlike_error(ignore)).map_err(api_err)?, edits: 0 })
+        let dem = std::sync::Arc::clone(&slf.try_borrow()?.dem);
+        Ok(PyDem { dem: std::sync::Arc::new(py.detach(move || dem.shortest_graphlike_error(ignore)).map_err(api_err)?), edits: 0 })
     }
 
     /// Stim's search for undetectable logical errors on the model, its sets within
     /// `max_memory_bytes` (None: half the machine's memory).
     #[pyo3(signature = (max_symptoms, max_degree, no_increase, max_memory_bytes=None))]
     fn search_undetectable(slf: &Bound<'_, Self>, py: Python<'_>, max_symptoms: usize, max_degree: usize, no_increase: bool, max_memory_bytes: Option<usize>) -> PyResult<PyDem> {
-        let dem = slf.try_borrow()?.dem.clone();
+        let dem = std::sync::Arc::clone(&slf.try_borrow()?.dem);
         let budget = max_memory_bytes.unwrap_or_else(crate::distance::default_memory_budget);
-        Ok(PyDem { dem: py.detach(move || dem.search_for_undetectable_logical_errors_with_budget(max_symptoms, max_degree, no_increase, budget)).map_err(api_err)?, edits: 0 })
+        Ok(PyDem { dem: std::sync::Arc::new(py.detach(move || dem.search_for_undetectable_logical_errors_with_budget(max_symptoms, max_degree, no_increase, budget)).map_err(api_err)?), edits: 0 })
     }
 
     /// A sampler of the model's faults (see `DemSampler`).
@@ -886,7 +889,7 @@ impl PyDem {
     }
 
     fn flattened(&self) -> PyResult<PyDem> {
-        Ok(PyDem { dem: self.dem.flattened().map_err(api_err)?, edits: 0 })
+        Ok(PyDem { dem: std::sync::Arc::new(self.dem.flattened().map_err(api_err)?), edits: 0 })
     }
 
     /// Stim's `matchgraph-3d` diagram (glTF).
