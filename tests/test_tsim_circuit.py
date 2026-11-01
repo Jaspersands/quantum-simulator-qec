@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pickle
 import re
+import sys
 import time
 
 import numpy as np
@@ -106,7 +107,8 @@ def test_from_file_and_unknown_gate_errors_are_tsims(tmp_path):
     # Tsim's own open: the OSError of the path, not Stim's ValueError.
     with pytest.raises(FileNotFoundError):
         tsim.Circuit.from_file(tmp_path / "missing.stim")
-    with pytest.raises(IsADirectoryError):
+    # A directory is refused by the OS: IsADirectoryError on POSIX, PermissionError on Windows.
+    with pytest.raises(PermissionError if sys.platform == "win32" else IsADirectoryError):
         tsim.Circuit.from_file(tmp_path)
     # A gate name is reported as written, lower case included, and so is one that is not a gate.
     for text in ("hh 0", "H 0\nxx 0 1"):
