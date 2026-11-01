@@ -63,7 +63,7 @@ jobs:
         run: |
           python tools/bench.py ${{ inputs.check && '--check' || '' }} --summary "$GITHUB_STEP_SUMMARY" --json bench.json
           cat bench.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: benchmarks-${{ matrix.runner }}
