@@ -194,7 +194,8 @@ def test_rounded_refuses_a_negative_or_huge_digit_count():
         d.rounded(-1)
     with pytest.raises(ValueError, match="at most 308"):
         d.rounded(10**9)
-    assert str(d.rounded(308)) == "error(0.123) D0"
+    # The value is the binary64 nearest 0.123 on every platform; its text has 16 digits on Apple silicon and 19 on x86-64 Linux.
+    assert [(i.type, i.args_copy()) for i in d.rounded(308)] == [("error", [0.123])]
 
 
 def _counting(monkeypatch, module, name):
