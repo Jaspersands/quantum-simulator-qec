@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pickle
 import re
+import sys
 
 import pytest
 
@@ -69,11 +70,19 @@ def test_inverted_herald_targets_are_refused_naming_the_herald(name, args):
 @pytest.mark.parametrize("name, args", HERALDS)
 def test_inverted_herald_targets_are_refused_by_ref_circuit(name, args):
     stim = pytest.importorskip("stim")
+    gate = f"{name}({', '.join(map(str, args))}) !0"
+    message = f"{name}: inverted herald targets are not supported"
+    stim_circuit = stim.Circuit(f"R 0\n{gate}\nM 0")
+    if sys.version_info < (3, 10):
+        # There is no RefCircuit below 3.10 (its module uses typing.TypeAlias, and conftest.py ignores the
+        # mwpf_port tests there); the Stim circuit is still refused where it is built.
+        with pytest.raises(ValueError, match=message):
+            sq.Circuit(stim_circuit)
+        return
     from stabilizer_qec.mwpf.ref_circuit import RefCircuit
 
-    gate = f"{name}({', '.join(map(str, args))}) !0"
-    with pytest.raises(ValueError, match=f"{name}: inverted herald targets are not supported"):
-        RefCircuit.of(stim.Circuit(f"R 0\n{gate}\nM 0"))
+    with pytest.raises(ValueError, match=message):
+        RefCircuit.of(stim_circuit)
 
 
 def test_stim_objects_in_and_out():
