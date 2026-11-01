@@ -389,9 +389,11 @@ def test_cli_flag_errors(tmp_path, capsys):
     assert code != 0 and err == failure("SAMPLE_FORMAT_PTB64 incompatible with SingleMeasurementRecord")
     assert (tmp_path / "p.ptb64").read_bytes() == b""
     assert [str(w.message) for w in caught if issubclass(w.category, ResourceWarning)] == []
-    # Detector-order files: JSON arrays of arrays of nonnegative integers, each a permutation.
+    # Detector-order files: JSON arrays of arrays of nonnegative integers, each a permutation. Nesting past
+    # the JSON reader's stack budget is not valid JSON; that budget differs by build (a 3.14 build refused
+    # about 58000 levels, and CI's 3.14 read 100000), so the depth here is past every build's.
     for text, message in [
-        ("[[0, 1", "Detector orders file is not valid JSON: {}"), ("NaN", "Detector orders file is not valid JSON: {}"), ("[" * 100000 + "]" * 100000, "Detector orders file is not valid JSON: {}"), ("[]", "Detector orders file must contain at least one order."),
+        ("[[0, 1", "Detector orders file is not valid JSON: {}"), ("NaN", "Detector orders file is not valid JSON: {}"), ("[" * 10**6 + "]" * 10**6, "Detector orders file is not valid JSON: {}"), ("[]", "Detector orders file must contain at least one order."),
         ("{}", "Detector orders file must contain at least one order."), ("[3]", "Each detector order must be an array."),
         ("[[0, -1]]", "Detector IDs must be nonnegative integers."), ("[[0, 1.0]]", "Detector IDs must be nonnegative integers."),
         ("[[0, 1]]", f"Detector order has size 2, but the detector error model has {nd} detectors."),
