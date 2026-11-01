@@ -2734,6 +2734,7 @@ def get_hashing_bound(point):
     r_x, r_y, r_z = point
 
     def max_rate(p):
+        p = float(np.ravel(p)[0])  # fsolve passes a length-1 array; NumPy 2.4 refuses it as an element
         p_array = np.array([1 - p, p*r_x, p*r_y, p*r_z])
         h_array = np.zeros(4)
         for i in range(4):

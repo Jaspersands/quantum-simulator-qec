@@ -912,8 +912,10 @@ def _command_help(command: str) -> str:
     if command == "animate":
         return _ANIMATE_HELP
     if command == "mqt.qecc.cc-decoder":
-        from .mqt_qecc.cc_decoder.cli import build_parser
-
+        try:
+            from .mqt_qecc.cc_decoder.cli import build_parser
+        except ImportError:  # the `mqt` extra's dependencies (mpmath, z3-solver, ...) are not installed
+            return f"{COMMANDS[command]}\n(It needs `pip install stabilizer-qec[mqt]`.)\n"
         return build_parser(prog=f"stabilizer-qec {command}").format_help()
     return _as_ours(pages[command]) if command in pages else _parser(command).format_help()
 
