@@ -1,8 +1,22 @@
 # BoolOp is ported from Loom (entropicalabs/el-loom 0.4.0, src/loom/eka/utilities/enums.py; Copyright 2024 Entropica
-# Labs Pte Ltd, Apache License 2.0; see LICENSE in this directory). IfElseCircuit is written for stabilizer_qec to
-# behave as Loom's (src/loom/eka/ifelse_circuit.py, whose file header, unlike the rest of el-loom, reserves its
-# rights): the same fields, defaults, derived channels and duration, string forms and messages, recorded from
-# el-loom 0.4.0 in tests/loom_port/fixtures_ifelse.json.
+# Labs Pte Ltd, Apache License 2.0; see LICENSE in this directory).
+#
+# IfElseCircuit is a port of Loom's src/loom/eka/ifelse_circuit.py (el-loom 0.4.0) from a pydantic dataclass to a
+# plain class. It follows that file closely: its structure, fields and defaults; its derived channels (in order of
+# appearance, not from a set) and duration; its four condition messages and three NotImplementedError messages word
+# for word; the f-string layouts of its __repr__ and detailed_str; and the expressions of flatten, unroll,
+# is_condition_single_bit, is_single_gate_conditioned and __eq__. That file is the only one of the 160 Python files in
+# el-loom 0.4.0's source distribution without the Apache License header; in its place it carries this notice, kept
+# here and in LICENSE-ifelse_circuit in this directory:
+#
+#   Copyright (c) Entropica Labs Pte Ltd 2025.
+#
+#   Use, distribution and reproduction of this program in its source or compiled
+#   form is prohibited without the express written consent of Entropica Labs Pte
+#   Ltd.
+#
+# No consent of Entropica Labs to this port has been obtained; see LICENSE-ifelse_circuit and THIRD_PARTY_NOTICES.md.
+# The outputs it is checked against are recorded from el-loom 0.4.0 in tests/loom_port/fixtures_ifelse.json.
 """Loom's branching circuit: ``IfElseCircuit`` runs its if branch or its else branch on a
 classical condition, a ``BoolOp`` gate on classical channels (``match`` true on a 1, ``not`` on a
 0; ``and``, ``nand``, ``or``, ``nor`` and ``xor`` over two or more bits). The converters write it

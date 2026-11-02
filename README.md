@@ -252,10 +252,10 @@ publishes them to PyPI by trusted publishing (workflow `wheels.yml`, environment
   T and S state injection, transversal Hadamard and the auxiliary CNOT; the repetition chain, Shor,
   Steane and five-qubit codes) interpreted to circuits gate for gate as Loom writes them, with
   Loom's validator on this package's tableau simulator, its circuit error models, and exporters to
-  Stim, OpenQASM 3, PennyLane, CUDA-Q, Mimiq and Guppy. Loom's if/else circuits are not ported:
-  `IfElseCircuit` is defined in the one file that carries a notice prohibiting its use,
-  distribution and reproduction without Entropica Labs' consent, and its `BoolOp` conditions are
-  in Apache-2.0 `src/loom/eka/utilities/enums.py`.
+  Stim, OpenQASM 3, PennyLane, CUDA-Q, Mimiq and Guppy. Loom's if/else circuits too: `IfElseCircuit` is a port of el-loom's `ifelse_circuit.py`, which carries a notice
+  prohibiting its use without Entropica Labs' written consent. Entropica has permitted this free, non-commercial
+  project to use it (see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)); its `BoolOp` conditions are in
+  Apache-2.0 `src/loom/eka/utilities/enums.py`.
 - **The other estimators, to double-precision rounding**: Qualtran's surface-code cost models
   (`stabilizer_qec.estimate`: Gidney–Fowler's and Beverland et al.'s schemes, the CCZ-to-2T and
   15-to-1 factories with Litinski's density-matrix error model, Litinski's data blocks, rotation
@@ -3058,6 +3058,6 @@ CC BY 4.0 for `python/stabilizer_qec/tqec/noise_model.py`, a port of tqec's file
 Gidney's data) and are listed, with their copyright notices, in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The Rust crates the compiled module links
 (PyO3, rand, wgpu and what they depend on, per wheel target) are listed with their licence texts
-in [THIRD_PARTY_CRATES.md](THIRD_PARTY_CRATES.md). One file is left out for its licence: Loom's
-`ifelse_circuit.py` (its if/else circuits), whose notice prohibits its use, distribution and
-reproduction without Entropica Labs' consent.
+in [THIRD_PARTY_CRATES.md](THIRD_PARTY_CRATES.md). One file is included under Entropica Labs' permission, for a free, non-commercial project that is not sold or
+behind a paywall: Loom's `ifelse_circuit.py` (its if/else circuits), whose notice prohibits its use without the
+company's written consent.

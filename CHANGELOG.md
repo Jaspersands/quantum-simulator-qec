@@ -10,6 +10,12 @@ policy for its documented items.
 
 ## Unreleased
 
+### Added
+
+- Loom's if/else circuits: `IfElseCircuit` and its `BoolOp` conditions, through every converter
+  (Stim, OpenQASM 3, PennyLane, CUDA-Q, Mimiq and Guppy). A port of el-loom 0.4.0's `ifelse_circuit.py`, used with
+  Entropica Labs' permission for a free, non-commercial project that is not sold or behind a paywall.
+
 ### Fixed
 
 - A circuit's or detector error model's `explain`, `shortest_graphlike`, `search_undetectable` and

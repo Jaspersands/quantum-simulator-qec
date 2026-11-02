@@ -449,10 +449,13 @@ Entropica Labs Pte Ltd and licensed under the Apache License, Version 2.0; the l
 `fixtures_gaps.json`, `fixtures_ops_a.json` and `fixtures_ops_b.json` record outputs of el-loom
 0.4.0 the tests compare against.
 
-Loom's if/else circuits are not ported. In el-loom 0.4.0 the file that defines them,
-`src/loom/eka/ifelse_circuit.py`, carries in place of the Apache-2.0 header a notice that
-prohibits its use, distribution and reproduction in source or compiled form without the express
-written consent of Entropica Labs Pte Ltd; nothing of it is in this package.
+`IfElseCircuit` (`python/stabilizer_qec/loom/ifelse_circuit.py`) is a port of Loom's if/else circuits from
+el-loom 0.4.0's `src/loom/eka/ifelse_circuit.py`. That file carries, in place of the Apache-2.0 header, a notice
+that prohibits its use, distribution and reproduction without the express written consent of Entropica Labs
+Pte Ltd. Entropica Labs has given this project its permission to use it, for a free, non-commercial project that
+is not sold, charged for or put behind a paywall. The port keeps the file's original notice (`python/stabilizer_qec/
+loom/LICENSE-ifelse_circuit`), and this permission is conditional on those terms: if the project ever charges
+for use, or is placed behind a paywall, the permission no longer covers it and the if/else port must be removed. `tests/loom_port/fixtures_ifelse.json` records el-loom 0.4.0's if-else circuits through its six converters.
 
 ## Qualtran
 

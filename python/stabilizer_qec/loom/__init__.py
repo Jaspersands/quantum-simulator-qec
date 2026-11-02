@@ -1,6 +1,7 @@
 """Loom's Eka model, interpreter, validator and exporters (Entropica Labs' `el-loom
 <https://github.com/entropicalabs/el-loom>`_ 0.4.0, ported; Apache License 2.0, see ``LICENSE``
-in this directory): blocks of stabilizers on a lattice, lattice-surgery operations on them
+in this directory, except ``IfElseCircuit``, whose original reserves its rights, see
+``LICENSE-ifelse_circuit``): blocks of stabilizers on a lattice, lattice-surgery operations on them
 (reset, syndrome rounds, logical measurements and Paulis, grow, shrink, merge, split and their
 conditionals; on the rotated surface code also the auxiliary CNOT, transversal Hadamard, T and S
 state injection, move, rotate and the Y-wall phase gate), Loom's other code factories (the
@@ -11,9 +12,8 @@ order follows a Python set: there, under the same ``PYTHONHASHSEED``), a validat
 and output codes on this package's tableau simulator, and exporters to Stim (this package's
 ``Circuit``, with the noise of Loom's circuit error models), OpenQASM 3, PennyLane, CUDA-Q,
 Mimiq and Guppy, with their readings of a run's outcome and Loom's ``Executor``. Loom's module
-paths import under this package only where ``_register_loom_paths`` registers them, for example
-``loom.eka.operations`` is ``stabilizer_qec.loom.eka.operations`` and ``loom_repetition_code.code_factory``
-is ``stabilizer_qec.loom.repetition_code.code_factory``; the other Loom module paths, such as ``loom.eka.eka``, do not.
+paths work under this package: ``loom.eka.operations`` is ``stabilizer_qec.loom.eka.operations``,
+``loom_repetition_code.code_factory`` is ``stabilizer_qec.loom.repetition_code.code_factory``.
 
 >>> from stabilizer_qec import loom
 >>> lattice = loom.Lattice.square_2d((15, 15))

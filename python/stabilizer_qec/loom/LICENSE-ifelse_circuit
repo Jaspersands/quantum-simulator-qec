@@ -1,0 +1,17 @@
+IfElseCircuit in ifelse_circuit.py is a port of Loom's src/loom/eka/ifelse_circuit.py
+(entropicalabs/el-loom 0.4.0, https://github.com/entropicalabs/el-loom) from a pydantic
+dataclass to a plain class. It follows that file's structure, fields and defaults, its messages
+word for word, its string layouts and the expressions of its methods closely. That file is the
+only one of the 160 Python files in el-loom 0.4.0's source distribution without the Apache
+License 2.0 header (the licence of the rest, in LICENSE in this directory). In its place it
+carries the following notice, kept here as it reads there:
+
+    Copyright (c) Entropica Labs Pte Ltd 2025.
+
+    Use, distribution and reproduction of this program in its source or compiled
+    form is prohibited without the express written consent of Entropica Labs Pte
+    Ltd.
+
+On 2026-10-21 the file on el-loom's main branch carried the same notice, and PyPI had no
+release later than 0.4.0. No consent of Entropica Labs Pte Ltd to this port has been obtained,
+so whether IfElseCircuit may be distributed, and under what licence, is unresolved.
